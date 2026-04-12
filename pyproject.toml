@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pylimma"
+description = "Python port of R limma for differential expression analysis"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "John Mulvey" }]
+keywords = [
+    "bioinformatics",
+    "rna-seq",
+    "proteomics",
+    "differential-expression",
+    "limma",
+    "voom",
+    "empirical-bayes",
+    "gene-set-testing",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dynamic = ["version"]
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "pandas>=1.5",
+    "anndata>=0.8",
+    "statsmodels>=0.14",
+    "patsy>=0.5",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.7"]
+dev = [
+    "pytest>=7",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+    "build",
+    "twine",
+]
+docs = [
+    "sphinx>=7",
+    "sphinx-rtd-theme",
+    "sphinx-autodoc-typehints",
+    "nbsphinx",
+    "ipykernel",
+]
+
+[project.urls]
+# URLs point at the planned public repository; ReadTheDocs and the
+# GitHub repo itself are still pending (see plan.md "Future Work").
+Documentation = "https://pylimma.readthedocs.io"
+Source        = "https://github.com/john-mulvey/pylimma"
+Issues        = "https://github.com/john-mulvey/pylimma/issues"
+
+[tool.setuptools.dynamic]
+version = { attr = "pylimma._version.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pylimma*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"

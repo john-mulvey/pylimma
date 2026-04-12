@@ -1,0 +1,2 @@
+# The data/ directory is committed (see edgePython's precedent).
+# Nothing is gitignored inside benchmarks/.
