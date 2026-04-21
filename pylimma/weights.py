@@ -245,7 +245,7 @@ def _array_weights_reml(
     """
     Estimate array weights by REML.
 
-    Faithful port of limma's .arrayWeightsREML (prior_art/limma/R/arrayWeightsREML.R).
+    Faithful port of limma's .arrayWeightsREML (limma/R/arrayWeightsREML.R).
     Uses an exact Fisher scoring algorithm similar to statmod::remlscor:
 
     - Initial unweighted fit filters genes with zero residual variance.
@@ -399,7 +399,7 @@ def _array_weights_pr_wts_reml(
     Estimate array weights by REML allowing for prior observation weights.
 
     Faithful per-gene Fisher-scoring port of limma's
-    .arrayWeightsPrWtsREML (prior_art/limma/R/arrayWeightsPrWtsREML.R).
+    .arrayWeightsPrWtsREML (limma/R/arrayWeightsPrWtsREML.R).
 
     Algorithmic structure mirrors :func:`_array_weights_reml` but accumulates
     Fisher information and the score *inside* the gene loop using

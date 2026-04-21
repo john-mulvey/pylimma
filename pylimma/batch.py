@@ -11,8 +11,8 @@ Batch-effect removal and surrogate-variable analysis for pylimma.
 
 Faithful ports:
 
-- ``remove_batch_effect`` (``prior_art/limma/R/removeBatchEffect.R``).
-- ``wsva`` (``prior_art/limma/R/wsva.R``). Weighted surrogate variable
+- ``remove_batch_effect`` (``limma/R/removeBatchEffect.R``).
+- ``wsva`` (``limma/R/wsva.R``). Weighted surrogate variable
   analysis; has an optional screeplot branch, so it lands in this
   module alongside ``remove_batch_effect`` rather than in
   ``plotting.py``.
@@ -126,7 +126,7 @@ def remove_batch_effect(
     Remove batch effects from a matrix of expression values.
 
     Faithful port of R limma's ``removeBatchEffect``
-    (``prior_art/limma/R/removeBatchEffect.R``). Fits a linear model
+    (``limma/R/removeBatchEffect.R``). Fits a linear model
     against a combined design of experimental conditions and batch
     covariates, then subtracts the estimated batch-coefficient
     contribution from the expression matrix.

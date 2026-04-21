@@ -58,10 +58,13 @@ for R. All are GPL-compatible with pylimma's GPL-3.0-or-later licence.
   affy (https://bioconductor.org/packages/affy)
     Used in:    pylimma/normalize.py normexp_fit(method="rma") ports
                 affy::bg.parameters (kernel-density-based RMA background
-                parameter estimation). Source is vendored at
-                prior_art/dependencies/affy for reference.
-    Vendored commit: b2e5a6675a642f692a54fcee94e7485bac03390c (affy 1.89.0)
-    Licence:    LGPL (>= 2.0); full text at prior_art/dependencies/affy/LICENSE.
+                parameter estimation). For R-side fixture regeneration,
+                the affy::bg.parameters function is vendored verbatim at
+                tests/fixtures/affy_bg_parameters.R so the parity script
+                can run without an affy install.
+    Reference commit: b2e5a6675a642f692a54fcee94e7485bac03390c (affy 1.89.0)
+    Licence:    LGPL (>= 2.0); see
+                https://bioconductor.org/packages/release/bioc/html/affy.html.
     Copyright:  Rafael A. Irizarry, Laurent Gautier, Benjamin Milo Bolstad,
                 Crispin Miller, and contributors.
 

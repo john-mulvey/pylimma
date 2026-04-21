@@ -6,7 +6,7 @@
 """
 ``genas`` - genuine association of gene expression profiles.
 
-Port of R limma's ``genas`` from ``prior_art/limma/R/genas.R``.
+Port of R limma's ``genas`` from ``limma/R/genas.R``.
 Implements the multivariate-t maximum-likelihood fit (null and
 alternative) and every ``subset`` branch in R's ``.whichGenes``.
 """

@@ -1800,13 +1800,12 @@ cat("  normexp.fit (rma75)...\n")
 fit_rma75 <- normexp.fit(E_fg[, 1], method = "rma75")
 write.csv(data.frame(par = fit_rma75$par), "R_normexp_fit_rma75.csv", row.names = FALSE)
 
-# normexp.fit (rma) delegates to affy::bg.parameters. affy is not installed,
-# so we source the function directly from the vendored clone under
-# prior_art/dependencies/affy and replicate normexp.fit's rma branch inline.
+# normexp.fit (rma) delegates to affy::bg.parameters. affy is not installed
+# so we source bg.parameters from the vendored sibling file
+# tests/fixtures/affy_bg_parameters.R (LGPL-2+, see that file's header for
+# attribution) and replicate normexp.fit's rma branch inline.
 cat("  normexp.fit (rma via vendored affy)...\n")
-affy_bg_path <- normalizePath("../../../prior_art/dependencies/affy/R/bg.R",
-                              mustWork = TRUE)
-source(affy_bg_path, local = TRUE)
+source("affy_bg_parameters.R", local = TRUE)
 rma_out <- bg.parameters(E_fg[, 1])
 fit_rma_par <- c(rma_out$mu, log(rma_out$sigma), -log(rma_out$alpha))
 write.csv(data.frame(par = fit_rma_par), "R_normexp_fit_rma.csv", row.names = FALSE)

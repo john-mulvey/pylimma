@@ -126,7 +126,7 @@ def top_table(
         Only genes with fold-change >= fc are returned. This is an
         alternative to `lfc`; if both are specified, `fc` takes precedence.
     lfc : float, default 0.0
-        Log2 fold-change cutoff. Only genes with |log_fc| >= lfc are
+        Log2 fold-change cutoff. Only genes with \|log_fc\| >= lfc are
         returned. Equivalent to log2(fc).
     confint : bool or float, default False
         If True, compute 95% confidence intervals for log fold-changes.

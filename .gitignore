@@ -47,3 +47,7 @@ Thumbs.db
 
 # Documentation
 docs/_build/
+docs/generated/
+
+# Local environment files
+.env

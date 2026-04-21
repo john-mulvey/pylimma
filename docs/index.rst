@@ -44,6 +44,22 @@ Contents
    tutorials/voom_rnaseq
    tutorials/proteomics
    tutorials/gene_set_testing
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Worked examples
+
+   tutorials/all_chiaretti
+   tutorials/gse60450
+   tutorials/pasilla
+   tutorials/yoruba
+   tutorials/kang_pbmc
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Validation
+
+   validation/parity_report
    validation/known_differences
    validation/fixtures
    validation/benchmarks

@@ -187,17 +187,17 @@ def decide_tests(
         If AnnData, reads from adata.uns[key].
     method : str, default "separate"
         Method for multiple testing correction:
+
         - "separate": adjust p-values for each coefficient separately
         - "global": adjust all p-values together
-        - "hierarchical": first test overall significance (F-test), then
-          adjust within significant genes
+        - "hierarchical": first test overall significance (F-test), then adjust within significant genes
         - "nestedF": use nested F-tests for multiple contrasts
     adjust_method : str, default "BH"
         P-value adjustment method: "BH", "bonferroni", "holm", "BY", "none".
     p_value : float, default 0.05
         Significance threshold for adjusted p-values.
     lfc : float, default 0.0
-        Log fold-change threshold. Genes with |logFC| < lfc are set to 0.
+        Log fold-change threshold. Genes with \|logFC\| < lfc are set to 0.
     key : str, default "pylimma"
         Key for fit results in adata.uns (AnnData input only).
 

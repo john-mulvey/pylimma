@@ -436,7 +436,8 @@ def voom_with_quality_weights(
     Returns
     -------
     dict
-        As for voom(), plus:
+        Same keys as :func:`voom`, with one addition:
+
         sample_weights : ndarray
             Per-sample quality weights.
 

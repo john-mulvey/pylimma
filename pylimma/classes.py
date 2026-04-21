@@ -56,7 +56,7 @@ def _as_matrix_weights(
     matrix.
 
     Port of R limma's private ``asMatrixWeights``
-    (``prior_art/limma/R/weights.R:57-88``). Accepts every shape R does:
+    (``limma/R/weights.R:57-88``). Accepts every shape R does:
 
     1. full ``(G, N)`` matrix - returned unchanged (copy).
     2. ``(1, N)`` row matrix with ``N == dim[1]`` - broadcast down rows.

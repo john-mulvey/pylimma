@@ -6,7 +6,7 @@
 """
 Area under ROC curve for empirical data.
 
-Port of R limma's ``auROC`` (``prior_art/limma/R/auROC.R``).
+Port of R limma's ``auROC`` (``limma/R/auROC.R``).
 """
 from __future__ import annotations
 

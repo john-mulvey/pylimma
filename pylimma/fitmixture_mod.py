@@ -19,7 +19,7 @@ def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
     """
     Fit a mixture model by non-linear least squares.
 
-    Port of ``prior_art/limma/R/fitmixture.R``.
+    Port of ``limma/R/fitmixture.R``.
 
     Parameters
     ----------

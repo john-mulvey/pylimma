@@ -24,7 +24,7 @@
 Between-array normalization for pylimma.
 
 Faithful port of the matrix-applicable methods in R limma's
-``normalizeBetweenArrays`` (``prior_art/limma/R/norm.R``):
+``normalizeBetweenArrays`` (``limma/R/norm.R``):
 
 - ``"none"``:        identity.
 - ``"scale"``:       median-centered scaling (``normalizeMedianValues``).
@@ -139,7 +139,7 @@ def normalize_median_values(x: np.ndarray) -> np.ndarray:
     Scale columns so they have the same median.
 
     Faithful port of R limma's ``normalizeMedianValues``
-    (``prior_art/limma/R/norm.R:523-533``).
+    (``limma/R/norm.R:523-533``).
     """
     x = np.asarray(x, dtype=np.float64)
     if x.ndim == 1 or x.shape[1] == 1:
@@ -154,7 +154,7 @@ def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
     Quantile-normalize columns of a matrix.
 
     Faithful port of R limma's ``normalizeQuantiles``
-    (``prior_art/limma/R/norm.R:468-509``). Handles missing values via
+    (``limma/R/norm.R:468-509``). Handles missing values via
     interpolation.
     """
     A = np.asarray(A, dtype=np.float64).copy()
@@ -236,7 +236,7 @@ def normalize_cyclic_loess(
     Cyclic LOESS normalisation of columns of a matrix.
 
     Faithful port of R limma's ``normalizeCyclicLoess``
-    (``prior_art/limma/R/norm.R:535-580``). All three R methods are
+    (``limma/R/norm.R:535-580``). All three R methods are
     implemented:
 
     - ``"fast"`` (default): each column vs the row mean.
@@ -261,9 +261,9 @@ def normalize_cyclic_loess(
 
     The ``adaptive_span`` default of ``False`` matches the installed R
     limma (3.66.0) used to generate the parity fixtures. The current
-    upstream ``prior_art`` source (modified 25 Feb 2026) flips this
-    default to ``True``; pylimma will follow that change once the
-    bundled limma version is upgraded.
+    upstream limma source (modified 25 Feb 2026) flips this default to
+    ``True``; pylimma will follow that change once the bundled limma
+    version is upgraded.
     """
     from .utils import loess_fit
 
@@ -686,7 +686,7 @@ def normexp_fit(
     Estimate parameters of the normal + exponential convolution model.
 
     Faithful port of R limma's ``normexp.fit``
-    (``prior_art/limma/R/background-normexp.R``). The compiled C
+    (``limma/R/background-normexp.R``). The compiled C
     routines (``fit_saddle_nelder_mead``, ``normexp_m2loglik``,
     ``normexp_gm2loglik``, ``normexp_hm2loglik``) are ported to pure
     NumPy/SciPy in the ``_normexp_*`` helpers.
@@ -860,7 +860,7 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     convolution model.
 
     Faithful port of R limma's ``normexp.signal``
-    (``prior_art/limma/R/background-normexp.R:3-23``).
+    (``limma/R/background-normexp.R:3-23``).
     """
     par = np.asarray(par, dtype=np.float64)
     x = np.asarray(x, dtype=np.float64)
@@ -916,7 +916,7 @@ def background_correct(
     Background-correct a single-channel intensity matrix or EList.
 
     Faithful port of R limma's ``backgroundCorrect.matrix``
-    (``prior_art/limma/R/background.R:40-108``). Accepts a matrix,
+    (``limma/R/background.R:40-108``). Accepts a matrix,
     dict / EList / AnnData carrying the foreground, with the background
     passed separately as ``background`` (matches ``backgroundCorrect.matrix``
     ``Eb`` parameter).
@@ -1020,7 +1020,7 @@ def aver_arrays(
     Average over technical-replicate columns.
 
     Faithful port of R limma's ``avearrays.default`` (matrix) and
-    ``avearrays.EList`` (``prior_art/limma/R/avearrays.R:6-64``). The
+    ``avearrays.EList`` (``limma/R/avearrays.R:6-64``). The
     unweighted path mirrors ``rowsum(..., reorder=FALSE)``: groups are
     ordered by first appearance (``unique(id)``), not sorted. The
     weighted path fits ``lm_fit(x, design=one_hot(id), weights=weights)``

@@ -45,19 +45,19 @@ Where fixtures live
 Tolerances
 ----------
 
-=============================================  ============================
-Output                                         Tolerance
-=============================================  ============================
-Expression matrices, design matrices           ``rtol=1e-10``
-Precision weights (voom, vooma)                ``rtol=1e-8``
-Quality weights (arrayWeights, arrayWeightsQuick)  ``rtol=1e-8``
-Coefficients, t-statistics, sigma              ``rtol=1e-8``
-P-values                                       log10 scale, max diff 1.0
-``normexp_fit(method="saddle")`` parameters    ``rtol=1e-3`` (see
-                                               :doc:`known_differences`)
-Rotation-test Monte-Carlo p-values             log10 scale, max diff 0.5
-                                               (see :doc:`known_differences`)
-=============================================  ============================
+====================================================  ============================
+Output                                                Tolerance
+====================================================  ============================
+Expression matrices, design matrices                  ``rtol=1e-10``
+Precision weights (voom, vooma)                       ``rtol=1e-8``
+Quality weights (arrayWeights, arrayWeightsQuick)     ``rtol=1e-8``
+Coefficients, t-statistics, sigma                     ``rtol=1e-8``
+P-values                                              log10 scale, max diff 1.0
+``normexp_fit(method="saddle")`` parameters           ``rtol=1e-3`` (see
+                                                      :doc:`known_differences`)
+Rotation-test Monte-Carlo p-values                    log10 scale, max diff 0.5
+                                                      (see :doc:`known_differences`)
+====================================================  ============================
 
 R and limma versions
 --------------------

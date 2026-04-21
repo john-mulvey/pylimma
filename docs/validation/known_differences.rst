@@ -18,7 +18,7 @@ of numerical-algorithm choices, not porting bugs. Both are quantified,
 reproducible, and inside published tolerances.
 
 normexp saddle-point fit drifts up to ~2e-4 from R
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``normexp_fit(method="saddle")`` parameters match R within
 ``rtol ~2e-4``; the objective function value agrees to
@@ -40,7 +40,7 @@ point on the flat saddle-likelihood plateau.
 better.
 
 Monte-Carlo rotation tests (``roast``, ``mroast``, ``romer``, ``gene_set_test``)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Rotation-based gene-set tests draw rotations from NumPy's PCG64 RNG.
 R uses the Mersenne Twister inside its own ``sample.int`` / ``rnorm``

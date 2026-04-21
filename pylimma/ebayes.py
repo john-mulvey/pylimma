@@ -496,7 +496,7 @@ def treat(
     Notes
     -----
     The key difference from e_bayes() is that TREAT computes p-values for
-    the hypothesis |logFC| > lfc, rather than logFC != 0. This is useful
+    the hypothesis \|logFC\| > lfc, rather than logFC != 0. This is useful
     when you want to find genes with biologically meaningful effect sizes.
 
     The returned fit contains:
