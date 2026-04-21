@@ -10,18 +10,18 @@ source tree; the raw JSON results are committed under
 Dataset set
 -----------
 
-======================  =================  ==============  ====================
-Slot                    Dataset            Shape           Upstream paper
-======================  =================  ==============  ====================
-Microarray              ALL (Chiaretti)    12,625 x 128    Chiaretti 2004, Blood
-RNA-seq, two-group      GSE60450 (mammary) 27,179 x 12     Fu 2015, NCB
-RNA-seq, scaling        Yoruba HapMap      38,415 x 69     Pickrell 2010, Nature
-Splicing                Pasilla            14,599 x 7      Brooks 2011, GR
-======================  =================  ==============  ====================
+====================  ====================  ==============  =====================
+Slot                  Dataset               Shape           Upstream paper
+====================  ====================  ==============  =====================
+Microarray            ALL (Chiaretti)       12,625 x 128    Chiaretti 2004, Blood
+RNA-seq, two-group    GSE60450 (mammary)    27,179 x 12     Fu 2015, NCB
+RNA-seq, scaling      Yoruba HapMap         38,415 x 69     Pickrell 2010, Nature
+Splicing              Pasilla               14,599 x 7      Brooks 2011, GR
+====================  ====================  ==============  =====================
 
 Full provenance, licence terms, and the extraction scripts for each
-dataset are documented in ``benchmarks/data/DATA_PROVENANCE.md`` in
-the source tree. All four upstream licences (Artistic-2.0, NCBI
+dataset are documented in ``data/DATA_PROVENANCE.md`` in the source
+tree. All four upstream licences (Artistic-2.0, NCBI
 public data, LGPL, MIT) are compatible with pylimma's
 GPL-3.0-or-later. Users running the benchmarks do not need R or any
 Bioconductor data packages - the CSVs are committed to the repo.
@@ -61,14 +61,14 @@ pylimma reproduces R limma's top-table output to floating-point
 precision on every pipeline in the benchmark suite. Median relative
 differences across all genes, computed on R 4.5.2 + limma 3.66.0:
 
-==============  ================  ======================  ==========================
-Dataset         Pipeline          Max relative difference  Median relative difference
-==============  ================  ======================  ==========================
-ALL             core              6.4e-10                 1.6e-14
-GSE60450        voom              3.5e-7                  6.9e-12
-Yoruba          voom              3.8e-6                  7.8e-11
-Pasilla         splicing          3.2e-10                 6.3e-14
-==============  ================  ======================  ==========================
+==============  ================  ========================  ==========================
+Dataset         Pipeline          Max relative difference   Median relative difference
+==============  ================  ========================  ==========================
+ALL             core              6.4e-10                   1.6e-14
+GSE60450        voom              3.5e-7                    6.9e-12
+Yoruba          voom              3.8e-6                    7.8e-11
+Pasilla         splicing          3.2e-10                   6.3e-14
+==============  ================  ========================  ==========================
 
 The four ``examples/<dataset>/<dataset>_R_vs_Python.ipynb`` notebooks
 recompute these numbers live and additionally plot R-vs-pylimma

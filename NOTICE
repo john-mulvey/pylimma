@@ -1,17 +1,9 @@
-pylimma
-=======
+pylimma - attribution notice
+============================
 
-Copyright (C) 2026 John Mulvey
-
-This product is a Python port of R limma (Linear Models for Microarray and
-Omics Data), the most widely used Bioconductor package for differential
-expression analysis. Substantial portions of pylimma's algorithms,
-parameter semantics, and statistical methods are derived from the R
-implementation.
-
-The Python port is licensed under the GNU General Public License version 3
-or any later version (GPL-3.0-or-later), in conformance with R limma's
-licence grant of "GPL (>=2)".
+This file records the upstream projects whose code or algorithms pylimma
+ports. Copyright and licence terms are in LICENSE. Citation guidance is
+in README.md.
 
 R limma upstream
 ----------------
@@ -86,44 +78,7 @@ upstream is also credited in the per-file header.
 Bundled benchmark datasets
 --------------------------
 
-pylimma's benchmark suite (benchmarks/data/) redistributes four publicly
-available biological datasets. All four upstream licences are compatible
-with pylimma's GPL-3.0-or-later licence. See
-benchmarks/data/DATA_PROVENANCE.md for the full dataset table with
-upstream papers, sources, and licences. Summary:
-
-  ALL (Chiaretti et al. 2004)          Artistic-2.0
-    via Bioconductor ALL package
-    Authors: Xiaochun Li; Robert Gentleman (maintainer)
-
-  GSE60450 (Fu et al. 2015)            Public data (NCBI GEO)
-    via NCBI GEO supplementary file
-
-  Pasilla (Brooks et al. 2011)         LGPL
-    via Bioconductor pasilla package
-    Authors: Wolfgang Huber, Alejandro Reyes
-
-  Pickrell / Yoruba HapMap             MIT
-    (Pickrell et al. 2010)
-    via Bioconductor tweeDEseqCountData package
-    Maintainer: Dolors Pelegri-Siso
-
-If you publish work using these datasets, cite the upstream paper
-for each (not pylimma).
-
-Citation
---------
-
-Please cite the original limma papers when using pylimma:
-
-  Smyth, G. K. (2004). Linear models and empirical Bayes methods for
-  assessing differential expression in microarray experiments.
-  Statistical Applications in Genetics and Molecular Biology 3, Article 3.
-
-  Ritchie, M. E., Phipson, B., Wu, D., Hu, Y., Law, C. W., Shi, W., and
-  Smyth, G. K. (2015). limma powers differential expression analyses for
-  RNA-sequencing and microarray studies. Nucleic Acids Research 43(7), e47.
-
-  Law, C. W., Chen, Y., Shi, W., and Smyth, G. K. (2014). voom: precision
-  weights unlock linear model analysis tools for RNA-seq read counts.
-  Genome Biology 15, R29.
+pylimma redistributes four publicly available biological datasets under
+licences compatible with GPL-3.0-or-later in the ``data/`` directory.
+See ``data/DATA_PROVENANCE.md`` for the full dataset table with upstream
+papers, sources, and licences.

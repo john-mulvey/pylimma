@@ -180,4 +180,4 @@ The kinds of contribution that are especially useful:
 - Additional R-parity fixtures for functions or parameter combinations not yet covered.
 - Performance work on the hotter routines (for example `voom`, `camera`, `duplicate_correlation`), where we currently are less performant than the C code contained within the limma R package.
 
-The issue tracker at [github.com/john-mulvey/pylimma/issues](https://github.com/john-mulvey/pylimma/issues) is the primary entry point. A `CONTRIBUTING.md` with code style, commit conventions, and the PR process will land alongside the first tagged release. Until then, please open an issue to discuss larger changes before sending a pull request.
+The issue tracker at [github.com/john-mulvey/pylimma/issues](https://github.com/john-mulvey/pylimma/issues) is the primary entry point. Please open an issue to discuss larger changes before sending a pull request.

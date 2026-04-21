@@ -4,7 +4,7 @@
 # schema compatible with run_python.py, so run_benchmarks.ipynb
 # consumes both without branching.
 #
-# The CSVs in data/ are the SAME files Python reads - no per-runtime
+# The CSVs in ../data/ are the SAME files Python reads - no per-runtime
 # preprocessing, no drift.
 #
 # Reproducibility:
@@ -17,7 +17,7 @@ suppressPackageStartupMessages({
 })
 
 N_REPS      <- 5
-DATA_DIR    <- "data"
+DATA_DIR    <- "../data"
 RESULTS_DIR <- "results"
 dir.create(RESULTS_DIR, showWarnings = FALSE)
 
