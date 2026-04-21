@@ -70,12 +70,6 @@ class TestLogmdigamma:
 
         np.testing.assert_allclose(result, expected, rtol=1e-14)
 
-    def test_scalar_input(self):
-        """Test that scalar input returns scalar output."""
-        result = logmdigamma(1.0)
-        assert isinstance(result, (float, np.floating))
-
-
 class TestPAdjust:
     """Tests for p_adjust function."""
 

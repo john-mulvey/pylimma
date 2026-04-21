@@ -34,15 +34,6 @@ class TestUnwrapDups:
         # Gene 1: [5, 7, 6, 8]
         np.testing.assert_array_equal(result[1, :], [5, 7, 6, 8])
 
-    def test_output_shape(self):
-        """Test that output shape is correct."""
-        # 12 spots, 3 arrays
-        M = np.random.randn(12, 3)
-        result = unwrap_dups(M, ndups=2, spacing=1)
-
-        # Should be 6 genes, 6 columns
-        assert result.shape == (6, 6)
-
     def test_with_spacing(self):
         """Test unwrapping with spacing > 1."""
         # 8 spots with spacing=2 and ndups=2

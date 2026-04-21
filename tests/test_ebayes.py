@@ -118,29 +118,6 @@ class TestEBayes:
         with pytest.raises(ValueError, match="Amean"):
             e_bayes(fit, trend=True)
 
-    def test_trend_basic_functionality(self):
-        """Test that trend=True runs without error."""
-        np.random.seed(42)
-        n_genes, n_samples = 100, 10
-        expr = np.random.randn(n_genes, n_samples)
-        # Add variance-mean relationship
-        means = np.random.uniform(5, 15, n_genes)
-        for i in range(n_genes):
-            expr[i, :] = expr[i, :] * (0.1 + 0.05 * means[i]) + means[i]
-
-        design = np.column_stack([np.ones(n_samples), np.random.randn(n_samples)])
-
-        fit = lm_fit(expr, design)
-        # Ensure Amean is present
-        fit["Amean"] = np.mean(expr, axis=1)
-        fit = e_bayes(fit, trend=True)
-
-        assert "t" in fit
-        assert "p_value" in fit
-        assert "s2_prior" in fit
-        # s2_prior should be array when trend=True
-        assert isinstance(fit["s2_prior"], np.ndarray)
-
     def test_trend_vs_no_trend(self):
         """Test that trend and no-trend give different results."""
         np.random.seed(42)

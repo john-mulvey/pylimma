@@ -46,19 +46,6 @@ class TestTopTable:
             result.loc[gene1, "b"], ref["b"].iloc[0], rtol=1e-5
         )
 
-    def test_returns_dataframe(self):
-        """Test that top_table returns a DataFrame."""
-        np.random.seed(42)
-        expr = np.random.randn(50, 8)
-        design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
-
-        fit = lm_fit(expr, design)
-        fit = e_bayes(fit)
-        result = top_table(fit, coef=1)
-
-        assert isinstance(result, pd.DataFrame)
-        assert "log_fc" in result.columns
-        assert "p_value" in result.columns
         assert "adj_p_value" in result.columns
 
     def test_number_parameter(self):

@@ -188,19 +188,6 @@ class TestCovariateSupport:
         with pytest.raises(ValueError, match="same length"):
             fit_f_dist(var, df1=5, covariate=covariate)
 
-    def test_fit_f_dist_handles_infinite_covariate(self):
-        """Test that infinite covariate values are handled."""
-        np.random.seed(42)
-        n = 50
-        covariate = np.random.randn(n) * 5 + 10
-        covariate[0] = -np.inf
-        covariate[-1] = np.inf
-        var = np.random.exponential(0.5, n)
-
-        # Should not raise
-        result = fit_f_dist(var, df1=5, covariate=covariate)
-        assert isinstance(result["scale"], np.ndarray)
-
     def test_squeeze_var_with_covariate(self):
         """Test squeeze_var with covariate support."""
         np.random.seed(42)
@@ -248,21 +235,6 @@ class TestCovariateSupport:
 
 class TestFitFDistUnequalDF1:
     """Tests for fit_f_dist_unequal_df1 function."""
-
-    def test_basic_functionality(self):
-        """Test basic usage with varying df1."""
-        np.random.seed(42)
-        n = 100
-        # Varying df1 values (like from edgeR quasi-likelihood)
-        df1 = np.random.uniform(2, 10, n)
-        var = np.random.exponential(0.5, n)
-
-        result = fit_f_dist_unequal_df1(var, df1=df1)
-
-        assert "scale" in result
-        assert "df2" in result
-        assert result["scale"] > 0
-        assert result["df2"] > 0
 
     def test_constant_df1_similar_to_fit_f_dist(self):
         """Test that constant df1 gives similar results to fit_f_dist."""

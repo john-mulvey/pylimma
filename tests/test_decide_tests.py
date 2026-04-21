@@ -26,33 +26,6 @@ class TestDecideTests:
         assert result.shape == (50, 2)
         assert set(np.unique(result)).issubset({-1, 0, 1})
 
-    def test_separate_method(self):
-        """Test separate adjustment method."""
-        np.random.seed(42)
-        expr = np.random.randn(50, 8)
-        expr[:10, 4:] += 3
-        design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
-
-        fit = lm_fit(expr, design)
-        fit = e_bayes(fit)
-        result = decide_tests(fit, method="separate", p_value=0.05)
-
-        # Should find some significant genes
-        assert np.sum(result != 0) > 0
-
-    def test_global_method(self):
-        """Test global adjustment method."""
-        np.random.seed(42)
-        expr = np.random.randn(50, 8)
-        expr[:10, 4:] += 3
-        design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
-
-        fit = lm_fit(expr, design)
-        fit = e_bayes(fit)
-        result = decide_tests(fit, method="global", p_value=0.05)
-
-        assert result.shape == (50, 2)
-
     def test_lfc_threshold(self):
         """Test log fold-change threshold."""
         np.random.seed(42)

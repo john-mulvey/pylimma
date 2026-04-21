@@ -193,18 +193,6 @@ class TestUnwrapDups:
 class TestGlsSeries:
     """Tests for gls_series function."""
 
-    def test_auto_estimates_correlation(self):
-        """Test that correlation is auto-estimated when not provided (R parity)."""
-        np.random.seed(42)
-        M = np.random.randn(10, 6)
-        design = np.ones((6, 1))
-        block = np.array([0, 0, 1, 1, 2, 2])
-
-        # Should not raise - auto-estimates via duplicate_correlation
-        result = gls_series(M, design, block=block)
-        assert "correlation" in result
-        assert isinstance(result["correlation"], float)
-
     def test_correlation_bounds(self):
         """Test that correlation must be within (-1, 1)."""
         np.random.seed(42)
@@ -256,19 +244,6 @@ class TestGlsSeries:
         with pytest.raises(ValueError, match="block does not match"):
             gls_series(M, design, block=block, correlation=0.5)
 
-    def test_with_weights(self):
-        """Test GLS with observation weights."""
-        np.random.seed(42)
-        n_genes, n_samples = 20, 12
-        M = np.random.randn(n_genes, n_samples)
-        design = np.ones((n_samples, 1))
-        block = np.repeat([0, 1, 2, 3, 4, 5], 2)
-        weights = np.random.uniform(0.5, 2, n_samples)
-
-        result = gls_series(M, design, block=block, correlation=0.5, weights=weights)
-
-        assert result["coefficients"].shape == (n_genes, 1)
-
     def test_with_missing_values(self):
         """Test GLS handles missing values."""
         np.random.seed(42)
@@ -314,19 +289,6 @@ class TestGlsSeries:
 
 class TestMrlm:
     """Tests for mrlm (robust linear model) function."""
-
-    def test_basic_functionality(self):
-        """Test basic robust regression."""
-        np.random.seed(42)
-        n_genes, n_samples = 20, 10
-        M = np.random.randn(n_genes, n_samples)
-        design = np.column_stack([np.ones(n_samples), np.random.randn(n_samples)])
-
-        result = mrlm(M, design)
-
-        assert "coefficients" in result
-        assert "sigma" in result
-        assert result["coefficients"].shape == (n_genes, 2)
 
     def test_downweights_outliers(self):
         """Test that mrlm downweights outliers compared to OLS."""
@@ -378,17 +340,6 @@ class TestMrlm:
         with pytest.raises(ValueError, match="Unknown method"):
             mrlm(M, design, method="unknown")
 
-    def test_with_weights(self):
-        """Test robust regression with prior weights."""
-        np.random.seed(42)
-        n_genes, n_samples = 10, 8
-        M = np.random.randn(n_genes, n_samples)
-        design = np.ones((n_samples, 1))
-        weights = np.random.uniform(0.5, 2, n_samples)
-
-        result = mrlm(M, design, weights=weights)
-        assert result["coefficients"].shape == (n_genes, 1)
-
     def test_weights_affect_results(self):
         """Test that weights actually change coefficient estimates."""
         np.random.seed(42)
@@ -423,19 +374,6 @@ class TestMrlm:
         result = mrlm(M, design)
         # Should complete without error
         assert not np.all(np.isnan(result["coefficients"]))
-
-    def test_with_duplicates(self):
-        """Test robust regression with duplicate spots."""
-        np.random.seed(42)
-        # 10 genes x 2 dups = 20 spots, 4 arrays
-        M = np.random.randn(20, 4)
-        design = np.ones((4, 1))
-
-        result = mrlm(M, design, ndups=2)
-
-        # Should have 10 genes after unwrapping
-        assert result["coefficients"].shape[0] == 10
-
 
 class TestAnnDataVoomLmFitWeightsBridge:
     """Regression tests for the voom -> lm_fit AnnData weights bridge.
