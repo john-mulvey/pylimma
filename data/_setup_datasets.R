@@ -9,11 +9,11 @@
 # to its pre-run state as possible.
 #
 # Run once on the maintainer's machine; the committed CSVs in
-# benchmarks/data/ are then the source of truth for every subsequent
-# benchmark run. Users do not need to re-run this.
+# data/ are then the source of truth for every subsequent benchmark
+# run. Users do not need to re-run this.
 #
 # Usage:
-#   cd pylimma/benchmarks
+#   cd pylimma/data
 #   Rscript _setup_datasets.R
 # ------------------------------------------------------------------
 

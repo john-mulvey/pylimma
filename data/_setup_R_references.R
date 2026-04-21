@@ -3,14 +3,14 @@
 # ONE-TIME GENERATION OF R REFERENCE PIPELINE OUTPUTS
 #
 # Runs the canonical R limma pipelines on the four committed benchmark
-# datasets and writes top-tables to benchmarks/data/R_references/.
+# datasets and writes top-tables to data/R_references/.
 # The parity notebooks under examples/ load these CSVs and compare
 # them to pylimma output computed live in Python.
 #
 # Only limma + edgeR are required; no Bioconductor data packages.
 #
 # Usage:
-#   cd pylimma/benchmarks
+#   cd pylimma/data
 #   Rscript _setup_R_references.R
 # ------------------------------------------------------------------
 
@@ -19,7 +19,7 @@ suppressPackageStartupMessages({
     library(edgeR)
 })
 
-OUT <- "data/R_references"
+OUT <- "R_references"
 dir.create(OUT, showWarnings = FALSE, recursive = TRUE)
 
 cat(sprintf("R %s; limma %s; edgeR %s\n",

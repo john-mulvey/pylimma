@@ -1,11 +1,11 @@
 """
 Load the four benchmark datasets from the committed CSVs.
 
-Data in ``benchmarks/data/`` is the source of truth - it was extracted
+Data in ``data/`` is the source of truth - it was extracted
 once from the Bioconductor data packages (ALL, pasilla,
 tweeDEseqCountData) plus GEO (GSE60450) by the maintainer. See
 ``_setup_datasets.R`` and ``_setup_gse60450.py`` for the extraction
-scripts, and ``README.md`` for the dataset provenance table.
+scripts, and ``DATA_PROVENANCE.md`` for the dataset provenance table.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import numpy as np
 import pandas as pd
 
 
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = Path(__file__).parent
 
 
 def _require(path: Path) -> Path:
