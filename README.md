@@ -4,21 +4,18 @@ A Python port of [R limma](https://bioconductor.org/packages/limma/) for differe
 
 [![PyPI version](https://img.shields.io/pypi/v/pylimma)](https://pypi.org/project/pylimma/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
-<!-- [![DOI](https://img.shields.io/badge/DOI-pending-lightgrey)](https://doi.org/PREPRINT_DOI_PENDING) -->
 
 ## Scope
 
-pylimma is a comprehensive port of limma, with the exception of some microarray specific functionality that we do not anticipate is commonly used.
+pylimma is a comprehensive port of limma with demonstrated parity in output to the R package.
 
-pylimma covers linear modelling with empirical Bayes moderation (`lm_fit`, `contrasts_fit`, `e_bayes`, `treat`, `top_table`), voom and RNA-seq precision weights, normalisation and background correction, batch correction and surrogate variables, duplicate correlation and array weights, competitive and self-contained gene-set testing (camera, roast, mroast, fry, romer, geneSetTest), differential splicing, diagnostics plots, and the supporting statistical utilities.
+pylimma covers linear modelling with empirical Bayes moderation (`lm_fit`, `contrasts_fit`, `e_bayes`, `treat`, `top_table`), voom and RNA-seq precision weights, normalisation and background correction, batch correction and surrogate variables, duplicate correlation and array weights, competitive and self-contained gene-set testing (camera, roast, mroast, fry, romer, geneSetTest), differential splicing, diagnostics plots, and the supporting statistical utilities. Some microarray specific functionality that we do not anticipate is commonly used has not been ported.
 
-It accepts three input idioms for the same analysis:
+It accepts three input idioms for any analysis:
 
 - **Flat array-like objects** - a NumPy `ndarray` or a pandas `DataFrame` of genes x samples
 - **`EList`** - a Python port of R limma's `EList` class, implemented as a `dict` subclass in `pylimma.classes` with slots `E`, `weights`, `genes`, `targets`, `design`
-- **`AnnData`** - read from `adata.X` or `adata.layers[layer]`, with shape-preserving outputs written back to `adata.layers[...]` and fits stored in `adata.uns[...]`
-
-Input and output dispatch lives in a single place (`pylimma/classes.py`); all public functions route through it.
+- **`AnnData`** - read from `adata.X` or `adata.layers[layer]`, with shape-preserving outputs written back to `adata.layers[...]` and fits stored in `adata.uns[...]`.
 
 ## Installation
 
@@ -33,7 +30,7 @@ Requires Python >= 3.10.
 
 ## Quick start
 
-The canonical limma workflow in Python mirrors the R workflow one-for-one: `lm_fit` then `contrasts_fit` then `e_bayes` then `top_table`. Parameter names and defaults follow R limma.
+The canonical limma workflow in Python mirrors the R workflow one-for-one: `lm_fit`, `contrasts_fit`, `e_bayes` then `top_table`. Parameter names and defaults follow R limma.
 
 ```python
 import numpy as np
@@ -61,13 +58,15 @@ fit = e_bayes(fit)
 print(top_table(fit, coef="GroupBvsA").head())
 ```
 
-The result is a pandas `DataFrame` with the standard limma columns (`log_fc`, `ave_expr`, `t`, `p_value`, `adj_p_value`, `B`), sorted by B-statistic.
+The result here is a pandas `DataFrame` with the standard limma columns (`log_fc`, `ave_expr`, `t`, `p_value`, `adj_p_value`, `b`), sorted by B-statistic (as is the case for the R package).
 
-## Data structures
+## Validation and R parity
 
-pylimma offers three equivalent idioms for the same analysis - pick whichever matches your workflow.
+pylimma's output is validated against R limma on a reference corpus covering every public function. In many cases we demonstrate parity close to the precision limit of double-precision floating-point arithmetic. Agreement with the limma release ported (3.66.0) is tighter than the variation between different versions of limma itself: on voom-based pipelines, pylimma matches 3.66.0 to floating-point precision, whereas earlier limma releases (e.g. 3.54.2) diverge from 3.66.0 by up to a few percent.
 
-### AnnData (scverse-native)
+## AnnData and the scverse ecosystem
+
+Beyond the R-parity port, pylimma has been extended to operate natively on `AnnData` objects so that limma workflows slot into the scverse ecosystem alongside scanpy and muon. Any public function that consumes expression data (`voom`, `lm_fit`, `normalize_between_arrays`, `array_weights`, `duplicate_correlation`, ...) accepts an `AnnData` in place of a matrix. Shape-preserving outputs are written to `adata.layers[...]`, fits to `adata.uns[...]`, and results retrieved with the usual `top_table` / `decide_tests` calls:
 
 ```python
 import pylimma as pl
@@ -80,64 +79,58 @@ pl.e_bayes(adata)
 results = pl.top_table(adata, coef=1)     # returns a DataFrame
 ```
 
-### EList (R-style)
+## Examples
 
-```python
-from pylimma import EList, voom, lm_fit, e_bayes, top_table
+The [`examples/`](examples/) directory contains tutorial notebooks organised by workflow. Each tutorial is self-contained, and together they cover the three input idioms (flat array/DataFrame, `EList`, and `AnnData`) across threee different workflows. Side-by-side R-vs-Python notebooks are provided for most datasets.
 
-el  = EList({"E": counts, "design": design})   # genes x samples
-v   = voom(el)
-fit = lm_fit(v, design)
-fit = e_bayes(fit)
-results = top_table(fit, coef=1)
-```
+### Microarray differential expression
 
-### Flat arrays
+The Chiaretti et al. acute lymphoblastic leukaemia microarray dataset ([Chiaretti et al. 2004](https://doi.org/10.1182/blood-2003-09-3243)) demonstrates the classical limma microarray pipeline (`lm_fit` -> `contrasts_fit` -> `e_bayes` -> `top_table`) on the `EList` input idiom:
 
-NumPy arrays and pandas DataFrames are accepted directly (genes x samples). Fit objects are returned as `MArrayLM` (a `dict` subclass), so `fit["coefficients"]` and `fit.coefficients` both work.
+- [`all_chiaretti_tutorial.ipynb`](examples/all_chiaretti/all_chiaretti_tutorial.ipynb) - pylimma-only tutorial
+- [`all_R_vs_Python.ipynb`](examples/all_chiaretti/all_R_vs_Python.ipynb) - side-by-side R limma vs pylimma comparison
 
-## Features
+### Bulk RNA-seq with voom
 
-- **Linear modelling**: `lm_fit`, `contrasts_fit`, `make_contrasts`, `e_bayes`, `treat`, `top_table`, `decide_tests`, `squeeze_var`.
-- **RNA-seq**: `voom`, `voom_with_quality_weights`, `vooma`, `vooma_lm_fit`.
-- **Normalisation**: `normalize_between_arrays` (single-channel), `normalize_quantiles`, `normalize_cyclic_loess`, `background_correct`, `normexp_fit`, `normexp_signal`, `aver_arrays`.
-- **Batch and surrogate variables**: `remove_batch_effect`, `wsva`.
-- **Duplicates and replication**: `duplicate_correlation`, `ave_dups`, `avereps`, `array_weights`, `array_weights_quick`.
-- **Gene-set testing**: `ids2indices`, `roast`, `mroast`, `fry`, `camera`, `camera_pr`, `inter_gene_correlation`, `romer`, `gene_set_test`, `rank_sum_test_with_correlation`.
-- **Splicing**: `diff_splice`, `top_splice`, `plot_splice`.
-- **Plotting**: `plot_ma`, `plot_md`, `volcano_plot`, `plot_sa`, `plot_densities`, `plot_mds`, `venn_counts`, `venn_diagram`, `coolmap`, `barcode_plot`.
-- **Stats utilities**: `zscore_t`, `tricube_moving_average`, `convest`, `prop_true_null`, `detection_p_values`.
-- **Data classes**: `EList`, `MArrayLM` (both are `dict` subclasses, so `fit["coefficients"]` and `fit.coefficients` both work).
+The GSE60450 mouse mammary RNA-seq dataset ([Fu et al. 2015](https://doi.org/10.1038/ncb3117)) demonstrates the canonical voom pipeline (`voom` -> `lm_fit` -> `e_bayes` -> `top_table`) on a plain count matrix:
 
-## Validation and R parity
+- [`gse60450_tutorial.ipynb`](examples/gse60450/gse60450_tutorial.ipynb) - pylimma-only tutorial
+- [`gse60450_R_vs_Python.ipynb`](examples/gse60450/gse60450_R_vs_Python.ipynb) - side-by-side R limma vs pylimma comparison
 
-The port is validated against R limma as follows:
+The Yoruba HapMap RNA-seq dataset ([Pickrell et al. 2010](https://doi.org/10.1038/nature08872)) demonstrates voom in combination with `duplicate_correlation` for handling technical replicates:
 
-- Every public function has a CSV fixture generated by [`tests/fixtures/generate_all_fixtures.R`](tests/fixtures/generate_all_fixtures.R) and a parity test in `tests/test_r_parity.py`.
-- Comparison tolerance is `rtol=1e-6` for numeric output; p-values are compared on the log-10 scale.
-- Fixture CSVs are checked into the repository. Running `pytest` does not require R installed; only regenerating the fixtures does.
-- Two documented gaps - `normexp_fit(method="saddle")` (flat-plateau drift against R's `nmmin`) and rotation-test Monte Carlo p-values (`roast`, `mroast`, `romer`) - are quantified in [`docs/validation/known_differences.rst`](docs/validation/known_differences.rst). All other public functions match R output to the stated tolerance.
-- Each ported module carries an SPDX header naming the R source files it ports from and the contributors listed in those files' R header comments. The full upstream attribution, including ports of algorithms from `MASS`, `statmod`, base R `splines`, and `affy`, is summarised in [`NOTICE`](NOTICE).
+- [`yoruba_tutorial.ipynb`](examples/yoruba/yoruba_tutorial.ipynb) - pylimma-only tutorial
+- [`yoruba_R_vs_Python.ipynb`](examples/yoruba/yoruba_R_vs_Python.ipynb) - side-by-side R limma vs pylimma comparison
 
-## Authorship and credit
+### Single-cell pseudobulk differential expression
 
-pylimma is a port, not a new method. All statistical credit belongs to Gordon Smyth and the limma contributors listed in [`NOTICE`](NOTICE). The core methodology is set out in Smyth (2004), Ritchie et al. (2015), and Law et al. (2014); the full methodology citation list is below.
+The Kang 2018 PBMC dataset ([Kang et al. 2018](https://doi.org/10.1038/nbt.4042)) demonstrates the `AnnData` input idiom end-to-end - pseudobulk aggregation per cell type followed by per-cluster differential expression, with fits stored in `adata.uns`:
 
-The Python implementation was written primarily by [Claude Code](https://www.anthropic.com/claude-code), working under my direction and review. I (John Mulvey) am named as the package author and maintainer and carry responsibility for correctness as the auditor of the port, but the large majority of the line-level Python was produced by Claude Code.
+- [`kang_pbmc_tutorial.ipynb`](examples/kang_pbmc/kang_pbmc_tutorial.ipynb) - pylimma-only tutorial
 
-The porting workflow was as follows, and is the concrete basis on which readers should evaluate the port:
+### Differential splicing
 
-- The R limma source was read as the sole specification. Each Python module was ported from its R counterpart at the function level, preserving parameter semantics and defaults.
-- Every public function has a CSV fixture generated from R limma and a parity test at `rtol=1e-6`. A function was not accepted into the library until it passed its parity test.
-- Each ported module carries a per-file SPDX header naming the R source files and contributors; `NOTICE` lists the full upstream attribution.
+The pasilla *Drosophila* exon-level dataset ([Brooks et al. 2011](https://doi.org/10.1101/gr.108662.110)) demonstrates the differential splicing workflow (`diff_splice`, `top_splice`, `plot_splice`):
 
-## Related work: edgePython
+- [`pasilla_tutorial.ipynb`](examples/pasilla/pasilla_tutorial.ipynb) - pylimma-only tutorial
+- [`pasilla_R_vs_Python.ipynb`](examples/pasilla/pasilla_R_vs_Python.ipynb) - side-by-side R limma vs pylimma comparison
 
-I became aware of Lior Pachter's [edgePython](https://github.com/pachterlab/edgePython) - a python port of edgeR - partway through pylimma's implementation. The two projects target different upstream packages (limma for pylimma, edgeR for edgePython) and were developed in parallel, but share a methodology: an LLM-implemented port of a widely used R Bioconductor package, audited by a domain scientist.
+## Authorship
 
-## Citation
+The Python implementation was written primarily by Claude Code (Opus 4.5-4.7), working under my direction and review of John Mulvey. I carry responsibility for correctness as the auditor of the port, but the large majority of the line-level Python was produced by Claude Code.
 
-pylimma is a port, not a new method. If you use it in published work, please cite the original limma methodology papers:
+## Citing pylimma
+
+pylimma is a port, not a new method: no statistical methodology is introduced here. If you use pylimma in published work, please include two distinct citations:
+
+1. **Software citation** - the pylimma implementation itself. <!-- Preprint citation to be added here once available: Mulvey, J. F. <title> (2026). bioRxiv. doi:<DOI> -->
+2. **Methodology citation(s)** - the relevant original limma paper(s) listed under [limma](#limma) below, for the statistical methods underlying your analysis.
+
+### limma
+
+pylimma is a port of the [limma](https://bioconductor.org/packages/limma/) Bioconductor package. All statistical credit belongs to Gordon Smyth and the limma contributors listed in [`NOTICE`](NOTICE).
+
+The limma publications are:
 
 - Smyth, G. K. (2004). Linear models and empirical Bayes methods for assessing differential expression in microarray experiments. *Statistical Applications in Genetics and Molecular Biology* 3(1), Article 3. [doi:10.2202/1544-6115.1027](https://doi.org/10.2202/1544-6115.1027)
 
@@ -171,11 +164,11 @@ pylimma is a port, not a new method. If you use it in published work, please cit
 
 - Baldoni, P. L., Chen, L., Li, M., Chen, Y., and Smyth, G. K. (2025). Dividing out quantification uncertainty enables assessment of differential transcript usage with limma and edgeR. *Nucleic Acids Research* 53(22), gkaf1305. [doi:10.1093/nar/gkaf1305](https://doi.org/10.1093/nar/gkaf1305)
 
+pylimma additionally ports algorithms from the R packages `MASS`, `statmod`, base R `splines`, and `affy`. Per-module attribution to upstream contributors is recorded in each ported module's SPDX header and summarised in [`NOTICE`](NOTICE).
+
 ## Licence
 
-pylimma is a derivative work of limma. It is therefore licensed under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**. See [`LICENSE`](LICENSE) for the full text.
-
-pylimma additionally ports algorithms from the R packages `MASS`, `statmod`, base R `splines`, and `affy`. Per-module attribution to upstream contributors is recorded in each ported module's SPDX header and summarised in [`NOTICE`](NOTICE).
+pylimma is a derivative work of limma. It is therefore licensed under the **GNU General Public License v3.0 or later (GPL-3.0-or-later)**.
 
 ## Contributing
 
@@ -183,10 +176,8 @@ Contributions are welcome and wanted!
 
 The kinds of contribution that are especially useful:
 
-- Bug reports, particularly numerical divergences from R limma output. Fixture-reproducible reports (a small input that demonstrates the divergence) are the quickest to resolve.
+- Bug reports. We have taken great effort to comprehensively assess pylimma against limma. If there are differences in parity of outputs/fucntionality/interface, we would like to know about it!
 - Additional R-parity fixtures for functions or parameter combinations not yet covered.
-- Worked examples and tutorials, especially for proteomics and scverse workflows.
-- Documentation improvements.
-- Performance work on the hotter routines (for example `voom`, `camera`, `duplicate_correlation`), where we currently are less performant than the c code contained within the limma R pacakge.
+- Performance work on the hotter routines (for example `voom`, `camera`, `duplicate_correlation`), where we currently are less performant than the C code contained within the limma R package.
 
 The issue tracker at [github.com/john-mulvey/pylimma/issues](https://github.com/john-mulvey/pylimma/issues) is the primary entry point. A `CONTRIBUTING.md` with code style, commit conventions, and the PR process will land alongside the first tagged release. Until then, please open an issue to discuss larger changes before sending a pull request.
