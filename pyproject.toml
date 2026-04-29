@@ -59,8 +59,6 @@ docs = [
 ]
 
 [project.urls]
-# URLs point at the planned public repository; ReadTheDocs and the
-# GitHub repo itself are still pending (see plan.md "Future Work").
 Documentation = "https://pylimma.readthedocs.io"
 Source        = "https://github.com/john-mulvey/pylimma"
 Issues        = "https://github.com/john-mulvey/pylimma/issues"

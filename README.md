@@ -2,7 +2,6 @@
 
 A Python port of [R limma](https://bioconductor.org/packages/limma/) for differential expression and abundance analysis.
 
-[![PyPI version](https://img.shields.io/pypi/v/pylimma)](https://pypi.org/project/pylimma/)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 
 ## Scope
@@ -19,11 +18,26 @@ It accepts three input idioms for any analysis:
 
 ## Installation
 
+pylimma is not yet on PyPI. Install the latest version directly from GitHub:
+
 ```bash
-pip install pylimma
-pip install pylimma[plot]   # matplotlib for diagnostics
-pip install pylimma[dev]    # pytest, ruff, mypy
-pip install pylimma[docs]   # sphinx + nbsphinx
+pip install git+https://github.com/john-mulvey/pylimma.git
+```
+
+Optional extras (use the same `git+` URL with the appropriate marker):
+
+```bash
+pip install "pylimma[plot] @ git+https://github.com/john-mulvey/pylimma.git"   # matplotlib for diagnostics
+pip install "pylimma[dev]  @ git+https://github.com/john-mulvey/pylimma.git"   # pytest, ruff, mypy
+pip install "pylimma[docs] @ git+https://github.com/john-mulvey/pylimma.git"   # sphinx + nbsphinx
+```
+
+For an editable development install:
+
+```bash
+git clone https://github.com/john-mulvey/pylimma.git
+cd pylimma
+pip install -e ".[dev,plot]"
 ```
 
 Requires Python >= 3.10.
@@ -117,7 +131,7 @@ The pasilla *Drosophila* exon-level dataset ([Brooks et al. 2011](https://doi.or
 
 ## Authorship
 
-The Python implementation was written primarily by Claude Code (Opus 4.5-4.7), working under my direction and review of John Mulvey. I carry responsibility for correctness as the auditor of the port, but the large majority of the line-level Python was produced by Claude Code.
+The Python implementation was written primarily by Claude Code (Opus 4.5-4.7), working under the direction and review of John Mulvey. I carry responsibility for correctness as the auditor of the port, but the large majority of the line-level Python was produced by Claude Code.
 
 ## Citing pylimma
 
