@@ -337,7 +337,10 @@ def _top_table_t(
     if p_value < 1:
         keep &= adj_p_val <= p_value
     if lfc > 0:
-        keep &= np.abs(log_fc) > lfc
+        # R's .topTableT uses `abs(M) >= lfc` (toptable.R:234), keeping
+        # genes whose |logFC| is exactly on the threshold. pylimma used
+        # strict `>` which silently dropped boundary genes.
+        keep &= np.abs(log_fc) >= lfc
     keep &= ~np.isnan(p_val)  # Remove NaN p-values
 
     if not np.any(keep):

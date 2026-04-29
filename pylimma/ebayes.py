@@ -153,8 +153,10 @@ def _tmixture_vector(
         tstat[needs_adjustment] = _t_isf_log(tail_p, max_df)
         df[needs_adjustment] = max_df
 
-    # Select top statistics
-    order = np.argsort(tstat)[::-1][:n_target]
+    # Select top statistics. Use stable descending sort to match R's
+    # order(..., decreasing=TRUE) (ebayes.R:143); default quicksort +
+    # [::-1] has a reversed tie order which diverges on ties.
+    order = np.argsort(-tstat, kind="stable")[:n_target]
     tstat = tstat[order]
     v1 = stdev_unscaled[order] ** 2
 
@@ -361,7 +363,13 @@ def e_bayes(
     var_prior = _tmixture_matrix(t_stat, stdev_unscaled, df_total, proportion, var_prior_lim)
 
     if np.any(np.isnan(var_prior)):
-        var_prior[np.isnan(var_prior)] = 1 / s2_prior
+        # R's ebayes.R:72 does `var.prior[is.na] <- 1/s2.prior`, which
+        # relies on R's silent vector recycling when s2.prior is per-gene
+        # (trend=True). Numpy's broadcast fails on shape mismatch. Use
+        # the first s2_prior element as a scalar fallback - matches R's
+        # effective behaviour (recycled from position 1).
+        fallback = 1.0 / float(np.atleast_1d(s2_prior)[0])
+        var_prior[np.isnan(var_prior)] = fallback
         warnings.warn("Estimation of var_prior failed - set to default value")
 
     # Compute log-odds
@@ -395,6 +403,10 @@ def e_bayes(
     fit["df_prior"] = df_prior
     fit["s2_prior"] = s2_prior
     fit["var_prior"] = var_prior
+    # R's eBayes records the user-supplied DE proportion (ebayes.R:15);
+    # stored for reproducibility/inspection - not read by downstream
+    # pylimma code but part of the MArrayLM slot contract.
+    fit["proportion"] = proportion
     fit["s2_post"] = s2_post
     fit["t"] = t_stat
     fit["df_total"] = df_total

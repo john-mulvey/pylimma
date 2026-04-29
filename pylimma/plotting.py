@@ -1657,59 +1657,211 @@ def heat_diagram(results, coef, primary: int = 0, names=None,
     return {"coef": coef_mat, "names": names, "im": im, "ax": ax}
 
 
-def plot_rldf(y, design, z=None, nprobes: int = 100, plot: bool = True,
-              show_dimensions=(0, 1), ndim=None, robust: bool = False,
-              ax=None):
+def plot_rldf(y, design=None, z=None, nprobes: int = 100, plot: bool = True,
+              labels_y=None, labels_z=None, pch_y=None, pch_z=None,
+              col_y="black", col_z="black",
+              show_dimensions=(0, 1), ndim=None,
+              var_prior=None, df_prior=None, trend: bool = False,
+              robust: bool = False, ax=None):
     """
     Regularised linear discriminant function plot.
 
     Port of R limma's ``plotRLDF`` (``plotrldf.R``). ``show_dimensions``
     is 0-based; pass ``(0, 1)`` for R's ``c(1, 2)``.
+
+    Parameters
+    ----------
+    y : ndarray
+        Expression matrix (n_probes, n_samples).
+    design : ndarray, optional
+        Design matrix (n_samples, p). If None, built from ``labels_y``.
+    z : ndarray, optional
+        Second expression matrix of the same probe dimension; scored
+        with the same metagenes as ``y``.
+    nprobes : int, default 100
+        Number of top probes by moderated F.
+    plot : bool, default True
+        Emit a scatter of the two selected discriminant functions.
+    labels_y, labels_z : array-like, optional
+        Sample labels for y/z; used as scatter annotations.
+    pch_y, pch_z : str or int, optional
+        Matplotlib marker for scatter (character-style R pch is mapped
+        loosely).
+    col_y, col_z : str, default "black"
+        Colours for scatter points.
+    show_dimensions : tuple, default (0, 1)
+        Zero-based discriminant indices to plot (R: 1-based).
+    ndim : int, optional
+        Number of discriminant functions to retain. Defaults to the
+        max of ``show_dimensions`` + 1.
+    var_prior, df_prior : array-like, optional
+        Hyperparameters for the within-gene variance shrinkage. When
+        None, estimated via ``squeeze_var``.
+    trend : bool, default False
+        Pass the rowwise mean of y to ``squeeze_var`` as a covariate.
+    robust : bool, default False
+        Use robust variance shrinkage.
+    ax : matplotlib Axes, optional
+        Target axes for the plot.
+
+    Returns
+    -------
+    dict with keys training (n_samples, ndim) discriminant scores,
+    top (indices of the selected probes), metagenes (n_probes_kept, ndim),
+    singular_values, rank, var_prior, df_prior. If ``z`` is given,
+    ``predicting`` is also populated. Backwards-compatible aliases
+    ``training_scores``, ``top_probes`` and ``test_scores`` are kept.
     """
-    from .lmfit import _qr_r_style
     from .squeeze_var import squeeze_var
     import matplotlib.pyplot as plt
 
     y = np.asarray(y, dtype=np.float64)
     g, n = y.shape
+    if design is None:
+        if labels_y is None:
+            raise ValueError("groups not specified")
+        labs = np.asarray(labels_y)
+        if len(np.unique(labs)) == len(labs):
+            raise ValueError("design not specified and all labels_y are different")
+        # Build ~ f design
+        levels, inv = np.unique(labs, return_inverse=True)
+        design = np.column_stack([
+            np.ones(n),
+            (inv[:, None] == np.arange(1, len(levels))).astype(float),
+        ])
     design = np.asarray(design, dtype=np.float64)
     if design.shape[0] != n:
         raise ValueError("nrow(design) doesn't match ncol(y)")
+    if nprobes < 1:
+        raise ValueError("'nprobes' must be at least 1")
     if ndim is None:
         ndim = max(show_dimensions) + 1
 
-    q, r, pivot, rank = _qr_r_style(design)
-    Q = q[:, :rank]
-    fitted = (Q @ Q.T) @ y.T
-    resid = (y.T - fitted).T
-    sigma2 = np.sum(resid ** 2, axis=1) / max(n - rank, 1)
-    sv = squeeze_var(sigma2, df=float(n - rank), robust=robust)
-    s2_post = sv["var_post"]
+    # Project onto between / within spaces via full QR of design
+    # (plotrldf.R:59-65). U = Q.T @ y.T shape (n, g). Drop first column
+    # as intercept. UB is rows 2:p of U (between space, p-1 rows). UW
+    # is rows p+1:n (residual/within space, n-p rows).
+    Q_full, R_full = np.linalg.qr(design, mode="complete")
+    # R rank = number of non-zero diag entries
+    diag_R = np.abs(np.diag(R_full)) if R_full.ndim == 2 else np.array([abs(R_full[0, 0])])
+    rank_d = int(np.sum(diag_R > 1e-10))
+    p = rank_d
+    df_residual = n - p
+    if df_residual == 0:
+        raise ValueError("No residual degrees of freedom")
+    U = Q_full.T @ y.T  # (n, g)
+    UB = U[1:p, :]  # rows 2:p, shape (p-1, g); R's 1-based U[2:p,] -> Python U[1:p,]
+    UW = U[p:, :]  # rows p+1:n, shape (n-p, g)
+    s2 = np.mean(UW ** 2, axis=0)  # (g,)
 
-    between = np.sum((Q.T @ y.T) ** 2, axis=0)
-    f_stat = between / s2_post
-    top = np.argsort(-f_stat)[:nprobes]
-    y_top = y[top, :] / np.sqrt(s2_post[top])[:, None]
+    # Prior variance / df (plotrldf.R:68-79)
+    if var_prior is None or df_prior is None:
+        covariate = np.mean(y, axis=1) if trend else None
+        sv = squeeze_var(s2, df=float(df_residual),
+                         covariate=covariate, robust=robust)
+        var_prior = sv["var_prior"]
+        df_prior = sv["df_prior"]
+    var_prior = np.atleast_1d(np.asarray(var_prior, dtype=np.float64))
+    df_prior = np.atleast_1d(np.asarray(df_prior, dtype=np.float64))
+    df_prior = np.minimum(df_prior, (g - 1) * df_residual)
+    df_prior = np.maximum(df_prior, 1.0)
+    # Broadcast length-1 priors over the probe axis.
+    if var_prior.size == 1 and g > 1:
+        var_prior = np.full(g, var_prior.item())
+    if df_prior.size == 1 and g > 1:
+        df_prior = np.full(g, df_prior.item())
 
-    u, s, vt = np.linalg.svd(y_top, full_matrices=False)
-    scores = vt[:ndim, :].T
+    # Select top probes by moderated F (plotrldf.R:82-95)
+    if g > nprobes:
+        modF = np.mean(UB ** 2, axis=0) / (s2 + df_prior * var_prior)
+        order = np.argsort(-modF, kind="stable")
+        top = order[:nprobes]
+        y_sel = y[top, :]
+        z_sel = None if z is None else np.asarray(z, dtype=np.float64)[top, :]
+        UB_sel = UB[:, top]
+        UW_sel = UW[:, top]
+        if df_prior.size > 1:
+            df_prior = df_prior[top]
+        if var_prior.size > 1:
+            var_prior = var_prior[top]
+        g = nprobes
+    else:
+        top = np.arange(min(g, nprobes))
+        y_sel = y
+        z_sel = None if z is None else np.asarray(z, dtype=np.float64)
+        UB_sel = UB
+        UW_sel = UW
+
+    # Within-group SS and regularised within covariance
+    # (plotrldf.R:97-110).
+    W = UW_sel.T @ UW_sel  # (g, g)
+    Wreg = W.copy()
+    diag_reg = np.diag(Wreg) + df_prior * var_prior
+    np.fill_diagonal(Wreg, diag_reg)
+    df_total = df_prior + df_residual
+    if df_total.size > 1:
+        df_total_sqrt = np.sqrt(df_total)
+        Wreg = Wreg / df_total_sqrt[:, None]
+        Wreg = Wreg.T / df_total_sqrt[:, None]
+    else:
+        Wreg = Wreg / float(df_total[0])
+
+    # Cholesky + backsolve (plotrldf.R:112-113).
+    # R: WintoB <- backsolve(chol(Wreg), t(UB), transpose=TRUE). R's
+    # chol returns upper-triangular R_u with Wreg = R_u^T R_u; numpy's
+    # cholesky returns lower-triangular L with Wreg = L L^T, and
+    # L = R_u^T. backsolve(R_u, x, transpose=TRUE) solves R_u^T y = x,
+    # i.e. L y = x in Python. t(UB) has shape (g, p-1), so WintoB
+    # has shape (g, p-1) - matching the metagenes axis expected below.
+    L = np.linalg.cholesky(Wreg)
+    WintoB = np.linalg.solve(L, UB_sel.T)  # shape (g, p-1)
+    # SVD: columns of U are metagenes (per-gene), singular values are
+    # the discriminant strengths.
+    U_svd, s_vals, _ = np.linalg.svd(WintoB, full_matrices=False)
+    metagenes = U_svd[:, :ndim]
+
+    # LDF scores for the training set: d.y = t(y) %*% metagenes
+    # (plotrldf.R:125). t(y) is (n, g) so d_y has shape (n, ndim).
+    d_y = y_sel.T @ metagenes
+    rank_out = min(WintoB.shape)
+
     result = {
-        "training_scores": scores[:, list(show_dimensions)],
-        "top_probes": top,
-        "singular_values": s,
+        "training": d_y,
+        "training_scores": d_y[:, list(show_dimensions)],
+        "top": np.asarray(top),
+        "top_probes": np.asarray(top),
+        "metagenes": metagenes,
+        "singular_values": s_vals,
+        "rank": rank_out,
+        "var_prior": var_prior,
+        "df_prior": df_prior,
     }
-    if z is not None:
-        z = np.asarray(z, dtype=np.float64)
-        z_top = z[top, :] / np.sqrt(s2_post[top])[:, None]
-        result["test_scores"] = (z_top.T @ u)[:, :ndim][:, list(show_dimensions)]
+    if z_sel is not None:
+        d_z = z_sel.T @ metagenes
+        result["predicting"] = d_z
+        result["test_scores"] = d_z[:, list(show_dimensions)]
 
     if plot:
         if ax is None:
             _fig, ax = plt.subplots()
-        ax.scatter(result["training_scores"][:, 0],
-                   result["training_scores"][:, 1])
-        ax.set_xlabel(f"LDF{show_dimensions[0] + 1}")
-        ax.set_ylabel(f"LDF{show_dimensions[1] + 1}")
+        d1 = show_dimensions[0]
+        d2 = show_dimensions[1]
+        if pch_y is None and labels_y is not None:
+            for xi, yi, lab in zip(d_y[:, d1], d_y[:, d2], labels_y):
+                ax.text(xi, yi, str(lab), color=col_y)
+        else:
+            ax.scatter(d_y[:, d1], d_y[:, d2], c=col_y,
+                       marker=str(pch_y) if pch_y is not None else "o")
+        if z_sel is not None:
+            d_z = result["predicting"]
+            if pch_z is None and labels_z is not None:
+                for xi, yi, lab in zip(d_z[:, d1], d_z[:, d2], labels_z):
+                    ax.text(xi, yi, str(lab), color=col_z)
+            else:
+                ax.scatter(d_z[:, d1], d_z[:, d2], c=col_z,
+                           marker=str(pch_z) if pch_z is not None else "x")
+        ax.set_xlabel(f"Discriminant Function {d1 + 1}")
+        ax.set_ylabel(f"Discriminant Function {d2 + 1}")
     return result
 
 

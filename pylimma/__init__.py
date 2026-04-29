@@ -97,7 +97,9 @@ __all__ = [
     "put_eawp",
     # Core pipeline
     "lm_fit",
-    "lm_series",
+    # lm_series intentionally not exported - it is an implementation
+    # detail of lm_fit and its public R counterpart takes ndups/spacing
+    # kwargs that pylimma handles via lm_fit's dispatcher instead.
     "contrasts_fit",
     "e_bayes",
     "treat",

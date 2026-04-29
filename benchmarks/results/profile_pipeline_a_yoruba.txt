@@ -1,48 +1,48 @@
-         97733 function calls (96413 primitive calls) in 0.318 seconds
+         98573 function calls (97253 primitive calls) in 0.430 seconds
 
    Ordered by: cumulative time
-   List reduced from 1052 to 40 due to restriction <40>
+   List reduced from 1057 to 40 due to restriction <40>
 
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
-        2    0.000    0.000    0.319    0.159 /Users/John/miniconda3/lib/python3.11/site-packages/IPython/core/interactiveshell.py:3665(run_code)
-     77/2    0.001    0.000    0.319    0.159 {built-in method builtins.exec}
-        1    0.000    0.000    0.318    0.318 /Users/John/Documents/Projects/staged/pylimma/pylimma/benchmarks/run_python.py:59(pipeline_a)
-        1    0.000    0.000    0.263    0.263 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/lmfit.py:877(lm_fit)
-    112/2    0.000    0.000    0.231    0.116 <frozen importlib._bootstrap>:1165(_find_and_load)
-    112/2    0.000    0.000    0.231    0.116 <frozen importlib._bootstrap>:1120(_find_and_load_unlocked)
-     93/3    0.000    0.000    0.230    0.077 <frozen importlib._bootstrap>:666(_load_unlocked)
-     69/3    0.000    0.000    0.230    0.077 <frozen importlib._bootstrap_external>:934(exec_module)
-    254/5    0.000    0.000    0.229    0.046 <frozen importlib._bootstrap>:233(_call_with_frames_removed)
-        5    0.000    0.000    0.226    0.045 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/classes.py:80(_is_anndata)
-        1    0.000    0.000    0.225    0.225 /Users/John/miniconda3/lib/python3.11/site-packages/anndata/__init__.py:1(<module>)
-        1    0.000    0.000    0.212    0.212 /Users/John/miniconda3/lib/python3.11/site-packages/anndata/_core/anndata.py:1(<module>)
-        1    0.000    0.000    0.185    0.185 /Users/John/miniconda3/lib/python3.11/site-packages/h5py/__init__.py:1(<module>)
-       93    0.000    0.000    0.158    0.002 <frozen importlib._bootstrap>:566(module_from_spec)
-       24    0.000    0.000    0.156    0.007 <frozen importlib._bootstrap_external>:1231(create_module)
-       24    0.156    0.006    0.156    0.006 {built-in method _imp.create_dynamic}
-    29/20    0.000    0.000    0.140    0.007 {built-in method builtins.__import__}
-   100/69    0.000    0.000    0.139    0.002 <frozen importlib._bootstrap>:1207(_handle_fromlist)
-    24/13    0.000    0.000    0.091    0.007 <frozen importlib._bootstrap_external>:1239(exec_module)
-    24/13    0.014    0.001    0.091    0.007 {built-in method _imp.exec_dynamic}
-        1    0.000    0.000    0.028    0.028 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/toptable.py:68(top_table)
-        1    0.001    0.001    0.028    0.028 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/toptable.py:269(_top_table_t)
-        1    0.001    0.001    0.027    0.027 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/ebayes.py:215(e_bayes)
-        1    0.000    0.000    0.024    0.024 /Users/John/miniconda3/lib/python3.11/site-packages/h5py/_hl/files.py:1(<module>)
-       69    0.000    0.000    0.023    0.000 <frozen importlib._bootstrap_external>:1007(get_code)
-        1    0.000    0.000    0.023    0.023 /Users/John/miniconda3/lib/python3.11/site-packages/h5py/_hl/group.py:1(<module>)
-        1    0.000    0.000    0.023    0.023 /Users/John/miniconda3/lib/python3.11/site-packages/h5py/version.py:1(<module>)
-        1    0.002    0.002    0.021    0.021 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/lmfit.py:94(lm_series)
-        1    0.000    0.000    0.018    0.018 /Users/John/miniconda3/lib/python3.11/site-packages/natsort/__init__.py:1(<module>)
-        1    0.014    0.014    0.018    0.018 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/lmfit.py:154(_lm_series_fast)
-        1    0.000    0.000    0.018    0.018 /Users/John/miniconda3/lib/python3.11/site-packages/natsort/natsort.py:1(<module>)
-       69    0.000    0.000    0.017    0.000 <frozen importlib._bootstrap_external>:1127(get_data)
-        3    0.000    0.000    0.015    0.005 /Users/John/miniconda3/lib/python3.11/site-packages/scipy/stats/_distn_infrastructure.py:2205(sf)
-       69    0.013    0.000    0.013    0.000 {method 'read' of '_io.BufferedReader' objects}
-        2    0.001    0.000    0.012    0.006 /Users/John/miniconda3/lib/python3.11/site-packages/numpy/lib/nanfunctions.py:952(nanmean)
-        2    0.000    0.000    0.011    0.005 /Users/John/miniconda3/lib/python3.11/site-packages/natsort/natsort.py:129(natsort_keygen)
-       14    0.000    0.000    0.011    0.001 /Users/John/miniconda3/lib/python3.11/re/__init__.py:225(compile)
-       14    0.000    0.000    0.011    0.001 /Users/John/miniconda3/lib/python3.11/re/__init__.py:272(_compile)
-        8    0.000    0.000    0.011    0.001 /Users/John/miniconda3/lib/python3.11/re/_compiler.py:738(compile)
-        2    0.000    0.000    0.010    0.005 /Users/John/miniconda3/lib/python3.11/site-packages/natsort/utils.py:191(regex_chooser)
+        2    0.000    0.000    0.430    0.215 /Users/John/miniconda3/lib/python3.11/site-packages/IPython/core/interactiveshell.py:3665(run_code)
+     77/2    0.001    0.000    0.430    0.215 {built-in method builtins.exec}
+        1    0.000    0.000    0.430    0.430 /Users/John/Documents/Projects/staged/pylimma/pylimma/benchmarks/run_python.py:60(pipeline_a)
+        1    0.000    0.000    0.261    0.261 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/lmfit.py:983(lm_fit)
+    112/2    0.000    0.000    0.197    0.099 <frozen importlib._bootstrap>:1165(_find_and_load)
+    112/2    0.000    0.000    0.197    0.099 <frozen importlib._bootstrap>:1120(_find_and_load_unlocked)
+     93/3    0.000    0.000    0.197    0.066 <frozen importlib._bootstrap>:666(_load_unlocked)
+     69/3    0.000    0.000    0.197    0.066 <frozen importlib._bootstrap_external>:934(exec_module)
+    254/5    0.000    0.000    0.196    0.039 <frozen importlib._bootstrap>:233(_call_with_frames_removed)
+        5    0.000    0.000    0.192    0.038 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/classes.py:176(_is_anndata)
+        1    0.000    0.000    0.191    0.191 /Users/John/miniconda3/lib/python3.11/site-packages/anndata/__init__.py:1(<module>)
+        1    0.000    0.000    0.180    0.180 /Users/John/miniconda3/lib/python3.11/site-packages/anndata/_core/anndata.py:1(<module>)
+        1    0.000    0.000    0.152    0.152 /Users/John/miniconda3/lib/python3.11/site-packages/h5py/__init__.py:1(<module>)
+       93    0.000    0.000    0.134    0.001 <frozen importlib._bootstrap>:566(module_from_spec)
+       24    0.000    0.000    0.133    0.006 <frozen importlib._bootstrap_external>:1231(create_module)
+       24    0.133    0.006    0.133    0.006 {built-in method _imp.create_dynamic}
+    29/20    0.000    0.000    0.119    0.006 {built-in method builtins.__import__}
+   100/69    0.000    0.000    0.117    0.002 <frozen importlib._bootstrap>:1207(_handle_fromlist)
+        1    0.000    0.000    0.078    0.078 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/toptable.py:68(top_table)
+        1    0.018    0.018    0.078    0.078 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/toptable.py:274(_top_table_t)
+        1    0.001    0.001    0.070    0.070 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/ebayes.py:215(e_bayes)
+    24/13    0.000    0.000    0.067    0.005 <frozen importlib._bootstrap_external>:1239(exec_module)
+    24/13    0.003    0.000    0.067    0.005 {built-in method _imp.exec_dynamic}
+        1    0.001    0.001    0.055    0.055 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/lmfit.py:189(lm_series)
+        1    0.016    0.016    0.053    0.053 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/lmfit.py:249(_lm_series_fast)
+        6    0.000    0.000    0.035    0.006 /Users/John/miniconda3/lib/python3.11/site-packages/scipy/_lib/_util.py:1203(wrapper)
+        2    0.000    0.000    0.035    0.017 /Users/John/miniconda3/lib/python3.11/site-packages/scipy/linalg/_basic.py:419(solve_triangular)
+        1    0.000    0.000    0.034    0.034 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/squeeze_var.py:1076(squeeze_var)
+        2    0.034    0.017    0.034    0.017 /Users/John/miniconda3/lib/python3.11/site-packages/scipy/linalg/_basic.py:512(_solve_triangular)
+        1    0.001    0.001    0.034    0.034 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/squeeze_var.py:276(fit_f_dist)
+        3    0.000    0.000    0.032    0.011 /Users/John/miniconda3/lib/python3.11/site-packages/scipy/stats/_distn_infrastructure.py:2205(sf)
+        1    0.027    0.027    0.027    0.027 /Users/John/miniconda3/lib/python3.11/site-packages/scipy/stats/_continuous_distns.py:2575(_sf)
+       69    0.000    0.000    0.024    0.000 <frozen importlib._bootstrap_external>:1007(get_code)
+        1    0.000    0.000    0.022    0.022 /Users/John/miniconda3/lib/python3.11/site-packages/h5py/_hl/files.py:1(<module>)
+        1    0.000    0.000    0.021    0.021 /Users/John/miniconda3/lib/python3.11/site-packages/h5py/_hl/group.py:1(<module>)
+        1    0.021    0.021    0.021    0.021 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/contrasts.py:276(contrasts_fit)
+        1    0.020    0.020    0.020    0.020 /Users/John/Documents/Projects/staged/pylimma/pylimma/pylimma/toptable.py:405(<listcomp>)
+        1    0.000    0.000    0.019    0.019 /Users/John/miniconda3/lib/python3.11/site-packages/natsort/__init__.py:1(<module>)
+        9    0.001    0.000    0.018    0.002 /Users/John/miniconda3/lib/python3.11/site-packages/scipy/special/_basic.py:1550(polygamma)
+        2    0.004    0.002    0.018    0.009 /Users/John/miniconda3/lib/python3.11/site-packages/pandas/core/indexes/base.py:475(__new__)
 
 

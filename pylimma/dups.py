@@ -24,7 +24,7 @@ import numpy as np
 import pandas as pd
 from scipy import linalg
 
-from .classes import get_eawp, _is_anndata
+from .classes import EList, get_eawp, _is_anndata
 
 
 def _mixed_model_2_fit(
@@ -474,6 +474,13 @@ def avereps(
     if _is_anndata(x):
         return _avereps_anndata(x, ID=ID)
 
+    # EList dispatch (mirrors R's avereps.EList at dups.R:267-285).
+    # Averages E and weights, deduplicates genes, drops printer. Default
+    # ID is y$genes$ID, then rownames (we use the genes DataFrame index),
+    # matching R's precedence.
+    if isinstance(x, EList):
+        return _avereps_elist(x, ID=ID)
+
     is_df = isinstance(x, pd.DataFrame)
     columns = x.columns if is_df else None
 
@@ -506,6 +513,63 @@ def avereps(
     if is_df:
         return pd.DataFrame(result, index=unique_ids, columns=columns)
     return result
+
+
+def _avereps_elist(el, ID=None):
+    """EList dispatch for avereps (R: avereps.EList at dups.R:267-285).
+
+    Averages ``E`` and ``weights`` across replicate probes, deduplicates
+    ``genes``, and drops ``printer``. Default ``ID`` is ``y$genes$ID`` if
+    present, otherwise the genes DataFrame's index, otherwise R's error.
+    Returns a new EList with the probe axis collapsed.
+    """
+    E = np.asarray(el["E"], dtype=np.float64)
+    weights = el.get("weights")
+    genes = el.get("genes")
+
+    if ID is None:
+        if isinstance(genes, pd.DataFrame) and "ID" in genes.columns:
+            ID = genes["ID"].to_numpy()
+        elif isinstance(genes, pd.DataFrame):
+            ID = np.asarray(genes.index)
+        else:
+            raise ValueError(
+                "No probe IDs: pass ID=... or populate EList['genes'] "
+                "with an 'ID' column or a meaningful index."
+            )
+    ID = np.asarray(ID)
+    if ID.shape[0] != E.shape[0]:
+        raise ValueError(
+            f"length of ID ({ID.shape[0]}) must match number of probes "
+            f"({E.shape[0]})"
+        )
+
+    # Average E (delegate to the matrix path for the numerics).
+    E_new = avereps(E, ID=ID)
+
+    # Average weights if present (matches R's avereps.EList line 274).
+    weights_new = None
+    if weights is not None:
+        w_arr = np.asarray(weights, dtype=np.float64)
+        if w_arr.shape == E.shape:
+            weights_new = avereps(w_arr, ID=ID)
+
+    # Deduplicate genes (matches R's avereps.EList line 275-278).
+    _, first_idx = np.unique(ID, return_index=True)
+    keep = np.sort(first_idx)
+    genes_new = None
+    if isinstance(genes, pd.DataFrame):
+        genes_new = genes.iloc[keep].reset_index(drop=True)
+
+    # Build the new EList - copy original, overwrite collapsed slots,
+    # drop 'printer' (R's avereps.EList line 280).
+    out_dict = {k: v for k, v in el.items() if k != "printer"}
+    out_dict["E"] = E_new
+    if weights_new is not None:
+        out_dict["weights"] = weights_new
+    if genes_new is not None:
+        out_dict["genes"] = genes_new
+    return EList(out_dict)
 
 
 def _avereps_anndata(adata, ID=None):

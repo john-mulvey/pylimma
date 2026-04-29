@@ -299,6 +299,13 @@ def contrasts_fit(
         in the revised fit object. Can be indices (int), names (str), or
         a list of either. This is a simpler way to subset coefficients
         without defining a full contrast matrix.
+
+        .. warning::
+           Integer indices are **0-based** (Python convention). R's
+           ``contrasts.fit(fit, coefficients=c(2, 3))`` uses 1-based
+           indices; the equivalent pylimma call is
+           ``contrasts_fit(fit, coefficients=[1, 2])``. Prefer string
+           names when porting R code to avoid silent off-by-one errors.
     key : str, default "pylimma"
         Key for fit results in adata.uns (AnnData input only).
 
@@ -420,6 +427,16 @@ def contrasts_fit(
     if n_contrasts == 0:
         fit["coefficients"] = fit_coef[:, :0]
         fit["stdev_unscaled"] = stdev_unscaled[:, :0]
+        # Match R's fit[,0] subsetting: every coefficient-indexed slot
+        # collapses to its 0-col form so the returned MArrayLM is
+        # internally shape-consistent.
+        if fit.get("cov_coefficients") is not None:
+            cov = np.asarray(fit["cov_coefficients"])
+            fit["cov_coefficients"] = cov[:0, :0]
+        if fit.get("var_prior") is not None:
+            fit["var_prior"] = np.asarray(fit["var_prior"])[:0]
+        if fit.get("coef_names") is not None:
+            fit["coef_names"] = []
         if is_anndata:
             # Plain dict for h5ad compatibility; see lm_fit.
             data.uns[key] = dict(fit)
@@ -427,6 +444,25 @@ def contrasts_fit(
         if not isinstance(fit, MArrayLM):
             fit = MArrayLM(fit)
         return fit
+
+    # R's contrasts.fit strips rows (coefficients) that are zero in every
+    # contrast column before the orthogonality check (contrasts.R:77-85).
+    # Comment there says "Not necessary but can make the function faster",
+    # but removing those rows also changes which correlations enter the
+    # lower.tri(cormatrix) orthog test and can flip the code path on
+    # pathological contrasts that leave an unused-but-correlated
+    # coefficient.
+    contrasts_all_zero = np.where(np.all(contrasts == 0, axis=1))[0]
+    if contrasts_all_zero.size and contrasts_all_zero.size < n_coef:
+        keep = np.setdiff1d(np.arange(n_coef), contrasts_all_zero)
+        contrasts = contrasts[keep, :]
+        fit_coef = fit_coef[:, keep]
+        stdev_unscaled = stdev_unscaled[:, keep]
+        if fit.get("cov_coefficients") is not None:
+            cov_existing = np.asarray(fit["cov_coefficients"])
+            fit["cov_coefficients"] = cov_existing[np.ix_(keep, keep)]
+        n_coef = len(keep)
+        fit["contrasts"] = contrasts
 
     # Get or construct covariance matrix
     if "cov_coefficients" not in fit or fit["cov_coefficients"] is None:

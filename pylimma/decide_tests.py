@@ -98,7 +98,34 @@ def classify_tests_f(
         cor_matrix = np.asarray(cor_matrix, dtype=np.float64)
     elif fit is not None and fit.get("cov_coefficients") is not None:
         cov = np.asarray(fit["cov_coefficients"], dtype=np.float64)
+        # Strip NaN rows/columns: pylimma's _lm_series_fast fills
+        # non-estimable (rank-deficient) columns with NaN in the
+        # (n_coefs, n_coefs) cov matrix, whereas R's cov.coefficients
+        # has shape (rank, rank) with no NaN padding. Without this mask
+        # the eigendecomposition below crashes on NaN input.
         diag_vals = np.diag(cov)
+        nan_mask = np.isnan(diag_vals)
+        if nan_mask.any():
+            keep = ~nan_mask
+            cov = cov[np.ix_(keep, keep)]
+            # Also drop corresponding tstat columns so shapes align.
+            tstat = tstat[:, keep]
+            n_tests = tstat.shape[1]
+            diag_vals = np.diag(cov)
+        if n_tests == 0:
+            # Every test was non-estimable - return all-zeros (no gene
+            # classified significant) rather than crashing.
+            if fstat_only:
+                return np.zeros(n_genes), 1, df
+            return np.zeros((n_genes, 1), dtype=int)
+        if n_tests == 1:
+            # After stripping, reduce to the single-coefficient path.
+            fstat = tstat[:, 0] ** 2
+            if fstat_only:
+                return fstat, 1, df
+            p = 2 * stats.t.sf(np.abs(tstat[:, 0]), df)
+            result = np.sign(tstat[:, 0]) * (p < p_value)
+            return result.astype(int).reshape(-1, 1)
         if np.min(diag_vals) == 0:
             cov = cov.copy()
             zero_mask = diag_vals == 0
@@ -273,10 +300,14 @@ def decide_tests(
             genewise_p_value=genewise_p_value,
         )
     else:
+        # MArrayLM dispatch uses strict '<' for p (decidetests.R:123,129)
+        # and '* (abs(coef) > lfc)' for the lfc threshold (decidetests.R:165).
+        # The bare-ndarray entry above uses '<=' / '<' (decidetests.R:89/101).
         return _decide_tests_p(
             p, method=method, adjust_method=adjust_method,
             p_value=p_value, coefficients=coefficients, lfc=lfc,
             genewise_p_value=genewise_p_value,
+            from_marraylm=True,
         )
 
 
@@ -288,8 +319,18 @@ def _decide_tests_p(
     coefficients: np.ndarray | None,
     lfc: float,
     genewise_p_value: np.ndarray | None = None,
+    from_marraylm: bool = False,
 ) -> np.ndarray:
-    """Decide tests from a matrix of p-values."""
+    """Decide tests from a matrix of p-values.
+
+    R has two different boundary conventions depending on the dispatch
+    path. `from_marraylm=True` (MArrayLM dispatch, decidetests.R:123,165)
+    uses strict ``<`` on p-value and drops genes with ``abs(coef) <= lfc``.
+    The default ``from_marraylm=False`` (bare-ndarray dispatch,
+    decidetests.R:89,101) uses inclusive ``<=`` on p-value and drops genes
+    with ``abs(coef) < lfc``. pylimma follows whichever entry point the
+    caller used.
+    """
     p = np.asarray(p)
     if p.ndim == 1:
         p = p.reshape(-1, 1)
@@ -314,8 +355,11 @@ def _decide_tests_p(
     else:
         raise ValueError(f"Unknown method: {method}")
 
-    # Classification
-    is_de = (p_adj <= p_value).astype(int)
+    # Classification - boundary differs between MArrayLM and default R paths.
+    if from_marraylm:
+        is_de = (p_adj < p_value).astype(int)
+    else:
+        is_de = (p_adj <= p_value).astype(int)
 
     if coefficients is not None:
         coefficients = np.asarray(coefficients)
@@ -323,9 +367,12 @@ def _decide_tests_p(
             raise ValueError("coefficients and p-values have different shapes")
         # Apply sign
         is_de = is_de * np.sign(coefficients).astype(int)
-        # Apply lfc threshold
+        # Apply lfc threshold - boundary differs between dispatch paths.
         if lfc > 0:
-            is_de[np.abs(coefficients) < lfc] = 0
+            if from_marraylm:
+                is_de[np.abs(coefficients) <= lfc] = 0
+            else:
+                is_de[np.abs(coefficients) < lfc] = 0
 
     return is_de
 
@@ -390,9 +437,10 @@ def _decide_tests_hierarchical(
         else:
             result[i, sig] = 1
 
-    # Apply lfc threshold
+    # Apply lfc threshold - MArrayLM convention (decidetests.R:165 uses
+    # `* (abs(coef) > lfc)` which drops genes on the boundary).
     if lfc > 0 and coefficients is not None:
-        result[np.abs(coefficients) < lfc] = 0
+        result[np.abs(coefficients) <= lfc] = 0
 
     return result
 
@@ -465,9 +513,9 @@ def _decide_tests_nested_f(
             p_value=p_cutoff,
         )
 
-    # Apply lfc threshold
+    # Apply lfc threshold - MArrayLM convention (decidetests.R:165).
     if lfc > 0 and coefficients is not None:
-        result[np.abs(coefficients) < lfc] = 0
+        result[np.abs(coefficients) <= lfc] = 0
 
     return result
 

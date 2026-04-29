@@ -992,6 +992,7 @@ def lm_fit(
     key: str = "pylimma",
     layer: str | None = None,
     weights_layer: str | None = None,
+    **mrlm_kwargs,
 ) -> dict | None:
     """
     Fit linear models to expression data.
@@ -1177,7 +1178,10 @@ def lm_fit(
                 "If you wish to use blocking or duplicate correlation, "
                 "then use least squares regression."
             )
-        fit = mrlm(expr, design, ndups=ndups, spacing=spacing, weights=weights)
+        fit = mrlm(
+            expr, design, ndups=ndups, spacing=spacing, weights=weights,
+            **mrlm_kwargs,
+        )
     elif ndups < 2 and block is None:
         # Simple OLS or WLS
         fit = lm_series(expr, design, weights=weights)
@@ -1197,7 +1201,32 @@ def lm_fit(
     fit = MArrayLM(fit)
     fit["Amean"] = np.nanmean(expr, axis=1)
     fit["design"] = design
-    fit["genes"] = gene_names
+    # R's lmFit does fit$genes <- y$probes (lmfit.R:84). pylimma's
+    # AnnData/DataFrame branches pre-compute gene_names from var_names
+    # / index respectively and those callers expect a bare list here.
+    # For EList / ndarray input we have no such pre-computation, so
+    # fall back to the probes DataFrame captured by get_eawp's EList
+    # branch (classes.py:748-758 populates y["probes"] from
+    # EList["genes"]). Without this, EList callers get fit["genes"] =
+    # None and lose their gene annotations through the pipeline.
+    if gene_names is not None:
+        fit["genes"] = gene_names
+    else:
+        fit["genes"] = eawp.get("probes")
+    # Coefficient names from the design matrix. R's lm.series stores them
+    # as colnames(fit$coefficients) (lmfit.R:125); pylimma stores
+    # coefficients as a bare ndarray so we keep the names in a sidecar
+    # slot. topTable's "Removing intercept" logic and contrasts_fit's
+    # string-coefficient lookup both read fit["coef_names"]. Skip when
+    # design was a bare ndarray with no names (matches R, where
+    # colnames(design) is NULL in that case) and avoids writing a None
+    # value into adata.uns[key] which anndata's h5ad writer cannot
+    # serialise cleanly.
+    if design_names is not None:
+        fit["coef_names"] = design_names
+    # R's lmFit records the fitting method (lmfit.R:86); plotExons and
+    # other diagnostics rely on it.
+    fit["method"] = method
     # Propagate sample metadata (y$targets on an EList, adata.obs on an
     # AnnData). R's lmFit does the same via fit$targets <- y$targets.
     # Downstream diagnostic plots (plotSA / plotMDS) expect it.

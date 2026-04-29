@@ -26,7 +26,7 @@ from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 from .lmfit import lm_fit, _parse_design
 from .utils import choose_lowess_span
-from .classes import get_eawp, put_eawp, _is_anndata
+from .classes import EList, get_eawp, put_eawp, _is_anndata
 
 
 def _draw_voom_trend(
@@ -191,9 +191,31 @@ def voom(
     original_input = counts
     eawp = get_eawp(counts, layer=layer)
     counts = np.asarray(eawp["exprs"], dtype=np.float64)
+    # EList-specific warn-and-proceed: R's voom calls as.matrix(EList)
+    # (voom.R:32) which drops every slot except E. pylimma keeps the more
+    # useful behaviour of honouring EList['design'] and EList['weights']
+    # but warns so users porting R code know the divergence is there.
+    # See known_diff_voom_elist_warning.md for rationale.
+    _input_is_elist = isinstance(original_input, EList)
     if design is None and eawp.get("design") is not None:
+        if _input_is_elist:
+            warnings.warn(
+                "pylimma's voom is using 'design' from the EList's design "
+                "slot. R's voom would silently discard it via "
+                "as.matrix(EList). To match R behaviour, pass "
+                "design=el['design'] explicitly (or clear the slot).",
+                UserWarning,
+            )
         design = eawp["design"]
     if weights is None and eawp.get("weights") is not None:
+        if _input_is_elist:
+            warnings.warn(
+                "pylimma's voom is using prior weights from the EList's "
+                "weights slot. R's voom would silently discard them via "
+                "as.matrix(EList). To match R, pass "
+                "weights=el['weights'] explicitly.",
+                UserWarning,
+            )
         weights = np.asarray(eawp["weights"], dtype=np.float64)
 
     # Check counts
@@ -459,7 +481,22 @@ def voom_with_quality_weights(
     original_input = counts
     eawp = get_eawp(counts, layer=layer)
     counts_arr = np.asarray(eawp["exprs"], dtype=np.float64)
+    # EList design warning: R's voomWithQualityWeights passes the EList
+    # into its internal voom (voomWithQualityWeights.R:13,19) which then
+    # hits as.matrix(EList) and drops all slots. pylimma picks design up
+    # here before the inner voom sees an ndarray, so we warn for parity
+    # with the R behaviour. Weights are not handled here (neither side
+    # uses y$weights in voomWithQualityWeights).
     if design is None and eawp.get("design") is not None:
+        if isinstance(original_input, EList):
+            warnings.warn(
+                "pylimma's voom_with_quality_weights is using 'design' "
+                "from the EList's design slot. R's "
+                "voomWithQualityWeights would silently discard it via "
+                "as.matrix(EList). To match R behaviour, pass "
+                "design=el['design'] explicitly.",
+                UserWarning,
+            )
         design = eawp["design"]
 
     # Parse design once, up front. Inner voom calls are fed counts_arr
@@ -1208,6 +1245,18 @@ def vooma_by_group(
     if design is None:
         design = eawp.get("design")
     ngenes, narrays = E.shape
+
+    # plot=True is accepted for R-signature compatibility but pylimma
+    # does not yet emit the per-group mean-variance figure. Warn so the
+    # caller knows their request was silently ignored (R's voomaByGroup
+    # at vooma.R:116-118 would draw it).
+    if plot:
+        warnings.warn(
+            "vooma_by_group(plot=True) is not implemented in pylimma; "
+            "no plot will be drawn. Pass plot=False to silence this "
+            "warning.",
+            UserWarning,
+        )
 
     group_arr = np.asarray(pd.Categorical(group))
     levels = list(pd.Categorical(group).categories)

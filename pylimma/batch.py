@@ -220,26 +220,109 @@ def remove_batch_effect(
     )
 
 
-def _lm_effects_residual(y: np.ndarray, design: np.ndarray) -> np.ndarray:
-    """Residual-space effects matrix, i.e. Q2.T @ y where Q2 is the
-    orthogonal complement of the design span.
+def _lm_effects_residual(
+    y: np.ndarray,
+    design: np.ndarray,
+    array_weights: np.ndarray | None = None,
+    weights: np.ndarray | None = None,
+    block: np.ndarray | None = None,
+    correlation: float | None = None,
+) -> np.ndarray:
+    """Residual-space effects matrix for wsva.
 
-    This is the unweighted equivalent of ``wsva``'s need for
-    ``.lmEffects(y, design)[, -1]``: drop the contrast column's effect
-    and keep only the residual effects (shape ``(ngenes, n - p)``).
+    Equivalent of R limma's ``.lmEffects(y, design, ...)[, -1]``
+    (lmEffects.R): the residual block of the effects matrix with the
+    contrast column dropped. Shape ``(ngenes, n - p)``.
+
+    Supports the same side-channel arguments R's .lmEffects forwards
+    from wsva's ``...``: ``array_weights``, ``weights`` (per-observation
+    matrix), ``block`` + ``correlation``. R's ``gene.weights`` and the
+    ``weights``-as-array-weights alias are not supported here because
+    wsva's documented use case is SV estimation on residual space only.
+
+    Parameters
+    ----------
+    y : ndarray
+        Expression matrix (n_genes, n_samples).
+    design : ndarray
+        Design matrix (n_samples, p).
+    array_weights : ndarray, optional
+        Per-sample weights (length n_samples). Pre-scales y and design
+        by sqrt(array_weights), mirroring lmEffects.R:94-99.
+    weights : ndarray, optional
+        Per-observation weights (n_genes, n_samples). Triggers the
+        per-gene QR loop in lmEffects.R:131-150.
+    block : ndarray, optional
+        Block factor (length n_samples) for GLS.
+    correlation : float, optional
+        Within-block correlation; required when ``block`` is given.
     """
-    from scipy.linalg import qr
+    from scipy.linalg import qr, solve_triangular
 
     p = design.shape[1]
     n = design.shape[0]
     if n <= p:
         raise ValueError("No residual degrees of freedom")
 
-    Q, _ = qr(design, mode="full")
-    # Residual effects: project y onto the orthogonal complement of
-    # design's column span. Shape: (n - p, ngenes)
+    y = np.asarray(y, dtype=np.float64)
+    X = np.asarray(design, dtype=np.float64)
+
+    # Array weights: divide out via sqrt transform (lmEffects.R:94-99).
+    if array_weights is not None:
+        aw = np.asarray(array_weights, dtype=np.float64)
+        if aw.size != n:
+            raise ValueError(
+                "Length of array_weights doesn't match number of arrays"
+            )
+        if np.any(aw <= 0) or np.any(np.isnan(aw)):
+            raise ValueError("array_weights must be positive")
+        ws = np.sqrt(aw)
+        X = X * ws[:, None]
+        y = y * ws[None, :]
+
+    # Block / correlation: GLS via Cholesky (lmEffects.R:102-118).
+    R_chol = None
+    if block is not None:
+        if correlation is None:
+            raise ValueError("correlation must be set when block is given")
+        block_arr = np.asarray(block).ravel()
+        if block_arr.size != n:
+            raise ValueError(
+                "Length of block does not match number of arrays"
+            )
+        ub, inv = np.unique(block_arr, return_inverse=True)
+        Z = (inv[:, None] == np.arange(len(ub))).astype(np.float64)
+        cormatrix = Z @ (float(correlation) * Z.T)
+        np.fill_diagonal(cormatrix, 1.0)
+        R_chol = np.linalg.cholesky(cormatrix).T  # upper triangular R
+        if weights is None:
+            # Apply transform y <- solve(R^T, y^T)^T and X <- solve(R^T, X).
+            y = solve_triangular(R_chol.T, y.T, lower=True).T
+            X = solve_triangular(R_chol.T, X, lower=True)
+
+    # Per-observation weights: per-gene QR loop (lmEffects.R:131-150).
+    if weights is not None:
+        w_mat = np.asarray(weights, dtype=np.float64)
+        if w_mat.shape != (y.shape[0], n):
+            raise ValueError("weights must have same dimensions as y")
+        if np.any(w_mat <= 0) or np.any(np.isnan(w_mat)):
+            raise ValueError("weights must be positive")
+        effects = np.zeros((y.shape[0], n))
+        for g in range(y.shape[0]):
+            ws_g = np.sqrt(w_mat[g])
+            wX = X * ws_g[:, None]
+            wy = y[g] * ws_g
+            if R_chol is not None:
+                wy = solve_triangular(R_chol.T, wy, lower=True)
+                wX = solve_triangular(R_chol.T, wX, lower=True)
+            Q_g, _ = qr(wX, mode="full")
+            effects[g] = Q_g.T @ wy
+        return effects[:, p:]  # drop contrast columns, keep residual block
+
+    # Common path: single QR of (possibly transformed) X.
+    Q, _ = qr(X, mode="full")
     residual = Q[:, p:].T @ y.T
-    return residual.T  # (ngenes, n - p)
+    return residual.T  # (n_genes, n - p)
 
 
 def wsva(
@@ -248,6 +331,11 @@ def wsva(
     n_sv: int = 1,
     weight_by_sd: bool = False,
     plot: bool = False,
+    *,
+    array_weights: np.ndarray | None = None,
+    weights: np.ndarray | None = None,
+    block: np.ndarray | None = None,
+    correlation: float | None = None,
     **kwargs,
 ) -> np.ndarray:
     """Weighted surrogate variable analysis.
@@ -259,7 +347,16 @@ def wsva(
     iteration weights rows by their residual SD. When ``plot=True``, a
     screeplot of the singular-value spectrum is produced via
     matplotlib (lazy import).
+
+    ``array_weights``, ``weights``, ``block``, and ``correlation`` are
+    threaded through to ``.lmEffects`` as R's wsva does via ``...``
+    (wsva.R:1, lmEffects.R:1). ``weights`` aliased as array-weights
+    (length ``n_arrays``) is promoted to ``array_weights`` to match
+    R's lmEffects.R:52-56.
     """
+    # R's .lmEffects (lmEffects.R:52-56) promotes a length-n vector
+    # passed as `weights` to `array.weights` when array_weights is None.
+    # Mirror that aliasing before dispatch.
     eawp = get_eawp(y)
     y_mat = np.asarray(eawp["exprs"], dtype=np.float64)
     design = np.asarray(design, dtype=np.float64)
@@ -270,10 +367,30 @@ def wsva(
     p = design.shape[1]
     d = narrays - p
 
+    if array_weights is None and weights is not None:
+        w_arr = np.asarray(weights)
+        if w_arr.ndim == 1 and w_arr.size == narrays:
+            array_weights = w_arr
+            weights = None
+
+    if kwargs:
+        warnings.warn(
+            f"Extra arguments disregarded: {sorted(kwargs.keys())}",
+            UserWarning,
+        )
+
     n_sv = max(int(n_sv), 1)
     n_sv = min(n_sv, d)
     if n_sv <= 0:
         raise ValueError("No residual df")
+
+    # Shared kwargs for every call to _lm_effects_residual in this function.
+    eff_kwargs = dict(
+        array_weights=array_weights,
+        weights=weights,
+        block=block,
+        correlation=correlation,
+    )
 
     if weight_by_sd:
         if plot:
@@ -281,7 +398,7 @@ def wsva(
                           UserWarning)
         current_design = design
         for _ in range(n_sv):
-            Effects = _lm_effects_residual(y_mat, current_design)
+            Effects = _lm_effects_residual(y_mat, current_design, **eff_kwargs)
             s = np.sqrt(np.mean(Effects ** 2, axis=1))
             Effects_w = s[:, None] * Effects
             U, _, _ = np.linalg.svd(Effects_w, full_matrices=False)
@@ -291,7 +408,7 @@ def wsva(
                 [current_design, sv.reshape(-1, 1)], axis=1)
         SV = current_design[:, p:].T  # (n_sv, narrays)
     else:
-        Effects = _lm_effects_residual(y_mat, design)
+        Effects = _lm_effects_residual(y_mat, design, **eff_kwargs)
         U, s, _ = np.linalg.svd(Effects, full_matrices=False)
         U = U[:, :n_sv]
         SV = U.T @ y_mat  # (n_sv, narrays)
