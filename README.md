@@ -95,7 +95,7 @@ results = pl.top_table(adata, coef=1)     # returns a DataFrame
 
 ## Examples
 
-The [`examples/`](examples/) directory contains tutorial notebooks organised by workflow. Each tutorial is self-contained, and together they cover the three input idioms (flat array/DataFrame, `EList`, and `AnnData`) across threee different workflows. Side-by-side R-vs-Python notebooks are provided for most datasets.
+The [`examples/`](examples/) directory contains tutorial notebooks organised by workflow. Each tutorial is self-contained, and together they cover the three input idioms (flat array/DataFrame, `EList`, and `AnnData`) across five workflows: microarray differential expression, bulk RNA-seq with voom, bulk MS proteomics, single-cell pseudobulk differential expression, and differential splicing. Side-by-side R-vs-Python notebooks are provided for the four datasets where parity to R limma is the explicit demonstration.
 
 ### Microarray differential expression
 
@@ -115,6 +115,12 @@ The Yoruba HapMap RNA-seq dataset ([Pickrell et al. 2010](https://doi.org/10.103
 
 - [`yoruba_tutorial.ipynb`](examples/yoruba/yoruba_tutorial.ipynb) - pylimma-only tutorial
 - [`yoruba_R_vs_Python.ipynb`](examples/yoruba/yoruba_R_vs_Python.ipynb) - side-by-side R limma vs pylimma comparison
+
+### Classical limma microarray-style pipeline on AnnData
+
+The Mulvey et al. 2026 cardiac-tissue dataset ([Mulvey et al. 2026](https://doi.org/10.1016/j.mcpro.2026.101510)) loads the data directly to an `AnnData` object, and then demonstrates the classical limma microarray-style pipeline (`lm_fit` -> `contrasts_fit` -> `e_bayes` -> `top_table`).
+
+- [`mulvey_tutorial.ipynb`](examples/mulvey/mulvey_tutorial.ipynb) - pylimma-only tutorial
 
 ### Single-cell pseudobulk differential expression
 
