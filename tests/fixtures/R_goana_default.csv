@@ -1,0 +1,11 @@
+"","Term","Ont","N","Up","Down","P.Up","P.Down"
+"GO:0000001","regulation of biological process","BP",5,3,2,0.000865557930068298,0.0208340469570477
+"GO:0000002","metabolic process","BP",6,2,0,0.0304086814392148,1
+"GO:0000003","signal transduction","BP",5,0,3,1,0.000865557930068298
+"GO:0000004","transport","BP",7,0,0,1,1
+"GO:0000005","membrane","CC",4,2,0,0.012846651346256,1
+"GO:0000006","nucleus","CC",6,0,0,1,1
+"GO:0000007","extracellular matrix","CC",6,0,4,1,4.63378674229884e-05
+"GO:0000008","binding","MF",7,7,0,5.25417920625681e-11,1
+"GO:0000009","catalytic activity","MF",5,0,5,1,9.9382799686348e-08
+"GO:0000010","transferase activity","MF",5,0,0,1,1

@@ -2448,3 +2448,144 @@ write.csv(data.frame(
 ), "R_plotSplice_substrate.csv", row.names = FALSE)
 
 cat("  Phase 5 fixtures complete.\n")
+
+
+# -----------------------------------------------------------------------------
+# Phase 6: GO / KEGG enrichment fixtures (goana, kegga, goanaTrend)
+# -----------------------------------------------------------------------------
+#
+# These fixtures validate pylimma's enrichment.py port. They are deliberately
+# self-contained: no GO.db / org.*.eg.db / KEGG REST dependency. The
+# gene-pathway tables are hand-crafted and goana's hypergeometric counts /
+# p-values are computed by feeding the goana data into kegga.default (whose
+# algorithm is byte-identical to goana.default's modulo column names: both
+# build the same incidence matrix and call phyper(...,lower.tail=FALSE) the
+# same way). The Term column - which real goana fills from GO.db - is
+# supplied via a synthetic pathway.names table; pylimma's port reads it as
+# the optional 4th column of gene.pathway.
+cat("\nGenerating Phase 6 fixtures (goana / kegga / goanaTrend)...\n")
+library(limma)
+
+# Universe of 200 genes
+goana_universe <- sprintf("gene%03d", 1:200)
+de_up   <- goana_universe[1:10]
+de_down <- goana_universe[11:20]
+goana_de_list <- list(Up = de_up, Down = de_down)
+
+# GO gene-pathway table (10 GO terms; deliberately a mix of overlap with
+# Up, Down, both, and neither so the fixture exercises non-trivial
+# hypergeometric tails).
+.make_go_rows <- function(go_id, ontology, term, idx) {
+  data.frame(
+    gene_id  = sprintf("gene%03d", idx),
+    go_id    = go_id,
+    ontology = ontology,
+    term     = term,
+    stringsAsFactors = FALSE
+  )
+}
+goana_gp <- rbind(
+  .make_go_rows("GO:0000001", "BP", "regulation of biological process", c(1,2,3,15,16)),
+  .make_go_rows("GO:0000002", "BP", "metabolic process",                c(1,2,30,31,32,33)),
+  .make_go_rows("GO:0000003", "BP", "signal transduction",              c(11,12,13,40,41)),
+  .make_go_rows("GO:0000004", "BP", "transport",                        c(50,51,52,53,54,55,56)),
+  .make_go_rows("GO:0000005", "CC", "membrane",                         c(4,5,60,61)),
+  .make_go_rows("GO:0000006", "CC", "nucleus",                          c(70,80,90,100,110,120)),
+  .make_go_rows("GO:0000007", "CC", "extracellular matrix",             c(14,15,16,17,100,101)),
+  .make_go_rows("GO:0000008", "MF", "binding",                          c(1,2,3,4,5,6,7)),
+  .make_go_rows("GO:0000009", "MF", "catalytic activity",               c(11,12,13,14,15)),
+  .make_go_rows("GO:0000010", "MF", "transferase activity",             c(130,140,150,160,170))
+)
+
+write.csv(goana_gp,
+          "R_goana_genepathway.csv", row.names = FALSE)
+write.csv(data.frame(gene_id = goana_universe),
+          "R_goana_universe.csv",    row.names = FALSE)
+write.csv(data.frame(
+            gene_id  = goana_universe,
+            is_de_up   = goana_universe %in% de_up,
+            is_de_down = goana_universe %in% de_down,
+            stringsAsFactors = FALSE),
+          "R_goana_de.csv", row.names = FALSE)
+
+# KEGG gene-pathway table + names
+.make_kegg <- function(path_id, idx) {
+  data.frame(gene_id = sprintf("gene%03d", idx), path_id = path_id,
+             stringsAsFactors = FALSE)
+}
+kegga_gp <- rbind(
+  .make_kegg("path:hsa00010", c(1,2,11,12,50,51,52)),
+  .make_kegg("path:hsa00020", c(3,4,5,60,61,62)),
+  .make_kegg("path:hsa00030", c(13,14,70,71)),
+  .make_kegg("path:hsa00040", c(80,81,82,83,84,85)),
+  .make_kegg("path:hsa00050", c(1,2,3,15,16,17,18)),
+  .make_kegg("path:hsa00060", c(11,12,13,90,91,92,93)),
+  .make_kegg("path:hsa00070", c(100,101,102,103,104)),
+  .make_kegg("path:hsa00080", c(6,7,8,110,111))
+)
+kegga_pn <- data.frame(
+  path_id = sprintf("path:hsa%05d", c(10,20,30,40,50,60,70,80)),
+  description = c("Glycolysis","Citrate cycle","Pentose phosphate","Fructose",
+                  "Galactose","Starch","TCA","Oxidative phosphorylation"),
+  stringsAsFactors = FALSE
+)
+write.csv(kegga_gp, "R_kegga_genepathway.csv", row.names = FALSE)
+write.csv(kegga_pn, "R_kegga_pathnames.csv",   row.names = FALSE)
+
+# goana algorithm via kegga.default + Term/Ont reshape
+.term_lookup <- setNames(goana_gp$term, goana_gp$go_id)
+.term_lookup <- .term_lookup[!duplicated(names(.term_lookup))]
+.ont_lookup  <- setNames(goana_gp$ontology, goana_gp$go_id)
+.ont_lookup  <- .ont_lookup[!duplicated(names(.ont_lookup))]
+.goana_termnames <- data.frame(
+  path_id     = names(.term_lookup),
+  description = unname(.term_lookup),
+  stringsAsFactors = FALSE
+)
+res_goana_alg <- kegga(de = goana_de_list, universe = goana_universe,
+                       gene.pathway  = goana_gp[, c("gene_id","go_id")],
+                       pathway.names = .goana_termnames,
+                       trend = FALSE)
+goana_result <- data.frame(
+  Term   = res_goana_alg$Pathway,
+  Ont    = unname(.ont_lookup[rownames(res_goana_alg)]),
+  N      = res_goana_alg$N,
+  Up     = res_goana_alg$Up,
+  Down   = res_goana_alg$Down,
+  P.Up   = res_goana_alg$P.Up,
+  P.Down = res_goana_alg$P.Down,
+  row.names = rownames(res_goana_alg),
+  stringsAsFactors = FALSE
+)
+write.csv(goana_result, "R_goana_default.csv", row.names = TRUE)
+
+# topGO with default sort and number=20
+write.csv(topGO(goana_result, number = 20L),
+          "R_top_go.csv", row.names = TRUE)
+
+# kegga.default and topKEGG
+res_kegga <- kegga(de = goana_de_list, universe = goana_universe,
+                   gene.pathway  = kegga_gp,
+                   pathway.names = kegga_pn,
+                   trend = FALSE)
+write.csv(res_kegga, "R_kegga_default.csv", row.names = TRUE)
+write.csv(topKEGG(res_kegga, number = 20L),
+          "R_top_kegg.csv", row.names = TRUE)
+
+# goanaTrend stand-alone fixture
+set.seed(2026)
+.gt_n <- 200
+.gt_cov <- sort(runif(.gt_n, 0, 1))
+.gt_isde <- rep(0L, .gt_n)
+# Inject DE genes with mild covariate-trend dependence so the lowess
+# smoother produces a non-trivial probability curve.
+.gt_isde[seq(1, .gt_n, by = 4)] <- 1L
+.gt_isde[150:170] <- as.integer(runif(21) < 0.6)
+write.csv(data.frame(is_de = .gt_isde, covariate = .gt_cov),
+          "R_goanatrend_input.csv", row.names = FALSE)
+.gt_prob <- goanaTrend(index.de = which(as.logical(.gt_isde)),
+                       covariate = .gt_cov, plot = FALSE)
+write.csv(data.frame(prob = .gt_prob),
+          "R_goanatrend.csv", row.names = FALSE)
+
+cat("  Phase 6 fixtures complete.\n")

@@ -87,6 +87,7 @@ from pylimma.plotting import (
     plot_exon_junc,
 )
 from pylimma.splicing import diff_splice, top_splice, plot_splice
+from pylimma.enrichment import goana, top_go, kegga, top_kegg, goana_trend
 
 __all__ = [
     "__version__",
@@ -151,6 +152,12 @@ __all__ = [
     "diff_splice",
     "top_splice",
     "plot_splice",
+    # GO / KEGG enrichment
+    "goana",
+    "top_go",
+    "kegga",
+    "top_kegg",
+    "goana_trend",
     # Decision procedures
     "decide_tests",
     "classify_tests_f",

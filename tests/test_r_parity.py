@@ -4714,3 +4714,164 @@ class TestFinding20VoomaByGroupPlotRParity:
             drawn = False
         assert plot_mentioned or drawn, \
             "vooma_by_group(plot=True) silently did nothing"
+
+
+# =============================================================================
+# Phase 6: enrichment (goana / kegga / goanaTrend)
+# =============================================================================
+
+
+def _load_goana_inputs():
+    gp = pd.read_csv(FIXTURES_DIR / "R_goana_genepathway.csv")
+    de = pd.read_csv(FIXTURES_DIR / "R_goana_de.csv")
+    universe = pd.read_csv(FIXTURES_DIR / "R_goana_universe.csv")[
+        "gene_id"
+    ].tolist()
+    de_list = {
+        "Up":   de.loc[de["is_de_up"].astype(bool),   "gene_id"].tolist(),
+        "Down": de.loc[de["is_de_down"].astype(bool), "gene_id"].tolist(),
+    }
+    return gp, de_list, universe
+
+
+def _load_kegga_inputs():
+    gp = pd.read_csv(FIXTURES_DIR / "R_kegga_genepathway.csv")
+    pn = pd.read_csv(FIXTURES_DIR / "R_kegga_pathnames.csv")
+    de = pd.read_csv(FIXTURES_DIR / "R_goana_de.csv")
+    universe = pd.read_csv(FIXTURES_DIR / "R_goana_universe.csv")[
+        "gene_id"
+    ].tolist()
+    de_list = {
+        "Up":   de.loc[de["is_de_up"].astype(bool),   "gene_id"].tolist(),
+        "Down": de.loc[de["is_de_down"].astype(bool), "gene_id"].tolist(),
+    }
+    return gp, pn, de_list, universe
+
+
+class TestGoanaRParity:
+    def test_goana_default_counts(self):
+        from pylimma import goana
+        gp, de_list, universe = _load_goana_inputs()
+        py = goana(de=de_list, gene_pathway=gp, universe=universe,
+                   trend=False)
+        r = load_r_csv("goana_default")
+        py_aligned = py.loc[r.index]
+        assert list(py_aligned["n"])    == list(r["N"])
+        assert list(py_aligned["up"])   == list(r["Up"])
+        assert list(py_aligned["down"]) == list(r["Down"])
+        assert list(py_aligned["ontology"]) == list(r["Ont"])
+        assert list(py_aligned["term"])     == list(r["Term"])
+
+    def test_goana_default_pvalues(self):
+        from pylimma import goana
+        gp, de_list, universe = _load_goana_inputs()
+        py = goana(de=de_list, gene_pathway=gp, universe=universe,
+                   trend=False)
+        r = load_r_csv("goana_default").loc[py.index]
+        for r_col, py_col in (("P.Up", "p_up"), ("P.Down", "p_down")):
+            res = compare_pvalues(r[r_col].values, py[py_col].values,
+                                  max_log10_diff=1.0)
+            assert res["match"], (
+                f"goana {py_col} differs: max_log10_diff="
+                f"{res['max_log10_diff']:.3e}"
+            )
+
+    def test_top_go_ordering_and_truncation(self):
+        from pylimma import goana, top_go
+        gp, de_list, universe = _load_goana_inputs()
+        py = goana(de=de_list, gene_pathway=gp, universe=universe,
+                   trend=False)
+        py_top = top_go(py, number=20)
+        r_top = load_r_csv("top_go")
+        # Row order must match exactly (sort key: P, N, Term).
+        assert list(py_top.index) == list(r_top.index), (
+            f"top_go row order differs: py={list(py_top.index)}, "
+            f"r={list(r_top.index)}"
+        )
+        # Term truncation: ask for 20 chars, expect ellipsis on long names.
+        py_trunc = top_go(py, number=20, truncate_term=20)
+        for v in py_trunc["term"]:
+            sv = str(v)
+            assert len(sv) <= 20, f"term {sv!r} not truncated"
+            if len(sv) == 20:
+                assert sv.endswith("..."), (
+                    f"truncated term {sv!r} should end with ..."
+                )
+
+
+class TestKeggaRParity:
+    def test_kegga_default_counts(self):
+        from pylimma import kegga
+        gp, pn, de_list, universe = _load_kegga_inputs()
+        py = kegga(de=de_list, gene_pathway=gp, pathway_names=pn,
+                   universe=universe, trend=False)
+        r = load_r_csv("kegga_default")
+        py_aligned = py.loc[r.index]
+        assert list(py_aligned["n"])       == list(r["N"])
+        assert list(py_aligned["up"])      == list(r["Up"])
+        assert list(py_aligned["down"])    == list(r["Down"])
+        assert list(py_aligned["pathway"]) == list(r["Pathway"])
+
+    def test_kegga_default_pvalues(self):
+        from pylimma import kegga
+        gp, pn, de_list, universe = _load_kegga_inputs()
+        py = kegga(de=de_list, gene_pathway=gp, pathway_names=pn,
+                   universe=universe, trend=False)
+        r = load_r_csv("kegga_default").loc[py.index]
+        for r_col, py_col in (("P.Up", "p_up"), ("P.Down", "p_down")):
+            res = compare_pvalues(r[r_col].values, py[py_col].values,
+                                  max_log10_diff=1.0)
+            assert res["match"], (
+                f"kegga {py_col} differs: max_log10_diff="
+                f"{res['max_log10_diff']:.3e}"
+            )
+
+    def test_top_kegg_ordering_and_truncation(self):
+        from pylimma import kegga, top_kegg
+        gp, pn, de_list, universe = _load_kegga_inputs()
+        py = kegga(de=de_list, gene_pathway=gp, pathway_names=pn,
+                   universe=universe, trend=False)
+        py_top = top_kegg(py, number=20)
+        r_top = load_r_csv("top_kegg")
+        assert list(py_top.index) == list(r_top.index), (
+            f"top_kegg row order differs: py={list(py_top.index)}, "
+            f"r={list(r_top.index)}"
+        )
+        py_trunc = top_kegg(py, number=20, truncate_path=10)
+        for v in py_trunc["pathway"]:
+            sv = str(v)
+            assert len(sv) <= 10
+            if len(sv) == 10:
+                assert sv.endswith("...")
+
+
+class TestGoanaTrendRParity:
+    def test_per_gene_probability(self):
+        from pylimma import goana_trend
+        gtin = pd.read_csv(FIXTURES_DIR / "R_goanatrend_input.csv")
+        expected = pd.read_csv(FIXTURES_DIR / "R_goanatrend.csv")[
+            "prob"
+        ].values
+        isde_idx = np.where(gtin["is_de"].values.astype(bool))[0]
+        prob = goana_trend(index_de=isde_idx,
+                           covariate=gtin["covariate"].values)
+        res = compare_arrays(expected, prob, rtol=1e-8, atol=1e-12)
+        assert res["match"], (
+            f"goana_trend probabilities differ: "
+            f"max_abs={res['max_abs_diff']:.3e} "
+            f"max_rel={res['max_rel_diff']:.3e}"
+        )
+
+
+class TestGoanaTrendInterface:
+    def test_trend_true_raises_not_implemented(self):
+        """trend=True is the BiasedUrn path, deferred to Phase 2."""
+        from pylimma import goana, kegga
+        gp, de_list, universe = _load_goana_inputs()
+        with pytest.raises(NotImplementedError, match="BiasedUrn"):
+            goana(de=de_list, gene_pathway=gp, universe=universe,
+                  trend=True)
+        kgp, pn, de_list, universe = _load_kegga_inputs()
+        with pytest.raises(NotImplementedError, match="BiasedUrn"):
+            kegga(de=de_list, gene_pathway=kgp, pathway_names=pn,
+                  universe=universe, trend=True)
