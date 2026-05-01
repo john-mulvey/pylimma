@@ -90,6 +90,7 @@ def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
     # Negative values -> NaN with warning
     if np.any(neg_mask):
         import warnings
+
         warnings.warn("NaNs produced", RuntimeWarning)
         y[neg_mask] = np.nan
 
@@ -112,6 +113,7 @@ def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
                 break
         else:
             import warnings
+
             warnings.warn("Iteration limit exceeded in trigamma_inverse")
 
         y[normal_mask] = y_iter
@@ -222,6 +224,7 @@ def qqt(
 
         except ImportError:
             import warnings
+
             warnings.warn("matplotlib not available for plotting")
 
     return {"x": x, "y": y}
@@ -303,6 +306,7 @@ def qqf(
 
         except ImportError:
             import warnings
+
             warnings.warn("matplotlib not available for plotting")
 
     return {"x": x, "y": y}
@@ -312,7 +316,7 @@ def choose_lowess_span(
     n: int = 1000,
     small_n: int = 50,
     min_span: float = 0.3,
-    power: float = 1/3,
+    power: float = 1 / 3,
 ) -> float:
     """
     Choose optimal span for LOWESS smoothing of variance trends.
@@ -358,8 +362,8 @@ def _find_span_window(
     cur_weight = weights_sorted[idx]
     max_dist = 0.0
 
-    at_start = (left == 0)
-    at_end = (right == n - 1)
+    at_start = left == 0
+    at_end = right == n - 1
 
     while cur_weight < span_weight and (not at_start or not at_end):
         if at_end:
@@ -429,7 +433,7 @@ def _weighted_local_regression(
 
     # Tricube kernel weights: (1 - |u|^3)^3
     u = np.abs(x_window - x_fit) / max_dist
-    kernel_w = np.where(u < 1, (1 - u ** 3) ** 3, 0.0)
+    kernel_w = np.where(u < 1, (1 - u**3) ** 3, 0.0)
 
     # Combined weights
     w = kernel_w * obs_weights * rob_weights
@@ -444,7 +448,7 @@ def _weighted_local_regression(
 
     # Weighted variance and covariance for local linear fit
     x_centered = x_window - x_mean
-    var = np.sum(w * x_centered ** 2)
+    var = np.sum(w * x_centered**2)
     covar = np.sum(w * x_centered * (y_window - y_mean))
 
     # If variance is tiny, return weighted mean
@@ -560,7 +564,7 @@ def loess_fit(
         w_obs = np.ones(n_obs, dtype=np.float64)
 
     # Sort by x (stable sort to match R behaviour)
-    order = np.argsort(x_obs, kind='mergesort')
+    order = np.argsort(x_obs, kind="mergesort")
     x_sorted = x_obs[order]
     y_sorted = y_obs[order]
     w_sorted = w_obs[order]
@@ -570,10 +574,7 @@ def loess_fit(
     span_weight = total_weight * span
 
     # Precompute span windows for all points
-    windows = [
-        _find_span_window(i, x_sorted, w_sorted, span_weight, n_obs)
-        for i in range(n_obs)
-    ]
+    windows = [_find_span_window(i, x_sorted, w_sorted, span_weight, n_obs) for i in range(n_obs)]
 
     # Initialize robustness weights
     rob_weights = np.ones(n_obs, dtype=np.float64)
@@ -587,10 +588,10 @@ def loess_fit(
             left, right, max_dist = windows[i]
             fitted_sorted[i] = _weighted_local_regression(
                 x_sorted[i],
-                x_sorted[left:right + 1],
-                y_sorted[left:right + 1],
-                w_sorted[left:right + 1],
-                rob_weights[left:right + 1],
+                x_sorted[left : right + 1],
+                y_sorted[left : right + 1],
+                w_sorted[left : right + 1],
+                rob_weights[left : right + 1],
                 max_dist,
             )
 
@@ -612,7 +613,7 @@ def loess_fit(
 
         # Update robustness weights using bisquare kernel
         u = abs_resid / cmad
-        rob_weights = np.where(u < 1, (1 - u ** 2) ** 2, 0.0)
+        rob_weights = np.where(u < 1, (1 - u**2) ** 2, 0.0)
 
     # Map back to original order
     inv_order = np.argsort(order)
@@ -678,8 +679,7 @@ def weighted_lowess(
 
     if delta is not None:
         _warnings.warn(
-            "weighted_lowess: 'delta' is ignored by pylimma's exact "
-            "weighted LOWESS implementation",
+            "weighted_lowess: 'delta' is ignored by pylimma's exact weighted LOWESS implementation",
             stacklevel=2,
         )
     if npts != 200:
@@ -691,10 +691,7 @@ def weighted_lowess(
         )
     output_style = output_style.lower()
     if output_style not in ("loess", "lowess"):
-        raise ValueError(
-            "output_style must be 'loess' or 'lowess', got "
-            f"{output_style!r}"
-        )
+        raise ValueError(f"output_style must be 'loess' or 'lowess', got {output_style!r}")
 
     fit = loess_fit(y, x, weights=weights, span=span, iterations=iterations)
     if output_style == "loess":
@@ -900,14 +897,10 @@ def zscore_gamma(
     z_flat = z.reshape(-1)
     up = q_flat > shape * scale
     if np.any(up):
-        logp = _scipy_stats.gamma.logsf(
-            q_flat[up], a=shape[up], scale=scale[up]
-        )
+        logp = _scipy_stats.gamma.logsf(q_flat[up], a=shape[up], scale=scale[up])
         z_flat[up] = -ndtri_exp(logp)
     if np.any(~up):
-        logp = _scipy_stats.gamma.logcdf(
-            q_flat[~up], a=shape[~up], scale=scale[~up]
-        )
+        logp = _scipy_stats.gamma.logcdf(q_flat[~up], a=shape[~up], scale=scale[~up])
         z_flat[~up] = ndtri_exp(logp)
     return z
 
@@ -993,16 +986,13 @@ def _zscore_t_quantile(x: np.ndarray, df: np.ndarray) -> np.ndarray:
 
 
 def _zscore_t_wallace(x: np.ndarray, df: np.ndarray) -> np.ndarray:
-    return (
-        (df + 0.125) / (df + 0.375)
-        * np.sqrt(df * np.log1p(x / df * x))
-        * np.sign(x)
-    )
+    return (df + 0.125) / (df + 0.375) * np.sqrt(df * np.log1p(x / df * x)) * np.sign(x)
 
 
 def _zscore_t_bailey(x: np.ndarray, df: np.ndarray) -> np.ndarray:
     return (
-        (df + 0.125) / (df + 1.125)
+        (df + 0.125)
+        / (df + 1.125)
         * np.sqrt((df + 19.0 / 12.0) * np.log1p(x / (df + 1.0 / 12.0) * x))
         * np.sign(x)
     )
@@ -1013,10 +1003,8 @@ def _zscore_t_hill(x: np.ndarray, df: np.ndarray) -> np.ndarray:
     B = 48.0 * A * A
     z = A * np.log1p(x / df * x)
     z = (
-        (((((-0.4 * z - 3.3) * z - 24.0) * z - 85.5)
-          / (0.8 * z * z + 100.0 + B) + z + 3.0) / B + 1.0
-        ) * np.sqrt(z)
-    )
+        ((((-0.4 * z - 3.3) * z - 24.0) * z - 85.5) / (0.8 * z * z + 100.0 + B) + z + 3.0) / B + 1.0
+    ) * np.sqrt(z)
     return z * np.sign(x)
 
 
@@ -1061,8 +1049,7 @@ def zscore_t(
         df = np.minimum(df, 1e100)
         if method not in ("bailey", "hill", "wallace"):
             raise ValueError(
-                f"method '{method}' not recognized. "
-                "Must be one of 'bailey', 'hill', 'wallace'."
+                f"method '{method}' not recognized. Must be one of 'bailey', 'hill', 'wallace'."
             )
         if method == "bailey":
             return _zscore_t_bailey(x, df)
@@ -1151,12 +1138,12 @@ def tricube_moving_average(
     cw = np.cumsum(weights)
     # R: x[1:hwidth] / cw[(width-hwidth):(width-1)]  (1-based, inclusive)
     # 0-based: out[0:hwidth] /= cw[width-hwidth-1:width-1]
-    out[:hwidth] = out[:hwidth] / cw[width - hwidth - 1: width - 1]
+    out[:hwidth] = out[:hwidth] / cw[width - hwidth - 1 : width - 1]
     # R: x[(n-hwidth+1):n] / cw[(width-1):(width-hwidth)]  (descending)
     # 0-based: out[n-hwidth:n] /= cw[width-2:width-hwidth-2:-1]
     # Construct the descending slice via index arithmetic.
     idx = np.arange(width - 2, width - hwidth - 2, -1)
-    out[n - hwidth: n] = out[n - hwidth: n] / cw[idx]
+    out[n - hwidth : n] = out[n - hwidth : n] / cw[idx]
 
     return out
 
@@ -1229,13 +1216,13 @@ def convest(
         vals = np.empty(100)
         for i, theta in enumerate(t_grid):
             mask = p < theta
-            vals[i] = np.sum((2.0 * (theta - p[mask]) / theta ** 2) / f_hat_p_cur[mask])
+            vals[i] = np.sum((2.0 * (theta - p[mask]) / theta**2) / f_hat_p_cur[mask])
         return 0.01 * (int(np.argmax(vals)) + 1)
 
     # Initial theta.hat with f_hat_p = 1
     theta_hat = _argmax_theta(np.ones_like(p))
-    f_theta_hat = 2.0 * (theta_hat - x_grid) * (x_grid < theta_hat) / theta_hat ** 2
-    f_theta_hat_p = 2.0 * (theta_hat - p) * (p < theta_hat) / theta_hat ** 2
+    f_theta_hat = 2.0 * (theta_hat - x_grid) * (x_grid < theta_hat) / theta_hat**2
+    f_theta_hat_p = 2.0 * (theta_hat - p) * (p < theta_hat) / theta_hat**2
 
     thetas = []
 
@@ -1283,12 +1270,10 @@ def convest(
         vals = np.empty(100)
         for i, theta in enumerate(t_grid):
             mask = p < theta
-            vals[i] = np.sum(
-                (2.0 * (theta - p[mask]) / theta ** 2) / f_hat_p[mask]
-            )
+            vals[i] = np.sum((2.0 * (theta - p[mask]) / theta**2) / f_hat_p[mask])
         theta_hat = 0.01 * (int(np.argmax(vals)) + 1)
-        f_theta_hat = 2.0 * (theta_hat - x_grid) * (x_grid < theta_hat) / theta_hat ** 2
-        f_theta_hat_p = 2.0 * (theta_hat - p) * (p < theta_hat) / theta_hat ** 2
+        f_theta_hat = 2.0 * (theta_hat - x_grid) * (x_grid < theta_hat) / theta_hat**2
+        f_theta_hat_p = 2.0 * (theta_hat - p) * (p < theta_hat) / theta_hat**2
 
         # Check if the Unif[0,1]-density is the new f_theta_hat
         if np.sum(f_theta_hat_p / f_hat_p) < np.sum(1.0 / f_hat_p):
@@ -1303,6 +1288,7 @@ def convest(
         if plot:
             try:
                 import matplotlib.pyplot as plt
+
                 fig, ax = plt.subplots()
                 ax.plot(x_grid, f_hat)
                 ax.set_ylim(0, 1.2)
@@ -1403,8 +1389,7 @@ def prop_true_null(
     p = np.asarray(p, dtype=np.float64)
     if method not in ("lfdr", "mean", "hist", "convest"):
         raise ValueError(
-            f"method '{method}' not recognized. "
-            "Must be one of 'lfdr', 'mean', 'hist', 'convest'."
+            f"method '{method}' not recognized. Must be one of 'lfdr', 'mean', 'hist', 'convest'."
         )
     if method == "lfdr":
         return _prop_true_null_by_local_fdr(p)
@@ -1559,7 +1544,7 @@ def logcosh(x) -> np.ndarray:
     y = absx - np.log(2.0)
     # Small-argument Taylor
     small = absx < 1e-4
-    y = np.where(small, 0.5 * x ** 2, y)
+    y = np.where(small, 0.5 * x**2, y)
     # Mid-range direct
     mid = (~small) & (absx < 17.0)
     if np.any(mid):
@@ -1577,6 +1562,7 @@ def logsumexp(x, y=None) -> np.ndarray:
     """
     if y is None:
         from scipy.special import logsumexp as _lse
+
         return _lse(np.asarray(x, dtype=np.float64))
 
     x = np.asarray(x, dtype=np.float64)
@@ -1626,12 +1612,13 @@ def bwss(x, group) -> dict:
     unique, counts = np.unique(group, return_counts=True)
     means = np.array([np.mean(x[group == g]) for g in unique])
     # R uses ddof=1 sample variance; when n==1 variance is NaN
-    variances = np.array([
-        np.var(x[group == g], ddof=1) if counts[i] > 1 else np.nan
-        for i, g in enumerate(unique)
-    ])
+    variances = np.array(
+        [np.var(x[group == g], ddof=1) if counts[i] > 1 else np.nan for i, g in enumerate(unique)]
+    )
     keep_grp = counts > 0
-    means = means[keep_grp]; variances = variances[keep_grp]; counts = counts[keep_grp]
+    means = means[keep_grp]
+    variances = variances[keep_grp]
+    counts = counts[keep_grp]
 
     total_n = counts.sum()
     grand_mean = np.sum(counts * means) / total_n
@@ -1672,8 +1659,8 @@ def pool_var(var, df=None, multiplier=None, n=None) -> dict:
     sm = float(np.sum(multiplier))
     mnorm = multiplier / sm
     pooled_var = float(np.sum(mnorm * var))
-    denom = float(np.sum(mnorm ** 2 * var ** 2 / df))
-    pooled_df = pooled_var ** 2 / denom if denom > 0 else float("inf")
+    denom = float(np.sum(mnorm**2 * var**2 / df))
+    pooled_df = pooled_var**2 / denom if denom > 0 else float("inf")
     return {"var": pooled_var, "df": pooled_df, "multiplier": sm}
 
 
@@ -1712,9 +1699,7 @@ def cum_overlap(ol1, ol2) -> dict:
     i = np.arange(1, ngenes + 1, dtype=np.int64)
     # phyper(noverlap - 0.5, m=i, n=ngenes - i, k=i, lower.tail=FALSE)
     # = 1 - P(X <= noverlap - 1) under hypergeometric(good=i, bad=ngenes-i, drawn=i).
-    p = 1.0 - _stats.hypergeom.cdf(
-        np.maximum(noverlap - 1, -1), ngenes, i, i
-    )
+    p = 1.0 - _stats.hypergeom.cdf(np.maximum(noverlap - 1, -1), ngenes, i, i)
 
     p_b = p * i
     nmin = int(np.argmin(p_b))
@@ -1812,7 +1797,7 @@ def fit_gamma_intercept(y, offset=0.0, maxit: int = 1000) -> float:
     for _ in range(maxit):
         denom = offset + x
         Q = float(np.sum(y / denom))
-        dQ = float(np.sum(y / denom ** 2))
+        dQ = float(np.sum(y / denom**2))
         if dQ == 0:
             break
         dif = (Q - n) / dQ
@@ -1840,10 +1825,9 @@ def bwss_matrix(x) -> dict:
 
     means = np.nanmean(x, axis=0)
     # Sample variance per column (ddof=1); NaN-safe
-    variances = np.array([
-        np.nanvar(x[:, j], ddof=1) if counts[j] > 1 else np.nan
-        for j in range(x.shape[1])
-    ])
+    variances = np.array(
+        [np.nanvar(x[:, j], ddof=1) if counts[j] > 1 else np.nan for j in range(x.shape[1])]
+    )
     total_n = counts.sum()
     grand_mean = np.sum(counts * means) / total_n
     wss = float(np.nansum((counts - 1) * variances))

@@ -18,11 +18,11 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy import stats
 
+from .classes import _is_anndata, _resolve_fit_input
 from .utils import p_adjust
-from .classes import _resolve_fit_input, _is_anndata
 
 if TYPE_CHECKING:
-    from anndata import AnnData
+    pass
 
 
 def classify_tests_f(
@@ -201,7 +201,7 @@ def decide_tests(
     *,
     key: str = "pylimma",
 ) -> np.ndarray:
-    """
+    r"""
     Classify genes as differentially expressed.
 
     Applies multiple testing correction and classifies each gene-coefficient
@@ -260,7 +260,9 @@ def decide_tests(
         if p.ndim == 1:
             p = p.reshape(-1, 1)
         return _decide_tests_p(
-            p, method=method, adjust_method=adjust_method,
+            p,
+            method=method,
+            adjust_method=adjust_method,
             p_value=p_value,
             coefficients=coefficients if coefficients is not None else tstat,
             lfc=lfc,
@@ -275,6 +277,7 @@ def decide_tests(
     # though decide_tests implicitly ran it.
     if "p_value" not in fit:
         from .ebayes import e_bayes
+
         fit = e_bayes(fit)
         if _adata is not None:
             # Plain dict for h5ad compatibility; see lm_fit.
@@ -291,12 +294,19 @@ def decide_tests(
 
     if method == "nestedF":
         return _decide_tests_nested_f(
-            fit, adjust_method=adjust_method, p_value=p_value, lfc=lfc,
-            cor_matrix=cor_matrix, df=df,
+            fit,
+            adjust_method=adjust_method,
+            p_value=p_value,
+            lfc=lfc,
+            cor_matrix=cor_matrix,
+            df=df,
         )
     elif method == "hierarchical":
         return _decide_tests_hierarchical(
-            fit, adjust_method=adjust_method, p_value=p_value, lfc=lfc,
+            fit,
+            adjust_method=adjust_method,
+            p_value=p_value,
+            lfc=lfc,
             genewise_p_value=genewise_p_value,
         )
     else:
@@ -304,8 +314,12 @@ def decide_tests(
         # and '* (abs(coef) > lfc)' for the lfc threshold (decidetests.R:165).
         # The bare-ndarray entry above uses '<=' / '<' (decidetests.R:89/101).
         return _decide_tests_p(
-            p, method=method, adjust_method=adjust_method,
-            p_value=p_value, coefficients=coefficients, lfc=lfc,
+            p,
+            method=method,
+            adjust_method=adjust_method,
+            p_value=p_value,
+            coefficients=coefficients,
+            lfc=lfc,
             genewise_p_value=genewise_p_value,
             from_marraylm=True,
         )
@@ -399,8 +413,6 @@ def _decide_tests_hierarchical(
 
     if np.any(np.isnan(f_p_value)):
         raise ValueError("Cannot handle NA F p-values in hierarchical method")
-
-    n_genes = p.shape[0]
 
     # Adjust F-test p-values
     f_adj = p_adjust(f_p_value, method=adjust_method)

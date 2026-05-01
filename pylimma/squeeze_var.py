@@ -20,14 +20,14 @@ Implements the core eBayes variance moderation from limma:
 from __future__ import annotations
 
 import warnings
+
 import numpy as np
-from scipy.special import polygamma
 from scipy import linalg
-from scipy.stats import f as f_dist
 from scipy.optimize import brentq
+from scipy.special import polygamma
+from scipy.stats import f as f_dist
 
-from .utils import trigamma_inverse, logmdigamma
-
+from .utils import logmdigamma, trigamma_inverse
 
 # Pre-compute 128-point Gauss-Legendre quadrature nodes and weights
 _GAUSS_NODES, _GAUSS_WEIGHTS = np.polynomial.legendre.leggauss(128)
@@ -67,6 +67,7 @@ def _winsorized_moments(
     if np.isinf(df2):
         # F with df2=Inf is chi-squared(df1)/df1
         from scipy.stats import chi2
+
         fq_lower = chi2.ppf(prob_lower, df1) / df1
         fq_upper = chi2.ppf(1 - prob_upper, df1) / df1
     else:
@@ -98,6 +99,7 @@ def _winsorized_moments(
     # d/dq[linkinv(q)] = 1/(1-q)^2
     if np.isinf(df2):
         from scipy.stats import chi2
+
         # F = chi2/df1, so pdf_F(f) = df1 * pdf_chi2(f*df1)
         pdf_f = df1 * chi2.pdf(nodes_f * df1, df1)
     else:
@@ -115,9 +117,7 @@ def _winsorized_moments(
     mean = middle_mean + tail_mean
 
     # Compute variance: E[(z-mean)^2]
-    middle_var = q_range * np.sum(
-        _GAUSS_WEIGHTS_UNIFORM * integrand_weight * (nodes_z - mean) ** 2
-    )
+    middle_var = q_range * np.sum(_GAUSS_WEIGHTS_UNIFORM * integrand_weight * (nodes_z - mean) ** 2)
     tail_var = (zq_lower - mean) ** 2 * prob_lower + (zq_upper - mean) ** 2 * prob_upper
     var = middle_var + tail_var
 
@@ -204,11 +204,9 @@ def _natural_spline_basis(
 
     # Augmented knot vector: boundary repeated 4 times (for cubic splines, order=4)
     # plus interior knots, matching R's: sort(c(rep(Boundary.knots, 4), knots))
-    knots = np.sort(np.concatenate([
-        np.repeat(boundary[0], 4),
-        interior_knots,
-        np.repeat(boundary[1], 4)
-    ]))
+    knots = np.sort(
+        np.concatenate([np.repeat(boundary[0], 4), interior_knots, np.repeat(boundary[1], 4)])
+    )
 
     # Number of B-spline basis functions
     n_basis = len(knots) - 4
@@ -240,7 +238,7 @@ def _natural_spline_basis(
 
     # Apply natural spline constraint via QR decomposition
     # This matches R's: (t(qr.qty(qr.const, t(basis))))[, -(1:2)]
-    Q, _ = linalg.qr(const.T, mode='full')
+    Q, _ = linalg.qr(const.T, mode="full")
     transformed = Q.T @ basis.T
     basis_final = transformed.T[:, 2:]  # Drop first 2 columns (constrained directions)
 
@@ -286,7 +284,7 @@ def _fit_spline_trend(e: np.ndarray, covariate: np.ndarray, splinedf: int) -> tu
         design = np.column_stack([np.ones(n), covariate])
 
     # Fit linear model
-    q, r = linalg.qr(design, mode='economic')
+    q, r = linalg.qr(design, mode="economic")
     rank = np.sum(np.abs(np.diag(r)) > 1e-10)
 
     # Solve for coefficients
@@ -301,7 +299,7 @@ def _fit_spline_trend(e: np.ndarray, covariate: np.ndarray, splinedf: int) -> tu
     # space of design). Divide by n - rank (R's df.residual convention).
     df_resid = n - rank
     if df_resid > 0:
-        residual_ss = np.sum(e ** 2) - np.sum(qty ** 2)
+        residual_ss = np.sum(e**2) - np.sum(qty**2)
         # Guard against negative from floating-point noise near zero
         residual_var = max(residual_ss, 0.0) / df_resid
     else:
@@ -411,7 +409,6 @@ def fit_f_dist(
 
     # Store indices for later expansion
     if notallok:
-        x_full = x.copy()
         x = x[ok]
         if len(df1) > 1:
             df1 = df1[ok]
@@ -434,9 +431,7 @@ def fit_f_dist(
     x = np.maximum(x, 0.0)
     m = np.median(x)
     if m == 0:
-        warnings.warn(
-            "More than half of residual variances are exactly zero: eBayes unreliable"
-        )
+        warnings.warn("More than half of residual variances are exactly zero: eBayes unreliable")
         m = 1.0
     elif np.any(x == 0):
         warnings.warn("Zero sample variances detected, have been offset away from zero")
@@ -452,9 +447,7 @@ def fit_f_dist(
         evar = np.var(e, ddof=1)
     else:
         # Fit spline trend
-        emean, evar, coef, design, spline_knots = _fit_spline_trend(
-            e, covariate, splinedf
-        )
+        emean, evar, coef, design, spline_knots = _fit_spline_trend(e, covariate, splinedf)
 
         # Expand emean to full length if needed. Reuse the spline_knots
         # captured during the fit so the basis is evaluated at the
@@ -477,10 +470,8 @@ def fit_f_dist(
                     )
                 else:
                     # Linear fallback path: replay [1, x] design.
-                    design_notok = np.column_stack(
-                        [np.ones(len(covariate_notok)), covariate_notok]
-                    )
-                emean_full[~ok] = design_notok[:, :len(coef)] @ coef
+                    design_notok = np.column_stack([np.ones(len(covariate_notok)), covariate_notok])
+                emean_full[~ok] = design_notok[:, : len(coef)] @ coef
             except Exception:
                 # Fall back to nearest neighbor or mean
                 emean_full[~ok] = np.mean(emean)
@@ -593,8 +584,7 @@ def fit_f_dist_robustly(
         cov_ok = covariate[ok] if covariate is not None else None
 
         sub_fit = fit_f_dist_robustly(
-            x=x_ok, df1=df1_ok, covariate=cov_ok, winsor_tail_p=winsor_tail_p,
-            trace=trace
+            x=x_ok, df1=df1_ok, covariate=cov_ok, winsor_tail_p=winsor_tail_p, trace=trace
         )
 
         # Expand results
@@ -610,14 +600,17 @@ def fit_f_dist_robustly(
             # linear interpolation within range, boundary-value clamp outside.
             if isinstance(sub_fit["scale"], np.ndarray):
                 from scipy.interpolate import interp1d
+
                 x_ok = covariate[ok]
                 y_ok = np.log(sub_fit["scale"])
                 sort_idx = np.argsort(x_ok, kind="stable")
                 x_sorted = x_ok[sort_idx]
                 y_sorted = y_ok[sort_idx]
                 f = interp1d(
-                    x_sorted, y_sorted,
-                    kind="linear", bounds_error=False,
+                    x_sorted,
+                    y_sorted,
+                    kind="linear",
+                    bounds_error=False,
                     fill_value=(y_sorted[0], y_sorted[-1]),
                 )
                 scale[~ok] = np.exp(f(covariate[~ok]))
@@ -636,7 +629,7 @@ def fit_f_dist_robustly(
     # Check winsorization proportions
     prob_lower = winsor_tail_p[0]
     prob_upper = winsor_tail_p[1]
-    if prob_lower < 1/n and prob_upper < 1/n:
+    if prob_lower < 1 / n and prob_upper < 1 / n:
         return {
             "scale": non_robust["scale"],
             "df2": non_robust["df2"],
@@ -665,10 +658,9 @@ def fit_f_dist_robustly(
         # disagrees with R by up to ~3e-3. Pass R's default explicitly.
         try:
             from statsmodels.nonparametric.smoothers_lowess import lowess
+
             delta = 0.01 * (np.max(covariate) - np.min(covariate))
-            smoothed = lowess(
-                z, covariate, frac=0.4, delta=delta, return_sorted=False
-            )
+            smoothed = lowess(z, covariate, frac=0.4, delta=delta, return_sorted=False)
             z_trend = smoothed
             z_resid = z - z_trend
         except ImportError:
@@ -709,6 +701,7 @@ def fit_f_dist_robustly(
         # Identify outliers
         f_stat = np.exp(z - z_trend_corrected)
         from scipy.stats import chi2
+
         tail_p = chi2.sf(f_stat * df1_use, df1_use)
 
         # Empirical tail probability
@@ -730,8 +723,10 @@ def fit_f_dist_robustly(
             df2_shrunk[order] = np.maximum.accumulate(df2_ordered)
 
         return {
-            "scale": s20, "df2": df2, "df2_shrunk": df2_shrunk,
-            "tail_p_value": tail_p  # R parity: diagnostic return
+            "scale": s20,
+            "df2": df2,
+            "df2_shrunk": df2_shrunk,
+            "tail_p_value": tail_p,  # R parity: diagnostic return
         }
 
     # Estimate df2 by matching Winsorized variance using root-finding
@@ -815,14 +810,16 @@ def fit_f_dist_robustly(
         # Cumulative minimum from smallest tail p
         cum_mean = np.cumsum(df2_ordered) / np.arange(1, n + 1)
         i_min = np.argmin(cum_mean)
-        df2_ordered[:i_min + 1] = cum_mean[i_min]
+        df2_ordered[: i_min + 1] = cum_mean[i_min]
         df2_shrunk[order] = np.maximum.accumulate(df2_ordered)
     else:
         df2_shrunk = np.full(n, df2)
 
     return {
-        "scale": s20, "df2": df2, "df2_shrunk": df2_shrunk,
-        "tail_p_value": tail_p  # R parity: diagnostic return
+        "scale": s20,
+        "df2": df2,
+        "df2_shrunk": df2_shrunk,
+        "tail_p_value": tail_p,  # R parity: diagnostic return
     }
 
 
@@ -971,7 +968,8 @@ def fit_f_dist_unequal_df1(
     if covariate is None:
         emean = np.sum(w * e) / np.sum(w)
     else:
-        from .utils import loess_fit, choose_lowess_span
+        from .utils import choose_lowess_span, loess_fit
+
         if span is None:
             span = choose_lowess_span(n, small_n=500)
         # Normalize weights for LOWESS
@@ -992,7 +990,9 @@ def fit_f_dist_unequal_df1(
         # Ensure d2s20 is positive
         d2s20 = np.maximum(d2s20, 1e-100)
         # Log-likelihood terms
-        ll = -(d1 + d2) * np.log1p(d1x / d2s20) - d1 * np.log(d2s20) + gammaln(d1 + d2) - gammaln(d2)
+        ll = (
+            -(d1 + d2) * np.log1p(d1x / d2s20) - d1 * np.log(d2s20) + gammaln(d1 + d2) - gammaln(d2)
+        )
         if has_prior_weights:
             ll = prior_weights * ll
         return -2 * np.sum(ll)
@@ -1001,8 +1001,9 @@ def fit_f_dist_unequal_df1(
     # Use R's default tolerance: .Machine$double.eps^0.25
     # This matters when the likelihood surface is flat (large df2)
     r_tol = np.finfo(float).eps ** 0.25
-    result = minimize_scalar(neg_twice_log_lik, bounds=(0.5, 0.9998), method='bounded',
-                             options={'xatol': r_tol})
+    result = minimize_scalar(
+        neg_twice_log_lik, bounds=(0.5, 0.9998), method="bounded", options={"xatol": r_tol}
+    )
     par_opt = result.x
     d2 = par_opt / (1 - par_opt)
     s20 = np.exp(emean - logmdigamma(d2))
@@ -1014,6 +1015,7 @@ def fit_f_dist_unequal_df1(
 
     # Robust mode: FDR-based outlier detection
     from scipy.stats import f as f_dist
+
     from .utils import p_adjust
 
     f_stat = x / s20
@@ -1035,8 +1037,7 @@ def fit_f_dist_unequal_df1(
 
     # Refit with FDR as prior weights
     refit = fit_f_dist_unequal_df1(
-        x=x, df1=df1, covariate=covariate, span=span,
-        robust=False, prior_weights=fdr
+        x=x, df1=df1, covariate=covariate, span=span, robust=False, prior_weights=fdr
     )
     s20 = refit["scale"]
     df2 = refit["df2"]
@@ -1071,7 +1072,7 @@ def fit_f_dist_unequal_df1(
     df2_ordered = df2_shrunk[order]
     m_cumsum = np.cumsum(df2_ordered) / np.arange(1, n + 1)
     i_min_cumsum = np.argmin(m_cumsum)
-    df2_ordered[:i_min_cumsum + 1] = m_cumsum[i_min_cumsum]
+    df2_ordered[: i_min_cumsum + 1] = m_cumsum[i_min_cumsum]
     df2_shrunk[order] = np.maximum.accumulate(df2_ordered)
 
     return {"scale": s20, "df2": df2, "df2_outlier": df2_outlier, "df2_shrunk": df2_shrunk}
@@ -1135,9 +1136,9 @@ def _squeeze_var_core(
     if np.any(finite_mask):
         df_i = df[finite_mask] if len(df) > 1 else df
         df_prior_i = df_prior[finite_mask] if df_prior.ndim > 0 else df_prior
-        var_post[finite_mask] = (
-            df_i * var[finite_mask] + df_prior_i * var_post[finite_mask]
-        ) / (df_i + df_prior_i)
+        var_post[finite_mask] = (df_i * var[finite_mask] + df_prior_i * var_post[finite_mask]) / (
+            df_i + df_prior_i
+        )
 
     return var_post
 
@@ -1273,7 +1274,5 @@ def squeeze_var(
             "var_post": var_post,
         }
     else:
-        var_post = _squeeze_var_core(
-            var=var, df=df, var_prior=fit["scale"], df_prior=df_prior
-        )
+        var_post = _squeeze_var_core(var=var, df=df, var_prior=fit["scale"], df_prior=df_prior)
         return {"df_prior": df_prior, "var_prior": fit["scale"], "var_post": var_post}

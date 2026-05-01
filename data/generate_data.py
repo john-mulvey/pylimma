@@ -15,7 +15,6 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-
 DATA_DIR = Path(__file__).parent
 
 
@@ -35,37 +34,29 @@ def load_all(*, small: bool = False) -> dict:
     clinical phenotype. 12,625 genes x 128 samples.
     """
     prefix = "all_small" if small else "all"
-    expr = pd.read_csv(_require(DATA_DIR / f"{prefix}_expr.csv.gz"),
-                       index_col=0)
-    targets = pd.read_csv(_require(DATA_DIR / f"{prefix}_targets.csv"),
-                          index_col=0)
+    expr = pd.read_csv(_require(DATA_DIR / f"{prefix}_expr.csv.gz"), index_col=0)
+    targets = pd.read_csv(_require(DATA_DIR / f"{prefix}_targets.csv"), index_col=0)
     return {"name": prefix, "expr": expr, "targets": targets}
 
 
 def load_gse60450() -> dict:
     """Mouse mammary gland RNA-seq (Fu et al. 2015). Raw counts."""
-    counts = pd.read_csv(_require(DATA_DIR / "gse60450_counts.csv.gz"),
-                         index_col=0)
-    targets = pd.read_csv(_require(DATA_DIR / "gse60450_targets.csv"),
-                          index_col=0)
+    counts = pd.read_csv(_require(DATA_DIR / "gse60450_counts.csv.gz"), index_col=0)
+    targets = pd.read_csv(_require(DATA_DIR / "gse60450_targets.csv"), index_col=0)
     return {"name": "gse60450", "counts": counts, "targets": targets}
 
 
 def load_pasilla() -> dict:
     """Drosophila RNA-seq gene-level counts (pasilla Bioc package)."""
-    counts = pd.read_csv(_require(DATA_DIR / "pasilla_counts.csv.gz"),
-                         index_col=0)
-    targets = pd.read_csv(_require(DATA_DIR / "pasilla_targets.csv"),
-                          index_col=0)
+    counts = pd.read_csv(_require(DATA_DIR / "pasilla_counts.csv.gz"), index_col=0)
+    targets = pd.read_csv(_require(DATA_DIR / "pasilla_targets.csv"), index_col=0)
     return {"name": "pasilla", "counts": counts, "targets": targets}
 
 
 def load_yoruba() -> dict:
     """Yoruba HapMap RNA-seq (Pickrell 2010). Raw counts, 69 individuals."""
-    counts = pd.read_csv(_require(DATA_DIR / "yoruba_counts.csv.gz"),
-                         index_col=0)
-    targets = pd.read_csv(_require(DATA_DIR / "yoruba_targets.csv"),
-                          index_col=0)
+    counts = pd.read_csv(_require(DATA_DIR / "yoruba_counts.csv.gz"), index_col=0)
+    targets = pd.read_csv(_require(DATA_DIR / "yoruba_targets.csv"), index_col=0)
     return {"name": "yoruba", "counts": counts, "targets": targets}
 
 

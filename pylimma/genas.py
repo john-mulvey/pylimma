@@ -10,13 +10,13 @@ Port of R limma's ``genas`` from ``limma/R/genas.R``.
 Implements the multivariate-t maximum-likelihood fit (null and
 alternative) and every ``subset`` branch in R's ``.whichGenes``.
 """
+
 from __future__ import annotations
 
 import numpy as np
 from scipy import linalg, optimize, stats
 
 from .classes import _resolve_fit_input
-
 
 # ---------------------------------------------------------------------------
 # Log-likelihoods ported verbatim from genas.R:108-159
@@ -35,8 +35,7 @@ def _mult_t_loglik_null(x, B, V, s, df_total, m=2) -> float:
     a1, a2 = float(x[0]), float(x[1])
     # V0 = t(chol_mat) %*% chol_mat with chol_mat = diag(exp(a1), exp(a2))
     # → V0 = diag(exp(2*a1), exp(2*a2))
-    V0 = np.array([[np.exp(2.0 * a1), 0.0],
-                   [0.0, np.exp(2.0 * a2)]])
+    V0 = np.array([[np.exp(2.0 * a1), 0.0], [0.0, np.exp(2.0 * a2)]])
     try:
         R = linalg.cholesky(V0 + V, lower=False)  # upper-triangular
     except linalg.LinAlgError:
@@ -46,7 +45,7 @@ def _mult_t_loglik_null(x, B, V, s, df_total, m=2) -> float:
     # backsolve(R, t(B), transpose=TRUE) ⇔ solve R' W = B' ⇔ W = (R')^-1 B'.
     # solve_triangular with lower=True treats R.T as lower-triangular.
     W = linalg.solve_triangular(R.T, B.T, lower=True)  # shape (m, n_genes)
-    Q = np.sum(W ** 2, axis=0)  # per-gene quadratic form
+    Q = np.sum(W**2, axis=0)  # per-gene quadratic form
 
     df_total = np.asarray(df_total, dtype=np.float64)
     s = np.asarray(s, dtype=np.float64)
@@ -63,10 +62,8 @@ def _mult_t_loglik(x, B, V, s, df_total, m=2) -> float:
     a1, a2, b = float(x[0]), float(x[1]), float(x[2])
     # R: L <- matrix(c(1,b,0,1),2,2) fills column-major, giving
     # column 1 = [1, b], column 2 = [0, 1] → L = [[1, 0], [b, 1]]
-    L = np.array([[1.0, 0.0],
-                  [b,   1.0]])
-    D = np.array([[np.exp(a1), 0.0],
-                  [0.0, np.exp(a2)]])
+    L = np.array([[1.0, 0.0], [b, 1.0]])
+    D = np.array([[np.exp(a1), 0.0], [0.0, np.exp(a2)]])
     V0 = L @ D @ L.T
     try:
         R = linalg.cholesky(V0 + V, lower=False)
@@ -75,7 +72,7 @@ def _mult_t_loglik(x, B, V, s, df_total, m=2) -> float:
     second = float(np.sum(np.log(np.diag(R))))
 
     W = linalg.solve_triangular(R.T, B.T, lower=True)
-    Q = np.sum(W ** 2, axis=0)
+    Q = np.sum(W**2, axis=0)
 
     df_total = np.asarray(df_total, dtype=np.float64)
     s = np.asarray(s, dtype=np.float64)
@@ -95,8 +92,8 @@ def _which_genes(fit_subset, subset: str):
     kept mask is chosen - callers should apply the returned
     coefficients to the fit before optimisation.
     """
-    from .utils import prop_true_null
     from .ebayes import pred_fcm
+    from .utils import prop_true_null
 
     n_genes = fit_subset["coefficients"].shape[0]
     coef1 = np.asarray(fit_subset["coefficients"])[:, 0]
@@ -154,10 +151,12 @@ def _which_genes(fit_subset, subset: str):
         q1 = float(np.quantile(np.abs(coef1), 0.9))
         q2 = float(np.quantile(np.abs(coef2), 0.9))
         keep = (np.abs(coef1) > q1) | (np.abs(coef2) > q2)
-        new_coef = np.column_stack([
-            np.sign(coef1) * (np.abs(coef1) - q1),
-            np.sign(coef2) * (np.abs(coef2) - q2),
-        ])
+        new_coef = np.column_stack(
+            [
+                np.sign(coef1) * (np.abs(coef1) - q1),
+                np.sign(coef2) * (np.abs(coef2) - q2),
+            ]
+        )
         return keep, new_coef
 
     if subset == "predFC":
@@ -166,10 +165,12 @@ def _which_genes(fit_subset, subset: str):
         q1 = float(np.quantile(np.abs(pfc1), 0.9))
         q2 = float(np.quantile(np.abs(pfc2), 0.9))
         keep = (np.abs(pfc1) > q1) | (np.abs(pfc2) > q2)
-        new_coef = np.column_stack([
-            np.sign(pfc1) * (np.abs(pfc1) - q1),
-            np.sign(pfc2) * (np.abs(pfc2) - q2),
-        ])
+        new_coef = np.column_stack(
+            [
+                np.sign(pfc1) * (np.abs(pfc1) - q1),
+                np.sign(pfc2) * (np.abs(pfc2) - q2),
+            ]
+        )
         return keep, new_coef
 
     raise ValueError(f"Unknown subset rule: {subset!r}")
@@ -181,9 +182,10 @@ def _subset_fit_to_two_coefs(fit, coef):
     the subset. Matches R's ``fit <- fit[, coef]`` slicing which
     re-derives the F statistic from only the selected contrasts.
     """
+    from scipy import stats as _stats
+
     from .classes import MArrayLM
     from .decide_tests import classify_tests_f
-    from scipy import stats as _stats
 
     new_fit = MArrayLM(fit)
     idx = list(coef)
@@ -213,8 +215,7 @@ def _subset_fit_to_two_coefs(fit, coef):
             df2_safe = np.where(mask_inf, 1.0, df2_arr)
             fp = _stats.f.sf(f_stat, df1, df2_safe)
             if mask_inf.any():
-                fp = np.where(mask_inf,
-                              _stats.chi2.sf(f_stat * df1, df1), fp)
+                fp = np.where(mask_inf, _stats.chi2.sf(f_stat * df1, df1), fp)
         new_fit["F"] = f_stat
         new_fit["F_p_value"] = fp
     return new_fit
@@ -228,7 +229,6 @@ def _filter_fit_by_mask(fit, mask):
     from .classes import MArrayLM
 
     out = MArrayLM(fit)
-    n_target = int(np.sum(mask))
     for key, value in list(out.items()):
         if value is None:
             continue
@@ -304,9 +304,7 @@ def genas(
     fit, _adata, _adata_key = _resolve_fit_input(fit, key)
 
     if fit.get("cov_coefficients") is None:
-        raise ValueError(
-            "fit$cov_coefficients is missing; genas needs a full-rank fit"
-        )
+        raise ValueError("fit$cov_coefficients is missing; genas needs a full-rank fit")
 
     out = {
         "technical_correlation": float("nan"),
@@ -374,7 +372,8 @@ def genas(
 
     # Null fit (2 parameters: log-diagonal of V0)
     Q2 = optimize.minimize(
-        _mult_t_loglik_null, x_start,
+        _mult_t_loglik_null,
+        x_start,
         args=(B, V, s, df_total, m),
         method="Nelder-Mead",
         options={"xatol": 1e-6, "fatol": 1e-6, "maxiter": 5000},
@@ -382,17 +381,16 @@ def genas(
     # Alternative fit (3 parameters: log-diagonals + off-diagonal)
     x_alt_start = np.array([Q2.x[0], Q2.x[1], 0.0])
     Q1 = optimize.minimize(
-        _mult_t_loglik, x_alt_start,
+        _mult_t_loglik,
+        x_alt_start,
         args=(B, V, s, df_total, m),
         method="Nelder-Mead",
         options={"xatol": 1e-6, "fatol": 1e-6, "maxiter": 5000},
     )
 
     a1, a2, b = float(Q1.x[0]), float(Q1.x[1]), float(Q1.x[2])
-    L = np.array([[1.0, 0.0],
-                  [b,   1.0]])
-    D = np.array([[np.exp(a1), 0.0],
-                  [0.0, np.exp(a2)]])
+    L = np.array([[1.0, 0.0], [b, 1.0]])
+    D = np.array([[np.exp(a1), 0.0], [0.0, np.exp(a2)]])
     V0 = L @ D @ L.T
     rho_biol = float(V0[1, 0] / np.sqrt(V0[0, 0] * V0[1, 1]))
 

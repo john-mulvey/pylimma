@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylimma.contrasts import contrasts_fit, make_contrasts
+from pylimma.contrasts import contrasts_fit
 from pylimma.lmfit import lm_fit
 
 from ..helpers import (
@@ -28,18 +28,13 @@ from ..helpers import (
     run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 def _two_group_fit(seed=0, n_genes=10, n_samples=6):
     rng = np.random.default_rng(seed)
     expr = rng.standard_normal((n_genes, n_samples))
-    design = np.column_stack(
-        [np.ones(n_samples), np.array([0, 0, 0, 1, 1, 1], dtype=float)]
-    )
+    design = np.column_stack([np.ones(n_samples), np.array([0, 0, 0, 1, 1, 1], dtype=float)])
     fit = lm_fit(expr, design)
     return expr, design, fit
 
@@ -48,9 +43,7 @@ def _three_group_fit(seed=0, n_genes=10, n_samples=9):
     rng = np.random.default_rng(seed)
     expr = rng.standard_normal((n_genes, n_samples))
     design = np.column_stack(
-        [np.ones(n_samples),
-         [0, 0, 0, 1, 1, 1, 0, 0, 0],
-         [0, 0, 0, 0, 0, 0, 1, 1, 1]]
+        [np.ones(n_samples), [0, 0, 0, 1, 1, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 1, 1, 1]]
     )
     fit = lm_fit(expr, design)
     return expr, design, fit
@@ -119,13 +112,10 @@ class TestRigorousContrastsFit:
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
             contrasts_fit(fit, contr)
-        assert any(
-            "row names" in str(w.message).lower()
-            for w in caught
-        ), (
+        assert any("row names" in str(w.message).lower() for w in caught), (
             "pylimma did not emit the row/col-name mismatch warning. "
             "R's contrasts.R:40 emits "
-            '"row names of contrasts don\'t match col names of '
+            "\"row names of contrasts don't match col names of "
             'coefficients" when rn != cn (after the (Intercept) rename).'
         )
 
@@ -158,9 +148,9 @@ class TestRigorousContrastsFit:
         # Filter out h5py UserWarnings, etc. - we care about
         # pylimma-originated warnings only.
         relevant = [
-            w for w in caught
-            if "row names" in str(w.message).lower()
-            or "col names" in str(w.message).lower()
+            w
+            for w in caught
+            if "row names" in str(w.message).lower() or "col names" in str(w.message).lower()
         ]
         assert not relevant, (
             "pylimma emitted a name-mismatch warning even after "
@@ -227,17 +217,20 @@ class TestRigorousContrastsFit:
         )
         coef_match = compare_arrays(
             r_out["coef_r"].reshape(f2["coefficients"].shape),
-            f2["coefficients"], rtol=1e-10,
+            f2["coefficients"],
+            rtol=1e-10,
         )
         assert coef_match["match"], coef_match
         stdev_match = compare_arrays(
             r_out["stdev_r"].reshape(f2["stdev_unscaled"].shape),
-            f2["stdev_unscaled"], rtol=1e-10,
+            f2["stdev_unscaled"],
+            rtol=1e-10,
         )
         assert stdev_match["match"], stdev_match
         cov_match = compare_arrays(
             r_out["cov_r"].reshape(f2["cov_coefficients"].shape),
-            f2["cov_coefficients"], rtol=1e-10,
+            f2["cov_coefficients"],
+            rtol=1e-10,
         )
         assert cov_match["match"], cov_match
 
@@ -258,11 +251,13 @@ class TestRigorousContrastsFit:
         """
         rng = np.random.default_rng(7)
         n = 8
-        X = np.column_stack([
-            [1, 1, 1, 1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 1, 1, 1, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1],  # col0 + col1
-        ]).astype(float)
+        X = np.column_stack(
+            [
+                [1, 1, 1, 1, 0, 0, 0, 0],
+                [0, 0, 0, 0, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],  # col0 + col1
+            ]
+        ).astype(float)
         expr = rng.standard_normal((6, n))
         fit = lm_fit(expr, X)
         contr = np.array([[1.0], [-1.0], [0.0]])
@@ -288,17 +283,20 @@ class TestRigorousContrastsFit:
         )
         cm = compare_arrays(
             r_out["coef_r"].reshape(f2["coefficients"].shape),
-            f2["coefficients"], rtol=1e-8,
+            f2["coefficients"],
+            rtol=1e-8,
         )
         assert cm["match"], cm
         sm = compare_arrays(
             r_out["stdev_r"].reshape(f2["stdev_unscaled"].shape),
-            f2["stdev_unscaled"], rtol=1e-8,
+            f2["stdev_unscaled"],
+            rtol=1e-8,
         )
         assert sm["match"], sm
         cv = compare_arrays(
             r_out["cov_r"].reshape(f2["cov_coefficients"].shape),
-            f2["cov_coefficients"], rtol=1e-8,
+            f2["cov_coefficients"],
+            rtol=1e-8,
         )
         assert cv["match"], cv
 
@@ -309,11 +307,13 @@ class TestRigorousContrastsFit:
         """
         rng = np.random.default_rng(8)
         n = 8
-        X = np.column_stack([
-            [1, 1, 1, 1, 0, 0, 0, 0],
-            [0, 0, 0, 0, 1, 1, 1, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1],
-        ]).astype(float)
+        X = np.column_stack(
+            [
+                [1, 1, 1, 1, 0, 0, 0, 0],
+                [0, 0, 0, 0, 1, 1, 1, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1],
+            ]
+        ).astype(float)
         expr = rng.standard_normal((4, n))
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
@@ -350,9 +350,11 @@ class TestRigorousContrastsFit:
         # Side-by-side R run. Use direct R subprocess + dim() output
         # rather than run_r_comparison because run_r_comparison can't
         # round-trip 0-column CSVs.
-        from ..helpers import run_r_code
-        import tempfile
         import os
+        import tempfile
+
+        from ..helpers import run_r_code
+
         with tempfile.TemporaryDirectory() as tmp:
             np.savetxt(os.path.join(tmp, "X.csv"), X, delimiter=",")
             np.savetxt(os.path.join(tmp, "expr.csv"), expr, delimiter=",")
@@ -377,12 +379,10 @@ class TestRigorousContrastsFit:
                     parts = line.split(":")[1].split()
                     r_dims[key] = tuple(int(x) for x in parts)
         assert r_dims.get("coef_dim") == f2["coefficients"].shape, (
-            f"R coef shape={r_dims.get('coef_dim')} vs "
-            f"Py={f2['coefficients'].shape}"
+            f"R coef shape={r_dims.get('coef_dim')} vs Py={f2['coefficients'].shape}"
         )
         assert r_dims.get("stdev_dim") == f2["stdev_unscaled"].shape, (
-            f"R stdev shape={r_dims.get('stdev_dim')} vs "
-            f"Py={f2['stdev_unscaled'].shape}"
+            f"R stdev shape={r_dims.get('stdev_dim')} vs Py={f2['stdev_unscaled'].shape}"
         )
         py_cov_shape = np.asarray(f2["cov_coefficients"]).shape
         assert r_dims.get("cov_dim") == py_cov_shape, (
@@ -409,12 +409,14 @@ class TestRigorousContrastsFit:
         """
         rng = np.random.default_rng(13)
         n = 12
-        X = np.column_stack([
-            np.ones(n),
-            [0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1],
-            [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
-            [0] * 6 + [1] * 3 + [0] * 3,
-        ]).astype(float)
+        X = np.column_stack(
+            [
+                np.ones(n),
+                [0, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 1],
+                [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1],
+                [0] * 6 + [1] * 3 + [0] * 3,
+            ]
+        ).astype(float)
         expr = rng.standard_normal((8, n))
         fit = lm_fit(expr, X)
         # Two contrasts that ignore coefs 0 and 1
@@ -439,15 +441,18 @@ class TestRigorousContrastsFit:
         )
         cm = compare_arrays(
             r_out["coef_r"].reshape(f2["coefficients"].shape),
-            f2["coefficients"], rtol=1e-10,
+            f2["coefficients"],
+            rtol=1e-10,
         )
         sm = compare_arrays(
             r_out["stdev_r"].reshape(f2["stdev_unscaled"].shape),
-            f2["stdev_unscaled"], rtol=1e-10,
+            f2["stdev_unscaled"],
+            rtol=1e-10,
         )
         cv = compare_arrays(
             r_out["cov_r"].reshape(f2["cov_coefficients"].shape),
-            f2["cov_coefficients"], rtol=1e-10,
+            f2["cov_coefficients"],
+            rtol=1e-10,
         )
         assert cm["match"], cm
         assert sm["match"], sm
@@ -496,8 +501,10 @@ class TestRigorousContrastsFit:
         """
         r_out = run_r_comparison(
             py_data={
-                "X": X, "expr": expr,
-                "weights": weights, "contr": contr,
+                "X": X,
+                "expr": expr,
+                "weights": weights,
+                "contr": contr,
             },
             r_code_template=r_code,
             output_vars=["coef_r", "stdev_r"],
@@ -514,9 +521,7 @@ class TestRigorousContrastsFit:
         assert cm["match"], cm
         py_stdev = f2["stdev_unscaled"]
         r_stdev = r_out["stdev_r"].reshape(py_stdev.shape)
-        assert np.array_equal(
-            np.isnan(py_stdev), np.isnan(r_stdev)
-        ), "stdev NaN pattern divergence"
+        assert np.array_equal(np.isnan(py_stdev), np.isnan(r_stdev)), "stdev NaN pattern divergence"
 
     # ------------------------------------------------------------------
     # R-B15 (cov.coefficients == NULL warning + diag construction).
@@ -542,7 +547,8 @@ class TestRigorousContrastsFit:
             warnings.simplefilter("always")
             f2 = contrasts_fit(fit_stripped, contr)
         relevant = [
-            w for w in caught
+            w
+            for w in caught
             if "cov_coefficients" in str(w.message).lower()
             or "cov.coefficients" in str(w.message).lower()
             or "orthogonal" in str(w.message).lower()
@@ -575,12 +581,14 @@ class TestRigorousContrastsFit:
         )
         cm = compare_arrays(
             r_out["coef_r"].reshape(f2["coefficients"].shape),
-            f2["coefficients"], rtol=1e-10,
+            f2["coefficients"],
+            rtol=1e-10,
         )
         assert cm["match"], cm
         sm = compare_arrays(
             r_out["stdev_r"].reshape(f2["stdev_unscaled"].shape),
-            f2["stdev_unscaled"], rtol=1e-10,
+            f2["stdev_unscaled"],
+            rtol=1e-10,
         )
         assert sm["match"], sm
 
@@ -607,11 +615,13 @@ class TestRigorousContrastsFit:
         """
         rng = np.random.default_rng(20)
         n = 9
-        X = np.column_stack([
-            np.ones(n),
-            [0, 0, 0, 1, 1, 1, 0, 0, 0],
-            [0, 0, 0, 0, 0, 0, 1, 1, 1],
-        ]).astype(float)
+        X = np.column_stack(
+            [
+                np.ones(n),
+                [0, 0, 0, 1, 1, 1, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 1, 1, 1],
+            ]
+        ).astype(float)
         expr = rng.standard_normal((6, n))
         fit = lm_fit(expr, X)
         # Pylimma uses 0-based, R uses 1-based: ask for the second
@@ -635,15 +645,18 @@ class TestRigorousContrastsFit:
         )
         cm = compare_arrays(
             r_out["coef_r"].reshape(f2["coefficients"].shape),
-            f2["coefficients"], rtol=1e-10,
+            f2["coefficients"],
+            rtol=1e-10,
         )
         sm = compare_arrays(
             r_out["stdev_r"].reshape(f2["stdev_unscaled"].shape),
-            f2["stdev_unscaled"], rtol=1e-10,
+            f2["stdev_unscaled"],
+            rtol=1e-10,
         )
         cv = compare_arrays(
             r_out["cov_r"].reshape(f2["cov_coefficients"].shape),
-            f2["cov_coefficients"], rtol=1e-10,
+            f2["cov_coefficients"],
+            rtol=1e-10,
         )
         assert cm["match"], cm
         assert sm["match"], sm
@@ -666,9 +679,7 @@ class TestRigorousContrastsFit:
         contr_f32 = np.array([[0.0], [1.0]], dtype=np.float32)
         f2_64 = contrasts_fit(fit, contr_f64)
         f2_32 = contrasts_fit(fit, contr_f32)
-        np.testing.assert_allclose(
-            f2_64["coefficients"], f2_32["coefficients"], rtol=0
-        )
+        np.testing.assert_allclose(f2_64["coefficients"], f2_32["coefficients"], rtol=0)
 
     # ------------------------------------------------------------------
     # R-B7: NA in contrasts. Already exercised by tests/test_contrasts
@@ -709,6 +720,4 @@ class TestRigorousContrastsFit:
         fit["F_p_value"] = np.zeros(fit["coefficients"].shape[0])
         f2 = contrasts_fit(fit, np.array([[0.0], [1.0]]))
         for k in ("t", "p_value", "lods", "F", "F_p_value"):
-            assert k not in f2, (
-                f"{k} not stripped from fit after contrasts_fit"
-            )
+            assert k not in f2, f"{k} not stripped from fit after contrasts_fit"

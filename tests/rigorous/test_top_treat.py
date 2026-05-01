@@ -27,13 +27,9 @@ from ..helpers import (
     compare_arrays,
     compare_pvalues,
     limma_available,
-    run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 # ----------------------------------------------------------------------
@@ -50,9 +46,7 @@ def _two_group_expr(seed=0, n_genes=30, n_samples=8):
     """
     rng = np.random.default_rng(seed)
     expr = rng.standard_normal((n_genes, n_samples))
-    design = np.column_stack(
-        [np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)]
-    )
+    design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
     expr_df = pd.DataFrame(
         expr,
         index=[f"g{i + 1}" for i in range(n_genes)],
@@ -129,20 +123,14 @@ def _assert_columns_match(py_df, r_df, *, rtol=1e-8):
         assert r_col in r_df.columns, f"Missing R column: {r_col}"
         assert py_col in py_df.columns, f"Missing Py column: {py_col}"
         if r_col in {"P.Value", "adj.P.Val"}:
-            res = compare_pvalues(
-                r_df[r_col].values, py_df[py_col].values, max_log10_diff=1.0
-            )
+            res = compare_pvalues(r_df[r_col].values, py_df[py_col].values, max_log10_diff=1.0)
             assert res["match"], (
-                f"{r_col} vs {py_col} differs: "
-                f"max_log10_diff={res.get('max_log10_diff'):.3f}"
+                f"{r_col} vs {py_col} differs: max_log10_diff={res.get('max_log10_diff'):.3f}"
             )
         else:
-            res = compare_arrays(
-                r_df[r_col].values, py_df[py_col].values, rtol=rtol
-            )
+            res = compare_arrays(r_df[r_col].values, py_df[py_col].values, rtol=rtol)
             assert res["match"], (
-                f"{r_col} vs {py_col} differs: "
-                f"max_rel_diff={res['max_rel_diff']:.2e}"
+                f"{r_col} vs {py_col} differs: max_rel_diff={res['max_rel_diff']:.2e}"
             )
 
 
@@ -158,9 +146,7 @@ def _read_top_treat_csv(tmpdir, name="tt_out"):
 # ----------------------------------------------------------------------
 
 
-def _run_r_top_treat(
-    expr_df, design, *, r_args: dict, output_name: str = "tt"
-) -> pd.DataFrame:
+def _run_r_top_treat(expr_df, design, *, r_args: dict, output_name: str = "tt") -> pd.DataFrame:
     """Run topTreat in R and return the resulting table as a DataFrame.
 
     Mirrors helpers.run_r_comparison but returns a DataFrame (preserving
@@ -168,7 +154,6 @@ def _run_r_top_treat(
     the audit checks columns like "logFC" / "P.Value" / "adj.P.Val"
     by name, not by positional column index.
     """
-    import shutil
     import subprocess
     import tempfile
     from pathlib import Path
@@ -179,13 +164,8 @@ def _run_r_top_treat(
         for key, df in inputs.items():
             df.to_csv(tmpdir / f"{key}.csv", index=True)
         script = _r_top_treat(**r_args).format(tmpdir=tmpdir)
-        script += (
-            f"\nwrite.csv({output_name}, '{tmpdir}/{output_name}_out.csv',"
-            " row.names=TRUE)\n"
-        )
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".R", delete=False
-        ) as f:
+        script += f"\nwrite.csv({output_name}, '{tmpdir}/{output_name}_out.csv', row.names=TRUE)\n"
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".R", delete=False) as f:
             f.write(script)
             script_path = f.name
         try:
@@ -223,12 +203,8 @@ class TestRigorousTopTreat:
         - default-args does mean "single coef, sort by p" though.
         """
         expr, design = _two_group_expr(n_genes=30, n_samples=8, seed=11)
-        r_df = _run_r_top_treat(
-            expr, design, r_args={"coef": 2, "number": 30}
-        )
-        py_df = _py_top_treat_via_treat(
-            expr, design, coef=1, number=30
-        )
+        r_df = _run_r_top_treat(expr, design, r_args={"coef": 2, "number": 30})
+        py_df = _py_top_treat_via_treat(expr, design, coef=1, number=30)
         # Order may differ on ties; align by gene name.
         # R rownames come from the CSV (g1..g30); pylimma uses
         # the same when expr is a DataFrame -> shouldn't, actually
@@ -249,18 +225,14 @@ class TestRigorousTopTreat:
         # Pylimma side
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            py_df = _py_top_treat_via_treat(
-                expr, design, coef=[1, 0], number=20
-            )
+            py_df = _py_top_treat_via_treat(expr, design, coef=[1, 0], number=20)
             messages = [str(w.message) for w in caught]
-        assert any(
-            "single coefficient" in m.lower() for m in messages
-        ), f"Expected truncation warning; got {messages}"
+        assert any("single coefficient" in m.lower() for m in messages), (
+            f"Expected truncation warning; got {messages}"
+        )
 
         # R side: equivalent input is coef=c(2, 1) (1-based).
-        r_df = _run_r_top_treat(
-            expr, design, r_args={"coef": "c(2, 1)", "number": 20}
-        )
+        r_df = _run_r_top_treat(expr, design, r_args={"coef": "c(2, 1)", "number": 20})
         py_df_sorted = py_df.sort_values("p_value", kind="stable")
         r_df_sorted = r_df.sort_values("P.Value", kind="stable")
         # Both should have used coef[0]=1 / coef[1]=2 -> the treatment
@@ -363,12 +335,8 @@ class TestRigorousTopTreat:
         diverging from R's schema.
         """
         expr, design = _two_group_expr(n_genes=10, n_samples=8, seed=61)
-        r_df = _run_r_top_treat(
-            expr, design, r_args={"coef": 2, "number": 10}
-        )
-        py_df = _py_top_treat_via_treat(
-            expr, design, coef=1, number=10
-        )
+        r_df = _run_r_top_treat(expr, design, r_args={"coef": 2, "number": 10})
+        py_df = _py_top_treat_via_treat(expr, design, coef=1, number=10)
         # R has these columns (no B):
         assert "B" not in r_df.columns
         # Python should match: no 'b' column.

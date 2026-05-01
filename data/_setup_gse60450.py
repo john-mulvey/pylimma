@@ -13,12 +13,10 @@ from __future__ import annotations
 
 import gzip
 import io
-import re
 import urllib.request
 from pathlib import Path
 
 import pandas as pd
-
 
 DATA_DIR = Path(__file__).parent / "data"
 DATA_DIR.mkdir(exist_ok=True)
@@ -28,8 +26,7 @@ COUNTS_URL = (
     "GSE60450_Lactation-GenewiseCounts.txt.gz"
 )
 SM_URL = (
-    "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE60nnn/GSE60450/matrix/"
-    "GSE60450_series_matrix.txt.gz"
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE60nnn/GSE60450/matrix/GSE60450_series_matrix.txt.gz"
 )
 
 
@@ -78,9 +75,7 @@ def main() -> None:
     # Raw column names are like "MCL1-DG_BC2CTUACXX_ACTTGA_L002_R1".
     # Use only the "MCL1-DG" prefix so we can join with series-matrix
     # metadata keyed on the same identifier.
-    counts.columns = counts.columns.str.extract(
-        r"(MCL1-[A-Z]+)", expand=False
-    )
+    counts.columns = counts.columns.str.extract(r"(MCL1-[A-Z]+)", expand=False)
     if counts.columns.hasnans:
         raise RuntimeError(
             "Unable to parse GSE60450 column names - GEO may have "
@@ -93,19 +88,14 @@ def main() -> None:
     sm = _parse_series_matrix(sm_text)
 
     # All Sample_characteristics_ch1 occurrences (as a list of rows).
-    char_rows = [v for k, v in sm.items()
-                 if k.startswith("!Sample_characteristics_ch1")]
+    char_rows = [v for k, v in sm.items() if k.startswith("!Sample_characteristics_ch1")]
     stage = _extract_char(char_rows, "developmental stage")
     immuno = _extract_char(char_rows, "immunophenotype")
 
     # Sample IDs are in the first !Sample_description row as
     # "Sample name: MCL1-XX".
-    desc_rows = [v for k, v in sm.items()
-                 if k.startswith("!Sample_description")]
-    id_row = next(
-        row for row in desc_rows
-        if all(v.startswith("Sample name:") for v in row)
-    )
+    desc_rows = [v for k, v in sm.items() if k.startswith("!Sample_description")]
+    id_row = next(row for row in desc_rows if all(v.startswith("Sample name:") for v in row))
     ids = [v.split(":", 1)[1].strip() for v in id_row]
 
     stage_tidy = {
@@ -118,14 +108,14 @@ def main() -> None:
         "luminal cell population": "luminal",
     }
 
-    targets = pd.DataFrame({
-        "sample_id":            ids,
-        "immunophenotype":      [immuno_tidy.get(v, v) for v in immuno],
-        "developmental_stage":  [stage_tidy.get(v, v) for v in stage],
-    }).set_index("sample_id")
-    targets["group"] = (
-        targets["immunophenotype"] + "." + targets["developmental_stage"]
-    )
+    targets = pd.DataFrame(
+        {
+            "sample_id": ids,
+            "immunophenotype": [immuno_tidy.get(v, v) for v in immuno],
+            "developmental_stage": [stage_tidy.get(v, v) for v in stage],
+        }
+    ).set_index("sample_id")
+    targets["group"] = targets["immunophenotype"] + "." + targets["developmental_stage"]
 
     # Reindex targets to the column order of counts so downstream
     # consumers can zip them together.
@@ -134,9 +124,7 @@ def main() -> None:
     # Write.
     counts_path = DATA_DIR / "gse60450_counts.csv.gz"
     counts.to_csv(counts_path, compression="gzip")
-    (DATA_DIR / "gse60450_targets.csv").write_text(
-        targets.to_csv()
-    )
+    (DATA_DIR / "gse60450_targets.csv").write_text(targets.to_csv())
     print(f"[write] {counts_path}  shape={counts.shape}")
 
 

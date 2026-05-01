@@ -28,10 +28,7 @@ from ..helpers import (
     run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 # -----------------------------------------------------------------------------
@@ -42,9 +39,7 @@ pytestmark = pytest.mark.skipif(
 def _two_group_expr(rng=None, n_genes=20, n_samples=8):
     rng = rng if rng is not None else np.random.default_rng(0)
     expr = rng.standard_normal((n_genes, n_samples))
-    design = np.column_stack(
-        [np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)]
-    )
+    design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
     return expr, design
 
 
@@ -59,13 +54,9 @@ class TestRigorousLmFit:
         """Exercises R-B2: lmfit.R:15-22 (1 non-numeric col = gene IDs)."""
         rng = np.random.default_rng(1)
         expr_vals = rng.standard_normal((6, 4))
-        df = pd.DataFrame(
-            expr_vals, columns=[f"s{i}" for i in range(4)]
-        )
+        df = pd.DataFrame(expr_vals, columns=[f"s{i}" for i in range(4)])
         df.insert(0, "gene_id", [f"g{i}" for i in range(6)])
-        design = np.column_stack(
-            [np.ones(4), np.array([0, 0, 1, 1], dtype=float)]
-        )
+        design = np.column_stack([np.ones(4), np.array([0, 0, 1, 1], dtype=float)])
 
         # Python currently rejects a DataFrame with a mix of numeric +
         # one non-numeric column with a bespoke error. R accepts the
@@ -96,13 +87,11 @@ class TestRigorousLmFit:
         r_coef = np.asarray(r_results["coef"], dtype=float)
 
         assert py_error is None, (
-            f"lm_fit raised on DataFrame+gene-ID column; R accepts it: "
-            f"{py_error!r}"
+            f"lm_fit raised on DataFrame+gene-ID column; R accepts it: {py_error!r}"
         )
         result = compare_arrays(r_coef, py_coef, rtol=1e-8)
         assert result["match"], (
-            f"Gene-ID DataFrame lmFit coefficients differ: "
-            f"max_rel={result['max_rel_diff']:.2e}"
+            f"Gene-ID DataFrame lmFit coefficients differ: max_rel={result['max_rel_diff']:.2e}"
         )
 
     # ------------------------------------------------------------------
@@ -157,9 +146,7 @@ class TestRigorousLmFit:
     def test_nonnumeric_design_errors(self):
         """Exercises R-B8: lmfit.R:39 ('design must be a numeric matrix')."""
         expr, _ = _two_group_expr()
-        design = np.array(
-            [["a"] * 2] * 8, dtype=object
-        )
+        design = np.array([["a"] * 2] * 8, dtype=object)
 
         with pytest.raises((ValueError, TypeError)):
             lm_fit(expr, design)
@@ -199,9 +186,7 @@ class TestRigorousLmFit:
         n_arrays = 4
         n_genes = n_blocks * ndups
         expr = rng.standard_normal((n_genes, n_arrays))
-        design = np.column_stack(
-            [np.ones(n_arrays), np.array([0, 0, 1, 1], dtype=float)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.array([0, 0, 1, 1], dtype=float)])
 
         fit = lm_fit(expr, design, ndups=ndups, correlation=0.2)
         py_coef = np.asarray(fit["coefficients"], dtype=float)
@@ -233,8 +218,7 @@ class TestRigorousLmFit:
         )
         # And the coefficients should also agree.
         assert py_coef.shape == r_coef.shape, (
-            f"Coefficient shape mismatch: R={r_coef.shape} "
-            f"Py={py_coef.shape}"
+            f"Coefficient shape mismatch: R={r_coef.shape} Py={py_coef.shape}"
         )
         assert compare_arrays(r_coef, py_coef, rtol=1e-8)["match"]
         assert compare_arrays(r_amean, py_amean, rtol=1e-8)["match"]
@@ -248,9 +232,7 @@ class TestRigorousLmFit:
         """Exercises R-B18: lmfit.R:66 (warning on robust+blocking)."""
         rng = np.random.default_rng(4)
         expr = rng.standard_normal((6, 4))
-        design = np.column_stack(
-            [np.ones(4), np.array([0, 0, 1, 1], dtype=float)]
-        )
+        design = np.column_stack([np.ones(4), np.array([0, 0, 1, 1], dtype=float)])
         block = np.array([1, 1, 2, 2])
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
@@ -325,8 +307,7 @@ class TestRigorousLmFit:
         row_nas = np.sum(np.isnan(coefs), axis=1)
         partial_rows = int(np.sum((row_nas > 0) & (row_nas < coefs.shape[1])))
         assert partial_rows > 0, (
-            "Test setup failed to produce partial-NA coefficients; "
-            f"per-row NA counts: {row_nas}"
+            f"Test setup failed to produce partial-NA coefficients; per-row NA counts: {row_nas}"
         )
 
         assert r_partial_hit, (

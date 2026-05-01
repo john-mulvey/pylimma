@@ -21,18 +21,18 @@ Implements the core linear model fitting from limma:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 import warnings
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 from scipy import linalg
 
-from .dups import unwrap_dups, duplicate_correlation
-from .classes import MArrayLM, get_eawp, _is_anndata, as_matrix_weights
+from .classes import MArrayLM, _is_anndata, as_matrix_weights, get_eawp
+from .dups import duplicate_correlation, unwrap_dups
 
 if TYPE_CHECKING:
-    from anndata import AnnData
+    pass
 
 
 def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
@@ -70,8 +70,7 @@ def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
     x = np.asarray(x, dtype=np.float64)
     n, p = x.shape
     if p == 0:
-        return (np.eye(n), np.zeros((n, 0)),
-                np.zeros(0, dtype=int), 0)
+        return (np.eye(n), np.zeros((n, 0)), np.zeros(0, dtype=int), 0)
 
     # Plain (non-pivoted) economy-mode QR on the original column order
     # so that redundant columns leave |R[i, i]| at zero in their
@@ -179,10 +178,7 @@ def non_estimable(
     if coef_names is None:
         names = [str(i + 1) for i in range(p)]
     else:
-        names = [
-            coef_names[i] if coef_names[i] else str(i + 1)
-            for i in range(p)
-        ]
+        names = [coef_names[i] if coef_names[i] else str(i + 1) for i in range(p)]
     return [names[pivot[i]] for i in range(rank, p)]
 
 
@@ -242,9 +238,8 @@ def lm_series(
     is_array_weights = False
     if weights is not None:
         weights_in = np.asarray(weights)
-        is_array_weights = (
-            (weights_in.ndim == 1 and weights_in.size == n_samples)
-            or (weights_in.ndim == 2 and weights_in.shape == (1, n_samples))
+        is_array_weights = (weights_in.ndim == 1 and weights_in.size == n_samples) or (
+            weights_in.ndim == 2 and weights_in.shape == (1, n_samples)
         )
         weights = as_matrix_weights(weights, (n_genes, n_samples))
         weights[weights <= 0] = np.nan
@@ -542,9 +537,13 @@ def mrlm(
 
     # Select weight function
     if method.lower() == "huber":
-        weight_fn = lambda u: _huber_weights(u, k)
+
+        def weight_fn(u):
+            return _huber_weights(u, k)
     elif method.lower() == "bisquare":
-        weight_fn = lambda u: _bisquare_weights(u, c=4.685)
+
+        def weight_fn(u):
+            return _bisquare_weights(u, c=4.685)
     else:
         raise ValueError(f"Unknown method: {method}. Use 'huber' or 'bisquare'")
 
@@ -582,9 +581,7 @@ def mrlm(
         # silently returning lstsq's minimum-norm solution.
         _, _, _, rank_x = _qr_r_style(X_work)
         if rank_x < n_coefs:
-            raise ValueError(
-                "'x' is singular: singular fits are not implemented in 'rlm'"
-            )
+            raise ValueError("'x' is singular: singular fits are not implemented in 'rlm'")
 
         # OLS initial fit
         coef, _, rank_fit, _ = np.linalg.lstsq(X_work, y_work, rcond=None)
@@ -617,9 +614,7 @@ def mrlm(
             new_resid = y_work - X_work @ new_coef
 
             # Convergence on residuals (R's irls.delta)
-            conv = np.sqrt(
-                np.sum((resid - new_resid) ** 2) / max(1e-20, np.sum(resid**2))
-            )
+            conv = np.sqrt(np.sum((resid - new_resid) ** 2) / max(1e-20, np.sum(resid**2)))
 
             coef = new_coef
             resid = new_resid
@@ -631,9 +626,7 @@ def mrlm(
         # MASS::rlm warns when IRLS hits maxit without converging; R's
         # mrlm forwards that warning per gene.
         if not converged:
-            warnings.warn(
-                f"'rlm' failed to converge in {maxit} steps"
-            )
+            warnings.warn(f"'rlm' failed to converge in {maxit} steps")
 
         coefficients[i, :] = coef
 
@@ -745,13 +738,11 @@ def gls_series(
     if design.shape[0] != n_arrays:
         raise ValueError("Number of rows of design matrix does not match number of arrays")
     n_coefs = design.shape[1]
-    coef_names = [f"x{i}" for i in range(n_coefs)]
 
     # Check correlation - auto-estimate if not provided (R parity)
     if correlation is None:
         dc_result = duplicate_correlation(
-            M, design=design, ndups=ndups, spacing=spacing,
-            block=block, weights=weights
+            M, design=design, ndups=ndups, spacing=spacing, block=block, weights=weights
         )
         correlation = dc_result["consensus_correlation"]
     if abs(correlation) >= 1:
@@ -767,9 +758,8 @@ def gls_series(
     is_array_weights = False
     if weights is not None:
         weights_in = np.asarray(weights)
-        is_array_weights = (
-            (weights_in.ndim == 1 and weights_in.size == n_arrays)
-            or (weights_in.ndim == 2 and weights_in.shape == (1, n_arrays))
+        is_array_weights = (weights_in.ndim == 1 and weights_in.size == n_arrays) or (
+            weights_in.ndim == 2 and weights_in.shape == (1, n_arrays)
         )
         weights = as_matrix_weights(weights, (n_genes, n_arrays))
         weights[np.isnan(weights)] = 0
@@ -810,8 +800,9 @@ def gls_series(
 
         # Build correlation matrix from block structure
         unique_blocks = np.unique(block)
-        n_blocks = len(unique_blocks)
-        Z = np.array([[block[i] == ub for ub in unique_blocks] for i in range(n_arrays)], dtype=float)
+        Z = np.array(
+            [[block[i] == ub for ub in unique_blocks] for i in range(n_arrays)], dtype=float
+        )
         cormatrix = Z @ (correlation * Z.T)
         np.fill_diagonal(cormatrix, 1.0)
         n_samples = n_arrays
@@ -836,10 +827,10 @@ def gls_series(
         chol_V = linalg.cholesky(V, lower=False)
 
         # Transform data: y* = L^-T @ y
-        y = linalg.solve_triangular(chol_V, M.T, trans='T')  # (n_samples, n_genes)
+        y = linalg.solve_triangular(chol_V, M.T, trans="T")  # (n_samples, n_genes)
 
         # Transform design: X* = L^-T @ X
-        X = linalg.solve_triangular(chol_V, design, trans='T')
+        X = linalg.solve_triangular(chol_V, design, trans="T")
 
         # OLS on transformed data
         q, r, pivot, rank = _qr_r_style(X)
@@ -855,7 +846,7 @@ def gls_series(
         # Residual standard deviation
         df_residual = n_samples - rank
         if df_residual > 0:
-            sigma = np.sqrt(np.mean(qty[rank:, :]**2, axis=0))
+            sigma = np.sqrt(np.mean(qty[rank:, :] ** 2, axis=0))
         else:
             sigma = np.full(n_genes, np.nan)
 
@@ -911,14 +902,14 @@ def gls_series(
             continue
 
         # Transform
-        y_t = linalg.solve_triangular(chol_V, y_obs, trans='T')
+        y_t = linalg.solve_triangular(chol_V, y_obs, trans="T")
 
         if np.all(X == 0):
             n = len(y_obs)
             df_residual[i] = n
             sigma[i] = np.sqrt(np.mean(y_t**2))
         else:
-            X_t = linalg.solve_triangular(chol_V, X, trans='T')
+            X_t = linalg.solve_triangular(chol_V, X, trans="T")
 
             # OLS on transformed
             q, r, pivot, rank = _qr_r_style(X_t)
@@ -937,11 +928,11 @@ def gls_series(
             if df_residual[i] > 0:
                 # Residual SS from QR decomposition: qty[rank:] are residual effects
                 # This avoids dimension issues when rank < n_coefs
-                sigma[i] = np.sqrt(np.sum(qty[rank:]**2) / df_residual[i])
+                sigma[i] = np.sqrt(np.sum(qty[rank:] ** 2) / df_residual[i])
 
     # Compute covariance from full correlation matrix
     chol_V = linalg.cholesky(cormatrix, lower=False)
-    X_t = linalg.solve_triangular(chol_V, design, trans='T')
+    X_t = linalg.solve_triangular(chol_V, design, trans="T")
     q, r, pivot, rank = _qr_r_style(X_t)
     r_inv = linalg.solve_triangular(r[:rank, :rank], np.eye(rank))
     cov_coef_core = r_inv @ r_inv.T
@@ -1194,9 +1185,7 @@ def lm_fit(
     # Parse design matrix. Column names (if any) flow through to
     # non_estimable so the "Coefficients not estimable" warning
     # identifies columns by name rather than by index when possible.
-    design, design_names = _parse_design(
-        design, data=sample_data, n_samples=n_samples
-    )
+    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
 
     if design.shape[0] != n_samples:
         raise ValueError(
@@ -1210,9 +1199,7 @@ def lm_fit(
 
     # Validate method (matches R's match.arg)
     if method not in ("ls", "robust"):
-        raise ValueError(
-            f"method '{method}' not recognized. Must be 'ls' or 'robust'."
-        )
+        raise ValueError(f"method '{method}' not recognized. Must be 'ls' or 'robust'.")
 
     # Validate correlation requirement. mrlm (robust) does not use
     # correlation - duplicates are unwrapped and fit per-gene via M-estimation
@@ -1235,7 +1222,11 @@ def lm_fit(
                 "then use least squares regression."
             )
         fit = mrlm(
-            expr, design, ndups=ndups, spacing=spacing, weights=weights,
+            expr,
+            design,
+            ndups=ndups,
+            spacing=spacing,
+            weights=weights,
             **mrlm_kwargs,
         )
     elif ndups < 2 and block is None:
@@ -1258,9 +1249,7 @@ def lm_fit(
     coefs_arr = np.asarray(fit["coefficients"])
     if coefs_arr.ndim == 2 and coefs_arr.shape[1] > 1:
         per_gene_nas = np.sum(np.isnan(coefs_arr), axis=1)
-        n_partial = int(np.sum(
-            (per_gene_nas > 0) & (per_gene_nas < coefs_arr.shape[1])
-        ))
+        n_partial = int(np.sum((per_gene_nas > 0) & (per_gene_nas < coefs_arr.shape[1])))
         if n_partial > 0:
             warnings.warn(f"Partial NA coefficients for {n_partial} probe(s)")
 

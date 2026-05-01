@@ -17,9 +17,8 @@ Implements:
 
 from __future__ import annotations
 
-import re
-from typing import TYPE_CHECKING
 import warnings
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -28,7 +27,7 @@ from scipy import linalg
 from .classes import MArrayLM, _resolve_fit_input
 
 if TYPE_CHECKING:
-    from anndata import AnnData
+    pass
 
 
 def model_matrix(
@@ -96,8 +95,7 @@ def model_matrix(
         import patsy
     except ImportError:
         raise ImportError(
-            "patsy is required for formula-based design matrices. "
-            "Install with: pip install patsy"
+            "patsy is required for formula-based design matrices. Install with: pip install patsy"
         )
 
     # Use Treatment coding to match R's contr.treatment (reference coding)
@@ -137,8 +135,7 @@ def model_matrix_with_names(
         import patsy
     except ImportError:
         raise ImportError(
-            "patsy is required for formula-based design matrices. "
-            "Install with: pip install patsy"
+            "patsy is required for formula-based design matrices. Install with: pip install patsy"
         )
 
     return patsy.dmatrix(formula, data, return_type="dataframe")
@@ -379,13 +376,9 @@ def contrasts_fit(
         for c in coefficients:
             if isinstance(c, str):
                 if coef_names is None:
-                    raise ValueError(
-                        f"Cannot use coefficient name '{c}' - no coef_names in fit"
-                    )
+                    raise ValueError(f"Cannot use coefficient name '{c}' - no coef_names in fit")
                 if c not in coef_names:
-                    raise ValueError(
-                        f"Coefficient '{c}' not found. Available: {coef_names}"
-                    )
+                    raise ValueError(f"Coefficient '{c}' not found. Available: {coef_names}")
                 idx = coef_names.index(c)
                 coef_indices.append(idx)
                 selected_names.append(c)
@@ -440,9 +433,7 @@ def contrasts_fit(
         if cn and cn[0] == "(Intercept)":
             cn[0] = "Intercept"
         if rn != cn:
-            warnings.warn(
-                "row names of contrasts don't match col names of coefficients"
-            )
+            warnings.warn("row names of contrasts don't match col names of coefficients")
 
     fit["contrasts"] = contrasts
     n_contrasts = contrasts.shape[1]
@@ -495,9 +486,7 @@ def contrasts_fit(
 
     # Get or construct covariance matrix
     if "cov_coefficients" not in fit or fit["cov_coefficients"] is None:
-        warnings.warn(
-            "cov_coefficients not found in fit - assuming coefficients are orthogonal"
-        )
+        warnings.warn("cov_coefficients not found in fit - assuming coefficients are orthogonal")
         var_coef = np.nanmean(stdev_unscaled**2, axis=0)
         cov_coefficients = np.diag(var_coef)
         cormatrix = np.eye(n_coef)

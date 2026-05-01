@@ -18,7 +18,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-
 # -----------------------------------------------------------------------------
 # Tier 1: DataFrame comparison helpers
 # -----------------------------------------------------------------------------
@@ -386,7 +385,7 @@ def run_r_comparison(
             else:
                 # Create DataFrame with row indices for R to read
                 df = pd.DataFrame(arr)
-                df.index = [f"row{i+1}" for i in range(len(df))]
+                df.index = [f"row{i + 1}" for i in range(len(df))]
                 df.to_csv(tmpdir / f"{name}.csv", index=True)
 
         # Add output saving to R code

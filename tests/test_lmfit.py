@@ -1,13 +1,13 @@
 """Tests for pylimma lmfit module."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
 
-from pylimma.lmfit import lm_fit, is_fullrank, non_estimable, lm_series, gls_series, mrlm
 from pylimma.dups import unwrap_dups
-
+from pylimma.lmfit import gls_series, is_fullrank, lm_fit, lm_series, mrlm, non_estimable
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -72,9 +72,7 @@ class TestLmSeries:
         result = lm_series(expr, design)
 
         # Coefficients should be row means
-        np.testing.assert_allclose(
-            result["coefficients"][:, 0], np.mean(expr, axis=1), rtol=1e-10
-        )
+        np.testing.assert_allclose(result["coefficients"][:, 0], np.mean(expr, axis=1), rtol=1e-10)
         assert result["rank"] == 1
         assert np.all(result["df_residual"] == 4)
 
@@ -176,12 +174,14 @@ class TestUnwrapDups:
 
     def test_unwrap_preserves_values(self):
         """Test that values are correctly mapped."""
-        M = np.array([
-            [1, 2],  # gene 0, dup 0
-            [3, 4],  # gene 0, dup 1
-            [5, 6],  # gene 1, dup 0
-            [7, 8],  # gene 1, dup 1
-        ])
+        M = np.array(
+            [
+                [1, 2],  # gene 0, dup 0
+                [3, 4],  # gene 0, dup 1
+                [5, 6],  # gene 1, dup 0
+                [7, 8],  # gene 1, dup 1
+            ]
+        )
         result = unwrap_dups(M, ndups=2, spacing=1)
 
         # Result should be (2 genes, 4 columns)
@@ -375,6 +375,7 @@ class TestMrlm:
         # Should complete without error
         assert not np.all(np.isnan(result["coefficients"]))
 
+
 class TestAnnDataVoomLmFitWeightsBridge:
     """Regression tests for the voom -> lm_fit AnnData weights bridge.
 
@@ -388,12 +389,15 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def _make_pseudobulk(self):
         import anndata as ad
+
         rng = np.random.default_rng(0)
         X = rng.negative_binomial(5, 0.5, size=(16, 200)).astype(np.float32)
-        obs = pd.DataFrame({
-            "donor":     [f"d{i//2}" for i in range(16)],
-            "condition": ["ctrl", "stim"] * 8,
-        })
+        obs = pd.DataFrame(
+            {
+                "donor": [f"d{i // 2}" for i in range(16)],
+                "condition": ["ctrl", "stim"] * 8,
+            }
+        )
         obs.index = [f"s{i}" for i in range(16)]
         var = pd.DataFrame(index=[f"g{i}" for i in range(200)])
         return ad.AnnData(X=X, obs=obs, var=var)
@@ -404,10 +408,12 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
 
         # Path A: fully AnnData-native (weights auto-loaded)
         pb_a = pb.copy()
@@ -417,15 +423,16 @@ class TestAnnDataVoomLmFitWeightsBridge:
         # Path B: explicit transposed weights
         pb_b = pb.copy()
         pylimma.voom(pb_b, design=design)
-        pylimma.lm_fit(pb_b, design=design, layer="voom_E",
-                       weights=pb_b.layers["voom_weights"].T)
+        pylimma.lm_fit(pb_b, design=design, layer="voom_E", weights=pb_b.layers["voom_weights"].T)
 
         fit_a = pb_a.uns["pylimma"]
         fit_b = pb_b.uns["pylimma"]
         for slot in ("coefficients", "stdev_unscaled", "sigma", "df_residual"):
             np.testing.assert_allclose(
-                np.asarray(fit_a[slot]), np.asarray(fit_b[slot]),
-                rtol=1e-12, atol=1e-14,
+                np.asarray(fit_a[slot]),
+                np.asarray(fit_b[slot]),
+                rtol=1e-12,
+                atol=1e-14,
                 err_msg=f"{slot} differs between auto-loaded and explicit weights",
             )
 
@@ -434,14 +441,15 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         pylimma.voom(pb, design=design)
         custom_w = np.ones((pb.shape[1], pb.shape[0]))  # unit weights
-        pylimma.lm_fit(pb, design=design, layer="voom_E",
-                       weights=custom_w)
+        pylimma.lm_fit(pb, design=design, layer="voom_E", weights=custom_w)
         fit = pb.uns["pylimma"]
         # Unit weights produce a different (unweighted-equivalent)
         # fit than voom's per-observation weights.
@@ -450,8 +458,7 @@ class TestAnnDataVoomLmFitWeightsBridge:
         pb_v.uns.pop("pylimma", None)
         pylimma.lm_fit(pb_v, design=design, layer="voom_E")
         fit_v = pb_v.uns["pylimma"]
-        assert not np.allclose(np.asarray(fit["sigma"]),
-                               np.asarray(fit_v["sigma"]))
+        assert not np.allclose(np.asarray(fit["sigma"]), np.asarray(fit_v["sigma"]))
 
     def test_vooma_weights_auto_loaded(self):
         """vooma writes ``vooma_weights`` not ``voom_weights``; the
@@ -463,18 +470,23 @@ class TestAnnDataVoomLmFitWeightsBridge:
         # vooma expects log-normalised expression, not raw counts.
         rng = np.random.default_rng(1)
         X = rng.standard_normal((16, 200)).astype(np.float32) + 6.0
-        obs = pd.DataFrame({
-            "donor":     [f"d{i//2}" for i in range(16)],
-            "condition": ["ctrl", "stim"] * 8,
-        })
+        obs = pd.DataFrame(
+            {
+                "donor": [f"d{i // 2}" for i in range(16)],
+                "condition": ["ctrl", "stim"] * 8,
+            }
+        )
         obs.index = [f"s{i}" for i in range(16)]
         var = pd.DataFrame(index=[f"g{i}" for i in range(200)])
         import anndata as ad
+
         pb = ad.AnnData(X=X, obs=obs, var=var)
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         pylimma.vooma(pb, design=design)
         assert "vooma_E" in pb.layers
         assert "vooma_weights" in pb.layers
@@ -484,14 +496,14 @@ class TestAnnDataVoomLmFitWeightsBridge:
         pylimma.lm_fit(pb_a, design=design, layer="vooma_E")
         # Path B: explicit transposed weights
         pb_b = pb.copy()
-        pylimma.lm_fit(pb_b, design=design, layer="vooma_E",
-                       weights=pb_b.layers["vooma_weights"].T)
+        pylimma.lm_fit(pb_b, design=design, layer="vooma_E", weights=pb_b.layers["vooma_weights"].T)
 
         for slot in ("coefficients", "stdev_unscaled", "sigma"):
             np.testing.assert_allclose(
                 np.asarray(pb_a.uns["pylimma"][slot]),
                 np.asarray(pb_b.uns["pylimma"][slot]),
-                rtol=1e-12, atol=1e-14,
+                rtol=1e-12,
+                atol=1e-14,
                 err_msg=f"{slot} differs (vooma auto-load)",
             )
 
@@ -500,13 +512,16 @@ class TestAnnDataVoomLmFitWeightsBridge:
         NOT silently pick up a random ``voom_weights`` layer that may
         have been left over from an earlier step. The gate is strict:
         ``{layer[:-2]}_weights`` only."""
-        import pylimma, anndata as ad
+
+        import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         pylimma.voom(pb, design=design)
         # Manually store a renamed copy of the E layer with an
         # unrelated suffix. There is no 'normalized_weights' layer.
@@ -518,8 +533,7 @@ class TestAnnDataVoomLmFitWeightsBridge:
         # Compare against an explicitly-unweighted call on the same
         # layer to confirm they match.
         pb_b = pb.copy()
-        pylimma.lm_fit(pb_b, design=design, layer="normalized",
-                       weights=None)
+        pylimma.lm_fit(pb_b, design=design, layer="normalized", weights=None)
         np.testing.assert_allclose(
             np.asarray(pb_a.uns["pylimma"]["sigma"]),
             np.asarray(pb_b.uns["pylimma"]["sigma"]),
@@ -535,17 +549,21 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         pylimma.voom(pb, design=design)
 
         # Path A: AnnData-native
         aw_a = pylimma.array_weights(pb, design=design, layer="voom_E")
         # Path B: explicit transposed weights
         aw_b = pylimma.array_weights(
-            pb, design=design, layer="voom_E",
+            pb,
+            design=design,
+            layer="voom_E",
             weights=pb.layers["voom_weights"].T,
         )
         np.testing.assert_allclose(aw_a, aw_b, rtol=1e-12, atol=1e-14)
@@ -554,7 +572,9 @@ class TestAnnDataVoomLmFitWeightsBridge:
         pb_no_w = pb.copy()
         del pb_no_w.layers["voom_weights"]
         aw_unweighted = pylimma.array_weights(
-            pb_no_w, design=design, layer="voom_E",
+            pb_no_w,
+            design=design,
+            layer="voom_E",
         )
         assert not np.allclose(aw_a, aw_unweighted)
 
@@ -564,21 +584,29 @@ class TestAnnDataVoomLmFitWeightsBridge:
         np.asarray(sparse) produces a 0-d object array and the whole
         pipeline either crashes or returns nonsense.
         """
-        import pylimma, anndata as ad
+        import anndata as ad
         import scipy.sparse as sp
 
+        import pylimma
+
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
 
         X_dense = np.asarray(pb.X)
         pb_csr = ad.AnnData(
-            X=sp.csr_matrix(X_dense), obs=pb.obs.copy(), var=pb.var.copy(),
+            X=sp.csr_matrix(X_dense),
+            obs=pb.obs.copy(),
+            var=pb.var.copy(),
         )
         pb_dense = ad.AnnData(
-            X=X_dense, obs=pb.obs.copy(), var=pb.var.copy(),
+            X=X_dense,
+            obs=pb.obs.copy(),
+            var=pb.var.copy(),
         )
 
         for a in (pb_csr, pb_dense):
@@ -589,7 +617,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
             np.testing.assert_allclose(
                 np.asarray(pb_csr.uns["pylimma"][slot]),
                 np.asarray(pb_dense.uns["pylimma"][slot]),
-                rtol=1e-12, atol=1e-14,
+                rtol=1e-12,
+                atol=1e-14,
                 err_msg=f"{slot} differs sparse vs dense",
             )
 
@@ -597,19 +626,24 @@ class TestAnnDataVoomLmFitWeightsBridge:
         """A sparse adata.layers[...] entry (e.g. from scanpy.pp.normalize_total)
         must also be densified by get_eawp when passed as ``layer=``.
         """
-        import pylimma, anndata as ad
+        import anndata as ad
         import scipy.sparse as sp
 
+        import pylimma
+
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         X_dense = np.asarray(pb.X)
 
         a = ad.AnnData(
             X=np.zeros_like(X_dense),
-            obs=pb.obs.copy(), var=pb.var.copy(),
+            obs=pb.obs.copy(),
+            var=pb.var.copy(),
         )
         a.layers["counts"] = sp.csr_matrix(X_dense)
         pylimma.voom(a, design=design, layer="counts")
@@ -625,25 +659,33 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         block = pb.obs["donor"].values
         pylimma.voom(pb, design=design)
 
         # Path A: AnnData-native
         dc_a = pylimma.duplicate_correlation(
-            pb, design=design, block=block, layer="voom_E",
+            pb,
+            design=design,
+            block=block,
+            layer="voom_E",
         )
         # Path B: explicit transposed weights
         dc_b = pylimma.duplicate_correlation(
-            pb, design=design, block=block, layer="voom_E",
+            pb,
+            design=design,
+            block=block,
+            layer="voom_E",
             weights=pb.layers["voom_weights"].T,
         )
-        assert np.isclose(dc_a["consensus_correlation"],
-                          dc_b["consensus_correlation"],
-                          rtol=1e-10, atol=1e-12)
+        assert np.isclose(
+            dc_a["consensus_correlation"], dc_b["consensus_correlation"], rtol=1e-10, atol=1e-12
+        )
 
     def test_anndata_design_auto_loaded_from_voom_uns(self):
         """lm_fit(adata, layer='voom_E') without a design= kwarg must
@@ -656,14 +698,16 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
 
         pb_a = pb.copy()
         pylimma.voom(pb_a, design=design)
-        pylimma.lm_fit(pb_a, layer="voom_E")      # no design=
+        pylimma.lm_fit(pb_a, layer="voom_E")  # no design=
 
         pb_b = pb.copy()
         pylimma.voom(pb_b, design=design)
@@ -672,11 +716,12 @@ class TestAnnDataVoomLmFitWeightsBridge:
         fit_a = pb_a.uns["pylimma"]
         fit_b = pb_b.uns["pylimma"]
         assert fit_a["design"].shape == design.shape
-        for slot in ("coefficients", "stdev_unscaled", "sigma",
-                     "df_residual"):
+        for slot in ("coefficients", "stdev_unscaled", "sigma", "df_residual"):
             np.testing.assert_allclose(
-                np.asarray(fit_a[slot]), np.asarray(fit_b[slot]),
-                rtol=1e-12, atol=1e-14,
+                np.asarray(fit_a[slot]),
+                np.asarray(fit_b[slot]),
+                rtol=1e-12,
+                atol=1e-14,
                 err_msg=f"{slot} differs (design auto-load from uns)",
             )
 
@@ -684,26 +729,31 @@ class TestAnnDataVoomLmFitWeightsBridge:
         """Same contract for vooma: adata.uns['vooma']['design'] must be
         picked up when lm_fit is called with layer='vooma_E'.
         """
-        import pylimma
         import anndata as ad
+
+        import pylimma
 
         rng = np.random.default_rng(2)
         X = rng.standard_normal((16, 200)).astype(np.float32) + 6.0
-        obs = pd.DataFrame({
-            "donor":     [f"d{i//2}" for i in range(16)],
-            "condition": ["ctrl", "stim"] * 8,
-        })
+        obs = pd.DataFrame(
+            {
+                "donor": [f"d{i // 2}" for i in range(16)],
+                "condition": ["ctrl", "stim"] * 8,
+            }
+        )
         obs.index = [f"s{i}" for i in range(16)]
         var = pd.DataFrame(index=[f"g{i}" for i in range(200)])
         pb = ad.AnnData(X=X, obs=obs, var=var)
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
 
         pb_a = pb.copy()
         pylimma.vooma(pb_a, design=design)
-        pylimma.lm_fit(pb_a, layer="vooma_E")     # no design=
+        pylimma.lm_fit(pb_a, layer="vooma_E")  # no design=
         assert pb_a.uns["pylimma"]["design"].shape == design.shape
 
     def test_explicit_design_overrides_uns_design(self):
@@ -711,10 +761,12 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design_voom = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design_voom = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         # Different design used at lm_fit time (intercept only).
         design_fit = np.ones((pb.shape[0], 1))
 
@@ -731,16 +783,17 @@ class TestAnnDataVoomLmFitWeightsBridge:
         rng = np.random.default_rng(3)
         n_samples, n_genes = 8, 60
         E = rng.standard_normal((n_genes, n_samples)) + 6.0
-        design = np.column_stack([np.ones(n_samples),
-                                   [0] * 4 + [1] * 4])
+        design = np.column_stack([np.ones(n_samples), [0] * 4 + [1] * 4])
         el = pylimma.EList({"E": E, "design": design})
 
         fit_a = pylimma.lm_fit(el)
         fit_b = pylimma.lm_fit(el, design=design)
         for slot in ("coefficients", "stdev_unscaled", "sigma"):
             np.testing.assert_allclose(
-                np.asarray(fit_a[slot]), np.asarray(fit_b[slot]),
-                rtol=1e-12, atol=1e-14,
+                np.asarray(fit_a[slot]),
+                np.asarray(fit_b[slot]),
+                rtol=1e-12,
+                atol=1e-14,
                 err_msg=f"{slot} differs (EList design auto-load)",
             )
 
@@ -754,27 +807,27 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
 
         pb_custom = pb.copy()
-        pylimma.voom(pb_custom, design=design,
-                     out_layer="custom_E", weights_layer="custom_w")
-        pylimma.lm_fit(pb_custom, design=design,
-                       layer="custom_E", weights_layer="custom_w")
+        pylimma.voom(pb_custom, design=design, out_layer="custom_E", weights_layer="custom_w")
+        pylimma.lm_fit(pb_custom, design=design, layer="custom_E", weights_layer="custom_w")
 
         pb_default = pb.copy()
         pylimma.voom(pb_default, design=design)
         pylimma.lm_fit(pb_default, design=design, layer="voom_E")
 
-        for slot in ("coefficients", "stdev_unscaled", "sigma",
-                     "df_residual"):
+        for slot in ("coefficients", "stdev_unscaled", "sigma", "df_residual"):
             np.testing.assert_allclose(
                 np.asarray(pb_custom.uns["pylimma"][slot]),
                 np.asarray(pb_default.uns["pylimma"][slot]),
-                rtol=1e-12, atol=1e-14,
+                rtol=1e-12,
+                atol=1e-14,
                 err_msg=f"{slot} differs (custom weights_layer)",
             )
 
@@ -786,14 +839,15 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         pylimma.voom(pb, design=design)
         with pytest.raises(KeyError, match="weights_layer"):
-            pylimma.lm_fit(pb, design=design, layer="voom_E",
-                           weights_layer="does_not_exist")
+            pylimma.lm_fit(pb, design=design, layer="voom_E", weights_layer="does_not_exist")
 
     def test_weights_layer_rejected_for_non_anndata(self):
         """weights_layer= is AnnData-only; EList/ndarray must reject it
@@ -825,24 +879,29 @@ class TestAnnDataVoomLmFitWeightsBridge:
         np.testing.assert_allclose(
             np.asarray(pb_a.layers["voom_E"]),
             np.asarray(pb_b.layers["voom_E"]),
-            rtol=1e-12, atol=1e-14,
+            rtol=1e-12,
+            atol=1e-14,
         )
         np.testing.assert_allclose(
             np.asarray(pb_a.layers["voom_weights"]),
             np.asarray(pb_b.layers["voom_weights"]),
-            rtol=1e-12, atol=1e-14,
+            rtol=1e-12,
+            atol=1e-14,
         )
 
     def test_vooma_accepts_formula_string(self):
         """vooma(adata, design='~ condition') must parse the formula."""
-        import pylimma
         import anndata as ad
+
+        import pylimma
 
         rng = np.random.default_rng(5)
         X = rng.standard_normal((16, 200)).astype(np.float32) + 6.0
-        obs = pd.DataFrame({
-            "condition": ["ctrl", "stim"] * 8,
-        })
+        obs = pd.DataFrame(
+            {
+                "condition": ["ctrl", "stim"] * 8,
+            }
+        )
         obs.index = [f"s{i}" for i in range(16)]
         var = pd.DataFrame(index=[f"g{i}" for i in range(200)])
         pb = ad.AnnData(X=X, obs=obs, var=var)
@@ -856,7 +915,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
         np.testing.assert_allclose(
             np.asarray(pb_a.layers["vooma_weights"]),
             np.asarray(pb_b.layers["vooma_weights"]),
-            rtol=1e-12, atol=1e-14,
+            rtol=1e-12,
+            atol=1e-14,
         )
 
     def test_voom_with_quality_weights_accepts_formula_string(self):
@@ -875,7 +935,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
         np.testing.assert_allclose(
             np.asarray(pb_a.layers["voom_weights"]),
             np.asarray(pb_b.layers["voom_weights"]),
-            rtol=1e-12, atol=1e-14,
+            rtol=1e-12,
+            atol=1e-14,
         )
 
     def test_h5ad_roundtrip_preserves_fit(self):
@@ -885,14 +946,18 @@ class TestAnnDataVoomLmFitWeightsBridge:
         ``IORegistryError`` on write. We now store a plain dict.
         """
         import tempfile
-        import pylimma
+
         import anndata as ad
 
+        import pylimma
+
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         pylimma.voom(pb, design=design)
         pylimma.lm_fit(pb, design=design, layer="voom_E")
         pylimma.e_bayes(pb)
@@ -917,10 +982,12 @@ class TestAnnDataVoomLmFitWeightsBridge:
         import pylimma
 
         pb = self._make_pseudobulk()
-        design = np.column_stack([
-            np.ones(pb.shape[0]),
-            (pb.obs["condition"] == "stim").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(pb.shape[0]),
+                (pb.obs["condition"] == "stim").astype(float).values,
+            ]
+        )
         pylimma.voom(pb, design=design)
         pylimma.lm_fit(pb, design=design, layer="voom_E")
         assert type(pb.uns["pylimma"]) is dict
@@ -935,8 +1002,9 @@ class TestAnnDataVoomLmFitWeightsBridge:
         operate on adata.uns[key]. Pre-fix it crashed with
         ``AttributeError: 'AnnData' object has no attribute 'get'``.
         """
-        import pylimma
         import anndata as ad
+
+        import pylimma
 
         rng = np.random.default_rng(0)
         # Three-level factor so genas has two non-intercept coefs.
@@ -944,11 +1012,13 @@ class TestAnnDataVoomLmFitWeightsBridge:
         obs = pd.DataFrame({"group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4})
         obs.index = [f"s{i}" for i in range(12)]
         adata = ad.AnnData(X=X, obs=obs)
-        design = np.column_stack([
-            np.ones(12),
-            (obs["group"] == "B").astype(float).values,
-            (obs["group"] == "C").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(12),
+                (obs["group"] == "B").astype(float).values,
+                (obs["group"] == "C").astype(float).values,
+            ]
+        )
         pylimma.lm_fit(adata, design=design)
         pylimma.e_bayes(adata)
 
@@ -958,19 +1028,22 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_pred_fcm_accepts_anndata(self):
         """pred_fcm(adata) must route through _resolve_fit_input."""
-        import pylimma
         import anndata as ad
+
+        import pylimma
 
         rng = np.random.default_rng(0)
         X = rng.standard_normal((12, 40)).astype(np.float32) + 6.0
         obs = pd.DataFrame({"group": ["A"] * 4 + ["B"] * 4 + ["C"] * 4})
         obs.index = [f"s{i}" for i in range(12)]
         adata = ad.AnnData(X=X, obs=obs)
-        design = np.column_stack([
-            np.ones(12),
-            (obs["group"] == "B").astype(float).values,
-            (obs["group"] == "C").astype(float).values,
-        ])
+        design = np.column_stack(
+            [
+                np.ones(12),
+                (obs["group"] == "B").astype(float).values,
+                (obs["group"] == "C").astype(float).values,
+            ]
+        )
         pylimma.lm_fit(adata, design=design)
         pylimma.e_bayes(adata)
 
@@ -982,15 +1055,18 @@ class TestAnnDataVoomLmFitWeightsBridge:
         """lm_fit must propagate adata.obs into fit['targets'],
         mirroring R's ``fit$targets <- y$targets``.
         """
-        import pylimma
         import anndata as ad
+
+        import pylimma
 
         rng = np.random.default_rng(0)
         X = rng.standard_normal((8, 40)).astype(np.float32) + 10
-        obs = pd.DataFrame({
-            "group": pd.Categorical(["A"] * 4 + ["B"] * 4),
-            "donor": [1, 2, 3, 4, 1, 2, 3, 4],
-        })
+        obs = pd.DataFrame(
+            {
+                "group": pd.Categorical(["A"] * 4 + ["B"] * 4),
+                "donor": [1, 2, 3, 4, 1, 2, 3, 4],
+            }
+        )
         obs.index = [f"s{i}" for i in range(8)]
         adata = ad.AnnData(X=X, obs=obs)
 
@@ -1026,8 +1102,9 @@ class TestAnnDataVoomLmFitWeightsBridge:
         the common scanpy state where adata.var_names is set but
         adata.var is empty.
         """
-        import pylimma
         import anndata as ad
+
+        import pylimma
 
         X = np.ones((6, 20))
         adata = ad.AnnData(X=X)
@@ -1044,13 +1121,14 @@ class TestAnnDataVoomLmFitWeightsBridge:
         supplied 1-D array weights. A 1-D write would raise
         AnnData's ``Shape mismatch``.
         """
-        from pylimma.classes import put_eawp
         import anndata as ad
+
+        from pylimma.classes import put_eawp
 
         rng = np.random.default_rng(0)
         X = rng.standard_normal((6, 20))
         adata = ad.AnnData(X=X)
-        E = rng.standard_normal((20, 6))                  # limma orientation
+        E = rng.standard_normal((20, 6))  # limma orientation
         # length-6 array weights (one per sample)
         array_w = np.array([1.0, 0.5, 1.0, 0.5, 1.0, 0.5])
 
@@ -1064,5 +1142,6 @@ class TestAnnDataVoomLmFitWeightsBridge:
         assert adata.layers["foo_weights"].shape == (6, 20)
         # Array-weight broadcast: each sample's row has identical values.
         np.testing.assert_allclose(
-            adata.layers["foo_weights"][0, :], array_w[0],
+            adata.layers["foo_weights"][0, :],
+            array_w[0],
         )

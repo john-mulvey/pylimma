@@ -68,7 +68,7 @@ def _hat_values(qr_result: tuple) -> np.ndarray:
     """
     Q = qr_result[0]
     # Hat values are row sums of squares of Q
-    return np.sum(Q ** 2, axis=1)
+    return np.sum(Q**2, axis=1)
 
 
 def _array_weights_gene_by_gene(
@@ -149,7 +149,7 @@ def _array_weights_gene_by_gene(
             try:
                 # Use full QR decomposition to get residual effects
                 q, r = linalg.qr(X_w, mode="full")
-                r_diag = np.diag(r[:X_w.shape[1], :])
+                r_diag = np.diag(r[: X_w.shape[1], :])
                 rank = np.sum(np.abs(r_diag) > 1e-10)
                 df_resid = n_obs - rank
                 if df_resid < 2:
@@ -158,9 +158,9 @@ def _array_weights_gene_by_gene(
                 qty = q.T @ y_w
 
                 # Hat values from economic Q
-                q_econ = q[:, :X_w.shape[1]]
+                q_econ = q[:, : X_w.shape[1]]
                 h1 = np.zeros(n_samples)
-                h1[obs] = 1 - np.sum(q_econ ** 2, axis=1)
+                h1[obs] = 1 - np.sum(q_econ**2, axis=1)
 
                 # Weighted squared residuals
                 resid_effects = qty[:rank]
@@ -168,11 +168,11 @@ def _array_weights_gene_by_gene(
                 resid = (y_w - fitted) / sqrt_w
 
                 d = np.zeros(n_samples)
-                d[obs] = w_obs * resid ** 2
+                d[obs] = w_obs * resid**2
 
                 # Residual variance from effects beyond the fitted
                 effects = qty[rank:]
-                s2 = np.mean(effects ** 2)
+                s2 = np.mean(effects**2)
             except (np.linalg.LinAlgError, ValueError):
                 continue
         else:
@@ -184,7 +184,7 @@ def _array_weights_gene_by_gene(
             try:
                 # Use full QR decomposition
                 q, r = linalg.qr(X_w, mode="full")
-                r_diag = np.diag(r[:design.shape[1], :])
+                r_diag = np.diag(r[: design.shape[1], :])
                 rank = np.sum(np.abs(r_diag) > 1e-10)
                 df_resid = n_samples - rank
                 if df_resid < 2:
@@ -193,17 +193,17 @@ def _array_weights_gene_by_gene(
                 qty = q.T @ y_w
 
                 # Hat values from economic Q
-                q_econ = q[:, :design.shape[1]]
-                h1 = 1 - np.sum(q_econ ** 2, axis=1)
+                q_econ = q[:, : design.shape[1]]
+                h1 = 1 - np.sum(q_econ**2, axis=1)
 
                 # Residuals
                 fitted = q[:, :rank] @ qty[:rank]
                 resid = (y_w - fitted) / sqrt_w
-                d = w * resid ** 2
+                d = w * resid**2
 
                 # Residual variance
                 effects = qty[rank:]
-                s2 = np.mean(effects ** 2)
+                s2 = np.mean(effects**2)
             except (np.linalg.LinAlgError, ValueError):
                 continue
 
@@ -294,7 +294,7 @@ def _array_weights_reml(
     q_u = q_u_full[:, :p]  # first p cols = column space basis
     effects_u = q_u_full.T @ E.T  # (narrays, ngenes)
     effects_null = effects_u[rank_u:, :]  # residual effects
-    s2 = np.mean(effects_null ** 2, axis=0)
+    s2 = np.mean(effects_null**2, axis=0)
 
     zero_var_filter = None
     if np.min(s2) < 1e-15:
@@ -341,7 +341,7 @@ def _array_weights_reml(
         j0 = 0
         for k in range(p):
             span = p - k
-            Q2[:, j0:j0 + span] = Q[:, :span] * Q[:, k:k + span]
+            Q2[:, j0 : j0 + span] = Q[:, :span] * Q[:, k : k + span]
             j0 += span
         if p > 1:
             Q2[:, p:p2] *= np.sqrt(2.0)
@@ -358,7 +358,7 @@ def _array_weights_reml(
         # Score: colMeans over genes of w * residuals^2 / s2, then - (1 - h)
         # residuals is shape (ngenes, narrays). w * resid^2 / s2 gives per-gene
         # per-array contribution; colMeans = mean across genes, shape (narrays,).
-        score_per = (w[np.newaxis, :] * residuals ** 2) / s2[:, np.newaxis]
+        score_per = (w[np.newaxis, :] * residuals**2) / s2[:, np.newaxis]
         z = np.mean(score_per, axis=0) - (1.0 - h)
 
         # Add prior support
@@ -471,28 +471,24 @@ def _array_weights_pr_wts_reml(
             s2 = float(np.mean(effects[rank:] ** 2))
 
             # R: residuals are y - X beta on the original (unweighted) scale
-            beta = linalg.solve_triangular(
-                r_it[:rank, :rank], effects[:rank], lower=False
-            )
+            beta = linalg.solve_triangular(r_it[:rank, :rank], effects[:rank], lower=False)
             resid = E[g, :] - design @ beta
 
             Q2 = np.zeros((n_samples, p2))
             j0 = 0
             for k in range(p):
                 span = p - k
-                Q2[:, j0:j0 + span] = Q[:, :span] * Q[:, k:k + span]
+                Q2[:, j0 : j0 + span] = Q[:, :span] * Q[:, k : k + span]
                 j0 += span
             if p > 1:
                 Q2[:, p:p2] *= np.sqrt(2.0)
 
             h = np.sum(Q2[:, :p], axis=1)
-            info = Z.T @ ((1.0 - 2.0 * h)[:, np.newaxis] * Z) \
-                + (Q2.T @ Z).T @ (Q2.T @ Z)
-            info2 = info2 + info[1:, 1:] \
-                - np.outer(info[1:, 0], info[0, 1:]) / info[0, 0]
+            info = Z.T @ ((1.0 - 2.0 * h)[:, np.newaxis] * Z) + (Q2.T @ Z).T @ (Q2.T @ Z)
+            info2 = info2 + info[1:, 1:] - np.outer(info[1:, 0], info[0, 1:]) / info[0, 0]
 
             if s2 > 1e-15:
-                z = z + wg * resid ** 2 / s2 - (1.0 - h)
+                z = z + wg * resid**2 / s2 - (1.0 - h)
 
         info2_avg = info2 / (n_genes + prior_n)
         z_avg = z / (n_genes + prior_n)
@@ -679,9 +675,7 @@ def array_weights(
             method = "reml"
 
     if method == "genebygene":
-        return _array_weights_gene_by_gene(
-            E, design, weights, var_design, prior_n, trace=trace
-        )
+        return _array_weights_gene_by_gene(E, design, weights, var_design, prior_n, trace=trace)
     elif method == "reml":
         if has_na:
             # Remove rows with any NA
@@ -693,12 +687,16 @@ def array_weights(
                 return w
 
         if weights is None:
-            return _array_weights_reml(
-                E, design, var_design, prior_n, maxiter, tol, trace=trace
-            )
+            return _array_weights_reml(E, design, var_design, prior_n, maxiter, tol, trace=trace)
         else:
             return _array_weights_pr_wts_reml(
-                E, design, weights, var_design, prior_n, maxiter, tol,
+                E,
+                design,
+                weights,
+                var_design,
+                prior_n,
+                maxiter,
+                tol,
                 trace=trace,
             )
     else:
@@ -738,6 +736,7 @@ def array_weights_quick(
 
     if fit.get("weights") is not None:
         import warnings
+
         warnings.warn(
             "spot quality weights found but not taken into account",
             UserWarning,
@@ -753,7 +752,7 @@ def array_weights_quick(
     q, _r, _pivot = linalg.qr(design, pivoting=True, mode="economic")
     rank = int(np.sum(np.abs(np.diag(_r)) > 1e-10))
     q = q[:, :rank]
-    h = np.sum(q ** 2, axis=1)
+    h = np.sum(q**2, axis=1)
 
     mures2 = (sigma[:, np.newaxis] ** 2) * (1.0 - h)[np.newaxis, :]
     return 1.0 / np.nanmean(res * res / mures2, axis=0)

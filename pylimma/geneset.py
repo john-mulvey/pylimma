@@ -45,18 +45,16 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-from scipy import linalg
-from scipy import stats
+from scipy import linalg, stats
 
 from .classes import get_eawp
 from .lmfit import non_estimable
-from .squeeze_var import squeeze_var, fit_f_dist
+from .squeeze_var import fit_f_dist, squeeze_var
 from .utils import (
+    _zscore_t_bailey,
     p_adjust,
     zscore_t,
-    _zscore_t_bailey,
 )
-
 
 # ---------------------------------------------------------------------------
 # ids2indices
@@ -159,9 +157,7 @@ def _lm_effects(
     if design.ndim == 1:
         design = design.reshape(-1, 1)
     if design.shape[0] != n:
-        raise ValueError(
-            "row dimension of design matrix must match column dimension of data"
-        )
+        raise ValueError("row dimension of design matrix must match column dimension of data")
     p = design.shape[1]
     if n <= p:
         raise ValueError("No residual degrees of freedom")
@@ -172,19 +168,19 @@ def _lm_effects(
 
     # Reform design so that the contrast is the last coefficient.
     contrast_arr = np.atleast_1d(np.asarray(contrast))
-    if contrast_arr.ndim == 1 and contrast_arr.size == 1 and np.issubdtype(
-        contrast_arr.dtype, np.integer
+    if (
+        contrast_arr.ndim == 1
+        and contrast_arr.size == 1
+        and np.issubdtype(contrast_arr.dtype, np.integer)
     ):
         k = int(contrast_arr.item())
         if k < 0 or k >= p:
-            raise ValueError(
-                f"contrast index {k} out of range for design with {p} columns"
-            )
+            raise ValueError(f"contrast index {k} out of range for design with {p} columns")
         if np.all(design[:, k] == 0):
             raise ValueError("contrast all zero")
         if k < p - 1:
             keep = [j for j in range(p) if j != k]
-            X = np.column_stack([design[:, keep], design[:, k:k + 1]])
+            X = np.column_stack([design[:, keep], design[:, k : k + 1]])
         else:
             X = design.copy()
     else:
@@ -192,9 +188,7 @@ def _lm_effects(
         # direction is the last column. Implements contrastAsCoef(first=FALSE).
         contrast_vec = np.asarray(contrast, dtype=np.float64)
         if contrast_vec.size != p:
-            raise ValueError(
-                "length of contrast must match column dimension of design"
-            )
+            raise ValueError("length of contrast must match column dimension of design")
         if np.all(contrast_vec == 0):
             raise ValueError("contrast all zero")
         Q_c, R_c = linalg.qr(contrast_vec.reshape(-1, 1), mode="full")
@@ -218,11 +212,7 @@ def _lm_effects(
             raise ValueError("array.weights must be positive")
 
     # Allow gene.weights to be alternatively passed via 'weights'.
-    if (
-        gene_weights is None
-        and weights is not None
-        and np.asarray(weights).size == ngenes
-    ):
+    if gene_weights is None and weights is not None and np.asarray(weights).size == ngenes:
         gene_weights = weights
         weights = None
 
@@ -286,7 +276,7 @@ def _lm_effects(
         signc = np.sign(R_qr[p - 1, p - 1])
         if p > 1:
             # Keep columns p..n (1-indexed) -> p-1..n-1 (0-indexed)
-            Effects = Effects[:, p - 1:]
+            Effects = Effects[:, p - 1 :]
         if signc < 0:
             Effects[:, 0] = signc * Effects[:, 0]
     else:
@@ -303,7 +293,7 @@ def _lm_effects(
             signc[g] = np.sign(Rg[p - 1, p - 1])
             Effects[g, :] = Qg.T @ wy
         if p > 1:
-            Effects = Effects[:, p - 1:]
+            Effects = Effects[:, p - 1 :]
         Effects[:, 0] = signc * Effects[:, 0]
 
     if gene_weights is not None:
@@ -369,9 +359,7 @@ def _roast_effects(
     modt = effects[:, 0] / np.sqrt(np.asarray(var_post, dtype=np.float64))
     if approx_zscore and not legacy:
         df_total_winsor = np.minimum(df_total, 10000.0)
-        modt = _zscore_t_bailey(
-            modt, np.broadcast_to(df_total_winsor, modt.shape)
-        )
+        modt = _zscore_t_bailey(modt, np.broadcast_to(df_total_winsor, modt.shape))
     else:
         modt = zscore_t(modt, df_total, approx=approx_zscore, method="hill")
 
@@ -387,7 +375,6 @@ def _roast_effects(
 
     # Observed set statistics
     statobs = np.zeros(4)
-    names_obs = ("down", "up", "upordown", "mixed")
     if set_statistic not in ("mean", "floormean", "mean50", "msq"):
         raise ValueError(
             f"set.statistic '{set_statistic}' not recognized. "
@@ -415,7 +402,9 @@ def _roast_effects(
     elif set_statistic == "mean50":
         if nset % 2 == 0:
             half1 = nset // 2
-            half2 = half1 + 1  # 1-based in R -> still means index half1 in 0-based for bottom half start
+            half2 = (
+                half1 + 1
+            )  # 1-based in R -> still means index half1 in 0-based for bottom half start
         else:
             half1 = nset // 2 + 1
             half2 = half1
@@ -425,12 +414,12 @@ def _roast_effects(
         s_sorted = np.sort(modt)
         # 0-based: top half = s_sorted[0:half1], bottom half = s_sorted[half2-1:nset]
         statobs[0] = float(-np.mean(s_sorted[:half1]))
-        statobs[1] = float(np.mean(s_sorted[half2 - 1: nset]))
+        statobs[1] = float(np.mean(s_sorted[half2 - 1 : nset]))
         statobs[2] = float(max(statobs[0], statobs[1]))
         s_sorted = np.sort(np.abs(modt))
-        statobs[3] = float(np.mean(s_sorted[half2 - 1: nset]))
+        statobs[3] = float(np.mean(s_sorted[half2 - 1 : nset]))
     elif set_statistic == "msq":
-        modt2 = modt ** 2
+        modt2 = modt**2
         if gene_weights is not None:
             modt2 = np.abs(gene_weights) * modt2
             modt = gene_weights * modt
@@ -473,27 +462,29 @@ def _roast_effects(
 
         # Rotated primary effects: modtr has shape (nset, nroti_this)
         R_mat = rng.standard_normal((nroti_this, neffects))
-        R_mat = R_mat / np.sqrt(np.sum(R_mat ** 2, axis=1, keepdims=True))
+        R_mat = R_mat / np.sqrt(np.sum(R_mat**2, axis=1, keepdims=True))
         modtr = effects @ R_mat.T  # (nset, nroti_this)
 
         # Moderated rotated variances
         if np.all(FinDf):
-            s2r = (np.sum(effects ** 2, axis=1, keepdims=True) - modtr ** 2) / df_residual
+            s2r = (np.sum(effects**2, axis=1, keepdims=True) - modtr**2) / df_residual
             df_prior_b = df_prior_arr.reshape(-1, 1) if df_prior_arr.size > 1 else df_prior_arr[0]
-            var_prior_b = var_prior_arr.reshape(-1, 1) if var_prior_arr.size > 1 else var_prior_arr[0]
-            df_total_b = df_total.reshape(-1, 1) if np.ndim(df_total) and df_total.size > 1 else df_total
+            var_prior_b = (
+                var_prior_arr.reshape(-1, 1) if var_prior_arr.size > 1 else var_prior_arr[0]
+            )
+            df_total_b = (
+                df_total.reshape(-1, 1) if np.ndim(df_total) and df_total.size > 1 else df_total
+            )
             s2r = (df_prior_b * var_prior_b + df_residual * s2r) / df_total_b
         elif np.any(FinDf):
-            s2r = (np.sum(effects ** 2, axis=1, keepdims=True) - modtr ** 2) / df_residual
+            s2r = (np.sum(effects**2, axis=1, keepdims=True) - modtr**2) / df_residual
             if var_prior_arr.size > 1:
                 s20 = var_prior_arr[FinDf].reshape(-1, 1)
             else:
                 s20 = var_prior_arr[0]
             df_prior_sub = df_prior_arr[FinDf].reshape(-1, 1)
             df_total_sub = df_total[FinDf].reshape(-1, 1)
-            s2r[FinDf, :] = (
-                df_prior_sub * s20 + df_residual * s2r[FinDf, :]
-            ) / df_total_sub
+            s2r[FinDf, :] = (df_prior_sub * s20 + df_residual * s2r[FinDf, :]) / df_total_sub
         else:
             s2r = np.full_like(modtr, var_prior_arr[0] if var_prior_arr.size == 1 else 1.0)
             if var_prior_arr.size > 1:
@@ -506,9 +497,7 @@ def _roast_effects(
             modtr = _zscore_t_bailey(modtr, dwinsor)
         else:
             df_total_b = (
-                np.broadcast_to(
-                    np.asarray(df_total).reshape(-1, 1), modtr.shape
-                )
+                np.broadcast_to(np.asarray(df_total).reshape(-1, 1), modtr.shape)
                 if np.ndim(df_total) and np.asarray(df_total).size > 1
                 else df_total
             )
@@ -521,14 +510,8 @@ def _roast_effects(
             statrot[:, 0] = -m_r
             statrot[:, 1] = m_r
             statrot[:, 3] = np.mean(np.abs(modtr), axis=0)
-            count[0] += int(
-                np.sum(statrot[:, 0] > statobs[0])
-                + np.sum(statrot[:, 1] > statobs[0])
-            )
-            count[1] += int(
-                np.sum(statrot[:, 0] > statobs[1])
-                + np.sum(statrot[:, 1] > statobs[1])
-            )
+            count[0] += int(np.sum(statrot[:, 0] > statobs[0]) + np.sum(statrot[:, 1] > statobs[0]))
+            count[1] += int(np.sum(statrot[:, 0] > statobs[1]) + np.sum(statrot[:, 1] > statobs[1]))
             count[3] += int(np.sum(statrot[:, 3] > statobs[3]))
 
         elif set_statistic == "floormean":
@@ -542,14 +525,8 @@ def _roast_effects(
             statrot[ub, 2] = statrot[ub, 1]
             statrot[~ub, 2] = statrot[~ub, 0]
             statrot[:, 3] = np.mean(amodtr, axis=0)
-            count[0] += int(
-                np.sum(statrot[:, 0] > statobs[0])
-                + np.sum(statrot[:, 1] > statobs[0])
-            )
-            count[1] += int(
-                np.sum(statrot[:, 0] > statobs[1])
-                + np.sum(statrot[:, 1] > statobs[1])
-            )
+            count[0] += int(np.sum(statrot[:, 0] > statobs[0]) + np.sum(statrot[:, 1] > statobs[0]))
+            count[1] += int(np.sum(statrot[:, 0] > statobs[1]) + np.sum(statrot[:, 1] > statobs[1]))
             count[2] += int(np.sum(statrot[:, 2] > statobs[2]))
             count[3] += int(np.sum(statrot[:, 3] > statobs[3]))
 
@@ -559,18 +536,12 @@ def _roast_effects(
             for r in range(nroti_this):
                 s_sorted = np.sort(modtr[:, r])
                 statrot[r, 0] = -np.mean(s_sorted[:half1_loc])
-                statrot[r, 1] = np.mean(s_sorted[half2_loc - 1: nset])
+                statrot[r, 1] = np.mean(s_sorted[half2_loc - 1 : nset])
                 statrot[r, 2] = max(statrot[r, 0], statrot[r, 1])
                 s_sorted = np.sort(np.abs(modtr[:, r]))
-                statrot[r, 3] = np.mean(s_sorted[half2_loc - 1: nset])
-            count[0] += int(
-                np.sum(statrot[:, 0] > statobs[0])
-                + np.sum(statrot[:, 1] > statobs[0])
-            )
-            count[1] += int(
-                np.sum(statrot[:, 0] > statobs[1])
-                + np.sum(statrot[:, 1] > statobs[1])
-            )
+                statrot[r, 3] = np.mean(s_sorted[half2_loc - 1 : nset])
+            count[0] += int(np.sum(statrot[:, 0] > statobs[0]) + np.sum(statrot[:, 1] > statobs[0]))
+            count[1] += int(np.sum(statrot[:, 0] > statobs[1]) + np.sum(statrot[:, 1] > statobs[1]))
             count[2] += int(np.sum(statrot[:, 2] > statobs[2]))
             count[3] += int(np.sum(statrot[:, 3] > statobs[3]))
 
@@ -583,15 +554,9 @@ def _roast_effects(
             ub = statrot[:, 1] > statrot[:, 0]
             statrot[ub, 2] = statrot[ub, 1]
             statrot[~ub, 2] = statrot[~ub, 0]
-            statrot[:, 3] = np.mean(modtr ** 2, axis=0)
-            count[0] += int(
-                np.sum(statrot[:, 0] > statobs[0])
-                + np.sum(statrot[:, 1] > statobs[0])
-            )
-            count[1] += int(
-                np.sum(statrot[:, 0] > statobs[1])
-                + np.sum(statrot[:, 1] > statobs[1])
-            )
+            statrot[:, 3] = np.mean(modtr**2, axis=0)
+            count[0] += int(np.sum(statrot[:, 0] > statobs[0]) + np.sum(statrot[:, 1] > statobs[0]))
+            count[1] += int(np.sum(statrot[:, 0] > statobs[1]) + np.sum(statrot[:, 1] > statobs[1]))
             count[2] += int(np.sum(statrot[:, 2] > statobs[2]))
             count[3] += int(np.sum(statrot[:, 3] > statobs[3]))
 
@@ -773,9 +738,7 @@ def roast(
     Effects_set = Effects[idx, :]
     vp_set = vp[idx] if np.ndim(vp) and np.size(vp) > 1 else vp
     dp_set = dp[idx] if np.ndim(dp) and np.size(dp) > 1 else dp
-    var_post_set = (
-        var_post[idx] if np.ndim(var_post) and np.size(var_post) > 1 else var_post
-    )
+    var_post_set = var_post[idx] if np.ndim(var_post) and np.size(var_post) > 1 else var_post
 
     NGenesInSet = Effects_set.shape[0]
 
@@ -848,8 +811,10 @@ def mroast(
         index = {"set1": np.arange(ngenes, dtype=np.int64)}
     elif isinstance(index, dict):
         pass
-    elif isinstance(index, list) and len(index) and all(
-        hasattr(x, "__len__") and not isinstance(x, str) for x in index
+    elif (
+        isinstance(index, list)
+        and len(index)
+        and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
     ):
         index = {f"set{i + 1}": v for i, v in enumerate(index)}
     else:
@@ -878,9 +843,7 @@ def mroast(
         E = Effects[g, :]
         vp_i = vp[g] if np.ndim(vp) and np.size(vp) > 1 else vp
         dp_i = dp[g] if np.ndim(dp) and np.size(dp) > 1 else dp
-        vpost_i = (
-            var_post[g] if np.ndim(var_post) and np.size(var_post) > 1 else var_post
-        )
+        vpost_i = var_post[g] if np.ndim(var_post) and np.size(var_post) > 1 else var_post
         gw_i = gw_full[g] if gw_full is not None else None
 
         out = _roast_effects(
@@ -931,10 +894,7 @@ def mroast(
     if isinstance(sort, bool):
         sort = "directional" if sort else "none"
     if sort not in ("directional", "mixed", "none"):
-        raise ValueError(
-            f"sort '{sort}' not recognized. "
-            "Must be 'directional', 'mixed' or 'none'."
-        )
+        raise ValueError(f"sort '{sort}' not recognized. Must be 'directional', 'mixed' or 'none'.")
     if sort == "none":
         return tab
     if sort == "directional":
@@ -990,7 +950,7 @@ def _fry_effects(
             # SVD of EffectsSet; we need the singular values only.
             # R: SVD <- svd(EffectsSet, nu=0); A <- SVD$d^2
             sv = np.linalg.svd(EffectsSet, compute_uv=False)
-            A = sv ** 2
+            A = sv**2
             d1 = A.size
             d = d1 - 1
             beta_mean = 1.0 / d1
@@ -1036,20 +996,13 @@ def _fry_effects(
     if isinstance(sort, bool):
         sort = "directional" if sort else "none"
     if sort not in ("directional", "mixed", "none"):
-        raise ValueError(
-            f"sort '{sort}' not recognized. "
-            "Must be 'directional', 'mixed' or 'none'."
-        )
+        raise ValueError(f"sort '{sort}' not recognized. Must be 'directional', 'mixed' or 'none'.")
     if sort == "none":
         return tab
     if sort == "directional":
-        o = np.lexsort(
-            (tab["p_value_mixed"].values, -NGenes.astype(float), tab["p_value"].values)
-        )
+        o = np.lexsort((tab["p_value_mixed"].values, -NGenes.astype(float), tab["p_value"].values))
     else:
-        o = np.lexsort(
-            (tab["p_value"].values, -NGenes.astype(float), tab["p_value_mixed"].values)
-        )
+        o = np.lexsort((tab["p_value"].values, -NGenes.astype(float), tab["p_value_mixed"].values))
     return tab.iloc[o]
 
 
@@ -1106,16 +1059,11 @@ def fry(
         gq_wts = gq_wts / 2.0
         Eu2max = float(
             np.sum(
-                (df_residual + 1)
-                * gq_nodes ** df_residual
-                * stats.chi2.ppf(gq_nodes, df=1)
-                * gq_wts
+                (df_residual + 1) * gq_nodes**df_residual * stats.chi2.ppf(gq_nodes, df=1) * gq_wts
             )
         )
-        u2max = np.max(Effects ** 2, axis=1)
-        s2_robust = (np.sum(Effects ** 2, axis=1) - u2max) / (
-            df_residual + 1 - Eu2max
-        )
+        u2max = np.max(Effects**2, axis=1)
+        s2_robust = (np.sum(Effects**2, axis=1) - u2max) / (df_residual + 1 - Eu2max)
 
         if standardize == "p2":
             sv = squeeze_var(
@@ -1156,8 +1104,10 @@ def fry(
         index = {"set1": np.arange(G, dtype=np.int64)}
     elif isinstance(index, dict):
         pass
-    elif isinstance(index, list) and len(index) and all(
-        hasattr(x, "__len__") and not isinstance(x, str) for x in index
+    elif (
+        isinstance(index, list)
+        and len(index)
+        and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
     ):
         index = {f"set{i + 1}": v for i, v in enumerate(index)}
     else:
@@ -1187,7 +1137,7 @@ def inter_gene_correlation(y: np.ndarray, design: np.ndarray) -> dict:
     resid = (Q.T @ y.T)[rank:, :]
     # resid has shape (n - rank, m). R: y <- t(y) / sqrt(colMeans(y^2))
     # colMeans along dim=1 of resid gives per-gene mean of residuals^2.
-    col_means = np.mean(resid ** 2, axis=0)
+    col_means = np.mean(resid**2, axis=0)
     col_means = np.where(col_means > 0, col_means, 1e-300)
     ny = resid / np.sqrt(col_means)  # shape (n-rank, m)
     # vif = m * mean(colMeans(y)^2); here colMeans on ny is along axis=0
@@ -1229,8 +1179,10 @@ def camera(
         raise ValueError("Too few genes in dataset: need at least 3")
 
     if not isinstance(index, dict):
-        if isinstance(index, list) and len(index) and all(
-            hasattr(x, "__len__") and not isinstance(x, str) for x in index
+        if (
+            isinstance(index, list)
+            and len(index)
+            and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
         ):
             index = {f"set{i + 1}": v for i, v in enumerate(index)}
         else:
@@ -1245,9 +1197,7 @@ def camera(
         raise ValueError("design matrix not specified")
     design = np.asarray(design, dtype=np.float64)
     if design.shape[0] != n:
-        raise ValueError(
-            "row dimension of design matrix must match column dimension of data"
-        )
+        raise ValueError("row dimension of design matrix must match column dimension of data")
     p = design.shape[1]
     df_residual = n - p
     if df_residual < 1:
@@ -1298,7 +1248,7 @@ def camera(
         k = int(contrast_arr.item())
         if k < p - 1:
             keep = [j for j in range(p) if j != k]
-            design_use = np.column_stack([design_use[:, keep], design_use[:, k:k + 1]])
+            design_use = np.column_stack([design_use[:, keep], design_use[:, k : k + 1]])
     else:
         contrast_vec = np.asarray(contrast, dtype=np.float64)
         Q_c, R_c = linalg.qr(contrast_vec.reshape(-1, 1), mode="full")
@@ -1326,9 +1276,7 @@ def camera(
             Qg, Rg = linalg.qr(xw, mode="full")
             rankg = int(np.sum(np.abs(np.diag(Rg)) > 1e-10))
             if rankg < p:
-                raise ValueError(
-                    f"weighted design matrix not of full rank for gene {g}"
-                )
+                raise ValueError(f"weighted design matrix not of full rank for gene {g}")
             effects[:, g] = Qg.T @ y_w[g, :]
             unscaledt[g] = effects[p - 1, g]
             if Rg[p - 1, p - 1] < 0:
@@ -1336,7 +1284,7 @@ def camera(
 
     # Standardised residuals
     U = effects[p:, :]
-    sigma2 = np.mean(U ** 2, axis=0)
+    sigma2 = np.mean(U**2, axis=0)
     U_t = U.T / np.sqrt(np.maximum(sigma2, 1e-8))[:, None]  # (G, n-p)
 
     A = np.mean(y_mat, axis=1) if trend_var else None
@@ -1373,11 +1321,7 @@ def camera(
         m = iset.size
         m2 = G - m
         if fixed_cor:
-            corr = (
-                inter_gene_cor
-                if np.ndim(inter_gene_cor) == 0
-                else inter_gene_cor[i]
-            )
+            corr = inter_gene_cor if np.ndim(inter_gene_cor) == 0 else inter_gene_cor[i]
             vif = 1 + (m - 1) * corr
         else:
             if m > 1:
@@ -1402,9 +1346,7 @@ def camera(
                 vif = max(1, vif)
             meanStatInSet = float(np.mean(StatInSet))
             delta = G / m2 * (meanStatInSet - meanStat)
-            varStatPooled = (
-                (G - 1) * varStat - delta ** 2 * m * m2 / G
-            ) / (G - 2)
+            varStatPooled = ((G - 1) * varStat - delta**2 * m * m2 / G) / (G - 2)
             two_sample_t = delta / np.sqrt(varStatPooled * (vif / m + 1.0 / m2))
             if np.isinf(df_camera):
                 Down[i] = stats.norm.cdf(two_sample_t)
@@ -1496,8 +1438,10 @@ def camera_pr(
         raise ValueError("Too few genes in dataset: need at least 3")
 
     if not isinstance(index, dict):
-        if isinstance(index, list) and len(index) and all(
-            hasattr(x, "__len__") and not isinstance(x, str) for x in index
+        if (
+            isinstance(index, list)
+            and len(index)
+            and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
         ):
             index = {f"set{i + 1}": v for i, v in enumerate(index)}
         else:
@@ -1512,9 +1456,7 @@ def camera_pr(
         raise ValueError("`inter.gene.cor` must be strictly between -1 and 1")
     if igc.size > 1:
         if igc.size != nsets:
-            raise ValueError(
-                "Length of `inter.gene.cor` doesn't match number of sets"
-            )
+            raise ValueError("Length of `inter.gene.cor` doesn't match number of sets")
         fixed_cor = False
         igc_arr = igc
     else:
@@ -1541,9 +1483,7 @@ def camera_pr(
     for i, nm in enumerate(names):
         iset = np.asarray(index[nm])
         if iset.dtype.kind in ("U", "S", "O") and ID is not None:
-            iset = np.array(
-                [ID.index(s) for s in iset if s in ID], dtype=np.int64
-            )
+            iset = np.array([ID.index(s) for s in iset if s in ID], dtype=np.int64)
         else:
             iset = iset.astype(np.int64, copy=False)
         StatInSet = stat_arr[iset]
@@ -1560,9 +1500,7 @@ def camera_pr(
             m2 = G - m
             meanStatInSet = float(np.mean(StatInSet))
             delta = G / m2 * (meanStatInSet - meanStat)
-            varStatPooled = (
-                (G - 1) * varStat - delta ** 2 * m * m2 / G
-            ) / (G - 2)
+            varStatPooled = ((G - 1) * varStat - delta**2 * m * m2 / G) / (G - 2)
             two_sample_t = delta / np.sqrt(varStatPooled * (vif / m + 1.0 / m2))
             if np.isinf(df_camera):
                 Down[i] = stats.norm.cdf(two_sample_t)
@@ -1629,7 +1567,7 @@ def _mean_half(x: np.ndarray, n: int) -> tuple:
     if l % 2 == 0:
         bottom = float(np.mean(a[n:]))
     else:
-        bottom = float(np.mean(a[n - 1:]))
+        bottom = float(np.mean(a[n - 1 :]))
     return top, bottom
 
 
@@ -1662,8 +1600,10 @@ def romer(
     ngenes, n = y_mat.shape
 
     if not isinstance(index, dict):
-        if isinstance(index, list) and len(index) and all(
-            hasattr(x, "__len__") and not isinstance(x, str) for x in index
+        if (
+            isinstance(index, list)
+            and len(index)
+            and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
         ):
             index = {f"set{i + 1}": v for i, v in enumerate(index)}
         else:
@@ -1681,9 +1621,7 @@ def romer(
         raise ValueError("design matrix not specified")
     design = np.asarray(design, dtype=np.float64)
     if design.shape[0] != n:
-        raise ValueError(
-            "row dimension of design matrix must match column dimension of data"
-        )
+        raise ValueError("row dimension of design matrix must match column dimension of data")
     ne = non_estimable(design)
     if ne is not None:
         print("Coefficients not estimable:", " ".join(ne))
@@ -1700,7 +1638,7 @@ def romer(
         k = int(contrast_arr.item())
         if k < p - 1:
             keep = [j for j in range(p) if j != k]
-            design = np.column_stack([design[:, keep], design[:, k:k + 1]])
+            design = np.column_stack([design[:, keep], design[:, k : k + 1]])
     else:
         contrast_vec = np.asarray(contrast, dtype=np.float64)
         Q_c, R_c = linalg.qr(contrast_vec.reshape(-1, 1), mode="full")
@@ -1747,20 +1685,27 @@ def romer(
     # Y <- effects[-(1:p0),,drop=FALSE]   p0 = p-1
     p0 = p - 1
     Y = effects[p0:, :].copy()  # (d+1, ngenes)
-    YY = np.sum(Y ** 2, axis=0)
+    YY = np.sum(Y**2, axis=0)
     B = Y[0, :]
     modt = signc * B / sd_post
 
     if shrink_resid:
         from .utils import p_adjust as _p_adjust  # noqa: F401 (not used)
         from .utils import prop_true_null as _prop_true_null
+
         p_value = 2 * stats.t.sf(np.abs(modt), df=d0 + d)
         proportion = 1 - _prop_true_null(p_value)
         stdev_unscaled = np.full(
-            ngenes, 1.0 / abs(R_qr[int(np.sum(np.abs(np.diag(R_qr)) > 1e-10)) - 1,
-                                   int(np.sum(np.abs(np.diag(R_qr)) > 1e-10)) - 1])
+            ngenes,
+            1.0
+            / abs(
+                R_qr[
+                    int(np.sum(np.abs(np.diag(R_qr)) > 1e-10)) - 1,
+                    int(np.sum(np.abs(np.diag(R_qr)) > 1e-10)) - 1,
+                ]
+            ),
         )
-        var_unscaled = stdev_unscaled ** 2
+        var_unscaled = stdev_unscaled**2
         df_total = np.full(ngenes, d) + sv["df_prior"]
         stdev_coef_lim = (0.1, 4.0)
         var_prior_lim = (
@@ -1768,21 +1713,16 @@ def romer(
             stdev_coef_lim[1] ** 2 / sv["var_prior"],
         )
         from .ebayes import _tmixture_vector
-        var_prior = _tmixture_vector(
-            modt, stdev_unscaled, df_total, proportion, var_prior_lim
-        )
+
+        var_prior = _tmixture_vector(modt, stdev_unscaled, df_total, proportion, var_prior_lim)
         if np.isnan(var_prior):
             var_prior = 1.0 / sv["var_prior"]
-            warnings.warn(
-                "Estimation of var.prior failed - set to default value"
-            )
+            warnings.warn("Estimation of var.prior failed - set to default value")
         r = (var_unscaled + var_prior) / var_unscaled
         if sv["df_prior"] > 1e6:
-            kernel = modt ** 2 * (1 - 1 / r) / 2
+            kernel = modt**2 * (1 - 1 / r) / 2
         else:
-            kernel = (1 + df_total) / 2 * np.log(
-                (modt ** 2 + df_total) / (modt ** 2 / r + df_total)
-            )
+            kernel = (1 + df_total) / 2 * np.log((modt**2 + df_total) / (modt**2 / r + df_total))
         lods = np.log(proportion / (1 - proportion)) - np.log(r) / 2 + kernel
         ProbDE = np.exp(lods) / (1 + np.exp(lods))
         Y[0, :] = Y[0, :] * np.sqrt(var_unscaled / (var_unscaled + var_prior * ProbDE))
@@ -1794,12 +1734,12 @@ def romer(
         )
 
     # Pre-compute per-gene-set membership structure (AllIndices, Set)
-    all_indices = np.concatenate(
-        [_resolve_set_index(index[nm], ngenes) for nm in set_names]
-    )
+    all_indices = np.concatenate([_resolve_set_index(index[nm], ngenes) for nm in set_names])
     Set_vec = np.concatenate(
-        [np.full(_resolve_set_index(index[nm], ngenes).size, si, dtype=np.int64)
-         for si, nm in enumerate(set_names)]
+        [
+            np.full(_resolve_set_index(index[nm], ngenes).size, si, dtype=np.int64)
+            for si, nm in enumerate(set_names)
+        ]
     )
 
     def _rank_r(x):
@@ -1809,7 +1749,6 @@ def romer(
     def _rowsum_mean(rank_mat):
         # rank_mat shape (len(all_indices), ncol); group sum by Set_vec, divide
         # by SetSizes.
-        ncol = rank_mat.shape[1] if rank_mat.ndim == 2 else 1
         if rank_mat.ndim == 1:
             rank_mat = rank_mat.reshape(-1, 1)
         out = np.zeros((nsets, rank_mat.shape[1]))
@@ -1828,9 +1767,9 @@ def romer(
 
         for _ in range(nrot):
             R_vec = rng_state.standard_normal((1, d + 1))
-            R_vec = R_vec / np.sqrt(np.sum(R_vec ** 2))
+            R_vec = R_vec / np.sqrt(np.sum(R_vec**2))
             Br = (R_vec @ Y).ravel()
-            s2r = (YY - Br ** 2) / d
+            s2r = (YY - Br**2) / d
             if np.isfinite(d0):
                 sdr_post = np.sqrt((d0 * s02 + d * s2r) / (d0 + d))
             else:
@@ -1855,9 +1794,9 @@ def romer(
 
         for _ in range(nrot):
             R_vec = rng_state.standard_normal((1, d + 1))
-            R_vec = R_vec / np.sqrt(np.sum(R_vec ** 2))
+            R_vec = R_vec / np.sqrt(np.sum(R_vec**2))
             Br = (R_vec @ Y).ravel()
-            s2r = (YY - Br ** 2) / d
+            s2r = (YY - Br**2) / d
             if np.isfinite(d0):
                 sdr_post = np.sqrt((d0 * s02 + d * s2r) / (d0 + d))
             else:
@@ -1892,9 +1831,9 @@ def romer(
 
         for _ in range(nrot):
             R_vec = rng_state.standard_normal((1, d + 1))
-            R_vec = R_vec / np.sqrt(np.sum(R_vec ** 2))
+            R_vec = R_vec / np.sqrt(np.sum(R_vec**2))
             Br = (R_vec @ Y).ravel()
-            s2r = (YY - Br ** 2) / d
+            s2r = (YY - Br**2) / d
             if np.isfinite(d0):
                 sdr_post = np.sqrt((d0 * s02 + d * s2r) / (d0 + d))
             else:
@@ -1977,9 +1916,7 @@ def rank_sum_test_with_correlation(
     if ties:
         _, counts = np.unique(r, return_counts=True)
         counts = counts.astype(np.float64)
-        adjustment = float(
-            np.sum(counts * (counts + 1) * (counts - 1)) / (n * (n + 1) * (n - 1))
-        )
+        adjustment = float(np.sum(counts * (counts + 1) * (counts - 1)) / (n * (n + 1) * (n - 1)))
         sigma2 = sigma2 * (1 - adjustment)
 
     zlower = (U + 0.5 - mu) / np.sqrt(sigma2)
@@ -2022,9 +1959,7 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
         "less": "down",
         "greater": "up",
     }
-    if alternative not in (
-        "mixed", "either", "down", "up", "less", "greater", "two.sided"
-    ):
+    if alternative not in ("mixed", "either", "down", "up", "less", "greater", "two.sided"):
         raise ValueError(
             f"alternative '{alternative}' not recognized. "
             "Must be one of 'mixed', 'either', 'down', 'up', "
@@ -2034,18 +1969,14 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
 
     type_lower = type.lower()
     if type_lower not in ("auto", "t", "f"):
-        raise ValueError(
-            f"type '{type}' not recognized. Must be 'auto', 't' or 'f'."
-        )
+        raise ValueError(f"type '{type}' not recognized. Must be 'auto', 't' or 'f'.")
 
     stats_arr = np.asarray(statistics, dtype=np.float64)
     allsamesign = bool(np.all(stats_arr >= 0) or np.all(stats_arr <= 0))
     if type_lower == "auto":
         type_lower = "f" if allsamesign else "t"
     if type_lower == "f" and alternative != "mixed":
-        raise ValueError(
-            'Only alternative="mixed" is possible with F-like statistics.'
-        )
+        raise ValueError('Only alternative="mixed" is possible with F-like statistics.')
     if alternative == "mixed":
         stats_arr = np.abs(stats_arr)
     if alternative == "down":
@@ -2055,9 +1986,7 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
     idx = np.asarray(index, dtype=np.int64)
 
     if ranks_only:
-        pvals = rank_sum_test_with_correlation(
-            index=idx, statistics=stats_arr, df=np.inf
-        )
+        pvals = rank_sum_test_with_correlation(index=idx, statistics=stats_arr, df=np.inf)
         if alternative == "down":
             return float(pvals["less"])
         if alternative == "up":
@@ -2076,11 +2005,14 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
         stat_all = stats_arr[~np.isnan(stats_arr)]
         msel = float(np.mean(ssel))
         if alternative == "either":
+
             def posstat(x):
                 return abs(x)
         else:
+
             def posstat(x):
                 return x
+
         msel = posstat(msel)
         ntail = 1
         for _ in range(nsim):
@@ -2117,9 +2049,6 @@ def top_romer(x, n: int = 10, alternative: str = "up"):
     alternative = alternative.lower()
     if alternative not in ("up", "down", "mixed"):
         raise ValueError("alternative must be 'up', 'down', or 'mixed'")
-    key_map = {"up": "Up", "down": "Down", "mixed": "Mixed"}
-    col = key_map[alternative]
-
     n = min(n, x.shape[0])
     # R's order() is stable; mergesort is the numpy equivalent.
     if alternative == "up":

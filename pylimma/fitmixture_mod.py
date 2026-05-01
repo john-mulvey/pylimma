@@ -7,6 +7,7 @@
 ``fitmixture`` - fit a two-sample mixture model via non-linear least
 squares. Port of R limma's ``fitmixture``.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -42,7 +43,7 @@ def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
     mixprop = np.asarray(mixprop, dtype=np.float64)
     narrays = log2e.shape[1]
     nprobes = log2e.shape[0]
-    y = 2.0 ** log2e
+    y = 2.0**log2e
 
     # Linear pre-fit: y ~ cbind(mixprop, 1 - mixprop) per-probe.
     X = np.column_stack([mixprop, 1 - mixprop])

@@ -14,8 +14,6 @@ lods) is checked, not just the headline t/p values.
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -30,10 +28,7 @@ from ..helpers import (
     run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 # ----------------------------------------------------------------------
@@ -44,9 +39,7 @@ pytestmark = pytest.mark.skipif(
 def _two_group_expr(rng=None, n_genes=30, n_samples=8, seed=0):
     rng = rng if rng is not None else np.random.default_rng(seed)
     expr = rng.standard_normal((n_genes, n_samples))
-    design = np.column_stack(
-        [np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)]
-    )
+    design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
     return expr, design
 
 
@@ -118,9 +111,7 @@ def _assert_full_slot_parity(
     # treat_lfc (scalar)
     r_tlfc = float(np.atleast_1d(r_out["treat_lfc"]).ravel()[0])
     py_tlfc = float(np.atleast_1d(eb["treat_lfc"]).ravel()[0])
-    assert np.isclose(r_tlfc, py_tlfc, rtol=rtol), (
-        f"treat_lfc differs: R={r_tlfc}, Py={py_tlfc}"
-    )
+    assert np.isclose(r_tlfc, py_tlfc, rtol=rtol), f"treat_lfc differs: R={r_tlfc}, Py={py_tlfc}"
 
 
 # ----------------------------------------------------------------------
@@ -222,8 +213,13 @@ class TestRigorousTreat:
             {"expr": expr, "design": design},
             _r_treat_template(", fc=2.0"),
             output_vars=[
-                "t_stat", "p_value", "s2_post", "df_total",
-                "df_prior", "s2_prior", "treat_lfc",
+                "t_stat",
+                "p_value",
+                "s2_post",
+                "df_total",
+                "df_prior",
+                "s2_prior",
+                "treat_lfc",
             ],
         )
         _assert_full_slot_parity(eb, r_out)
@@ -248,8 +244,13 @@ class TestRigorousTreat:
             {"expr": expr, "design": design},
             _r_treat_template(", lfc=-0.5"),
             output_vars=[
-                "t_stat", "p_value", "s2_post", "df_total",
-                "df_prior", "s2_prior", "treat_lfc",
+                "t_stat",
+                "p_value",
+                "s2_post",
+                "df_total",
+                "df_prior",
+                "s2_prior",
+                "treat_lfc",
             ],
         )
         _assert_full_slot_parity(eb, r_out)
@@ -271,9 +272,7 @@ class TestRigorousTreat:
         expr = rng.standard_normal((n_genes, n_samples))
         # Add some real signal so upshot quadrature has something to integrate
         expr[:8, 4:] += 1.5
-        design = np.column_stack(
-            [np.ones(n_samples), np.array([0]*4 + [1]*4, dtype=float)]
-        )
+        design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
         fit = lm_fit(expr, design)
         eb = treat(fit, lfc=0.5, upshot=True)
 
@@ -281,8 +280,13 @@ class TestRigorousTreat:
             {"expr": expr, "design": design},
             _r_treat_template(", lfc=0.5, upshot=TRUE"),
             output_vars=[
-                "t_stat", "p_value", "s2_post", "df_total",
-                "df_prior", "s2_prior", "treat_lfc",
+                "t_stat",
+                "p_value",
+                "s2_post",
+                "df_total",
+                "df_prior",
+                "s2_prior",
+                "treat_lfc",
             ],
         )
         _assert_full_slot_parity(eb, r_out)
@@ -310,22 +314,21 @@ class TestRigorousTreat:
 
         # Equivalent computational paths in pylimma:
         res_t = compare_arrays(eb_upshot["t"], eb_standard["t"], rtol=1e-12)
-        assert res_t["match"], (
-            f"upshot/lfc=0 should bypass quadrature: t differs"
-        )
-        res_p = compare_arrays(
-            eb_upshot["p_value"], eb_standard["p_value"], rtol=1e-12
-        )
-        assert res_p["match"], (
-            f"upshot/lfc=0 should bypass quadrature: p_value differs"
-        )
+        assert res_t["match"], "upshot/lfc=0 should bypass quadrature: t differs"
+        res_p = compare_arrays(eb_upshot["p_value"], eb_standard["p_value"], rtol=1e-12)
+        assert res_p["match"], "upshot/lfc=0 should bypass quadrature: p_value differs"
 
         r_out = run_r_comparison(
             {"expr": expr, "design": design},
             _r_treat_template(", lfc=0, upshot=TRUE"),
             output_vars=[
-                "t_stat", "p_value", "s2_post", "df_total",
-                "df_prior", "s2_prior", "treat_lfc",
+                "t_stat",
+                "p_value",
+                "s2_post",
+                "df_total",
+                "df_prior",
+                "s2_prior",
+                "treat_lfc",
             ],
         )
         _assert_full_slot_parity(eb_upshot, r_out)
@@ -358,9 +361,11 @@ class TestRigorousTreat:
         p_value <- tr$p.value
         """
         # Save inputs and run
-        from ..helpers import run_r_code
         import tempfile
         from pathlib import Path
+
+        from ..helpers import run_r_code
+
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             pd.DataFrame(expr).to_csv(tmp / "expr.csv", index=True)
@@ -371,18 +376,13 @@ class TestRigorousTreat:
             )
             run_r_code(r_code_full)
             r_t = pd.read_csv(tmp / "t_stat_out.csv", index_col=0).values
-            r_p = pd.read_csv(tmp / "p_value_out.csv", index_col=0).values
 
         # Row 5 col 1 should have been zeroed by the anyNA branch -> t = 0
-        assert np.isclose(eb["t"][5, 1], 0.0), (
-            f"NaN coef row should set t=0; got {eb['t'][5, 1]}"
-        )
+        assert np.isclose(eb["t"][5, 1], 0.0), f"NaN coef row should set t=0; got {eb['t'][5, 1]}"
         # Compare other rows in column 1
         mask = np.arange(eb["t"].shape[0]) != 5
         res_t = compare_arrays(r_t[mask, 1], eb["t"][mask, 1], rtol=1e-8)
-        assert res_t["match"], (
-            f"non-NaN-row t differs: max_rel={res_t['max_rel_diff']:.2e}"
-        )
+        assert res_t["match"], f"non-NaN-row t differs: max_rel={res_t['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # R-B12 (treat.R:35-37): df_total cap by df_pooled with NaN df_residual
@@ -402,9 +402,7 @@ class TestRigorousTreat:
         expr = rng.standard_normal((n_genes, n_samples))
         # Set 2 samples for first 5 genes to NaN so those genes lose df
         expr[:5, 6:] = np.nan
-        design = np.column_stack(
-            [np.ones(n_samples), np.array([0]*4 + [1]*4, dtype=float)]
-        )
+        design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
         fit = lm_fit(expr, design)
         eb = treat(fit, lfc=0.5)
 
@@ -412,8 +410,13 @@ class TestRigorousTreat:
             {"expr": expr, "design": design},
             _r_treat_template(", lfc=0.5"),
             output_vars=[
-                "t_stat", "p_value", "s2_post", "df_total",
-                "df_prior", "s2_prior", "treat_lfc",
+                "t_stat",
+                "p_value",
+                "s2_post",
+                "df_total",
+                "df_prior",
+                "s2_prior",
+                "treat_lfc",
             ],
         )
         # df_total is the treat-specific cap-by-pooled computation; must be exact
@@ -431,14 +434,10 @@ class TestRigorousTreat:
         r_p_col = r_out["p_value"][:, 1]
         py_p_col = eb["p_value"][:, 1]
         res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=0.5)
-        assert res_p["match"], (
-            f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
-        )
+        assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
         # s2_post tight
         res_s2post = compare_arrays(r_out["s2_post"], eb["s2_post"], rtol=1e-6)
-        assert res_s2post["match"], (
-            f"s2_post differs: max_rel={res_s2post['max_rel_diff']:.2e}"
-        )
+        assert res_s2post["match"], f"s2_post differs: max_rel={res_s2post['max_rel_diff']:.2e}"
         # df_prior loose: upstream squeeze_var divergence
         r_dfprior = float(np.atleast_1d(r_out["df_prior"]).ravel()[0])
         py_dfprior = float(np.atleast_1d(eb["df_prior"]).ravel()[0])
@@ -469,9 +468,11 @@ class TestRigorousTreat:
         t_stat <- tr$t
         p_value <- tr$p.value
         """
-        from ..helpers import run_r_code
         import tempfile
         from pathlib import Path
+
+        from ..helpers import run_r_code
+
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             pd.DataFrame(expr).to_csv(tmp / "expr.csv", index=True)
@@ -485,9 +486,7 @@ class TestRigorousTreat:
             r_p = pd.read_csv(tmp / "p_value_out.csv", index_col=0).values
 
         res_t = compare_arrays(r_t, eb["t"], rtol=1e-8)
-        assert res_t["match"], (
-            f"full t matrix differs: max_rel={res_t['max_rel_diff']:.2e}"
-        )
+        assert res_t["match"], f"full t matrix differs: max_rel={res_t['max_rel_diff']:.2e}"
         # p-values can be deeply small; use log10
         res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=0.5)
         assert res_p["match"], (
@@ -517,9 +516,11 @@ class TestRigorousTreat:
         t_stat <- tr$t
         p_value <- tr$p.value
         """
-        from ..helpers import run_r_code
         import tempfile
         from pathlib import Path
+
+        from ..helpers import run_r_code
+
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             pd.DataFrame(expr).to_csv(tmp / "expr.csv", index=True)
@@ -533,9 +534,7 @@ class TestRigorousTreat:
             r_p = pd.read_csv(tmp / "p_value_out.csv", index_col=0).values
 
         res_t = compare_arrays(r_t, eb["t"], rtol=1e-8)
-        assert res_t["match"], (
-            f"upshot t differs: max_rel={res_t['max_rel_diff']:.2e}"
-        )
+        assert res_t["match"], f"upshot t differs: max_rel={res_t['max_rel_diff']:.2e}"
         res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=0.5)
         assert res_p["match"], (
             f"upshot p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
@@ -560,8 +559,13 @@ class TestRigorousTreat:
             {"expr": expr, "design": design},
             _r_treat_template(", lfc=0.5, trend=TRUE, robust=TRUE"),
             output_vars=[
-                "t_stat", "p_value", "s2_post", "df_total",
-                "df_prior", "s2_prior", "treat_lfc",
+                "t_stat",
+                "p_value",
+                "s2_post",
+                "df_total",
+                "df_prior",
+                "s2_prior",
+                "treat_lfc",
             ],
         )
         # df_prior is per-gene under robust; loosen via array compare
@@ -580,9 +584,7 @@ class TestRigorousTreat:
             f"trend+robust s2_post: max_rel={res_s2post['max_rel_diff']:.2e}"
         )
         res_dft = compare_arrays(r_out["df_total"], eb["df_total"], rtol=1e-6)
-        assert res_dft["match"], (
-            f"trend+robust df_total: max_rel={res_dft['max_rel_diff']:.2e}"
-        )
+        assert res_dft["match"], f"trend+robust df_total: max_rel={res_dft['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # Sanity: caller's fit must NOT be mutated (copy-on-modify)
@@ -605,6 +607,4 @@ class TestRigorousTreat:
         )
         # Importantly, no treat-specific slots leaked in:
         for treat_only in ("treat_lfc", "p_value", "t", "s2_post", "df_total"):
-            assert treat_only not in fit, (
-                f"caller's fit gained '{treat_only}' after treat()"
-            )
+            assert treat_only not in fit, f"caller's fit gained '{treat_only}' after treat()"

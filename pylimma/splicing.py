@@ -25,16 +25,15 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from scipy.stats import t as t_dist
 from scipy.stats import f as f_dist
+from scipy.stats import t as t_dist
 
 from .classes import MArrayLM, _resolve_fit_input
 from .squeeze_var import squeeze_var
 from .utils import p_adjust
 
 
-def _rowsum_sorted(values: np.ndarray, group_codes: np.ndarray,
-                   n_groups: int) -> np.ndarray:
+def _rowsum_sorted(values: np.ndarray, group_codes: np.ndarray, n_groups: int) -> np.ndarray:
     """Port of R's ``rowsum(values, group, reorder=FALSE)`` for the case
     where group codes are already in order-of-first-appearance.
 
@@ -103,8 +102,7 @@ def diff_splice(
     # (per the no-duplication decision for #2 in the audit), which would
     # otherwise fail a column-name lookup.
     n_exons = np.asarray(fit["coefficients"]).shape[0]
-    if _adata is not None and _adata.var is not None \
-            and len(_adata.var.columns):
+    if _adata is not None and _adata.var is not None and len(_adata.var.columns):
         exon_genes = _adata.var.copy()
     else:
         exon_genes = fit.get("genes")
@@ -112,7 +110,8 @@ def diff_splice(
             exon_genes = pd.DataFrame({"ExonID": np.arange(1, n_exons + 1)})
         else:
             exon_genes = (
-                exon_genes.copy() if isinstance(exon_genes, pd.DataFrame)
+                exon_genes.copy()
+                if isinstance(exon_genes, pd.DataFrame)
                 else pd.DataFrame(exon_genes).copy()
             )
 
@@ -186,21 +185,16 @@ def diff_splice(
     order_first = np.argsort(first_idx, kind="stable")
     unique_genes_ord = unique_genes[order_first]
     gene_to_code = {g: i for i, g in enumerate(unique_genes_ord.tolist())}
-    geneid_codes = np.array([gene_to_code[g] for g in geneid_arr.tolist()],
-                            dtype=np.int64)
+    geneid_codes = np.array([gene_to_code[g] for g in geneid_arr.tolist()], dtype=np.int64)
     n_genes_total = len(unique_genes_ord)
 
     # Count exons per gene, sum df.residual, sum df.residual * s2
-    gene_nexons = _rowsum_sorted(np.ones(n_exons), geneid_codes,
-                                 n_genes_total)
-    gene_df_residual = _rowsum_sorted(df_residual, geneid_codes,
-                                      n_genes_total)
-    gene_df_res_s2 = _rowsum_sorted(df_residual * exon_s2, geneid_codes,
-                                    n_genes_total)
+    gene_nexons = _rowsum_sorted(np.ones(n_exons), geneid_codes, n_genes_total)
+    gene_df_residual = _rowsum_sorted(df_residual, geneid_codes, n_genes_total)
+    gene_df_res_s2 = _rowsum_sorted(df_residual * exon_s2, geneid_codes, n_genes_total)
     # Pooled gene variance
     with np.errstate(invalid="ignore", divide="ignore"):
-        gene_s2 = np.where(gene_df_residual > 0,
-                           gene_df_res_s2 / gene_df_residual, 0.0)
+        gene_s2 = np.where(gene_df_residual > 0, gene_df_res_s2 / gene_df_residual, 0.0)
 
     if verbose:
         one_exon = int(np.sum(gene_nexons == 1))
@@ -217,8 +211,7 @@ def diff_splice(
     # R diffSplice defaults to ``legacy=FALSE``; pylimma.squeeze_var
     # auto-picks legacy=True for all-equal df, so forward the flag
     # explicitly to match R in both branches.
-    squeeze = squeeze_var(var=gene_s2, df=gene_df_residual,
-                          robust=robust, legacy=legacy)
+    squeeze = squeeze_var(var=gene_s2, df=gene_df_residual, robust=robust, legacy=legacy)
 
     # Keep only genes with > 1 exon
     gene_keep = gene_nexons > 1
@@ -255,22 +248,21 @@ def diff_splice(
     # Rebuild group codes on kept exons
     unique_genes_kept = unique_genes_ord[gene_keep]
     kept_gene_to_code = {g: i for i, g in enumerate(unique_genes_kept.tolist())}
-    geneid_codes_kept = np.array([kept_gene_to_code[g] for g in geneid_arr.tolist()],
-                                 dtype=np.int64)
+    geneid_codes_kept = np.array(
+        [kept_gene_to_code[g] for g in geneid_arr.tolist()], dtype=np.int64
+    )
 
     # Per-gene weighted mean beta
-    u2 = 1.0 / (stdev_unscaled ** 2)
+    u2 = 1.0 / (stdev_unscaled**2)
     u2_rowsum = _rowsum_sorted(u2, geneid_codes_kept, ngenes)
-    gene_betabar = _rowsum_sorted(coefficients * u2,
-                                  geneid_codes_kept, ngenes) / u2_rowsum
+    gene_betabar = _rowsum_sorted(coefficients * u2, geneid_codes_kept, ngenes) / u2_rowsum
 
     # t-statistics and F-statistics
     g = geneid_codes_kept
     coefficients_centred = coefficients - gene_betabar[g, :]
     exon_t = coefficients_centred / stdev_unscaled / np.sqrt(gene_s2_post[g])[:, None]
-    exon_t_sq = exon_t ** 2
-    gene_F = _rowsum_sorted(exon_t_sq, geneid_codes_kept,
-                            ngenes) / gene_df_test[:, None]
+    exon_t_sq = exon_t**2
+    gene_F = _rowsum_sorted(exon_t_sq, geneid_codes_kept, ngenes) / gene_df_test[:, None]
 
     exon_1m_leverage = 1.0 - (u2 / u2_rowsum[g, :])
     coefficients_final = coefficients_centred / exon_1m_leverage
@@ -279,12 +271,9 @@ def diff_splice(
     with np.errstate(invalid="ignore"):
         gene_df_total_tiled = gene_df_total[g][:, None]
         # Broadcast exon_t_final (n_exons, n_coefs) vs df (n_exons, 1).
-        exon_p_value = 2.0 * t_dist.sf(np.abs(exon_t_final),
-                                       df=gene_df_total_tiled)
+        exon_p_value = 2.0 * t_dist.sf(np.abs(exon_t_final), df=gene_df_total_tiled)
 
-    gene_F_p_value = f_dist.sf(gene_F,
-                               dfn=gene_df_test[:, None],
-                               dfd=gene_df_total[:, None])
+    gene_F_p_value = f_dist.sf(gene_F, dfn=gene_df_test[:, None], dfd=gene_df_total[:, None])
 
     # Assemble exon-level output
     out = MArrayLM()
@@ -310,7 +299,6 @@ def diff_splice(
     gene_firstexon = gene_lastexon - gene_nexons_kept.astype(np.int64) + 1
 
     # Per-column: is this column constant within each gene?
-    n_kept = len(exon_genes)
     gene_genes = exon_genes.iloc[gene_lastexon].reset_index(drop=True)
     is_gene_level = []
     for col in exon_genes.columns:
@@ -334,8 +322,7 @@ def diff_splice(
             if not constant:
                 break
         is_gene_level.append(constant)
-    gene_level_cols = [c for c, keep in zip(exon_genes.columns, is_gene_level)
-                       if keep]
+    gene_level_cols = [c for c, keep in zip(exon_genes.columns, is_gene_level) if keep]
     gene_genes = gene_genes[gene_level_cols].copy()
     gene_genes.index = gene_genes[genecolname].astype(str).values
     gene_genes["NExons"] = gene_nexons_kept.astype(np.int64)
@@ -354,7 +341,7 @@ def diff_splice(
     for gi in range(ngenes):
         first = int(gene_firstexon[gi])
         last = int(gene_lastexon[gi])
-        within_gene_rank[first:last + 1] = np.arange(1, last - first + 2)
+        within_gene_rank[first : last + 1] = np.arange(1, last - first + 2)
     gene_nexons_per_exon = gene_nexons_kept[g].astype(np.float64)
     penalty = gene_nexons_per_exon / within_gene_rank
 
@@ -440,15 +427,10 @@ def top_splice(
     elif test_low == "t":
         test_upper = "t"
     else:
-        raise ValueError(
-            f"test must be 'simes', 'F', or 't', got {test!r}"
-        )
+        raise ValueError(f"test must be 'simes', 'F', or 't', got {test!r}")
 
     if sort_by not in ("p", "none", "logFC", "NExons"):
-        raise ValueError(
-            f"sort_by must be 'p', 'none', 'logFC', or 'NExons', "
-            f"got {sort_by!r}"
-        )
+        raise ValueError(f"sort_by must be 'p', 'none', 'logFC', or 'NExons', got {sort_by!r}")
     if sort_by == "logFC" and test_upper != "t":
         raise ValueError("Sorting by logFC only available with t test")
     if sort_by == "NExons" and test_upper == "t":
@@ -499,8 +481,7 @@ def top_splice(
         # decreasing=TRUE applies to BOTH keys via negation.
         # Primary: -NExons ascending  = NExons descending
         # Secondary: -(-P.Value) ascending = P.Value ascending
-        o = np.lexsort((out["P.Value"].values,
-                        -out["NExons"].values.astype(np.float64)))
+        o = np.lexsort((out["P.Value"].values, -out["NExons"].values.astype(np.float64)))
     else:  # none
         o = np.arange(len(out))
 
@@ -523,6 +504,7 @@ def plot_splice(
     ``plotSplice``.
     """
     from .plotting import _require_matplotlib
+
     plt = _require_matplotlib()
 
     if genecolname is None:
@@ -589,9 +571,14 @@ def plot_splice(
         x_positions = np.arange(1, len(j) + 1)[sig]
         y_positions = coefs[sig]
         sizes = np.atleast_1d(cex) * 25
-        ax.scatter(x_positions, y_positions, c="red",
-                   s=sizes if len(sizes) == len(x_positions) else sizes[0],
-                   marker="o", zorder=5)
+        ax.scatter(
+            x_positions,
+            y_positions,
+            c="red",
+            s=sizes if len(sizes) == len(x_positions) else sizes[0],
+            marker="o",
+            zorder=5,
+        )
 
     ax.axhline(0.0, linestyle="--", color="gray")
     return ax

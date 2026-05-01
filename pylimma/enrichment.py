@@ -64,7 +64,6 @@ least two columns:
 from __future__ import annotations
 
 import warnings
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -73,16 +72,24 @@ from scipy import stats
 from .classes import MArrayLM, _is_anndata, _resolve_fit_input
 from .utils import p_adjust, tricube_moving_average
 
-
 # ---------------------------------------------------------------------------
 # Public dispatchers
 # ---------------------------------------------------------------------------
 
 
-def goana(de, gene_pathway, universe=None, *,
-          species=None, prior_prob=None,
-          covariate=None, plot=False,
-          fdr=0.05, trend=False, **kwargs) -> pd.DataFrame:
+def goana(
+    de,
+    gene_pathway,
+    universe=None,
+    *,
+    species=None,
+    prior_prob=None,
+    covariate=None,
+    plot=False,
+    fdr=0.05,
+    trend=False,
+    **kwargs,
+) -> pd.DataFrame:
     """
     Gene-ontology over-representation analysis.
 
@@ -122,20 +129,44 @@ def goana(de, gene_pathway, universe=None, *,
         ``coef`` and ``geneid`` for the MArrayLM branch.
     """
     if _is_dispatch_marraylm(de):
-        return _goana_marraylm(de, gene_pathway=gene_pathway,
-                               universe=universe, species=species,
-                               prior_prob=prior_prob, covariate=covariate,
-                               plot=plot, fdr=fdr, trend=trend, **kwargs)
-    return _goana_default(de, gene_pathway=gene_pathway,
-                          universe=universe, species=species,
-                          prior_prob=prior_prob, covariate=covariate,
-                          plot=plot, trend=trend)
+        return _goana_marraylm(
+            de,
+            gene_pathway=gene_pathway,
+            universe=universe,
+            species=species,
+            prior_prob=prior_prob,
+            covariate=covariate,
+            plot=plot,
+            fdr=fdr,
+            trend=trend,
+            **kwargs,
+        )
+    return _goana_default(
+        de,
+        gene_pathway=gene_pathway,
+        universe=universe,
+        species=species,
+        prior_prob=prior_prob,
+        covariate=covariate,
+        plot=plot,
+        trend=trend,
+    )
 
 
-def kegga(de, gene_pathway, pathway_names=None, universe=None, *,
-          species=None, prior_prob=None,
-          covariate=None, plot=False,
-          fdr=0.05, trend=False, **kwargs) -> pd.DataFrame:
+def kegga(
+    de,
+    gene_pathway,
+    pathway_names=None,
+    universe=None,
+    *,
+    species=None,
+    prior_prob=None,
+    covariate=None,
+    plot=False,
+    fdr=0.05,
+    trend=False,
+    **kwargs,
+) -> pd.DataFrame:
     """
     KEGG pathway over-representation analysis.
 
@@ -153,16 +184,30 @@ def kegga(de, gene_pathway, pathway_names=None, universe=None, *,
         column repeats the pathway id verbatim.
     """
     if _is_dispatch_marraylm(de):
-        return _kegga_marraylm(de, gene_pathway=gene_pathway,
-                               pathway_names=pathway_names,
-                               universe=universe, species=species,
-                               prior_prob=prior_prob, covariate=covariate,
-                               plot=plot, fdr=fdr, trend=trend, **kwargs)
-    return _kegga_default(de, gene_pathway=gene_pathway,
-                          pathway_names=pathway_names,
-                          universe=universe, species=species,
-                          prior_prob=prior_prob, covariate=covariate,
-                          plot=plot, trend=trend)
+        return _kegga_marraylm(
+            de,
+            gene_pathway=gene_pathway,
+            pathway_names=pathway_names,
+            universe=universe,
+            species=species,
+            prior_prob=prior_prob,
+            covariate=covariate,
+            plot=plot,
+            fdr=fdr,
+            trend=trend,
+            **kwargs,
+        )
+    return _kegga_default(
+        de,
+        gene_pathway=gene_pathway,
+        pathway_names=pathway_names,
+        universe=universe,
+        species=species,
+        prior_prob=prior_prob,
+        covariate=covariate,
+        plot=plot,
+        trend=trend,
+    )
 
 
 def _is_dispatch_marraylm(de) -> bool:
@@ -190,9 +235,7 @@ def _select_de_from_fit(fit, geneid, coef, fdr) -> tuple[list[str], list[str], l
     if fit.get("coefficients") is None:
         raise ValueError("de does not appear to be a valid MArrayLM fit object.")
     if fit.get("p_value") is None:
-        raise ValueError(
-            "p.value not found in fit object, perhaps need to run e_bayes first."
-        )
+        raise ValueError("p.value not found in fit object, perhaps need to run e_bayes first.")
 
     coefs = np.asarray(fit["coefficients"])
     if coefs.ndim == 1:
@@ -232,7 +275,8 @@ def _select_de_from_fit(fit, geneid, coef, fdr) -> tuple[list[str], list[str], l
         else:
             universe = [str(i) for i in range(ngenes)]
     elif isinstance(geneid, str) or (
-        hasattr(geneid, "__len__") and len(geneid) == 1
+        hasattr(geneid, "__len__")
+        and len(geneid) == 1
         and not isinstance(geneid, (np.ndarray, pd.Series))
     ):
         col = geneid if isinstance(geneid, str) else geneid[0]
@@ -256,11 +300,16 @@ def _select_de_from_fit(fit, geneid, coef, fdr) -> tuple[list[str], list[str], l
     cvec = coefs[:, coef_idx]
 
     # Drop rows where geneid is NA (R's anyNA branch).
-    isna = np.array([
-        v is None or (isinstance(v, float) and np.isnan(v))
-        or v == "" or v == "nan" or v == "NA"
-        for v in universe
-    ])
+    isna = np.array(
+        [
+            v is None
+            or (isinstance(v, float) and np.isnan(v))
+            or v == ""
+            or v == "nan"
+            or v == "NA"
+            for v in universe
+        ]
+    )
     if isna.all():
         raise ValueError("Gene IDs are all NA")
     if isna.any():
@@ -277,8 +326,9 @@ def _select_de_from_fit(fit, geneid, coef, fdr) -> tuple[list[str], list[str], l
     return universe, up, dn
 
 
-def _goana_marraylm(de, *, gene_pathway, universe, species,
-                    prior_prob, covariate, plot, fdr, trend, **kwargs):
+def _goana_marraylm(
+    de, *, gene_pathway, universe, species, prior_prob, covariate, plot, fdr, trend, **kwargs
+):
     """Port of goana.MArrayLM (goana.R:3-86)."""
     fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "fit"))
 
@@ -296,8 +346,7 @@ def _goana_marraylm(de, *, gene_pathway, universe, species,
         # R accepts numeric or character trend; both go through the
         # BiasedUrn path which is deferred.
         raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; "
-            "see pylimma roadmap."
+            "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
 
     fit_universe, up, dn = _select_de_from_fit(fit, geneid, coef, fdr)
@@ -306,18 +355,32 @@ def _goana_marraylm(de, *, gene_pathway, universe, species,
         warnings.warn("No DE genes")
         return pd.DataFrame()
 
-    return _goana_default({"Up": up, "Down": dn},
-                          gene_pathway=gene_pathway,
-                          universe=fit_universe,
-                          species=species,
-                          prior_prob=prior_prob,
-                          covariate=covariate,
-                          plot=plot,
-                          trend=trend)
+    return _goana_default(
+        {"Up": up, "Down": dn},
+        gene_pathway=gene_pathway,
+        universe=fit_universe,
+        species=species,
+        prior_prob=prior_prob,
+        covariate=covariate,
+        plot=plot,
+        trend=trend,
+    )
 
 
-def _kegga_marraylm(de, *, gene_pathway, pathway_names, universe, species,
-                    prior_prob, covariate, plot, fdr, trend, **kwargs):
+def _kegga_marraylm(
+    de,
+    *,
+    gene_pathway,
+    pathway_names,
+    universe,
+    species,
+    prior_prob,
+    covariate,
+    plot,
+    fdr,
+    trend,
+    **kwargs,
+):
     """Port of kegga.MArrayLM (kegga.R:3-86)."""
     fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "fit"))
 
@@ -333,8 +396,7 @@ def _kegga_marraylm(de, *, gene_pathway, pathway_names, universe, species,
 
     if not isinstance(trend, bool):
         raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; "
-            "see pylimma roadmap."
+            "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
 
     fit_universe, up, dn = _select_de_from_fit(fit, geneid, coef, fdr)
@@ -343,15 +405,17 @@ def _kegga_marraylm(de, *, gene_pathway, pathway_names, universe, species,
         warnings.warn("No DE genes")
         return pd.DataFrame()
 
-    return _kegga_default({"Up": up, "Down": dn},
-                          gene_pathway=gene_pathway,
-                          pathway_names=pathway_names,
-                          universe=fit_universe,
-                          species=species,
-                          prior_prob=prior_prob,
-                          covariate=covariate,
-                          plot=plot,
-                          trend=trend)
+    return _kegga_default(
+        {"Up": up, "Down": dn},
+        gene_pathway=gene_pathway,
+        pathway_names=pathway_names,
+        universe=fit_universe,
+        species=species,
+        prior_prob=prior_prob,
+        covariate=covariate,
+        plot=plot,
+        trend=trend,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -378,8 +442,7 @@ def _ensure_de_lists(de) -> dict[str, np.ndarray]:
     for nm, vec in zip(names, sets):
         if isinstance(vec, pd.DataFrame):
             raise ValueError(
-                "de should be a list of character vectors. "
-                "It should not be a data.frame."
+                "de should be a list of character vectors. It should not be a data.frame."
             )
         try:
             arr = np.asarray(vec).ravel()
@@ -408,8 +471,7 @@ def _ensure_de_lists(de) -> dict[str, np.ndarray]:
     for nm in final_names:
         seen_count[nm] = seen_count.get(nm, 0) + 1
     width: dict[str, int] = {
-        nm: 1 + int(np.floor(np.log10(c))) if c > 1 else 0
-        for nm, c in seen_count.items()
+        nm: 1 + int(np.floor(np.log10(c))) if c > 1 else 0 for nm, c in seen_count.items()
     }
     occ: dict[str, int] = {nm: 0 for nm in seen_count}
     disambiguated: list[str] = []
@@ -502,9 +564,11 @@ def _normalise_gene_pathway(gene_pathway, *, optional_extra_cols=False):
     df["pathway_id"] = df["pathway_id"].astype(str)
 
     # Drop rows where either of the first two cols is NA
-    isna = df[["gene_id", "pathway_id"]].isna().any(axis=1) | \
-        (df["gene_id"].isin(["", "nan", "NA"])) | \
-        (df["pathway_id"].isin(["", "nan", "NA"]))
+    isna = (
+        df[["gene_id", "pathway_id"]].isna().any(axis=1)
+        | (df["gene_id"].isin(["", "nan", "NA"]))
+        | (df["pathway_id"].isin(["", "nan", "NA"]))
+    )
     df = df.loc[~isna].copy()
 
     # Drop duplicate (gene_id, pathway_id) rows
@@ -515,8 +579,9 @@ def _normalise_gene_pathway(gene_pathway, *, optional_extra_cols=False):
     return df
 
 
-def _hypergeometric_pvalues(S_counts: np.ndarray, S_N: np.ndarray,
-                            nde: np.ndarray, NGenes: int) -> np.ndarray:
+def _hypergeometric_pvalues(
+    S_counts: np.ndarray, S_N: np.ndarray, nde: np.ndarray, NGenes: int
+) -> np.ndarray:
     """Vectorised port of the phyper(...,lower.tail=FALSE) loop.
 
     R: ``PValue[,j] <- phyper(S[,1L+j]-0.5, nde[j], NGenes-nde[j], S[,N], lower.tail=FALSE)``
@@ -535,24 +600,19 @@ def _hypergeometric_pvalues(S_counts: np.ndarray, S_N: np.ndarray,
     out = np.zeros_like(S_counts, dtype=np.float64)
     for j in range(nsets):
         # P(X >= s) where X ~ Hypergeom(M=NGenes, n_success=nde[j], N_sample=S_N[i])
-        out[:, j] = stats.hypergeom.sf(
-            S_counts[:, j] - 1, NGenes, int(nde[j]), S_N
-        )
+        out[:, j] = stats.hypergeom.sf(S_counts[:, j] - 1, NGenes, int(nde[j]), S_N)
     return out
 
 
-def _goana_default(de, *, gene_pathway, universe, species, prior_prob,
-                   covariate, plot, trend):
+def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate, plot, trend):
     """Port of goana.default (goana.R:88-260)."""
     if not isinstance(trend, bool) or trend:
         raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; "
-            "see pylimma roadmap."
+            "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
     if covariate is not None:
         raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; "
-            "see pylimma roadmap."
+            "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
 
     # gene_pathway with optional ontology (col 3) + term (col 4) for
@@ -581,9 +641,7 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob,
     # Restrict DE genes to universe.
     universe_set = set(universe.tolist())
     for nm in list(de_lists.keys()):
-        de_lists[nm] = np.array(
-            [g for g in de_lists[nm] if g in universe_set], dtype=object
-        )
+        de_lists[nm] = np.array([g for g in de_lists[nm] if g in universe_set], dtype=object)
 
     # Restrict pathways to universe.
     gp_in_universe = gp[gp["gene_id"].isin(universe_set)].reset_index(drop=True)
@@ -595,10 +653,8 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob,
     # on the pathway id with sort=False to preserve first-occurrence
     # order.
     set_names = list(de_lists.keys())
-    nsets = len(set_names)
     columns = ["N"] + set_names
-    X = pd.DataFrame(0, index=gp_in_universe.index, columns=columns,
-                     dtype=np.int64)
+    X = pd.DataFrame(0, index=gp_in_universe.index, columns=columns, dtype=np.int64)
     X["N"] = 1
     for nm in set_names:
         members = set(de_lists[nm].tolist())
@@ -615,13 +671,8 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob,
 
     # Term and ontology lookups: use the first occurrence of each
     # pathway_id in the (possibly extended) gene_pathway table.
-    first_rows = (
-        gp.drop_duplicates(subset=["pathway_id"], keep="first")
-          .set_index("pathway_id")
-    )
-    term_lookup = (
-        first_rows[term_col] if has_term else None
-    )
+    first_rows = gp.drop_duplicates(subset=["pathway_id"], keep="first").set_index("pathway_id")
+    term_lookup = first_rows[term_col] if has_term else None
     ont_lookup = first_rows[ont_col] if has_ontology else None
 
     out = pd.DataFrame(index=pathway_ids)
@@ -641,18 +692,17 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob,
     return out
 
 
-def _kegga_default(de, *, gene_pathway, pathway_names, universe, species,
-                   prior_prob, covariate, plot, trend):
+def _kegga_default(
+    de, *, gene_pathway, pathway_names, universe, species, prior_prob, covariate, plot, trend
+):
     """Port of kegga.default (kegga.R:88-280)."""
     if not isinstance(trend, bool) or trend:
         raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; "
-            "see pylimma roadmap."
+            "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
     if covariate is not None:
         raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; "
-            "see pylimma roadmap."
+            "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
 
     de_lists = _ensure_de_lists(de)
@@ -663,8 +713,7 @@ def _kegga_default(de, *, gene_pathway, pathway_names, universe, species,
         pn = pd.DataFrame(pathway_names).copy()
         if pn.shape[1] < 2:
             raise ValueError("pathway.names must have at least 2 columns")
-        pn = pn.rename(columns={pn.columns[0]: "_path_id",
-                                pn.columns[1]: "_description"})
+        pn = pn.rename(columns={pn.columns[0]: "_path_id", pn.columns[1]: "_description"})
         pn["_path_id"] = pn["_path_id"].astype(str)
         pn["_description"] = pn["_description"].astype(str)
         pn_isna = pn[["_path_id", "_description"]].isna().any(axis=1)
@@ -688,19 +737,15 @@ def _kegga_default(de, *, gene_pathway, pathway_names, universe, species,
 
     universe_set = set(universe.tolist())
     for nm in list(de_lists.keys()):
-        de_lists[nm] = np.array(
-            [g for g in de_lists[nm] if g in universe_set], dtype=object
-        )
+        de_lists[nm] = np.array([g for g in de_lists[nm] if g in universe_set], dtype=object)
 
     gp_in_universe = gp[gp["gene_id"].isin(universe_set)].reset_index(drop=True)
     if gp_in_universe.empty:
         raise ValueError("Pathways do not overlap with universe")
 
     set_names = list(de_lists.keys())
-    nsets = len(set_names)
     columns = ["N"] + set_names
-    X = pd.DataFrame(0, index=gp_in_universe.index, columns=columns,
-                     dtype=np.int64)
+    X = pd.DataFrame(0, index=gp_in_universe.index, columns=columns, dtype=np.int64)
     X["N"] = 1
     for nm in set_names:
         members = set(de_lists[nm].tolist())
@@ -732,8 +777,9 @@ def _kegga_default(de, *, gene_pathway, pathway_names, universe, species,
 # ---------------------------------------------------------------------------
 
 
-def top_go(results, ontology=("BP", "CC", "MF"), sort=None,
-           number=20, truncate_term=None, p_value=1.0) -> pd.DataFrame:
+def top_go(
+    results, ontology=("BP", "CC", "MF"), sort=None, number=20, truncate_term=None, p_value=1.0
+) -> pd.DataFrame:
     """
     Extract the top GO terms from a :func:`goana` result.
 
@@ -749,9 +795,7 @@ def top_go(results, ontology=("BP", "CC", "MF"), sort=None,
     ontology_arr = list(dict.fromkeys(ontology))
     for o in ontology_arr:
         if o not in valid_ont:
-            raise ValueError(
-                f"'arg' should be one of 'BP', 'CC', 'MF': got {o!r}"
-            )
+            raise ValueError(f"'arg' should be one of 'BP', 'CC', 'MF': got {o!r}")
 
     if len(ontology_arr) < 3 and "ontology" in results.columns:
         results = results.loc[results["ontology"].isin(ontology_arr)]
@@ -769,14 +813,12 @@ def top_go(results, ontology=("BP", "CC", "MF"), sort=None,
     nsets = (dimres[1] - 3) // 2
     if nsets < 1:
         raise ValueError("results has wrong number of columns")
-    setnames = list(results.columns[3:3 + nsets])
+    setnames = list(results.columns[3 : 3 + nsets])
 
     if sort is None:
         isort = list(range(nsets))
     else:
-        sort_arr = [str(s).lower() for s in (
-            [sort] if isinstance(sort, str) else list(sort)
-        )]
+        sort_arr = [str(s).lower() for s in ([sort] if isinstance(sort, str) else list(sort))]
         isort = [i for i, nm in enumerate(setnames) if nm.lower() in sort_arr]
         if not isort:
             raise ValueError("sort column not found in results")
@@ -815,8 +857,7 @@ def top_go(results, ontology=("BP", "CC", "MF"), sort=None,
     return tab
 
 
-def top_kegg(results, sort=None, number=20,
-             truncate_path=None, p_value=1.0) -> pd.DataFrame:
+def top_kegg(results, sort=None, number=20, truncate_path=None, p_value=1.0) -> pd.DataFrame:
     """
     Extract the top KEGG pathways from a :func:`kegga` result.
 
@@ -837,14 +878,12 @@ def top_kegg(results, sort=None, number=20,
     nsets = (dimres[1] - 2) // 2
     if nsets < 1:
         raise ValueError("results has wrong number of columns")
-    setnames = list(results.columns[2:2 + nsets])
+    setnames = list(results.columns[2 : 2 + nsets])
 
     if sort is None:
         isort = list(range(nsets))
     else:
-        sort_arr = [str(s).lower() for s in (
-            [sort] if isinstance(sort, str) else list(sort)
-        )]
+        sort_arr = [str(s).lower() for s in ([sort] if isinstance(sort, str) else list(sort))]
         isort = [i for i, nm in enumerate(setnames) if nm.lower() in sort_arr]
         if not isort:
             raise ValueError("sort column not found in results")

@@ -107,6 +107,36 @@ Monte-Carlo p-values from ``roast`` / ``mroast`` / ``romer`` /
 pylimma at ``nrot=999`` on the gene-set-testing fixture data, well
 inside the documented ``max_log10_diff=0.5`` threshold.
 
+mrlm stdev_unscaled drifts up to ~15% on machine-epsilon residuals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When a gene is perfectly fit by the design (initial OLS residuals at
+machine epsilon), ``mrlm`` and R ``MASS::rlm`` produce different
+``stdev_unscaled`` values - up to 15% relative difference. The trigger
+is exclusive to synthetic perfectly-fit rows; real proteomics or
+RNA-seq residuals are 6+ orders of magnitude above machine epsilon
+and unaffected.
+
+**Root cause.** R's ``lm.wfit`` uses LINPACK ``DQRDC2`` which produces
+mixed-sign machine-epsilon residuals on a degenerate row. scipy's
+``np.linalg.lstsq`` uses LAPACK SVD which produces uniform-sign
+residuals. The iter-1 MAD scale picks up R's mixed-sign noise pattern
+and Huber-downweights three samples as "outliers"; pylimma's MAD
+gives unit weights everywhere and returns the unweighted OLS stdev.
+Both implementations are computing deterministic numerical noise -
+just different noise patterns - because the residuals carry no
+information about the underlying linear model.
+
+**Tolerance.** A regression sentinel test
+(``tests/rigorous/test_mrlm.py::test_b9c_zero_residual_scale``) is
+left as ``xfail`` rather than loosened, so any future numerical
+change that aligns the two patterns is detected automatically.
+
+**Note.** Downstream impact is zero: when a row hits this regime
+``sigma`` is also at machine epsilon, t-statistics are inf/NaN,
+and the empirical-Bayes posterior is dominated by the prior
+regardless of which "garbage" stdev was returned.
+
 Fixed during porting
 --------------------
 

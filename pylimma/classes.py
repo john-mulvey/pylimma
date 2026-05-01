@@ -41,7 +41,6 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-
 # ----------------------------------------------------------------------------
 # Weight-shape dispatcher (port of R limma's asMatrixWeights)
 # ----------------------------------------------------------------------------
@@ -173,6 +172,7 @@ _MARRAYLM_I = (
 # Helpers
 # ----------------------------------------------------------------------------
 
+
 def _is_anndata(obj: Any) -> bool:
     try:
         from anndata import AnnData
@@ -210,13 +210,19 @@ def _slice_2d(x, i, j):
     if x is None:
         return None
     if isinstance(x, pd.DataFrame):
-        return x.iloc[i, :].iloc[:, j] if not isinstance(j, slice) or j != slice(None) else x.iloc[i, :]
+        return (
+            x.iloc[i, :].iloc[:, j]
+            if not isinstance(j, slice) or j != slice(None)
+            else x.iloc[i, :]
+        )
     arr = np.asarray(x)
     if arr.ndim == 1:
         return arr[i]
-    return arr[np.ix_(np.atleast_1d(i), np.atleast_1d(j))] if not (
-        isinstance(i, slice) or isinstance(j, slice)
-    ) else arr[i, :][:, j]
+    return (
+        arr[np.ix_(np.atleast_1d(i), np.atleast_1d(j))]
+        if not (isinstance(i, slice) or isinstance(j, slice))
+        else arr[i, :][:, j]
+    )
 
 
 def _slice_rows(x, i):
@@ -280,6 +286,7 @@ def _print_head(x, name: str, max_rows: int = 5) -> str:
 # Base class
 # ----------------------------------------------------------------------------
 
+
 class _LargeDataObject(dict):
     """Shared behaviour for EList and MArrayLM.
 
@@ -304,9 +311,7 @@ class _LargeDataObject(dict):
         try:
             return self[name]
         except KeyError as e:
-            raise AttributeError(
-                f"{type(self).__name__!s} has no attribute {name!r}"
-            ) from e
+            raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}") from e
 
     def __setattr__(self, name: str, value) -> None:
         self[name] = value
@@ -315,9 +320,7 @@ class _LargeDataObject(dict):
         try:
             del self[name]
         except KeyError as e:
-            raise AttributeError(
-                f"{type(self).__name__!s} has no attribute {name!r}"
-            ) from e
+            raise AttributeError(f"{type(self).__name__!s} has no attribute {name!r}") from e
 
     # ---- dimensions ----
 
@@ -422,6 +425,7 @@ class _LargeDataObject(dict):
 # Public classes
 # ----------------------------------------------------------------------------
 
+
 class EList(_LargeDataObject):
     """Expression-list container (Python equivalent of R limma's EList).
 
@@ -451,9 +455,7 @@ class EList(_LargeDataObject):
         elif isinstance(data, dict):
             super().__init__(data)
         else:
-            raise TypeError(
-                f"EList expected dict or EList, got {type(data).__name__}"
-            )
+            raise TypeError(f"EList expected dict or EList, got {type(data).__name__}")
         for k, v in kwargs.items():
             self[k] = v
 
@@ -478,9 +480,7 @@ class MArrayLM(_LargeDataObject):
         elif isinstance(data, dict):
             super().__init__(data)
         else:
-            raise TypeError(
-                f"MArrayLM expected dict or MArrayLM, got {type(data).__name__}"
-            )
+            raise TypeError(f"MArrayLM expected dict or MArrayLM, got {type(data).__name__}")
         for k, v in kwargs.items():
             self[k] = v
 
@@ -519,6 +519,7 @@ class MArrayLM(_LargeDataObject):
         """
         if self.get("coefficients") is None:
             import warnings as _w
+
             _w.warn("NULL coefficients, returning empty data.frame")
             return pd.DataFrame()
         coef = np.asarray(self["coefficients"])
@@ -548,8 +549,14 @@ class MArrayLM(_LargeDataObject):
 # ----------------------------------------------------------------------------
 
 _UNSUPPORTED_WRAPPER_NAMES = {
-    "RGList", "MAList", "EListRaw", "ExpressionSet", "eSet",
-    "PLMset", "marrayNorm", "DGEList",
+    "RGList",
+    "MAList",
+    "EListRaw",
+    "ExpressionSet",
+    "eSet",
+    "PLMset",
+    "marrayNorm",
+    "DGEList",
 }
 
 
@@ -671,9 +678,7 @@ def get_eawp(
             if weights_layer is None:
                 weights_candidate = f"{stem}_weights"
                 if weights_candidate in adata.layers:
-                    y["weights"] = _densify(
-                        adata.layers[weights_candidate]
-                    ).T
+                    y["weights"] = _densify(adata.layers[weights_candidate]).T
             uns_payload = adata.uns.get(stem)
             if isinstance(uns_payload, dict):
                 if uns_payload.get("design") is not None:
@@ -735,9 +740,7 @@ def get_eawp(
     if arr.ndim == 1:
         arr = arr.reshape(1, -1)
     if arr.ndim != 2:
-        raise TypeError(
-            f"expression data must be 2-dimensional, got {arr.ndim}D"
-        )
+        raise TypeError(f"expression data must be 2-dimensional, got {arr.ndim}D")
     if not np.issubdtype(arr.dtype, np.number):
         raise TypeError("expression data must be numeric")
     y["exprs"] = arr.astype(np.float64, copy=False)
@@ -761,6 +764,7 @@ def _eawp_from_elist_like(obj) -> dict:
 # ----------------------------------------------------------------------------
 # Polymorphic output dispatcher
 # ----------------------------------------------------------------------------
+
 
 def put_eawp(
     slots: dict,
@@ -838,9 +842,13 @@ def put_eawp(
             # so this is a defensive fix for future callers.
             W = as_matrix_weights(slots["weights"], E.shape)
             adata.layers[weights_layer] = W.T
-        uns_payload = {k: v for k, v in slots.items()
-                       if k not in ("E",) and v is not None
-                       and not (k == "weights" and weights_layer is not None)}
+        uns_payload = {
+            k: v
+            for k, v in slots.items()
+            if k not in ("E",)
+            and v is not None
+            and not (k == "weights" and weights_layer is not None)
+        }
         if uns_payload:
             adata.uns[uns_key] = uns_payload
         return None
@@ -869,6 +877,7 @@ def put_eawp(
 # Helper for fit-consuming functions (e_bayes, contrasts_fit, top_table, ...)
 # ----------------------------------------------------------------------------
 
+
 def _resolve_fit_input(data, key: str):
     """Resolve the fit input for functions that consume an existing fit.
 
@@ -885,8 +894,7 @@ def _resolve_fit_input(data, key: str):
     if _is_anndata(data):
         if key not in data.uns:
             raise ValueError(
-                f"No fit results found in adata.uns[{key!r}]. "
-                "Did you run lm_fit() first?"
+                f"No fit results found in adata.uns[{key!r}]. Did you run lm_fit() first?"
             )
         return data.uns[key], data, key
     return data, None, None

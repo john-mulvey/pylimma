@@ -1,12 +1,11 @@
 """Tests for pylimma decide_tests module."""
 
 import numpy as np
-import pytest
 
-from pylimma.decide_tests import decide_tests, classify_tests_f
-from pylimma.lmfit import lm_fit
+from pylimma.contrasts import contrasts_fit, make_contrasts
+from pylimma.decide_tests import classify_tests_f, decide_tests
 from pylimma.ebayes import e_bayes
-from pylimma.contrasts import make_contrasts, contrasts_fit
+from pylimma.lmfit import lm_fit
 
 
 class TestDecideTests:

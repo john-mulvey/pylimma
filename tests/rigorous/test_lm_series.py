@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-import pylimma
 from pylimma.lmfit import lm_series
 
 from ..helpers import (
@@ -20,7 +19,6 @@ from ..helpers import (
     limma_available,
     run_r_comparison,
 )
-
 
 pytestmark = pytest.mark.skipif(
     not limma_available(),
@@ -67,10 +65,7 @@ def _run_lm_series_r(
     weights_block = "weights <- NULL"
     if weights is not None:
         py_data["weights"] = pd.DataFrame(weights)
-        weights_block = (
-            'weights <- as.matrix(read.csv("{tmpdir}/weights.csv", '
-            "row.names = 1))"
-        )
+        weights_block = 'weights <- as.matrix(read.csv("{tmpdir}/weights.csv", row.names = 1))'
     ndups_block = f"ndups <- {int(ndups)}\nspacing <- {int(spacing)}"
     r_code = _R_LM_SERIES_TEMPLATE.format(
         tmpdir="{tmpdir}",
@@ -105,13 +100,10 @@ def _assert_slots_match(
         ("coefficients", "coefficients"),
         ("stdev_unscaled", "stdev_unscaled"),
     ]:
-        r_val = np.asarray(r_out[key_r], dtype=float).reshape(
-            np.asarray(py_fit[key_py]).shape
-        )
+        r_val = np.asarray(r_out[key_r], dtype=float).reshape(np.asarray(py_fit[key_py]).shape)
         cmp = compare_arrays(r_val, py_fit[key_py], rtol=rtol)
         assert cmp["match"], (
-            f"{key_r} differs: max_rel={cmp['max_rel_diff']:.2e}, "
-            f"max_abs={cmp['max_abs_diff']:.2e}"
+            f"{key_r} differs: max_rel={cmp['max_rel_diff']:.2e}, max_abs={cmp['max_abs_diff']:.2e}"
         )
 
     r_sigma = np.asarray(r_out["sigma"], dtype=float).ravel()
@@ -120,8 +112,10 @@ def _assert_slots_match(
 
     r_df = np.asarray(r_out["df_residual"], dtype=float).ravel()
     cmp = compare_arrays(
-        r_df, np.asarray(py_fit["df_residual"], dtype=float),
-        rtol=0, atol=0,
+        r_df,
+        np.asarray(py_fit["df_residual"], dtype=float),
+        rtol=0,
+        atol=0,
     )
     assert cmp["match"], f"df_residual differs: {cmp}"
 
@@ -144,25 +138,23 @@ def _assert_slots_match(
 
     if compare_pivot_rank:
         r_rank = int(np.asarray(r_out["rank_out"]).ravel()[0])
-        assert r_rank == int(py_fit["rank"]), (
-            f"rank mismatch: R={r_rank}, Py={py_fit['rank']}"
-        )
+        assert r_rank == int(py_fit["rank"]), f"rank mismatch: R={r_rank}, Py={py_fit['rank']}"
         r_pivot = np.asarray(r_out["pivot"]).ravel().astype(int) - 1
         py_pivot = np.asarray(py_fit["pivot"], dtype=int)
         # Estimable columns should match in order for standard designs.
         cmp = compare_arrays(
             r_pivot[:r_rank].astype(float),
             py_pivot[: int(py_fit["rank"])].astype(float),
-            rtol=0, atol=0,
+            rtol=0,
+            atol=0,
         )
-        assert cmp["match"], (
-            f"pivot (estimable block) differs: R={r_pivot}, Py={py_pivot}"
-        )
+        assert cmp["match"], f"pivot (estimable block) differs: R={r_pivot}, Py={py_pivot}"
 
 
 # ---------------------------------------------------------------------------
 # TestRigorousLmSeries
 # ---------------------------------------------------------------------------
+
 
 class TestRigorousLmSeries:
     """Branch-by-branch parity audit of lm_series (lmfit.R:91-188)."""
@@ -250,8 +242,7 @@ class TestRigorousLmSeries:
         snapshot = weights.copy()
         lm_series(M, design, weights=weights)
         assert np.array_equal(weights, snapshot), (
-            "lm_series mutated caller's weights (regression of "
-            "known_diff_weights_mutation.md)"
+            "lm_series mutated caller's weights (regression of known_diff_weights_mutation.md)"
         )
 
     # -------------------- R-B5: ndups > 1 unwrapping ----------------------
@@ -303,13 +294,9 @@ class TestRigorousLmSeries:
         n_samples = 3
         M = rng.standard_normal((5, n_samples))
         # 3 samples, 3 independent columns -> rank 3 -> df = 0
-        design = np.array(
-            [[1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 1.0]]
-        )
+        design = np.array([[1.0, 0.0, 0.0], [1.0, 1.0, 0.0], [1.0, 0.0, 1.0]])
         py_fit = lm_series(M, design)
-        assert np.all(np.isnan(py_fit["sigma"])), (
-            "sigma should be NaN when df_residual == 0"
-        )
+        assert np.all(np.isnan(py_fit["sigma"])), "sigma should be NaN when df_residual == 0"
         assert np.all(np.asarray(py_fit["df_residual"]) == 0)
         r_out = _run_lm_series_r(M, design)
         _assert_slots_match(py_fit, r_out)
@@ -344,9 +331,7 @@ class TestRigorousLmSeries:
         M[3, 2] = np.nan
         M[7, 5] = np.nan
         M[11, 1] = np.nan
-        design = np.column_stack(
-            [np.ones(7), [0, 0, 0, 1, 1, 1, 1]]
-        )
+        design = np.column_stack([np.ones(7), [0, 0, 0, 1, 1, 1, 1]])
         py_fit = lm_series(M, design)
         r_out = _run_lm_series_r(M, design)
         _assert_slots_match(py_fit, r_out)
@@ -370,7 +355,10 @@ class TestRigorousLmSeries:
         assert np.all(np.isnan(py_fit["stdev_unscaled"][:, red_col]))
         r_out = _run_lm_series_r(M, design)
         _assert_slots_match(
-            py_fit, r_out, compare_cov=False, compare_pivot_rank=True,
+            py_fit,
+            r_out,
+            compare_cov=False,
+            compare_pivot_rank=True,
         )
 
     # --------- R-B14: cov.coef full design (slow path, verify) ------------

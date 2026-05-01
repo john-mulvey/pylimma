@@ -8,8 +8,6 @@ for numerical parity at rtol=1e-8.
 
 from __future__ import annotations
 
-import warnings
-
 import numpy as np
 import pandas as pd
 import pytest
@@ -21,7 +19,6 @@ from ..helpers import (
     limma_available,
     run_r_comparison,
 )
-
 
 pytestmark = pytest.mark.skipif(
     not limma_available(),
@@ -113,23 +110,17 @@ def _run_gls_r(
             # Array weights of length narrays passed as a vector.
             py_data["weights"] = pd.DataFrame(wts.reshape(-1, 1))
             weights_block = (
-                'weights <- as.numeric(read.csv("{tmpdir}/weights.csv", '
-                "row.names = 1)[,1])"
+                'weights <- as.numeric(read.csv("{tmpdir}/weights.csv", row.names = 1)[,1])'
             )
         else:
             py_data["weights"] = pd.DataFrame(wts)
-            weights_block = (
-                'weights <- as.matrix(read.csv("{tmpdir}/weights.csv", '
-                "row.names = 1))"
-            )
+            weights_block = 'weights <- as.matrix(read.csv("{tmpdir}/weights.csv", row.names = 1))'
 
     if block is None:
         block_block = "block <- NULL"
     else:
         py_data["block"] = pd.DataFrame({"block": block})
-        block_block = (
-            'block <- read.csv("{tmpdir}/block.csv", row.names = 1)$block'
-        )
+        block_block = 'block <- read.csv("{tmpdir}/block.csv", row.names = 1)$block'
 
     ndups_block = f"ndups <- {int(ndups)}\nspacing <- {int(spacing)}"
     corr_block = f"correlation <- {repr(float(correlation))}"
@@ -172,8 +163,7 @@ def _assert_slots_match(
         r_coef = r_coef.reshape(py_coef.shape)
     cmp = compare_arrays(r_coef, py_coef, rtol=rtol)
     assert cmp["match"], (
-        f"coefficients differ: max_rel={cmp['max_rel_diff']:.2e}, "
-        f"max_abs={cmp['max_abs_diff']:.2e}"
+        f"coefficients differ: max_rel={cmp['max_rel_diff']:.2e}, max_abs={cmp['max_abs_diff']:.2e}"
     )
 
     # stdev_unscaled (n_genes, n_coefs)
@@ -192,8 +182,10 @@ def _assert_slots_match(
     # df_residual
     r_df = np.asarray(r_out["df_residual"], dtype=float).ravel()
     cmp = compare_arrays(
-        r_df, np.asarray(py_fit["df_residual"], dtype=float),
-        rtol=0, atol=0,
+        r_df,
+        np.asarray(py_fit["df_residual"], dtype=float),
+        rtol=0,
+        atol=0,
     )
     assert cmp["match"], f"df_residual differs: {cmp}"
 
@@ -231,8 +223,10 @@ class TestRigorousGlsSeries:
         block = np.array([1, 1, 2, 2, 3, 3, 4, 4])
         try:
             py_fit = gls_series(
-                pd.DataFrame(M), design,
-                block=block, correlation=0.4,
+                pd.DataFrame(M),
+                design,
+                block=block,
+                correlation=0.4,
             )
         except (AttributeError, TypeError) as exc:
             pytest.fail(
@@ -240,7 +234,10 @@ class TestRigorousGlsSeries:
                 f"- divergence from R's as.matrix(M) coercion"
             )
         r_out = _run_gls_r(
-            M, design, correlation=0.4, block=block,
+            M,
+            design,
+            correlation=0.4,
+            block=block,
             template=_R_GLS_SLOW_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -254,7 +251,10 @@ class TestRigorousGlsSeries:
         block = np.array([1, 1, 2, 2, 3, 3, 4, 4])
         py_fit = gls_series(M, design=None, block=block, correlation=0.3)
         r_out = _run_gls_r(
-            M, design=None, correlation=0.3, block=block,
+            M,
+            design=None,
+            correlation=0.3,
+            block=block,
             template=_R_GLS_SLOW_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -297,12 +297,20 @@ class TestRigorousGlsSeries:
         design = np.column_stack([np.ones(n_arrays), [0, 0, 0, 1, 1, 1]])
 
         py_fit = gls_series(
-            M, design, ndups=ndups, spacing=1,
-            correlation=0.4, block=None,
+            M,
+            design,
+            ndups=ndups,
+            spacing=1,
+            correlation=0.4,
+            block=None,
         )
         r_out = _run_gls_r(
-            M, design, correlation=0.4, block=None,
-            ndups=ndups, spacing=1,
+            M,
+            design,
+            correlation=0.4,
+            block=None,
+            ndups=ndups,
+            spacing=1,
             template=_R_GLS_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -328,15 +336,24 @@ class TestRigorousGlsSeries:
         array_w = np.array([1.0, 2.0, 1.5, 0.5, 1.2, 0.8])
 
         py_fit = gls_series(
-            M, design, ndups=ndups, spacing=1,
-            correlation=0.3, block=None,
+            M,
+            design,
+            ndups=ndups,
+            spacing=1,
+            correlation=0.3,
+            block=None,
             weights=array_w,
         )
         # R returns a slow-path list (no fit$qr) because unwrapdups drops
         # the arrayweights attribute.
         r_out = _run_gls_r(
-            M, design, correlation=0.3, block=None,
-            weights=array_w, ndups=ndups, spacing=1,
+            M,
+            design,
+            correlation=0.3,
+            block=None,
+            weights=array_w,
+            ndups=ndups,
+            spacing=1,
             template=_R_GLS_SLOW_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -349,15 +366,19 @@ class TestRigorousGlsSeries:
         n_genes = 30
         n_arrays = 12
         M = rng.standard_normal((n_genes, n_arrays))
-        design = np.column_stack(
-            [np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)])
         block = np.repeat(np.arange(6), 2)
         py_fit = gls_series(
-            M, design, block=block, correlation=0.3,
+            M,
+            design,
+            block=block,
+            correlation=0.3,
         )
         r_out = _run_gls_r(
-            M, design, correlation=0.3, block=block,
+            M,
+            design,
+            correlation=0.3,
+            block=block,
             template=_R_GLS_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -373,17 +394,21 @@ class TestRigorousGlsSeries:
         n_genes = 25
         n_arrays = 12
         M = rng.standard_normal((n_genes, n_arrays))
-        design = np.column_stack(
-            [np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)])
         block = np.repeat(np.arange(6), 2)
         array_w = rng.uniform(0.5, 2.0, n_arrays)
         py_fit = gls_series(
-            M, design, block=block, correlation=0.4,
+            M,
+            design,
+            block=block,
+            correlation=0.4,
             weights=array_w,
         )
         r_out = _run_gls_r(
-            M, design, correlation=0.4, block=block,
+            M,
+            design,
+            correlation=0.4,
+            block=block,
             weights=array_w,
             template=_R_GLS_TEMPLATE,
         )
@@ -405,10 +430,16 @@ class TestRigorousGlsSeries:
         design = np.column_stack([np.ones(n_arrays), col1, col2, col3])
         block = np.repeat(np.arange(5), 2)
         py_fit = gls_series(
-            M, design, block=block, correlation=0.25,
+            M,
+            design,
+            block=block,
+            correlation=0.25,
         )
         r_out = _run_gls_r(
-            M, design, correlation=0.25, block=block,
+            M,
+            design,
+            correlation=0.25,
+            block=block,
             template=_R_GLS_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -423,16 +454,22 @@ class TestRigorousGlsSeries:
         n_arrays = 6
         n_spots = 8 * ndups
         M = rng.standard_normal((n_spots, n_arrays))
-        design = np.column_stack(
-            [np.ones(n_arrays), [0, 0, 0, 1, 1, 1]]
-        )
+        design = np.column_stack([np.ones(n_arrays), [0, 0, 0, 1, 1, 1]])
         py_fit = gls_series(
-            M, design, ndups=ndups, spacing=1,
-            correlation=0.0, block=None,
+            M,
+            design,
+            ndups=ndups,
+            spacing=1,
+            correlation=0.0,
+            block=None,
         )
         r_out = _run_gls_r(
-            M, design, correlation=0.0, block=None,
-            ndups=ndups, spacing=1,
+            M,
+            design,
+            correlation=0.0,
+            block=None,
+            ndups=ndups,
+            spacing=1,
             template=_R_GLS_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -451,15 +488,19 @@ class TestRigorousGlsSeries:
         M[5, 3] = np.nan
         M[5, 4] = np.nan
         M[10, 7] = np.nan
-        design = np.column_stack(
-            [np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)])
         block = np.repeat(np.arange(6), 2)
         py_fit = gls_series(
-            M, design, block=block, correlation=0.3,
+            M,
+            design,
+            block=block,
+            correlation=0.3,
         )
         r_out = _run_gls_r(
-            M, design, correlation=0.3, block=block,
+            M,
+            design,
+            correlation=0.3,
+            block=block,
             template=_R_GLS_SLOW_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -473,18 +514,22 @@ class TestRigorousGlsSeries:
         n_genes = 18
         n_arrays = 10
         M = rng.standard_normal((n_genes, n_arrays))
-        design = np.column_stack(
-            [np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)])
         block = np.repeat(np.arange(5), 2)
         # Full (G, N) weight matrix - probe-varying.
         weights = rng.uniform(0.5, 1.5, M.shape)
         py_fit = gls_series(
-            M, design, block=block, correlation=0.35,
+            M,
+            design,
+            block=block,
+            correlation=0.35,
             weights=weights,
         )
         r_out = _run_gls_r(
-            M, design, correlation=0.35, block=block,
+            M,
+            design,
+            correlation=0.35,
+            block=block,
             weights=weights,
             template=_R_GLS_SLOW_TEMPLATE,
         )
@@ -502,16 +547,20 @@ class TestRigorousGlsSeries:
         # Inject zero weights -> R will set M[i,j] <- NA in those slots.
         weights[3, 0] = 0.0
         weights[7, 5] = 0.0
-        design = np.column_stack(
-            [np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)])
         block = np.repeat(np.arange(4), 2)
         py_fit = gls_series(
-            M, design, block=block, correlation=0.3,
+            M,
+            design,
+            block=block,
+            correlation=0.3,
             weights=weights,
         )
         r_out = _run_gls_r(
-            M, design, correlation=0.3, block=block,
+            M,
+            design,
+            correlation=0.3,
+            block=block,
             weights=weights,
             template=_R_GLS_SLOW_TEMPLATE,
         )
@@ -524,14 +573,16 @@ class TestRigorousGlsSeries:
         rng = np.random.default_rng(90)
         n_arrays = 8
         M = rng.standard_normal((6, n_arrays))
-        design = np.column_stack(
-            [np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)])
 
         with pytest.warns(UserWarning, match="No duplicates"):
             py_fit = gls_series(
-                M, design, ndups=1, spacing=1,
-                correlation=0.5, block=None,
+                M,
+                design,
+                ndups=1,
+                spacing=1,
+                correlation=0.5,
+                block=None,
             )
         # After fallback: correlation forced to 0, ndups forced to 1.
         assert py_fit["ndups"] == 1
@@ -540,8 +591,12 @@ class TestRigorousGlsSeries:
         # R parity: r should produce the same result as ols on M.
         # Match against R's gls.series with ndups=1.
         r_out = _run_gls_r(
-            M, design, correlation=0.5, block=None,
-            ndups=1, spacing=1,
+            M,
+            design,
+            correlation=0.5,
+            block=None,
+            ndups=1,
+            spacing=1,
             template=_R_GLS_TEMPLATE,
         )
         _assert_slots_match(py_fit, r_out)
@@ -555,14 +610,16 @@ class TestRigorousGlsSeries:
         n_genes = 30
         n_arrays = 12
         M = rng.standard_normal((n_genes, n_arrays))
-        design = np.column_stack(
-            [np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)])
         block = np.repeat(np.arange(6), 2)
         # pylimma path: pass correlation=None; gls_series will call
         # duplicate_correlation internally.
         py_fit = gls_series(
-            M, design, block=block, correlation=None, ndups=1,
+            M,
+            design,
+            block=block,
+            correlation=None,
+            ndups=1,
         )
         # R path: supply the same correlation value to gls.series.
         # (duplicate_correlation parity is its own audit; we simply check
@@ -604,9 +661,7 @@ correlation_out  <- matrix(fit$correlation, ncol = 1)
             'design <- as.matrix(read.csv("{tmpdir}/design.csv", '
             "row.names = 1)); colnames(design) <- NULL"
         )
-        block_block = (
-            'block <- read.csv("{tmpdir}/block.csv", row.names = 1)$block'
-        )
+        block_block = 'block <- read.csv("{tmpdir}/block.csv", row.names = 1)$block'
         weights_block = "weights <- NULL"
         ndups_block = "ndups <- 1\nspacing <- 1"
         r_code = r_template.format(
@@ -620,17 +675,21 @@ correlation_out  <- matrix(fit$correlation, ncol = 1)
             py_data,
             r_code,
             output_vars=[
-                "coefficients", "stdev_unscaled", "sigma",
-                "df_residual", "cov_coefficients", "pivot",
-                "rank_out", "correlation_out",
+                "coefficients",
+                "stdev_unscaled",
+                "sigma",
+                "df_residual",
+                "cov_coefficients",
+                "pivot",
+                "rank_out",
+                "correlation_out",
             ],
             timeout=180,
         )
         # Correlations should match closely.
         r_corr = float(np.asarray(r_out["correlation_out"]).ravel()[0])
         assert abs(py_fit["correlation"] - r_corr) < 1e-6, (
-            f"auto-estimated correlation differs: R={r_corr}, "
-            f"Py={py_fit['correlation']}"
+            f"auto-estimated correlation differs: R={r_corr}, Py={py_fit['correlation']}"
         )
         _assert_slots_match(py_fit, r_out)
 
@@ -643,15 +702,14 @@ correlation_out  <- matrix(fit$correlation, ncol = 1)
         n_genes = 12
         n_arrays = 8
         M = rng.standard_normal((n_genes, n_arrays))
-        design = np.column_stack(
-            [np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)]
-        )
+        design = np.column_stack([np.ones(n_arrays), np.tile([0, 1], n_arrays // 2)])
         block = np.repeat(np.arange(4), 2)
         py_fit = gls_series(
-            M, design, block=block, correlation=0.2,
+            M,
+            design,
+            block=block,
+            correlation=0.2,
         )
         df = np.asarray(py_fit["df_residual"], dtype=float)
-        assert df.shape == (n_genes,), (
-            f"df_residual shape: expected ({n_genes},), got {df.shape}"
-        )
+        assert df.shape == (n_genes,), f"df_residual shape: expected ({n_genes},), got {df.shape}"
         assert np.all(df == df[0]), "fast-path df_residual should be constant"

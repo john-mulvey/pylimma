@@ -76,7 +76,18 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"]
-ignore = ["E501"]
+# E741: `l`, `I`, `O` are conventional in stats / linear-algebra code
+ignore = ["E501", "E741"]
+
+[tool.ruff.lint.per-file-ignores]
+# Notebooks and tutorial scripts need sys.path manipulation before
+# imports, and use multi-statement lines for compactness.
+"docs/**" = ["E402", "E702"]
+"examples/**" = ["E402", "E702"]
+"benchmarks/**" = ["E402", "E702"]
+
+[tool.ruff.format]
+exclude = ["*.ipynb"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

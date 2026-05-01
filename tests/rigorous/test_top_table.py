@@ -19,21 +19,17 @@ import pandas as pd
 import pytest
 
 from pylimma.contrasts import contrasts_fit, make_contrasts
-from pylimma.ebayes import e_bayes, treat
+from pylimma.ebayes import e_bayes
 from pylimma.lmfit import lm_fit
 from pylimma.toptable import top_table
 
 from ..helpers import (
     compare_arrays,
-    compare_pvalues,
     limma_available,
     run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 # ----------------------------------------------------------------------
@@ -50,13 +46,11 @@ def _two_group_expr(seed=0, n_genes=30, n_samples=8):
     """
     rng = np.random.default_rng(seed)
     expr = rng.standard_normal((n_genes, n_samples))
-    design = np.column_stack(
-        [np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)]
-    )
+    design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
     expr_df = pd.DataFrame(
         expr,
-        index=[f"g{i+1}" for i in range(n_genes)],
-        columns=[f"s{j+1}" for j in range(n_samples)],
+        index=[f"g{i + 1}" for i in range(n_genes)],
+        columns=[f"s{j + 1}" for j in range(n_samples)],
     )
     return expr_df, design
 
@@ -71,8 +65,8 @@ def _three_group_expr(seed=0, n_genes=30, n_samples=12):
     design[8:, 2] = 1
     expr_df = pd.DataFrame(
         expr,
-        index=[f"g{i+1}" for i in range(n_genes)],
-        columns=[f"s{j+1}" for j in range(n_samples)],
+        index=[f"g{i + 1}" for i in range(n_genes)],
+        columns=[f"s{j + 1}" for j in range(n_samples)],
     )
     return expr_df, design
 
@@ -93,9 +87,7 @@ def _r_top_table_t(
     Reads expr.csv (rows=genes), design.csv (rows=samples).
     Writes the topTable result with row labels via output 'tt'.
     """
-    resort_arg = (
-        "" if resort_by == "NULL" else f", resort.by={resort_by!r}"
-    )
+    resort_arg = "" if resort_by == "NULL" else f", resort.by={resort_by!r}"
     return f"""
     suppressMessages(library(limma))
     expr <- as.matrix(read.csv('{{tmpdir}}/expr.csv', row.names=1))
@@ -121,12 +113,12 @@ def _save_inputs(_unused, expr, design):
     else:
         df_expr = pd.DataFrame(
             expr,
-            index=[f"g{i+1}" for i in range(expr.shape[0])],
-            columns=[f"s{j+1}" for j in range(expr.shape[1])],
+            index=[f"g{i + 1}" for i in range(expr.shape[0])],
+            columns=[f"s{j + 1}" for j in range(expr.shape[1])],
         )
     df_design = pd.DataFrame(
         design,
-        index=[f"s{j+1}" for j in range(design.shape[0])],
+        index=[f"s{j + 1}" for j in range(design.shape[0])],
         columns=[f"x{j}" for j in range(design.shape[1])],
     )
     return {"expr": df_expr, "design": df_design}
@@ -230,9 +222,7 @@ class TestRigorousTopTable:
         """Exercises R-B9d: toptable.R:46 (B -> F for multi-coef path)."""
         expr, design = _three_group_expr(n_genes=15, n_samples=12, seed=1)
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(
-            "x1-x0", "x2-x0", levels=["x0", "x1", "x2"]
-        )
+        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -254,7 +244,7 @@ class TestRigorousTopTable:
         output. Compare slot-by-slot against R.
         """
         expr, design = _two_group_expr(n_genes=15, n_samples=8, seed=2)
-        ids = [f"PROBE_{i+1}" for i in range(15)]
+        ids = [f"PROBE_{i + 1}" for i in range(15)]
         fit = lm_fit(expr, design)
         fit = e_bayes(fit)
         py_tt = top_table(
@@ -265,7 +255,9 @@ class TestRigorousTopTable:
             genelist=ids,
         )
 
-        # Live R reference
+        # Live R reference. run_r_comparison flattens multi-column outputs
+        # to df.values (losing column names), so capture each topTable
+        # column as a separate scalar/vector output.
         r_template = """
         suppressMessages(library(limma))
         expr <- as.matrix(read.csv('{tmpdir}/expr.csv', row.names=1))
@@ -274,47 +266,30 @@ class TestRigorousTopTable:
         fit <- eBayes(fit)
         ids <- paste0('PROBE_', 1:nrow(expr))
         tt <- topTable(fit, coef=2, number=15, sort.by='P', genelist=ids)
-        # Save tt as a data.frame so write.csv preserves all columns
-        tt_out <- data.frame(ID=as.character(tt$ID),
-                             logFC=tt$logFC,
-                             t=tt$t,
-                             stringsAsFactors=FALSE)
+        tt_logfc <- tt$logFC
+        tt_t <- tt$t
         """
         inputs = _save_inputs(None, expr, design)
-        r_out = run_r_comparison(
-            inputs, r_template, ["tt_out"]
-        )
+        r_out = run_r_comparison(inputs, r_template, ["tt_logfc", "tt_t"])
 
-        # tt_out comes back as a 2-D ndarray (or via DataFrame parse)
-        # depending on column count. Re-read the CSV directly to keep
-        # the column names accessible.
-        # The helper returns df.values when shape[1] > 1; we need names.
-        # Easier route: read the same CSV file ourselves.
-        # Here we simply confirm the columns exist; ID column is in pylimma output.
-        assert "ID" in py_tt.columns, (
-            f"pylimma should expose ID column; got {list(py_tt.columns)}"
-        )
+        assert "ID" in py_tt.columns, f"pylimma should expose ID column; got {list(py_tt.columns)}"
         # Each ID should be one of the PROBE_* values
         for v in py_tt["ID"]:
             assert str(v).startswith("PROBE_"), v
 
         # Stats slot-by-slot
         res_lfc = compare_arrays(
-            np.asarray(r_out["logFC"]).astype(float).ravel(),
+            np.asarray(r_out["tt_logfc"]).astype(float).ravel(),
             py_tt["log_fc"].values,
             rtol=1e-8,
         )
-        assert res_lfc["match"], (
-            f"logFC differs: max_rel={res_lfc['max_rel_diff']:.2e}"
-        )
+        assert res_lfc["match"], f"logFC differs: max_rel={res_lfc['max_rel_diff']:.2e}"
         res_t = compare_arrays(
-            np.asarray(r_out["t_stat"]).astype(float).ravel(),
+            np.asarray(r_out["tt_t"]).astype(float).ravel(),
             py_tt["t"].values,
             rtol=1e-8,
         )
-        assert res_t["match"], (
-            f"t differs: max_rel={res_t['max_rel_diff']:.2e}"
-        )
+        assert res_t["match"], f"t differs: max_rel={res_t['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # R-B33a (toptable.R:210): sort.by="B" without lods -> stop
@@ -467,17 +442,12 @@ class TestRigorousTopTable:
             "rn <- rownames(tt)\n"
         )
         inputs = _save_inputs(None, expr, design)
-        r_out = run_r_comparison(
-            inputs, r_template, ["logFC", "t_stat", "p_value", "rn"]
-        )
+        r_out = run_r_comparison(inputs, r_template, ["logFC", "t_stat", "p_value", "rn"])
 
         # Ranking must match exactly
         r_rn = [str(s).strip('"') for s in np.asarray(r_out["rn"]).ravel()]
         py_rn = list(py_tt.index)
-        assert py_rn == r_rn, (
-            f"sort_by={sort_alias!r}: ranking differs.\n"
-            f"R={r_rn}\nPy={py_rn}"
-        )
+        assert py_rn == r_rn, f"sort_by={sort_alias!r}: ranking differs.\nR={r_rn}\nPy={py_rn}"
 
         # Stats also tight
         res_lfc = compare_arrays(
@@ -486,8 +456,7 @@ class TestRigorousTopTable:
             rtol=1e-8,
         )
         assert res_lfc["match"], (
-            f"sort_by={sort_alias!r}: logFC differs: "
-            f"max_rel={res_lfc['max_rel_diff']:.2e}"
+            f"sort_by={sort_alias!r}: logFC differs: max_rel={res_lfc['max_rel_diff']:.2e}"
         )
 
     # ------------------------------------------------------------------
@@ -522,14 +491,10 @@ class TestRigorousTopTable:
             "rn <- rownames(tt)\n"
         )
         inputs = _save_inputs(None, expr, design)
-        r_out = run_r_comparison(
-            inputs, r_template, ["logFC", "t_stat", "rn"]
-        )
+        r_out = run_r_comparison(inputs, r_template, ["logFC", "t_stat", "rn"])
         r_rn = [str(s).strip('"') for s in np.asarray(r_out["rn"]).ravel()]
         py_rn = list(py_tt.index)
-        assert py_rn == r_rn, (
-            f"resort_by={resort_alias!r}: ranking differs.\nR={r_rn}\nPy={py_rn}"
-        )
+        assert py_rn == r_rn, f"resort_by={resort_alias!r}: ranking differs.\nR={r_rn}\nPy={py_rn}"
 
     # ------------------------------------------------------------------
     # R-B36 (toptable.R:227-230): confint=numeric custom level matches R
@@ -539,9 +504,7 @@ class TestRigorousTopTable:
         expr, design = _two_group_expr(n_genes=15, n_samples=8, seed=9)
         fit = lm_fit(expr, design)
         fit = e_bayes(fit)
-        py_tt = top_table(
-            fit, coef=1, number=15, sort_by="none", confint=0.99
-        )
+        py_tt = top_table(fit, coef=1, number=15, sort_by="none", confint=0.99)
 
         r_template = """
         suppressMessages(library(limma))
@@ -561,17 +524,13 @@ class TestRigorousTopTable:
             py_tt["ci_l"].values,
             rtol=1e-8,
         )
-        assert res_l["match"], (
-            f"CI.L differs: max_rel={res_l['max_rel_diff']:.2e}"
-        )
+        assert res_l["match"], f"CI.L differs: max_rel={res_l['max_rel_diff']:.2e}"
         res_r = compare_arrays(
             np.asarray(r_out["CI_R"]).astype(float).ravel(),
             py_tt["ci_r"].values,
             rtol=1e-8,
         )
-        assert res_r["match"], (
-            f"CI.R differs: max_rel={res_r['max_rel_diff']:.2e}"
-        )
+        assert res_r["match"], f"CI.R differs: max_rel={res_r['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # R-B41a / R-B43 / R-B45 (toptable.R:264-275): null genelist + null A
@@ -608,8 +567,7 @@ class TestRigorousTopTable:
         assert "AveExpr" not in r_cols, f"R columns: {r_cols}"
         # pylimma should likewise omit ave_expr
         assert "ave_expr" not in py_tt.columns, (
-            f"pylimma should omit ave_expr when Amean is None; "
-            f"got columns {list(py_tt.columns)}"
+            f"pylimma should omit ave_expr when Amean is None; got columns {list(py_tt.columns)}"
         )
 
     # ------------------------------------------------------------------
@@ -660,13 +618,11 @@ class TestRigorousTopTable:
         """
         expr, design = _three_group_expr(n_genes=15, n_samples=12, seed=12)
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(
-            "x1-x0", "x2-x0", levels=["x0", "x1", "x2"]
-        )
+        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
-        ids = [f"PROBE_{i+1}" for i in range(15)]
+        ids = [f"PROBE_{i + 1}" for i in range(15)]
         py_tt = top_table(fit, coef=None, number=10, genelist=ids)
 
         r_template = """
@@ -685,9 +641,7 @@ class TestRigorousTopTable:
         ProbeID <- as.character(tt$ProbeID)
         """
         inputs = _save_inputs(None, expr, design)
-        r_out = run_r_comparison(
-            inputs, r_template, ["cols", "ProbeID"]
-        )
+        r_out = run_r_comparison(inputs, r_template, ["cols", "ProbeID"])
         r_cols = [str(c).strip('"') for c in np.asarray(r_out["cols"]).ravel()]
 
         assert "ProbeID" in r_cols, f"R cols: {r_cols}"
@@ -703,9 +657,7 @@ class TestRigorousTopTable:
         """Exercises R-B16+R-B21b: F-path sort.by='none' matches R."""
         expr, design = _three_group_expr(n_genes=15, n_samples=12, seed=13)
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(
-            "x1-x0", "x2-x0", levels=["x0", "x1", "x2"]
-        )
+        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -728,17 +680,13 @@ class TestRigorousTopTable:
         r_out = run_r_comparison(inputs, r_template, ["rn", "F_stat"])
         r_rn = [str(s).strip('"') for s in np.asarray(r_out["rn"]).ravel()]
         py_rn = list(py_tt.index)
-        assert py_rn == r_rn, (
-            f"F-path sort_by=none: rank differs.\nR={r_rn}\nPy={py_rn}"
-        )
+        assert py_rn == r_rn, f"F-path sort_by=none: rank differs.\nR={r_rn}\nPy={py_rn}"
         res_f = compare_arrays(
             np.asarray(r_out["F_stat"]).astype(float).ravel(),
             py_tt["F"].values,
             rtol=1e-8,
         )
-        assert res_f["match"], (
-            f"F differs: max_rel={res_f['max_rel_diff']:.2e}"
-        )
+        assert res_f["match"], f"F differs: max_rel={res_f['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # R-B18b (toptable.R:111): F-path lfc filter uses STRICT `>` (not >=)
@@ -752,9 +700,7 @@ class TestRigorousTopTable:
         """
         expr, design = _three_group_expr(n_genes=15, n_samples=12, seed=14)
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(
-            "x1-x0", "x2-x0", levels=["x0", "x1", "x2"]
-        )
+        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -765,13 +711,10 @@ class TestRigorousTopTable:
         fit["coefficients"] = np.asarray(fit["coefficients"]).copy()
         fit["coefficients"][target, :] = cutoff  # all == cutoff
 
-        py_tt = top_table(
-            fit, coef=None, number=np.inf, lfc=cutoff
-        )
+        py_tt = top_table(fit, coef=None, number=np.inf, lfc=cutoff)
         # The boundary gene should be DROPPED on F path
-        assert f"g{target+1}" not in list(py_tt.index), (
-            "F path uses strict `>`; gene exactly at the boundary "
-            "must be excluded"
+        assert f"g{target + 1}" not in list(py_tt.index), (
+            "F path uses strict `>`; gene exactly at the boundary must be excluded"
         )
 
     # ------------------------------------------------------------------
@@ -829,9 +772,7 @@ class TestRigorousTopTable:
         first_p <- tt$P.Value[1]
         """
         inputs = _save_inputs(None, expr, design)
-        r_out = run_r_comparison(
-            inputs, r_template, ["nrow_tt", "first_p"]
-        )
+        r_out = run_r_comparison(inputs, r_template, ["nrow_tt", "first_p"])
         r_n = int(np.asarray(r_out["nrow_tt"]).ravel()[0])
         # R should keep all 10 rows (NaN row included)
         assert r_n == 10, f"R kept {r_n} rows when NaN allowed"

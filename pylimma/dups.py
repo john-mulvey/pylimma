@@ -20,11 +20,12 @@ Provides utilities for working with within-array replicate spots.
 from __future__ import annotations
 
 import warnings
+
 import numpy as np
 import pandas as pd
 from scipy import linalg
 
-from .classes import EList, get_eawp, _is_anndata
+from .classes import EList, _is_anndata, get_eawp
 
 
 def _mixed_model_2_fit(
@@ -71,16 +72,6 @@ def _mixed_model_2_fit(
     X = np.atleast_2d(X)
     Z = np.atleast_2d(Z)
     mx = X.shape[0]
-    nx = X.shape[1]
-    nz = Z.shape[1]
-
-    # Combine Z and y for joint projection
-    # fit = lm.fit(X, cbind(Z, y))
-    XtX = X.T @ X
-    try:
-        XtX_inv = linalg.pinv(XtX)
-    except (np.linalg.LinAlgError, linalg.LinAlgError, ValueError):
-        return None
 
     # QR decomposition of X
     Q, R, pivot = linalg.qr(X, pivoting=True)
@@ -114,10 +105,10 @@ def _mixed_model_2_fit(
 
     # Set up regression: dy ~ dx where dy = uqy^2, dx = [1, d^2]
     d = np.zeros(mq)
-    d[:len(s)] = s ** 2
+    d[: len(s)] = s**2
 
     dx = np.column_stack([np.ones(mq), d])
-    dy = uqy ** 2
+    dy = uqy**2
 
     # Initial OLS fit
     try:
@@ -211,7 +202,7 @@ def _glmgam_fit(
     lambda_ = 0.0  # set on first iteration
 
     for iteration in range(1, maxit + 1):
-        v = mu ** 2
+        v = mu**2
         v = np.maximum(v, np.max(v) / 1e3)
         XVX = X.T @ (X / v[:, np.newaxis])
         maxinfo = np.max(np.diag(XVX))
@@ -296,13 +287,13 @@ def unwrap_dups(
 
     # Use Fortran order to match R's reshape behaviour
     # R: dim(M) <- c(spacing, ndups, ngroups, nslides)
-    M = M.reshape((spacing, ndups, n_groups, n_arrays), order='F')
+    M = M.reshape((spacing, ndups, n_groups, n_arrays), order="F")
 
     # R: aperm(M, c(1,3,2,4))
     M = np.transpose(M, (0, 2, 1, 3))
 
     # R: dim(M) <- c(spacing*ngroups, ndups*nslides)
-    M = M.reshape((spacing * n_groups, ndups * n_arrays), order='F')
+    M = M.reshape((spacing * n_groups, ndups * n_arrays), order="F")
 
     return M
 
@@ -389,7 +380,7 @@ def ave_dups(
 
     # Use Fortran order to match R's reshape behaviour
     # R: dim(x) <- c(spacing, ndups, ngroups*nslides)
-    x = x.reshape((spacing, ndups, n_groups * n_arrays), order='F')
+    x = x.reshape((spacing, ndups, n_groups * n_arrays), order="F")
 
     # R: aperm(x, c(2,1,3))
     x = np.transpose(x, (1, 0, 2))
@@ -400,7 +391,7 @@ def ave_dups(
     else:
         # Weighted mean
         weights = np.asarray(weights, dtype=np.float64)
-        weights = weights.reshape((spacing, ndups, n_groups * n_arrays), order='F')
+        weights = weights.reshape((spacing, ndups, n_groups * n_arrays), order="F")
         weights = np.transpose(weights, (1, 0, 2))
 
         # Handle NaN and negative weights
@@ -408,11 +399,11 @@ def ave_dups(
         weights[np.isnan(weights) | np.isnan(x)] = 0
         weights[weights < 0] = 0
 
-        with np.errstate(invalid='ignore', divide='ignore'):
+        with np.errstate(invalid="ignore", divide="ignore"):
             result = np.nansum(weights * x, axis=0) / np.sum(weights, axis=0)
 
     # Reshape back: R: dim(x) <- c(spacing*ngroups, nslides)
-    result = result.reshape((spacing * n_groups, n_arrays), order='F')
+    result = result.reshape((spacing * n_groups, n_arrays), order="F")
     return result
 
 
@@ -539,10 +530,7 @@ def _avereps_elist(el, ID=None):
             )
     ID = np.asarray(ID)
     if ID.shape[0] != E.shape[0]:
-        raise ValueError(
-            f"length of ID ({ID.shape[0]}) must match number of probes "
-            f"({E.shape[0]})"
-        )
+        raise ValueError(f"length of ID ({ID.shape[0]}) must match number of probes ({E.shape[0]})")
 
     # Average E (delegate to the matrix path for the numerics).
     E_new = avereps(E, ID=ID)
@@ -583,9 +571,7 @@ def _avereps_anndata(adata, ID=None):
     try:
         import anndata as ad
     except ImportError as exc:
-        raise RuntimeError(
-            "anndata is required for avereps(AnnData) but is not installed"
-        ) from exc
+        raise RuntimeError("anndata is required for avereps(AnnData) but is not installed") from exc
 
     # get_eawp densifies and transposes to limma's (n_probes, n_samples).
     eawp = get_eawp(adata)
@@ -595,10 +581,7 @@ def _avereps_anndata(adata, ID=None):
         ID = np.asarray(adata.var_names)
     ID = np.asarray(ID)
     if ID.shape[0] != E.shape[0]:
-        raise ValueError(
-            f"length of ID ({ID.shape[0]}) must match number of "
-            f"probes ({E.shape[0]})"
-        )
+        raise ValueError(f"length of ID ({ID.shape[0]}) must match number of probes ({E.shape[0]})")
 
     # Delegate the averaging to the ndarray path; output is
     # (n_unique_probes, n_samples).
@@ -717,6 +700,7 @@ def duplicate_correlation(
     # a fresh copy so the subsequent NaN writes are safe.
     if weights is not None:
         from .classes import as_matrix_weights
+
         weights = as_matrix_weights(weights, (n_genes, n_arrays))
         weights[weights <= 0] = np.nan
         M = M.copy()
@@ -732,8 +716,8 @@ def duplicate_correlation(
                 block_indicators[:, j] = (block == b).astype(float)
 
             # QR decomposition of design
-            q, r = np.linalg.qr(design, mode='complete')
-            rank = np.sum(np.abs(np.diag(r[:design.shape[1], :])) > 1e-10)
+            q, r = np.linalg.qr(design, mode="complete")
+            rank = np.sum(np.abs(np.diag(r[: design.shape[1], :])) > 1e-10)
 
             # Project block indicators through Q'
             qt_block = q.T @ block_indicators
@@ -776,7 +760,6 @@ def duplicate_correlation(
         if len(block) != n_arrays:
             raise ValueError("Length of block does not match number of arrays")
         Array = block
-        n_samples = n_arrays
 
         # Check for singleton blocks
         unique_blocks, counts = np.unique(block, return_counts=True)

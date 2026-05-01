@@ -16,6 +16,7 @@ import pytest
 
 try:
     import matplotlib  # noqa: F401
+
     matplotlib.use("Agg")
     HAS_MPL = True
 except ImportError:
@@ -28,12 +29,13 @@ FIXTURES = Path(__file__).parent / "fixtures"
 # plot_with_highlights
 # ----------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_with_highlights_layer_counts():
     from pylimma import plot_with_highlights
+
     df = pd.read_csv(FIXTURES / "R_plot_with_highlights_input.csv")
-    ax = plot_with_highlights(df["x"].values, df["y"].values,
-                              status=df["status"].values)
+    ax = plot_with_highlights(df["x"].values, df["y"].values, status=df["status"].values)
     # Three scatter layers: background + up + down
     assert len(ax.collections) == 3
     # Counts: 180 background + 10 up + 10 down
@@ -50,9 +52,11 @@ def test_plot_with_highlights_layer_counts():
 # plot_ma / plot_md
 # ----------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_ma_marraylm_substrate():
-    from pylimma import lm_fit, contrasts_fit, e_bayes, plot_ma
+    from pylimma import contrasts_fit, e_bayes, lm_fit, plot_ma
+
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0).values
     design = pd.read_csv(FIXTURES / "R_phase5_design.csv").values
     fit = lm_fit(E, design=design)
@@ -60,7 +64,7 @@ def test_plot_ma_marraylm_substrate():
     fit = e_bayes(fit)
     expected = pd.read_csv(FIXTURES / "R_plot_ma_data.csv", index_col=0)
 
-    ax = plot_ma(fit, coef=0)
+    plot_ma(fit, coef=0)
     # Extract A and M from Amean and coef 0
     A = np.asarray(fit["Amean"])
     M = np.asarray(fit["coefficients"])[:, 0]
@@ -71,6 +75,7 @@ def test_plot_ma_marraylm_substrate():
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_md_matrix_substrate():
     from pylimma import plot_md
+
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0).values
     expected = pd.read_csv(FIXTURES / "R_plot_md_matrix.csv", index_col=0)
     # Direct computation from the function's internal formula
@@ -90,9 +95,11 @@ def test_plot_md_matrix_substrate():
 # volcano_plot
 # ----------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_volcano_plot_substrate():
-    from pylimma import lm_fit, contrasts_fit, e_bayes, volcano_plot
+    from pylimma import contrasts_fit, e_bayes, lm_fit, volcano_plot
+
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0).values
     design = pd.read_csv(FIXTURES / "R_phase5_design.csv").values
     fit = lm_fit(E, design=design)
@@ -102,15 +109,19 @@ def test_volcano_plot_substrate():
 
     np.testing.assert_allclose(
         np.asarray(fit["coefficients"])[:, 0],
-        expected["log_fc"].values, rtol=1e-6,
+        expected["log_fc"].values,
+        rtol=1e-6,
     )
     np.testing.assert_allclose(
         -np.log10(np.asarray(fit["p_value"])[:, 0]),
-        expected["neg_log10_p"].values, rtol=1e-6, atol=1e-9,
+        expected["neg_log10_p"].values,
+        rtol=1e-6,
+        atol=1e-9,
     )
     np.testing.assert_allclose(
         np.asarray(fit["lods"])[:, 0],
-        expected["b"].values, rtol=1e-6,
+        expected["b"].values,
+        rtol=1e-6,
     )
 
     ax = volcano_plot(fit, coef=0)
@@ -123,9 +134,11 @@ def test_volcano_plot_substrate():
 # plot_sa
 # ----------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_sa_flat_substrate():
-    from pylimma import lm_fit, contrasts_fit, e_bayes, plot_sa
+    from pylimma import contrasts_fit, e_bayes, lm_fit, plot_sa
+
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0).values
     design = pd.read_csv(FIXTURES / "R_phase5_design.csv").values
     fit = lm_fit(E, design=design)
@@ -134,10 +147,8 @@ def test_plot_sa_flat_substrate():
     expected = pd.read_csv(FIXTURES / "R_plot_sa_flat.csv", index_col=0)
     expected_line = pd.read_csv(FIXTURES / "R_plot_sa_flat_line.csv")
 
-    np.testing.assert_allclose(
-        fit["Amean"], expected["Amean"].values, rtol=1e-6)
-    np.testing.assert_allclose(
-        np.sqrt(fit["sigma"]), expected["sqrt_sigma"].values, rtol=1e-6)
+    np.testing.assert_allclose(fit["Amean"], expected["Amean"].values, rtol=1e-6)
+    np.testing.assert_allclose(np.sqrt(fit["sigma"]), expected["sqrt_sigma"].values, rtol=1e-6)
     # Scalar s2_prior
     s2p = float(np.atleast_1d(fit["s2_prior"])[0])
     expected_y = float(expected_line["flat_y"].iloc[0])
@@ -149,7 +160,8 @@ def test_plot_sa_flat_substrate():
 
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_sa_trend_substrate():
-    from pylimma import lm_fit, contrasts_fit, e_bayes, plot_sa
+    from pylimma import contrasts_fit, e_bayes, lm_fit, plot_sa
+
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0).values
     design = pd.read_csv(FIXTURES / "R_phase5_design.csv").values
     fit = lm_fit(E, design=design)
@@ -157,12 +169,9 @@ def test_plot_sa_trend_substrate():
     fit = e_bayes(fit, trend=True, robust=True)
     expected = pd.read_csv(FIXTURES / "R_plot_sa_trend.csv", index_col=0)
 
-    np.testing.assert_allclose(
-        fit["Amean"], expected["Amean"].values, rtol=1e-6)
-    np.testing.assert_allclose(
-        np.sqrt(fit["sigma"]), expected["sqrt_sigma"].values, rtol=1e-6)
-    np.testing.assert_allclose(
-        fit["s2_prior"], expected["s2_prior"].values, rtol=1e-5)
+    np.testing.assert_allclose(fit["Amean"], expected["Amean"].values, rtol=1e-6)
+    np.testing.assert_allclose(np.sqrt(fit["sigma"]), expected["sqrt_sigma"].values, rtol=1e-6)
+    np.testing.assert_allclose(fit["s2_prior"], expected["s2_prior"].values, rtol=1e-5)
 
     ax = plot_sa(fit)
     assert ax is not None
@@ -172,9 +181,11 @@ def test_plot_sa_trend_substrate():
 # plot_densities
 # ----------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_densities_curves():
     from pylimma import plot_densities
+
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0)
     expected = pd.read_csv(FIXTURES / "R_plot_densities.csv")
 
@@ -197,30 +208,43 @@ def test_plot_densities_curves():
 # MDS
 # ----------------------------------------------------------------------------
 
-@pytest.mark.parametrize("sel,top", [
-    ("pairwise", 100), ("pairwise", 500),
-    ("common",   100), ("common",   500),
-])
+
+@pytest.mark.parametrize(
+    "sel,top",
+    [
+        ("pairwise", 100),
+        ("pairwise", 500),
+        ("common", 100),
+        ("common", 500),
+    ],
+)
 def test_mds_coordinates_rparity(sel, top):
     from pylimma.plotting import _mds_coordinates
+
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0).values
     expected = pd.read_csv(FIXTURES / f"R_plot_mds_{sel}_top{top}.csv")
     res = _mds_coordinates(E, top=top, gene_selection=sel)
     # Sign convention: eigenvectors defined up to sign, so compare |coord|
     np.testing.assert_allclose(
-        np.abs(res["x"]), np.abs(expected["dim1"].values),
-        rtol=1e-6, atol=1e-9,
+        np.abs(res["x"]),
+        np.abs(expected["dim1"].values),
+        rtol=1e-6,
+        atol=1e-9,
     )
     np.testing.assert_allclose(
-        np.abs(res["y"]), np.abs(expected["dim2"].values),
-        rtol=1e-6, atol=1e-9,
+        np.abs(res["y"]),
+        np.abs(expected["dim2"].values),
+        rtol=1e-6,
+        atol=1e-9,
     )
     np.testing.assert_allclose(
-        res["var_explained"][0], expected["var_explained_1"].iloc[0],
+        res["var_explained"][0],
+        expected["var_explained_1"].iloc[0],
         rtol=1e-6,
     )
     np.testing.assert_allclose(
-        res["var_explained"][1], expected["var_explained_2"].iloc[0],
+        res["var_explained"][1],
+        expected["var_explained_2"].iloc[0],
         rtol=1e-6,
     )
 
@@ -229,13 +253,18 @@ def test_mds_coordinates_rparity(sel, top):
 # Venn
 # ----------------------------------------------------------------------------
 
-@pytest.mark.parametrize("include,file", [
-    ("both", "R_venn_counts.csv"),
-    ("up",   "R_venn_counts_up.csv"),
-    ("down", "R_venn_counts_down.csv"),
-])
+
+@pytest.mark.parametrize(
+    "include,file",
+    [
+        ("both", "R_venn_counts.csv"),
+        ("up", "R_venn_counts_up.csv"),
+        ("down", "R_venn_counts_down.csv"),
+    ],
+)
 def test_venn_counts_rparity(include, file):
     from pylimma import venn_counts
+
     # Load the decideTests input that produced the R fixture
     dec = pd.read_csv(FIXTURES / "R_decideTests_input.csv")
     expected = pd.read_csv(FIXTURES / file)
@@ -252,6 +281,7 @@ def test_venn_counts_rparity(include, file):
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_venn_diagram_smoke():
     from pylimma import venn_diagram
+
     dec = pd.read_csv(FIXTURES / "R_decideTests_input.csv")
     ax = venn_diagram(dec)
     assert ax is not None
@@ -260,6 +290,7 @@ def test_venn_diagram_smoke():
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_venn_diagram_unsupported_sets():
     from pylimma import venn_diagram
+
     dec_4col = pd.DataFrame(np.random.randint(-1, 2, size=(50, 4)))
     with pytest.raises(NotImplementedError):
         venn_diagram(dec_4col)
@@ -269,27 +300,27 @@ def test_venn_diagram_unsupported_sets():
 # coolmap
 # ----------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
-@pytest.mark.parametrize("cb,suffix", [
-    ("de pattern", "de_pattern"),
-    ("expression level", "expression_level"),
-])
+@pytest.mark.parametrize(
+    "cb,suffix",
+    [
+        ("de pattern", "de_pattern"),
+        ("expression level", "expression_level"),
+    ],
+)
 def test_coolmap_substrate(cb, suffix):
     from pylimma import coolmap
+
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0).values[:50, :]
-    expected_z = pd.read_csv(
-        FIXTURES / f"R_coolmap_z_{suffix}.csv", index_col=0).values
-    expected_row = pd.read_csv(
-        FIXTURES / f"R_coolmap_row_order_{suffix}.csv")["order"].values - 1
-    expected_col = pd.read_csv(
-        FIXTURES / f"R_coolmap_col_order_{suffix}.csv")["order"].values - 1
+    expected_z = pd.read_csv(FIXTURES / f"R_coolmap_z_{suffix}.csv", index_col=0).values
 
     # Compute Z directly (same transform used internally)
     if cb == "de pattern":
         row_means = np.nanmean(E, axis=1)
         df_row = E.shape[1] - 1
         Z = E - row_means[:, None]
-        V = np.nansum(Z ** 2, axis=1) / df_row
+        V = np.nansum(Z**2, axis=1) / df_row
         Z = Z / np.sqrt(V + 0.01)[:, None]
     else:
         Z = E
@@ -304,6 +335,7 @@ def test_coolmap_substrate(cb, suffix):
 # barcode_plot
 # ----------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_barcode_plot_worm_substrate():
     from pylimma import barcode_plot, tricube_moving_average
@@ -314,8 +346,7 @@ def test_barcode_plot_worm_substrate():
 
     # Verify the tricube + normalisation pipeline against R
     ave = idx_sorted.sum() / len(idx_sorted)
-    worm = tricube_moving_average(idx_sorted.astype(np.float64),
-                                  span=0.45) / ave
+    worm = tricube_moving_average(idx_sorted.astype(np.float64), span=0.45) / ave
     np.testing.assert_allclose(worm, expected_worm, rtol=1e-6, atol=1e-9)
 
     # Smoke test of the full plotting function on an ad-hoc input
@@ -330,8 +361,10 @@ def test_barcode_plot_worm_substrate():
 # wsva
 # ----------------------------------------------------------------------------
 
+
 def test_wsva_unweighted_rparity():
     from pylimma import wsva
+
     E = pd.read_csv(FIXTURES / "R_wsva_input.csv").values
     design = pd.read_csv(FIXTURES / "R_phase5_design.csv").values
     expected = pd.read_csv(FIXTURES / "R_wsva_unweighted.csv").values
@@ -349,6 +382,7 @@ def test_wsva_unweighted_rparity():
 
 def test_wsva_weighted_rparity():
     from pylimma import wsva
+
     E = pd.read_csv(FIXTURES / "R_wsva_input.csv").values
     design = pd.read_csv(FIXTURES / "R_phase5_design.csv").values
     expected = pd.read_csv(FIXTURES / "R_wsva_weighted.csv").values
@@ -366,89 +400,87 @@ def test_wsva_weighted_rparity():
 # diff_splice
 # ----------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def _diffsplice_fit():
-    from pylimma import lm_fit, diff_splice
+    from pylimma import diff_splice, lm_fit
+
     y = pd.read_csv(FIXTURES / "R_diffSplice_input_y.csv", index_col=0).values
     design = pd.read_csv(FIXTURES / "R_diffSplice_input_design.csv").values
     fit = lm_fit(y, design=design)
     n_exons = y.shape[0]
-    fit["genes"] = pd.DataFrame({
-        "GeneID": np.repeat([f"gene{i + 1}" for i in range(20)], 5),
-        "ExonID": [f"exon{i + 1}" for i in range(n_exons)],
-    })
+    fit["genes"] = pd.DataFrame(
+        {
+            "GeneID": np.repeat([f"gene{i + 1}" for i in range(20)], 5),
+            "ExonID": [f"exon{i + 1}" for i in range(n_exons)],
+        }
+    )
     return diff_splice(fit, geneid="GeneID", exonid="ExonID", verbose=False)
 
 
 def test_diffsplice_coefficients(_diffsplice_fit):
-    expected = pd.read_csv(
-        FIXTURES / "R_diffSplice_coefficients.csv", index_col=0).values
-    np.testing.assert_allclose(
-        _diffsplice_fit["coefficients"], expected, rtol=1e-6, atol=1e-9)
+    expected = pd.read_csv(FIXTURES / "R_diffSplice_coefficients.csv", index_col=0).values
+    np.testing.assert_allclose(_diffsplice_fit["coefficients"], expected, rtol=1e-6, atol=1e-9)
 
 
 def test_diffsplice_t(_diffsplice_fit):
-    expected = pd.read_csv(
-        FIXTURES / "R_diffSplice_t.csv", index_col=0).values
-    np.testing.assert_allclose(
-        _diffsplice_fit["t"], expected, rtol=1e-6, atol=1e-9)
+    expected = pd.read_csv(FIXTURES / "R_diffSplice_t.csv", index_col=0).values
+    np.testing.assert_allclose(_diffsplice_fit["t"], expected, rtol=1e-6, atol=1e-9)
 
 
 def test_diffsplice_p(_diffsplice_fit):
-    expected = pd.read_csv(
-        FIXTURES / "R_diffSplice_p.csv", index_col=0).values
-    np.testing.assert_allclose(
-        _diffsplice_fit["p_value"], expected, rtol=1e-6, atol=1e-9)
+    expected = pd.read_csv(FIXTURES / "R_diffSplice_p.csv", index_col=0).values
+    np.testing.assert_allclose(_diffsplice_fit["p_value"], expected, rtol=1e-6, atol=1e-9)
 
 
 def test_diffsplice_gene_F(_diffsplice_fit):
-    expected = pd.read_csv(
-        FIXTURES / "R_diffSplice_gene_F.csv", index_col=0).values
-    np.testing.assert_allclose(
-        _diffsplice_fit["gene_F"], expected, rtol=1e-6, atol=1e-9)
+    expected = pd.read_csv(FIXTURES / "R_diffSplice_gene_F.csv", index_col=0).values
+    np.testing.assert_allclose(_diffsplice_fit["gene_F"], expected, rtol=1e-6, atol=1e-9)
 
 
 def test_diffsplice_gene_F_p(_diffsplice_fit):
-    expected = pd.read_csv(
-        FIXTURES / "R_diffSplice_gene_F_p.csv", index_col=0).values
-    np.testing.assert_allclose(
-        _diffsplice_fit["gene_F_p_value"], expected, rtol=1e-6, atol=1e-9)
+    expected = pd.read_csv(FIXTURES / "R_diffSplice_gene_F_p.csv", index_col=0).values
+    np.testing.assert_allclose(_diffsplice_fit["gene_F_p_value"], expected, rtol=1e-6, atol=1e-9)
 
 
 def test_diffsplice_gene_simes(_diffsplice_fit):
-    expected = pd.read_csv(
-        FIXTURES / "R_diffSplice_gene_simes_p.csv", index_col=0).values
+    expected = pd.read_csv(FIXTURES / "R_diffSplice_gene_simes_p.csv", index_col=0).values
     np.testing.assert_allclose(
-        _diffsplice_fit["gene_simes_p_value"], expected, rtol=1e-6, atol=1e-9)
+        _diffsplice_fit["gene_simes_p_value"], expected, rtol=1e-6, atol=1e-9
+    )
 
 
 @pytest.fixture(scope="module")
 def _diffsplice_fit_legacy():
-    from pylimma import lm_fit, diff_splice
+    from pylimma import diff_splice, lm_fit
+
     y = pd.read_csv(FIXTURES / "R_diffSplice_input_y.csv", index_col=0).values
     design = pd.read_csv(FIXTURES / "R_diffSplice_input_design.csv").values
     fit = lm_fit(y, design=design)
     n_exons = y.shape[0]
-    fit["genes"] = pd.DataFrame({
-        "GeneID": np.repeat([f"gene{i + 1}" for i in range(20)], 5),
-        "ExonID": [f"exon{i + 1}" for i in range(n_exons)],
-    })
-    return diff_splice(fit, geneid="GeneID", exonid="ExonID",
-                       legacy=True, verbose=False)
+    fit["genes"] = pd.DataFrame(
+        {
+            "GeneID": np.repeat([f"gene{i + 1}" for i in range(20)], 5),
+            "ExonID": [f"exon{i + 1}" for i in range(n_exons)],
+        }
+    )
+    return diff_splice(fit, geneid="GeneID", exonid="ExonID", legacy=True, verbose=False)
 
 
-@pytest.mark.parametrize("key,file", [
-    ("coefficients",       "R_diffSplice_legacy_coefficients.csv"),
-    ("t",                  "R_diffSplice_legacy_t.csv"),
-    ("p_value",            "R_diffSplice_legacy_p.csv"),
-    ("gene_F",             "R_diffSplice_legacy_gene_F.csv"),
-    ("gene_F_p_value",     "R_diffSplice_legacy_gene_F_p.csv"),
-    ("gene_simes_p_value", "R_diffSplice_legacy_gene_simes_p.csv"),
-])
+@pytest.mark.parametrize(
+    "key,file",
+    [
+        ("coefficients", "R_diffSplice_legacy_coefficients.csv"),
+        ("t", "R_diffSplice_legacy_t.csv"),
+        ("p_value", "R_diffSplice_legacy_p.csv"),
+        ("gene_F", "R_diffSplice_legacy_gene_F.csv"),
+        ("gene_F_p_value", "R_diffSplice_legacy_gene_F_p.csv"),
+        ("gene_simes_p_value", "R_diffSplice_legacy_gene_simes_p.csv"),
+    ],
+)
 def test_diffsplice_legacy_rparity(_diffsplice_fit_legacy, key, file):
     expected = pd.read_csv(FIXTURES / file, index_col=0).values
-    np.testing.assert_allclose(
-        _diffsplice_fit_legacy[key], expected, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(_diffsplice_fit_legacy[key], expected, rtol=1e-6, atol=1e-9)
 
 
 def test_diffsplice_anndata_matches_ndarray():
@@ -458,23 +490,20 @@ def test_diffsplice_anndata_matches_ndarray():
     non-dict / non-MArrayLM input.
     """
     import anndata as ad
-    from pylimma import lm_fit, diff_splice
+
+    from pylimma import diff_splice, lm_fit
 
     y = pd.read_csv(FIXTURES / "R_diffSplice_input_y.csv", index_col=0).values
     design = pd.read_csv(FIXTURES / "R_diffSplice_input_design.csv").values
     n_exons = y.shape[0]
-    n_samples = y.shape[1]
 
     geneid = np.repeat([f"gene{i + 1}" for i in range(20)], 5)
     exonid = np.array([f"exon{i + 1}" for i in range(n_exons)])
 
     # Build a baseline fit_dict (matches the existing fixture path)
     fit_dict = lm_fit(y, design=design)
-    fit_dict["genes"] = pd.DataFrame(
-        {"GeneID": geneid, "ExonID": exonid}
-    )
-    out_ref = diff_splice(fit_dict, geneid="GeneID", exonid="ExonID",
-                          verbose=False)
+    fit_dict["genes"] = pd.DataFrame({"GeneID": geneid, "ExonID": exonid})
+    out_ref = diff_splice(fit_dict, geneid="GeneID", exonid="ExonID", verbose=False)
 
     # AnnData path - limma orientation (n_exons x n_samples) becomes
     # (n_samples, n_exons) on the AnnData X.
@@ -482,15 +511,14 @@ def test_diffsplice_anndata_matches_ndarray():
     adata.var["GeneID"] = geneid
     adata.var["ExonID"] = exonid
     lm_fit(adata, design=design)
-    out_anndata = diff_splice(adata, geneid="GeneID", exonid="ExonID",
-                              verbose=False)
+    out_anndata = diff_splice(adata, geneid="GeneID", exonid="ExonID", verbose=False)
 
-    for slot in ("coefficients", "t", "p_value", "gene_F",
-                 "gene_F_p_value"):
+    for slot in ("coefficients", "t", "p_value", "gene_F", "gene_F_p_value"):
         np.testing.assert_allclose(
             np.asarray(out_anndata[slot]),
             np.asarray(out_ref[slot]),
-            rtol=1e-12, atol=1e-14,
+            rtol=1e-12,
+            atol=1e-14,
             err_msg=f"{slot} differs (AnnData vs ndarray diff_splice)",
         )
 
@@ -499,21 +527,25 @@ def test_diffsplice_anndata_matches_ndarray():
 # top_splice
 # ----------------------------------------------------------------------------
 
-@pytest.mark.parametrize("test,sort_by,file", [
-    ("simes", "p",      "R_topSplice_simes_p.csv"),
-    ("simes", "none",   "R_topSplice_simes_none.csv"),
-    ("simes", "NExons", "R_topSplice_simes_NExons.csv"),
-    ("F",     "p",      "R_topSplice_F_p.csv"),
-    ("F",     "none",   "R_topSplice_F_none.csv"),
-    ("F",     "NExons", "R_topSplice_F_NExons.csv"),
-    ("t",     "p",      "R_topSplice_t_p.csv"),
-    ("t",     "none",   "R_topSplice_t_none.csv"),
-    ("t",     "logFC",  "R_topSplice_t_logFC.csv"),
-])
+
+@pytest.mark.parametrize(
+    "test,sort_by,file",
+    [
+        ("simes", "p", "R_topSplice_simes_p.csv"),
+        ("simes", "none", "R_topSplice_simes_none.csv"),
+        ("simes", "NExons", "R_topSplice_simes_NExons.csv"),
+        ("F", "p", "R_topSplice_F_p.csv"),
+        ("F", "none", "R_topSplice_F_none.csv"),
+        ("F", "NExons", "R_topSplice_F_NExons.csv"),
+        ("t", "p", "R_topSplice_t_p.csv"),
+        ("t", "none", "R_topSplice_t_none.csv"),
+        ("t", "logFC", "R_topSplice_t_logFC.csv"),
+    ],
+)
 def test_top_splice_rparity(_diffsplice_fit, test, sort_by, file):
     from pylimma import top_splice
-    result = top_splice(_diffsplice_fit, coef=1, test=test,
-                        number=np.inf, sort_by=sort_by)
+
+    result = top_splice(_diffsplice_fit, coef=1, test=test, number=np.inf, sort_by=sort_by)
     expected = pd.read_csv(FIXTURES / file)
     # For "none" order, we expect identical row order. For sorted orders,
     # the ranking should match.
@@ -524,7 +556,8 @@ def test_top_splice_rparity(_diffsplice_fit, test, sort_by, file):
             np.testing.assert_allclose(
                 result[col].values,
                 expected[col].values,
-                rtol=1e-6, atol=1e-9,
+                rtol=1e-6,
+                atol=1e-9,
                 err_msg=f"column {col} ({test}, {sort_by})",
             )
 
@@ -533,9 +566,11 @@ def test_top_splice_rparity(_diffsplice_fit, test, sort_by, file):
 # plot_splice
 # ----------------------------------------------------------------------------
 
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_splice_substrate(_diffsplice_fit):
     from pylimma import plot_splice
+
     expected = pd.read_csv(FIXTURES / "R_plotSplice_substrate.csv")
     # Identify top gene by minimum F p-value on last coef
     gene_F_p = np.asarray(_diffsplice_fit["gene_F_p_value"])
@@ -546,15 +581,19 @@ def test_plot_splice_substrate(_diffsplice_fit):
 
     np.testing.assert_allclose(
         np.asarray(_diffsplice_fit["coefficients"])[exons, 1],
-        expected["log_fc"].values, rtol=1e-6,
+        expected["log_fc"].values,
+        rtol=1e-6,
     )
     np.testing.assert_allclose(
         np.asarray(_diffsplice_fit["t"])[exons, 1],
-        expected["t"].values, rtol=1e-6,
+        expected["t"].values,
+        rtol=1e-6,
     )
     np.testing.assert_allclose(
         np.asarray(_diffsplice_fit["p_value"])[exons, 1],
-        expected["p"].values, rtol=1e-6, atol=1e-9,
+        expected["p"].values,
+        rtol=1e-6,
+        atol=1e-9,
     )
 
     ax = plot_splice(_diffsplice_fit, coef=1)

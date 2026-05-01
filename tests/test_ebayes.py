@@ -1,14 +1,13 @@
 """Tests for pylimma ebayes module."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
 
-from pylimma.ebayes import e_bayes, treat, _tmixture_vector
+from pylimma.ebayes import _tmixture_vector, e_bayes, treat
 from pylimma.lmfit import lm_fit
-from pylimma.contrasts import make_contrasts, contrasts_fit
-
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -29,24 +28,16 @@ class TestEBayes:
         fit = e_bayes(fit)
 
         # Compare t-statistics (column 2 = groupB effect)
-        np.testing.assert_allclose(
-            fit["t"][:, 1], ref_stats["t"].values, rtol=1e-5
-        )
+        np.testing.assert_allclose(fit["t"][:, 1], ref_stats["t"].values, rtol=1e-5)
 
         # Compare p-values
-        np.testing.assert_allclose(
-            fit["p_value"][:, 1], ref_stats["p_value"].values, rtol=1e-5
-        )
+        np.testing.assert_allclose(fit["p_value"][:, 1], ref_stats["p_value"].values, rtol=1e-5)
 
         # Compare s2.post
-        np.testing.assert_allclose(
-            fit["s2_post"], ref_stats["s2_post"].values, rtol=1e-5
-        )
+        np.testing.assert_allclose(fit["s2_post"], ref_stats["s2_post"].values, rtol=1e-5)
 
         # Compare hyperparameters
-        np.testing.assert_allclose(
-            fit["s2_prior"], ref_global["s2_prior"].iloc[0], rtol=1e-5
-        )
+        np.testing.assert_allclose(fit["s2_prior"], ref_global["s2_prior"].iloc[0], rtol=1e-5)
 
     def test_moderated_t_smaller_than_ordinary(self):
         """Test that moderated t-stats have smaller variance than ordinary."""
@@ -130,7 +121,7 @@ class TestEBayes:
             # Variance increases with mean
             expr[i, :] = np.random.randn(n_samples) * (0.2 + 0.1 * means[i]) + means[i]
 
-        design = np.column_stack([np.ones(n_samples), [0]*5 + [1]*5])
+        design = np.column_stack([np.ones(n_samples), [0] * 5 + [1] * 5])
 
         fit1 = lm_fit(expr.copy(), design)
         fit1["Amean"] = np.mean(expr, axis=1)
@@ -261,10 +252,12 @@ class TestTmixtureVector:
         n = 100
         np.random.seed(42)
         # Include some very extreme values that would cause underflow
-        tstat = np.concatenate([
-            np.random.standard_t(df=5, size=90),
-            np.array([30, 40, 50, 60, 70, 80, 90, 100, 150, 200])  # Extreme values
-        ])
+        tstat = np.concatenate(
+            [
+                np.random.standard_t(df=5, size=90),
+                np.array([30, 40, 50, 60, 70, 80, 90, 100, 150, 200]),  # Extreme values
+            ]
+        )
         stdev = np.ones(n)
         # Use varying df to force adjustment
         df = np.concatenate([np.full(50, 3), np.full(50, 10)])

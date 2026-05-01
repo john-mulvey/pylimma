@@ -8,6 +8,7 @@ Area under ROC curve for empirical data.
 
 Port of R limma's ``auROC`` (``limma/R/auROC.R``).
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -70,4 +71,5 @@ def au_roc(truth, stat=None) -> float:
 def pd_isna(a):
     """Stripped-down equivalent of ``pandas.isna`` for any array-like."""
     import pandas as pd
+
     return pd.isna(a)

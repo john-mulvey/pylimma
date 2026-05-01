@@ -7,6 +7,7 @@
 ``select_model`` - AIC / BIC / Mallows' Cp model selection for gene-wise
 linear models. Port of R limma's ``selectModel``.
 """
+
 from __future__ import annotations
 
 from typing import Sequence
@@ -77,9 +78,7 @@ def select_model(
 
     criterion = criterion.lower()
     if criterion not in ("aic", "bic", "mallowscp"):
-        raise ValueError(
-            "criterion must be one of 'aic', 'bic', 'mallowscp'"
-        )
+        raise ValueError("criterion must be one of 'aic', 'bic', 'mallowscp'")
 
     IC = None
     if criterion == "mallowscp":
@@ -95,7 +94,7 @@ def select_model(
                 if s2_true.size != y.shape[0] and s2_true.size != 1:
                     raise ValueError("s2_true wrong length")
             sigma = np.asarray(fit["sigma"], dtype=np.float64)
-            IC[:, i] = df_res * sigma ** 2 / s2_true + npar * 2 - narrays
+            IC[:, i] = df_res * sigma**2 / s2_true + npar * 2 - narrays
     else:
         ntotal = df_prior + narrays
         penalty = np.log(narrays) if criterion == "bic" else 2.0
@@ -104,7 +103,7 @@ def select_model(
             df_res = np.asarray(fit["df_residual"], dtype=np.float64)
             sigma = np.asarray(fit["sigma"], dtype=np.float64)
             npar = narrays - float(df_res[0]) + 1
-            s2_post = (df_prior * s2_prior + df_res * sigma ** 2) / ntotal
+            s2_post = (df_prior * s2_prior + df_res * sigma**2) / ntotal
             if IC is None:
                 IC = np.full((y.shape[0], nmodels), np.nan)
             IC[:, i] = ntotal * np.log(s2_post) + npar * penalty

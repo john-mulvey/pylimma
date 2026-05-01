@@ -1,13 +1,13 @@
 """Tests for pylimma contrasts module."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
 
-from pylimma.contrasts import make_contrasts, contrasts_fit
+from pylimma.contrasts import contrasts_fit, make_contrasts
 from pylimma.lmfit import lm_fit
-
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -24,11 +24,7 @@ class TestMakeContrasts:
     def test_multiple_contrasts(self):
         """Test multiple contrasts."""
         cm = make_contrasts("B-A", "C-A", "C-B", levels=["A", "B", "C"])
-        expected = np.array([
-            [-1, -1, 0],
-            [1, 0, -1],
-            [0, 1, 1]
-        ])
+        expected = np.array([[-1, -1, 0], [1, 0, -1], [0, 1, 1]])
         np.testing.assert_array_equal(cm, expected)
 
     def test_average_contrast(self):
@@ -47,10 +43,7 @@ class TestMakeContrasts:
 
     def test_design_matrix_input(self):
         """Test levels from design matrix columns."""
-        design = pd.DataFrame(
-            np.eye(3),
-            columns=["A", "B", "C"]
-        )
+        design = pd.DataFrame(np.eye(3), columns=["A", "B", "C"])
         cm = make_contrasts("B-A", levels=design)
         expected = np.array([[-1], [1], [0]])
         np.testing.assert_array_equal(cm, expected)
@@ -64,11 +57,7 @@ class TestMakeContrasts:
 
     def test_named_contrasts(self):
         """Test named contrasts via kwargs."""
-        cm = make_contrasts(
-            TreatmentVsControl="B-A",
-            DrugVsDMSO="C-A",
-            levels=["A", "B", "C"]
-        )
+        cm = make_contrasts(TreatmentVsControl="B-A", DrugVsDMSO="C-A", levels=["A", "B", "C"])
         assert isinstance(cm, pd.DataFrame)
         assert list(cm.columns) == ["TreatmentVsControl", "DrugVsDMSO"]
         # Values should be correct
@@ -80,7 +69,7 @@ class TestMakeContrasts:
         cm = make_contrasts(
             "C-B",  # Unnamed - expression becomes name
             AvsRest="A-(B+C)/2",  # Named
-            levels=["A", "B", "C"]
+            levels=["A", "B", "C"],
         )
         assert list(cm.columns) == ["C-B", "AvsRest"]
         np.testing.assert_array_equal(cm["C-B"].values, [0, -1, 1])
@@ -153,10 +142,7 @@ class TestContrastsFit:
         fit2 = contrasts_fit(fit, contrasts)
 
         assert fit2["coefficients"].shape == (10, 1)
-        np.testing.assert_allclose(
-            fit2["coefficients"][:, 0],
-            fit["coefficients"][:, 1]
-        )
+        np.testing.assert_allclose(fit2["coefficients"][:, 0], fit["coefficients"][:, 1])
 
     def test_anndata_input(self):
         """Test contrasts_fit with AnnData input."""
@@ -196,10 +182,7 @@ class TestContrastsFit:
         fit = lm_fit(expr, design)
 
         # Create named contrasts
-        contrasts = make_contrasts(
-            TreatmentEffect="x1",
-            levels=["x0", "x1"]
-        )
+        contrasts = make_contrasts(TreatmentEffect="x1", levels=["x0", "x1"])
         fit2 = contrasts_fit(fit, contrasts)
 
         assert "contrast_names" in fit2
@@ -224,7 +207,7 @@ class TestContrastsFit:
         """Test coefficients parameter with integer indices."""
         np.random.seed(42)
         expr = np.random.randn(10, 9)
-        design = np.column_stack([np.ones(9), [0]*3 + [1]*3 + [0]*3, [0]*6 + [1]*3])
+        design = np.column_stack([np.ones(9), [0] * 3 + [1] * 3 + [0] * 3, [0] * 6 + [1] * 3])
 
         fit = lm_fit(expr, design)
         original_coef = fit["coefficients"].copy()
@@ -283,12 +266,8 @@ class TestContrastsFit:
         contrast_matrix = np.array([[0], [1]])
         fit_contrast = contrasts_fit(fit.copy(), contrasts=contrast_matrix)
 
-        np.testing.assert_allclose(
-            fit_coef["coefficients"], fit_contrast["coefficients"]
-        )
-        np.testing.assert_allclose(
-            fit_coef["stdev_unscaled"], fit_contrast["stdev_unscaled"]
-        )
+        np.testing.assert_allclose(fit_coef["coefficients"], fit_contrast["coefficients"])
+        np.testing.assert_allclose(fit_coef["stdev_unscaled"], fit_contrast["stdev_unscaled"])
 
     def test_both_contrasts_and_coefficients_raises(self):
         """Test that specifying both contrasts and coefficients raises error."""
@@ -327,10 +306,7 @@ class TestContrastNamesInTopTable:
         design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
 
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(
-            TreatmentEffect="x1",
-            levels=["x0", "x1"]
-        )
+        contrasts = make_contrasts(TreatmentEffect="x1", levels=["x0", "x1"])
         fit2 = contrasts_fit(fit, contrasts)
         fit2 = e_bayes(fit2)
 
@@ -352,10 +328,7 @@ class TestContrastNamesInTopTable:
         design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
 
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(
-            TreatmentEffect="x1",
-            levels=["x0", "x1"]
-        )
+        contrasts = make_contrasts(TreatmentEffect="x1", levels=["x0", "x1"])
         fit2 = contrasts_fit(fit, contrasts)
         fit2 = e_bayes(fit2)
 
@@ -378,11 +351,7 @@ class TestContrastNamesInTopTable:
         design[8:, 2] = 1
 
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(
-            BvsA="x1-x0",
-            CvsA="x2-x0",
-            levels=["x0", "x1", "x2"]
-        )
+        contrasts = make_contrasts(BvsA="x1-x0", CvsA="x2-x0", levels=["x0", "x1", "x2"])
         fit2 = contrasts_fit(fit, contrasts)
         fit2 = e_bayes(fit2)
 

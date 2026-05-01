@@ -20,13 +20,14 @@ Implements voom and related functions from R limma for RNA-seq analysis:
 from __future__ import annotations
 
 import warnings
+
 import numpy as np
 from scipy import interpolate, linalg
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
-from .lmfit import lm_fit, _parse_design
+from .classes import EList, _is_anndata, get_eawp, put_eawp
+from .lmfit import _parse_design, lm_fit
 from .utils import choose_lowess_span
-from .classes import EList, get_eawp, put_eawp, _is_anndata
 
 
 def _draw_voom_trend(
@@ -49,6 +50,7 @@ def _draw_voom_trend(
         import matplotlib.pyplot as plt
     except ImportError:
         import warnings
+
         warnings.warn("matplotlib not available for plotting")
         return
 
@@ -72,6 +74,7 @@ def _draw_array_weights_bar(aw: np.ndarray, ax=None, col=None) -> None:
         import matplotlib.pyplot as plt
     except ImportError:
         import warnings
+
         warnings.warn("matplotlib not available for plotting")
         return
 
@@ -90,6 +93,7 @@ def _draw_array_weights_bar(aw: np.ndarray, ax=None, col=None) -> None:
 def _normalize_between_arrays(y: np.ndarray, method: str = "none") -> np.ndarray:
     """Thin dispatcher onto :func:`pylimma.normalize.normalize_between_arrays`."""
     from .normalize import normalize_between_arrays
+
     return normalize_between_arrays(y, method=method)
 
 
@@ -259,7 +263,7 @@ def voom(
 
     # Choose span based on number of genes
     if adaptive_span:
-        span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1/3)
+        span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1 / 3)
 
     # Compute log2-counts-per-million
     # y = log2((counts+0.5)/(lib.size.matrix+1)*1e6)
@@ -277,13 +281,9 @@ def voom(
     n_with_reps = np.sum(fit["df_residual"] > 0)
     if n_with_reps < 2:
         if n_with_reps == 0:
-            warnings.warn(
-                "The experimental design has no replication. Setting weights to 1."
-            )
+            warnings.warn("The experimental design has no replication. Setting weights to 1.")
         elif n_with_reps == 1:
-            warnings.warn(
-                "Only one gene with any replication. Setting weights to 1."
-            )
+            warnings.warn("Only one gene with any replication. Setting weights to 1.")
         return put_eawp(
             {
                 "E": y,
@@ -324,10 +324,11 @@ def voom(
 
     # approxfun with rule=2 extrapolates using boundary values
     f = interpolate.interp1d(
-        x_sorted, y_sorted,
+        x_sorted,
+        y_sorted,
         kind="linear",
         bounds_error=False,
-        fill_value=(y_sorted[0], y_sorted[-1])
+        fill_value=(y_sorted[0], y_sorted[-1]),
     )
 
     # Compute fitted values from linear model
@@ -346,14 +347,14 @@ def voom(
     # fitted.cpm = 2^fitted.values
     # fitted.count = 1e-6 * fitted.cpm * (lib.size.matrix+1)
     # fitted.logcount = log2(fitted.count)
-    fitted_cpm = 2 ** fitted_values
+    fitted_cpm = 2**fitted_values
     fitted_count = 1e-6 * fitted_cpm * (lib_size_matrix + 1)
     fitted_logcount = np.log2(fitted_count)
 
     # Apply trend to individual observations
     # w = 1/f(fitted.logcount)^4
     trend_values = f(fitted_logcount)
-    w = 1 / trend_values ** 4
+    w = 1 / trend_values**4
 
     # Build output
     out = {
@@ -368,7 +369,10 @@ def voom(
 
     if plot:
         _draw_voom_trend(
-            sx_fit, sy_fit, x_sorted, y_sorted,
+            sx_fit,
+            sy_fit,
+            x_sorted,
+            y_sorted,
             xlab="log2( count size + 0.5 )",
             ylab="Sqrt( standard deviation )",
             title="voom: Mean-variance trend",
@@ -655,16 +659,12 @@ def vooma(
         if predictor.ndim == 1:
             if predictor.shape[0] != n_genes:
                 raise ValueError("predictor is of wrong dimension")
-            predictor = np.broadcast_to(
-                predictor[:, np.newaxis], (n_genes, n_samples)
-            ).copy()
+            predictor = np.broadcast_to(predictor[:, np.newaxis], (n_genes, n_samples)).copy()
         elif predictor.ndim == 2:
             if predictor.shape[0] != n_genes:
                 raise ValueError("predictor is of wrong dimension")
             if predictor.shape[1] == 1:
-                predictor = np.broadcast_to(
-                    predictor, (n_genes, n_samples)
-                ).copy()
+                predictor = np.broadcast_to(predictor, (n_genes, n_samples)).copy()
             elif predictor.shape[1] != n_samples:
                 raise ValueError("predictor is of wrong dimension")
         else:
@@ -673,18 +673,15 @@ def vooma(
             y_has_na = np.any(np.isnan(y))
             if y_has_na:
                 if np.any(np.isnan(predictor[~np.isnan(y)])):
-                    raise ValueError(
-                        "All observed y values must have non-NA predictors"
-                    )
+                    raise ValueError("All observed y values must have non-NA predictors")
             else:
-                raise ValueError(
-                    "All observed y values must have non-NA predictors"
-                )
+                raise ValueError("All observed y values must have non-NA predictors")
 
     # Fit linear model
     if block is None:
         # Simple OLS fit
         from scipy import linalg
+
         q, r, pivot = linalg.qr(design, pivoting=True)
         rank = np.sum(np.abs(np.diag(r)) > 1e-10)
         qty = q.T @ y.T
@@ -692,7 +689,7 @@ def vooma(
 
         # Residual variance
         residual_effects = qty[rank:, :]
-        s2 = np.mean(residual_effects ** 2, axis=0)
+        s2 = np.mean(residual_effects**2, axis=0)
     else:
         # With block correlation
         block = np.asarray(block)
@@ -718,6 +715,7 @@ def vooma(
 
         # Cholesky decomposition
         from scipy import linalg
+
         chol_v = linalg.cholesky(cormatrix, lower=False)
 
         # Transform data and design
@@ -733,7 +731,7 @@ def vooma(
 
         # Residual variance
         residual_effects = qtz[rank:, :]
-        s2 = np.mean(residual_effects ** 2, axis=0)
+        s2 = np.mean(residual_effects**2, axis=0)
 
     # Prepare for trend fitting
     sx = A
@@ -758,7 +756,7 @@ def vooma(
         if legacy_span:
             span = choose_lowess_span(n_genes, small_n=10, min_span=0.3, power=0.5)
         else:
-            span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1/3)
+            span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1 / 3)
 
     # Fit LOWESS trend using statsmodels (matches R's lowess closely)
     # delta=0.01*range(x) matches R's default delta parameter
@@ -768,10 +766,11 @@ def vooma(
     y_sorted = lowess_result[:, 1]
 
     f = interpolate.interp1d(
-        x_sorted, y_sorted,
+        x_sorted,
+        y_sorted,
         kind="linear",
         bounds_error=False,
-        fill_value=(y_sorted[0], y_sorted[-1])
+        fill_value=(y_sorted[0], y_sorted[-1]),
     )
 
     # Compute weights from fitted values (mu)
@@ -787,12 +786,15 @@ def vooma(
 
     if plot:
         _draw_voom_trend(
-            sx, sy, x_sorted, y_sorted,
+            sx,
+            sy,
+            x_sorted,
+            y_sorted,
             xlab=xlab,
             ylab="Sqrt( standard deviation )",
-            title=("vooma variance trend"
-                   if predictor is not None
-                   else "vooma mean-variance trend"),
+            title=(
+                "vooma variance trend" if predictor is not None else "vooma mean-variance trend"
+            ),
         )
 
     if save_plot:
@@ -901,10 +903,10 @@ def vooma_lm_fit(
     This function combines vooma() and lm_fit() with optional iterative
     refinement of sample weights and intra-block correlation.
     """
+    from .classes import as_matrix_weights
+    from .dups import duplicate_correlation
     from .lmfit import lm_fit
     from .weights import array_weights
-    from .dups import duplicate_correlation
-    from .classes import as_matrix_weights
 
     # Polymorphic input dispatch (ndarray / dict / EList / AnnData),
     # mirroring voom / vooma. Pull design and prior_weights off the
@@ -934,16 +936,12 @@ def vooma_lm_fit(
         if predictor.ndim == 1:
             if predictor.shape[0] != n_genes:
                 raise ValueError("predictor is of wrong dimension")
-            predictor = np.broadcast_to(
-                predictor[:, np.newaxis], (n_genes, n_samples)
-            ).copy()
+            predictor = np.broadcast_to(predictor[:, np.newaxis], (n_genes, n_samples)).copy()
         elif predictor.ndim == 2:
             if predictor.shape[0] != n_genes:
                 raise ValueError("predictor is of wrong dimension")
             if predictor.shape[1] == 1:
-                predictor = np.broadcast_to(
-                    predictor, (n_genes, n_samples)
-                ).copy()
+                predictor = np.broadcast_to(predictor, (n_genes, n_samples)).copy()
             elif predictor.shape[1] != n_samples:
                 raise ValueError("predictor is of wrong dimension")
         else:
@@ -952,13 +950,9 @@ def vooma_lm_fit(
             y_has_na = np.any(np.isnan(y))
             if y_has_na:
                 if np.any(np.isnan(predictor[~np.isnan(y)])):
-                    raise ValueError(
-                        "All observed y values must have non-NA predictors"
-                    )
+                    raise ValueError("All observed y values must have non-NA predictors")
             else:
-                raise ValueError(
-                    "All observed y values must have non-NA predictors"
-                )
+                raise ValueError("All observed y values must have non-NA predictors")
 
     # Parse design (formula strings via patsy + adata.obs when AnnData).
     sample_data = original_input.obs if _is_anndata(original_input) else None
@@ -977,7 +971,7 @@ def vooma_lm_fit(
     # Compute fitted values
     if fit["rank"] < design.shape[1]:
         pivot = fit.get("pivot", np.arange(design.shape[1]))
-        j = pivot[:fit["rank"]]
+        j = pivot[: fit["rank"]]
         fitted_values = fit["coefficients"][:, j] @ design[:, j].T
     else:
         fitted_values = fit["coefficients"] @ design.T
@@ -1001,7 +995,7 @@ def vooma_lm_fit(
         if legacy_span:
             span = choose_lowess_span(n_genes, small_n=10, min_span=0.3, power=0.5)
         else:
-            span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1/3)
+            span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1 / 3)
 
     # Fit LOWESS trend
     x_range = sx.max() - sx.min()
@@ -1011,10 +1005,11 @@ def vooma_lm_fit(
 
     # Create interpolating function
     f = interpolate.interp1d(
-        x_sorted, y_sorted,
+        x_sorted,
+        y_sorted,
         kind="linear",
         bounds_error=False,
-        fill_value=(y_sorted[0], y_sorted[-1])
+        fill_value=(y_sorted[0], y_sorted[-1]),
     )
 
     # Compute vooma weights
@@ -1026,6 +1021,7 @@ def vooma_lm_fit(
         # before multiplying so probe-weight / array-weight / scalar shapes
         # all behave like R's vooma path.
         from .classes import as_matrix_weights
+
         weights = w * as_matrix_weights(prior_weights, (n_genes, n_samples))
     else:
         weights = w
@@ -1066,7 +1062,7 @@ def vooma_lm_fit(
         # Recompute fitted values
         if fit["rank"] < design.shape[1]:
             pivot = fit.get("pivot", np.arange(design.shape[1]))
-            j = pivot[:fit["rank"]]
+            j = pivot[: fit["rank"]]
             fitted_values = fit["coefficients"][:, j] @ design[:, j].T
         else:
             fitted_values = fit["coefficients"] @ design.T
@@ -1089,10 +1085,11 @@ def vooma_lm_fit(
         y_sorted = lowess_result[:, 1]
 
         f = interpolate.interp1d(
-            x_sorted, y_sorted,
+            x_sorted,
+            y_sorted,
             kind="linear",
             bounds_error=False,
-            fill_value=(y_sorted[0], y_sorted[-1])
+            fill_value=(y_sorted[0], y_sorted[-1]),
         )
 
         # Recompute vooma weights
@@ -1104,6 +1101,7 @@ def vooma_lm_fit(
             # asMatrixWeights before multiplying so probe-weight /
             # array-weight / scalar shapes all behave like R's vooma.
             from .classes import as_matrix_weights
+
             weights = w * as_matrix_weights(prior_weights, (n_genes, n_samples))
         else:
             weights = w
@@ -1139,12 +1137,15 @@ def vooma_lm_fit(
     # Render trend plot if requested
     if plot:
         _draw_voom_trend(
-            sx, sy, x_sorted, y_sorted,
-            xlab=("Combined predictor" if predictor is not None
-                  else "Average log2 expression"),
+            sx,
+            sy,
+            x_sorted,
+            y_sorted,
+            xlab=("Combined predictor" if predictor is not None else "Average log2 expression"),
             ylab="Sqrt( standard deviation )",
-            title=("vooma variance trend" if predictor is not None
-                   else "vooma mean-variance trend"),
+            title=(
+                "vooma variance trend" if predictor is not None else "vooma mean-variance trend"
+            ),
         )
 
     # Add plot data if requested
@@ -1186,7 +1187,7 @@ def vooma_lm_fit(
         if fit.get("span") is not None:
             ancillary["span"] = fit["span"]
         if use_sample_weights and isinstance(fit.get("targets"), dict):
-            ancillary.update(fit["targets"])   # {"sample_weights": sw}
+            ancillary.update(fit["targets"])  # {"sample_weights": sw}
         if save_plot:
             if "voom_xy" in fit:
                 ancillary["voom_xy"] = fit["voom_xy"]
@@ -1237,7 +1238,8 @@ def vooma_by_group(
     picks up the design via the usual :func:`get_eawp` fallback.
     """
     import pandas as pd
-    from .classes import EList, get_eawp, put_eawp
+
+    from .classes import get_eawp, put_eawp
 
     original_input = y
     eawp = get_eawp(y, layer=layer)
@@ -1276,14 +1278,25 @@ def vooma_by_group(
         mask = group_arr == lev
         if mask.sum() < 2:
             # Singleton level: fall back to a global vooma fit.
-            v_all = vooma({"E": E}, design=design, block=block,
-                          correlation=correlation, span=span,
-                          legacy_span=legacy_span, plot=False)
+            v_all = vooma(
+                {"E": E},
+                design=design,
+                block=block,
+                correlation=correlation,
+                span=span,
+                legacy_span=legacy_span,
+                plot=False,
+            )
             weights[:, mask] = v_all["weights"][:, mask]
             continue
         sub = {"E": E[:, mask]}
-        v = vooma(sub, design=np.ones((int(mask.sum()), 1)),
-                  span=span, legacy_span=legacy_span, plot=False)
+        v = vooma(
+            sub,
+            design=np.ones((int(mask.sum()), 1)),
+            span=span,
+            legacy_span=legacy_span,
+            plot=False,
+        )
         weights[:, mask] = v["weights"]
 
     return put_eawp(

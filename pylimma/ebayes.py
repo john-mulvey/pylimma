@@ -12,19 +12,19 @@ Implements the core eBayes statistics from limma:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 import warnings
+from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy import stats
-
-from .squeeze_var import squeeze_var
-from .lmfit import is_fullrank
-from .classes import MArrayLM, _resolve_fit_input
 from scipy.special import gammaln
 
+from .classes import MArrayLM, _resolve_fit_input
+from .lmfit import is_fullrank
+from .squeeze_var import squeeze_var
+
 if TYPE_CHECKING:
-    from anndata import AnnData
+    pass
 
 
 def _t_isf_log(log_p: np.ndarray, df: float) -> np.ndarray:
@@ -86,6 +86,7 @@ def _classify_tests_f(
     Internal wrapper that calls classify_tests_f from decide_tests module.
     """
     from .decide_tests import classify_tests_f
+
     return classify_tests_f(fit, p_value=0.01, fstat_only=fstat_only)
 
 
@@ -208,9 +209,7 @@ def _tmixture_matrix(
     n_coefs = tstat.shape[1]
     v0 = np.zeros(n_coefs)
     for j in range(n_coefs):
-        v0[j] = _tmixture_vector(
-            tstat[:, j], stdev_unscaled[:, j], df, proportion, v0_lim
-        )
+        v0[j] = _tmixture_vector(tstat[:, j], stdev_unscaled[:, j], df, proportion, v0_lim)
     return v0
 
 
@@ -384,13 +383,19 @@ def e_bayes(
             t2_f = t2[finite_mask]
             r_f = r[finite_mask]
             df_total_f = df_total[finite_mask]
-            kernel[finite_mask] = (1 + df_total_f[:, np.newaxis]) / 2 * np.log(
-                (t2_f + df_total_f[:, np.newaxis]) / (t2_f / r_f + df_total_f[:, np.newaxis])
+            kernel[finite_mask] = (
+                (1 + df_total_f[:, np.newaxis])
+                / 2
+                * np.log(
+                    (t2_f + df_total_f[:, np.newaxis]) / (t2_f / r_f + df_total_f[:, np.newaxis])
+                )
             )
     else:
         # All genes have finite prior df - use standard formula
-        kernel = (1 + df_total[:, np.newaxis]) / 2 * np.log(
-            (t2 + df_total[:, np.newaxis]) / (t2 / r + df_total[:, np.newaxis])
+        kernel = (
+            (1 + df_total[:, np.newaxis])
+            / 2
+            * np.log((t2 + df_total[:, np.newaxis]) / (t2 / r + df_total[:, np.newaxis]))
         )
 
     lods = np.log(proportion / (1 - proportion)) - np.log(r) / 2 + kernel
@@ -430,9 +435,7 @@ def e_bayes(
                 df2_safe = np.where(mask_inf, 1.0, df2_arr)
                 fp = stats.f.sf(f_stat, df1, df2_safe)
                 if mask_inf.any():
-                    fp = np.where(mask_inf,
-                                  stats.chi2.sf(f_stat * df1, df1),
-                                  fp)
+                    fp = np.where(mask_inf, stats.chi2.sf(f_stat * df1, df1), fp)
                 fit["F_p_value"] = fp
 
     if not isinstance(fit, MArrayLM):
@@ -458,7 +461,7 @@ def treat(
     span: float | None = None,
     key: str = "pylimma",
 ) -> dict | None:
-    """
+    r"""
     Moderated t-statistics relative to a log fold-change threshold.
 
     TREAT (t-tests relative to a threshold) tests for evidence that the
@@ -593,6 +596,7 @@ def treat(
         # Use Gaussian quadrature for more accurate p-values
         # Matching R's gauss.quad.prob(16, dist="uniform", l=-lfc, u=lfc)
         from numpy.polynomial.legendre import leggauss
+
         nodes, weights = leggauss(16)
         # Transform nodes from [-1, 1] to [-lfc, lfc]
         nodes = lfc * nodes
@@ -625,9 +629,8 @@ def treat(
         tstat_left = (acoef + lfc) / se
 
         # P-value is sum of both tails
-        p_value = (
-            stats.t.sf(tstat_right, df_total[:, np.newaxis])
-            + stats.t.sf(tstat_left, df_total[:, np.newaxis])
+        p_value = stats.t.sf(tstat_right, df_total[:, np.newaxis]) + stats.t.sf(
+            tstat_left, df_total[:, np.newaxis]
         )
 
         # For display t-statistics, use the more conservative (closer to 0)
@@ -656,7 +659,6 @@ def treat(
         data.uns[key] = dict(fit)
         return None
     return fit
-
 
 
 def top_treat(
@@ -703,31 +705,22 @@ def top_treat(
     """
     from .toptable import top_table
 
-    if np.ndim(coef) > 0 and len(coef) > 1:                     # type: ignore[arg-type]
+    if np.ndim(coef) > 0 and len(coef) > 1:  # type: ignore[arg-type]
         warnings.warn(
-            "treat is for single coefficients: only first value of coef "
-            "being used",
+            "treat is for single coefficients: only first value of coef being used",
             stacklevel=2,
         )
-        coef = coef[0]                                          # type: ignore[index]
+        coef = coef[0]  # type: ignore[index]
 
     # R treat.R:86-87 raises whenever sort.by/resort.by names B; the
     # comparison is on the raw user value, so capital "B" must also
     # be rejected.
     if isinstance(sort_by, str) and sort_by.lower() == "b":
-        raise ValueError(
-            'Trying to sort_by="b", but treat does not produce a '
-            "B-statistic"
-        )
+        raise ValueError('Trying to sort_by="b", but treat does not produce a B-statistic')
     if isinstance(resort_by, str) and resort_by.lower() == "b":
-        raise ValueError(
-            'Trying to resort_by="b", but treat does not produce a '
-            "B-statistic"
-        )
+        raise ValueError('Trying to resort_by="b", but treat does not produce a B-statistic')
 
-    return top_table(
-        fit, coef=coef, sort_by=sort_by, resort_by=resort_by, **kwargs
-    )
+    return top_table(fit, coef=coef, sort_by=sort_by, resort_by=resort_by, **kwargs)
 
 
 def pred_fcm(
@@ -763,7 +756,7 @@ def pred_fcm(
     key : str, default "pylimma"
         Key for fit results in adata.uns (AnnData input only).
     """
-    from .utils import prop_true_null, fit_gamma_intercept
+    from .utils import fit_gamma_intercept, prop_true_null
 
     # Accept AnnData-stored fits (parity with contrasts_fit / e_bayes /
     # treat / top_table / decide_tests).
@@ -786,23 +779,20 @@ def pred_fcm(
     s2_post = np.asarray(fit["s2_post"])
 
     if var_indep_of_fc:
-        v0 = fit_gamma_intercept(coef_col ** 2, offset=v * s2_post)
+        v0 = fit_gamma_intercept(coef_col**2, offset=v * s2_post)
         if v0 < 0:
             v0 = 1e-8
         pfc = coef_col * v0 / (v0 + v * s2_post)
         if not all_de:
             A = p / (1 - p)
             B = np.sqrt(v * s2_post / (v * s2_post + v0))
-            C = np.exp(
-                coef_col ** 2 * v0
-                / (2 * v ** 2 * s2_post ** 2 + 2 * v * v0 * s2_post)
-            )
+            C = np.exp(coef_col**2 * v0 / (2 * v**2 * s2_post**2 + 2 * v * v0 * s2_post))
             lods = np.log(A * B * C)
             prob_de = np.exp(lods) / (1 + np.exp(lods))
             prob_de[lods > 700] = 1.0
             pfc = pfc * prob_de
     else:
-        b2 = coef_col ** 2 / s2_post
+        b2 = coef_col**2 / s2_post
         v0 = fit_gamma_intercept(b2, offset=v)
         # R uses pmin here (bug-for-bug port).
         v0 = np.minimum(v0, 1e-8)
@@ -810,10 +800,7 @@ def pred_fcm(
         if not all_de:
             A = p / (1 - p)
             B = np.sqrt(v / (v + v0))
-            C = np.exp(
-                coef_col ** 2 * v0
-                / (2 * v ** 2 * s2_post + 2 * v * v0 * s2_post)
-            )
+            C = np.exp(coef_col**2 * v0 / (2 * v**2 * s2_post + 2 * v * v0 * s2_post))
             lods = np.log(A * B * C)
             prob_de = np.exp(lods) / (1 + np.exp(lods))
             prob_de[lods > 700] = 1.0

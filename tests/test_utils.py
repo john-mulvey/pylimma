@@ -1,15 +1,20 @@
 """Tests for pylimma utility functions."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
 
 from pylimma.utils import (
-    trigamma_inverse, logmdigamma, p_adjust,
-    qqt, qqf, choose_lowess_span, loess_fit
+    choose_lowess_span,
+    loess_fit,
+    logmdigamma,
+    p_adjust,
+    qqf,
+    qqt,
+    trigamma_inverse,
 )
-
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -70,6 +75,7 @@ class TestLogmdigamma:
 
         np.testing.assert_allclose(result, expected, rtol=1e-14)
 
+
 class TestPAdjust:
     """Tests for p_adjust function."""
 
@@ -123,6 +129,7 @@ class TestQQT:
         assert len(result["x"]) == 100
         # Theoretical quantiles should be from normal distribution
         from scipy import stats
+
         expected_x = stats.norm.ppf((np.arange(1, 101) - 0.5) / 100)
         # Check that x values span similar range
         assert np.isclose(np.min(result["x"]), np.min(expected_x), rtol=0.1)
@@ -148,6 +155,7 @@ class TestQQF:
         """Test qqf returns expected structure."""
         np.random.seed(42)
         from scipy import stats
+
         y = stats.f.rvs(dfn=5, dfd=20, size=50)
 
         result = qqf(y, df1=5, df2=20, plot_it=False)
@@ -176,7 +184,7 @@ class TestChooseLowessSpan:
         """Test span approaches min_span for large n."""
         span = choose_lowess_span(n=10000, small_n=50, min_span=0.3)
         # With power=1/3, (50/10000)^(1/3) = 0.171, so span = 0.3 + 0.7*0.171 = 0.42
-        expected = 0.3 + (1 - 0.3) * (50 / 10000) ** (1/3)
+        expected = 0.3 + (1 - 0.3) * (50 / 10000) ** (1 / 3)
         assert np.isclose(span, expected, rtol=1e-10)
 
     def test_default_values(self):
@@ -207,11 +215,7 @@ class TestLoessFit:
         assert len(result["fitted"]) == 100
         assert len(result["residuals"]) == 100
         # Residuals should be y - fitted
-        np.testing.assert_allclose(
-            result["residuals"],
-            y - result["fitted"],
-            rtol=1e-10
-        )
+        np.testing.assert_allclose(result["residuals"], y - result["fitted"], rtol=1e-10)
 
     def test_weighted_r_parity(self):
         """Test weighted LOWESS matches R limma's weightedLowess."""
@@ -219,17 +223,11 @@ class TestLoessFit:
         ref = pd.read_csv(FIXTURES_DIR / "weighted_lowess.csv")
 
         result = loess_fit(
-            ref["y"].values,
-            ref["x"].values,
-            weights=ref["weights"].values,
-            span=0.3,
-            iterations=4
+            ref["y"].values, ref["x"].values, weights=ref["weights"].values, span=0.3, iterations=4
         )
 
         # Should match R within numerical precision
-        np.testing.assert_allclose(
-            result["fitted"], ref["fitted"].values, rtol=1e-6
-        )
+        np.testing.assert_allclose(result["fitted"], ref["fitted"].values, rtol=1e-6)
 
     def test_nan_handling(self):
         """Test that NaN values are handled."""

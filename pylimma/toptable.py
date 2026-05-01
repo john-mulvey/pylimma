@@ -19,11 +19,11 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .utils import p_adjust
 from .classes import _resolve_fit_input
+from .utils import p_adjust
 
 if TYPE_CHECKING:
-    from anndata import AnnData
+    pass
 
 
 def _handle_duplicated_rownames(
@@ -79,7 +79,7 @@ def top_table(
     confint: bool | float = False,
     key: str = "pylimma",
 ) -> pd.DataFrame:
-    """
+    r"""
     Extract a table of top-ranked genes from a linear model fit.
 
     Parameters
@@ -198,6 +198,7 @@ def top_table(
                     intercept_idx = coef_names_check.index("(Intercept)")
                     coef_idx.remove(intercept_idx)
                     import warnings
+
                     warnings.warn("Removing intercept from test coefficients")
                 except ValueError:
                     pass  # No intercept found
@@ -217,8 +218,7 @@ def top_table(
             if isinstance(c, str):
                 if c not in coef_names:
                     raise ValueError(
-                        f"Coefficient/contrast '{c}' not found. "
-                        f"Available: {coef_names}"
+                        f"Coefficient/contrast '{c}' not found. Available: {coef_names}"
                     )
                 new_coef_idx.append(coef_names.index(c))
             else:
@@ -248,6 +248,7 @@ def top_table(
             )
         if confint:
             import warnings
+
             warnings.warn("confint is ignored for F-test (multiple coefficients)")
         # R toptable.R:46: `if(sort.by=="B") sort.by <- "F"` - silent
         # translation when routing to .topTableF.
@@ -314,13 +315,11 @@ def _top_table_t(
         # R toptable.R:209-211: missing lods + sort/resort.by="B" raises.
         if sort_by == "B":
             raise ValueError(
-                "Trying to sort.by B, but B-statistic (lods) "
-                "not found in MArrayLM object"
+                "Trying to sort.by B, but B-statistic (lods) not found in MArrayLM object"
             )
         if resort_by == "B":
             raise ValueError(
-                "Trying to resort.by B, but B-statistic (lods) "
-                "not found in MArrayLM object"
+                "Trying to resort.by B, but B-statistic (lods) not found in MArrayLM object"
             )
         b_stat = np.full(n_genes, np.nan)
     has_amean = "Amean" in fit and fit["Amean"] is not None
@@ -339,7 +338,7 @@ def _top_table_t(
     # is treated as the row index, NOT an ID column, to preserve
     # rownames flow through the pipeline.
     if genelist is None:
-        genes = [f"gene{i+1}" for i in range(n_genes)]
+        genes = [f"gene{i + 1}" for i in range(n_genes)]
         genelist_df = None
     elif isinstance(genelist, pd.DataFrame):
         genes = list(genelist.index) if len(genelist.index) == n_genes else list(range(n_genes))
@@ -359,7 +358,7 @@ def _top_table_t(
             genes = [f"gene{i}" for i in range(n_genes)]
             genelist_df = None
     else:
-        genes = [f"gene{i+1}" for i in range(n_genes)]
+        genes = [f"gene{i + 1}" for i in range(n_genes)]
         genelist_df = None
 
     # Handle duplicated gene names (DataFrame index must be unique)
@@ -372,7 +371,9 @@ def _top_table_t(
         s2_post = fit.get("s2_post")
         df_total = fit.get("df_total")
         if stdev_unscaled is None or s2_post is None or df_total is None:
-            raise ValueError("Need stdev_unscaled, s2_post, df_total in fit for confidence intervals")
+            raise ValueError(
+                "Need stdev_unscaled, s2_post, df_total in fit for confidence intervals"
+            )
         if isinstance(confint, float):
             alpha = (1 + confint) / 2
         else:
@@ -417,12 +418,19 @@ def _top_table_t(
     def _get_sort_order(sort_col, data_dict, default_order, use_abs=True):
         # R toptable.R:188: `sort.by="A" || sort.by=="Amean"` -> "AveExpr".
         sort_by_map = {
-            "B": "b", "b": "b",
-            "P": "p", "p": "p",
-            "T": "t", "t": "t",
-            "logFC": "logFC", "log_fc": "logFC", "M": "logFC",
-            "AveExpr": "AveExpr", "ave_expr": "AveExpr",
-            "A": "AveExpr", "Amean": "AveExpr",
+            "B": "b",
+            "b": "b",
+            "P": "p",
+            "p": "p",
+            "T": "t",
+            "t": "t",
+            "logFC": "logFC",
+            "log_fc": "logFC",
+            "M": "logFC",
+            "AveExpr": "AveExpr",
+            "ave_expr": "AveExpr",
+            "A": "AveExpr",
+            "Amean": "AveExpr",
             "none": "none",
         }
         col = sort_by_map.get(sort_col, sort_col)
@@ -572,6 +580,7 @@ def top_table_f(
     # it with DeprecationWarning so downstream tooling (pytest's
     # warning capture, IDE linters) sees an equivalent signal.
     import warnings as _warnings
+
     _warnings.warn(
         "top_table_f is obsolete and will be removed in a future "
         "version of pylimma. Please consider using top_table instead.",
@@ -592,9 +601,7 @@ def top_table_f(
     # R topTableF.R:38: `sort.by <- match.arg(sort.by, c("F","none"))`.
     # match.arg errors on anything else; mirror that here.
     if sort_by not in ("F", "none"):
-        raise ValueError(
-            f"sort_by={sort_by!r} not recognised. Must be one of 'F', 'none'."
-        )
+        raise ValueError(f"sort_by={sort_by!r} not recognised. Must be one of 'F', 'none'.")
 
     # R topTableF.R:12: `rn <- rownames(M)`. When fit["coefficients"]
     # is a DataFrame, surface its index as `coef_rownames` so duplicate
@@ -652,8 +659,9 @@ def top_table_f(
     # index instead - see `_top_table_t` for the same pattern.
     if genelist is None:
         genes = (
-            list(coef_rownames) if coef_rownames is not None
-            else [f"gene{i+1}" for i in range(n_genes)]
+            list(coef_rownames)
+            if coef_rownames is not None
+            else [f"gene{i + 1}" for i in range(n_genes)]
         )
         genelist_df = None
     elif isinstance(genelist, pd.DataFrame):
@@ -671,7 +679,7 @@ def top_table_f(
             genes = [f"gene{i}" for i in range(n_genes)]
             genelist_df = None
     else:
-        genes = [f"gene{i+1}" for i in range(n_genes)]
+        genes = [f"gene{i + 1}" for i in range(n_genes)]
         genelist_df = None
 
     # R topTableF.R:87-100: when rownames(M) (i.e. fit$coefficients
@@ -721,9 +729,13 @@ def top_table_f(
     # Helper function for sorting
     def _get_sort_order(sort_col, f_stat, f_p_val, ave_expr, default_order):
         sort_by_map = {
-            "F": "F", "f": "F",
-            "P": "p", "p": "p",
-            "AveExpr": "AveExpr", "ave_expr": "AveExpr", "A": "AveExpr",
+            "F": "F",
+            "f": "F",
+            "P": "p",
+            "p": "p",
+            "AveExpr": "AveExpr",
+            "ave_expr": "AveExpr",
+            "A": "AveExpr",
             "none": "none",
         }
         col = sort_by_map.get(sort_col, "F" if sort_col == "B" else sort_col)
@@ -772,7 +784,7 @@ def top_table_f(
     if stored_names is not None:
         coef_names = [stored_names[i] for i in coef_idx]
     else:
-        coef_names = [f"Coef{i+1}" for i in coef_idx]
+        coef_names = [f"Coef{i + 1}" for i in coef_idx]
 
     # R topTableF.R:88 builds the table with genelist FIRST, then
     # coefficient columns: `tab <- data.frame(genelist[o,,drop=FALSE],

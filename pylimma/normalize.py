@@ -52,12 +52,12 @@ import warnings
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize
-from scipy.stats import norm as _scipy_norm, rankdata
+from scipy.stats import norm as _scipy_norm
+from scipy.stats import rankdata
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
+from .classes import EList, _is_anndata, get_eawp, put_eawp
 from .utils import choose_lowess_span
-from .classes import get_eawp, put_eawp, EList, _is_anndata
-
 
 _VALID_METHODS = ("none", "scale", "quantile", "cyclicloess")
 
@@ -127,7 +127,9 @@ def normalize_between_arrays(
         normalized = normalize_quantiles(arr, **kwargs)
     elif method == "cyclicloess":
         normalized = normalize_cyclic_loess(
-            arr, method=cyclic_method, **kwargs,
+            arr,
+            method=cyclic_method,
+            **kwargs,
         )
     else:
         raise AssertionError("unreachable")  # pragma: no cover
@@ -288,7 +290,10 @@ def normalize_cyclic_loess(
 
     if adaptive_span:
         span = choose_lowess_span(
-            x.shape[0], small_n=50, min_span=0.3, power=1/3,
+            x.shape[0],
+            small_n=50,
+            min_span=0.3,
+            power=1 / 3,
         )
 
     n = x.shape[1]
@@ -308,7 +313,11 @@ def normalize_cyclic_loess(
             yobs = m[obs]
             delta = 0.01 * float(xobs.max() - xobs.min())
             f_obs = sm_lowess(
-                yobs, xobs, frac=span, it=3, delta=delta,
+                yobs,
+                xobs,
+                frac=span,
+                it=3,
+                delta=delta,
                 return_sorted=False,
             )
         else:
@@ -416,23 +425,21 @@ def _r_density_epanechnikov(
     ix = np.floor(xpos).astype(np.int64)
     fx = xpos - ix
     interior = (ix >= 0) & (ix <= n - 2)
-    np.add.at(y, ix[interior],     (1 - fx[interior]) * w)
-    np.add.at(y, ix[interior] + 1,      fx[interior]  * w)
-    left  = (ix == -1)
-    right = (ix == n - 1)
+    np.add.at(y, ix[interior], (1 - fx[interior]) * w)
+    np.add.at(y, ix[interior] + 1, fx[interior] * w)
+    left = ix == -1
+    right = ix == n - 1
     if left.any():
-        np.add.at(y, np.zeros(int(left.sum()), dtype=np.int64),
-                  fx[left] * w)
+        np.add.at(y, np.zeros(int(left.sum()), dtype=np.int64), fx[left] * w)
     if right.any():
-        np.add.at(y, np.full(int(right.sum()), n - 1, dtype=np.int64),
-                  (1 - fx[right]) * w)
+        np.add.at(y, np.full(int(right.sum()), n - 1, dtype=np.int64), (1 - fx[right]) * w)
 
     # kords: FFT-ordered kernel grid. Positions: 0, dx, 2dx, ..., n*dx,
     # -(n-1)*dx, ..., -dx  (length 2n).
     dx = (up - lo) / (n - 1)
     kords = np.empty(2 * n)
-    kords[:n + 1] = np.arange(n + 1) * dx
-    kords[n + 1:] = -np.arange(n - 1, 0, -1) * dx
+    kords[: n + 1] = np.arange(n + 1) * dx
+    kords[n + 1 :] = -np.arange(n - 1, 0, -1) * dx
 
     a = bw * np.sqrt(5.0)
     ax = np.abs(kords)
@@ -456,7 +463,7 @@ def _r_density_mode(x: np.ndarray, n_pts: int) -> float:
     return float(x_grid[int(np.argsort(-y_grid, kind="stable")[0])])
 
 
-def _bg_parameters(pm: np.ndarray, n_pts: int = 2 ** 14) -> dict:
+def _bg_parameters(pm: np.ndarray, n_pts: int = 2**14) -> dict:
     """Port of ``affy::bg.parameters`` (Bioconductor affy, LGPL >= 2.0).
 
     Estimates normexp (mu, sigma, alpha) by locating the mode of the
@@ -469,14 +476,14 @@ def _bg_parameters(pm: np.ndarray, n_pts: int = 2 ** 14) -> dict:
     bg_data = pm[pm < pmbg]
     pmbg = _r_density_mode(bg_data, n_pts)
     bg_data = pm[pm < pmbg] - pmbg
-    bgsd = np.sqrt(np.sum(bg_data ** 2) / (len(bg_data) - 1)) * np.sqrt(2)
+    bgsd = np.sqrt(np.sum(bg_data**2) / (len(bg_data) - 1)) * np.sqrt(2)
     sig_data = pm[pm > pmbg] - pmbg
     expmean = _r_density_mode(sig_data, n_pts)
     alpha = 1.0 / expmean
     return {"alpha": alpha, "mu": pmbg, "sigma": bgsd}
 
 
-def _bg_parameters_rma75(pm: np.ndarray, n_pts: int = 2 ** 14) -> dict:
+def _bg_parameters_rma75(pm: np.ndarray, n_pts: int = 2**14) -> dict:
     """Port of limma's ``.bg.parameters.rma75`` (``background-normexp.R``).
 
     Closed-form RMA-75 estimator of McGee & Chen (2006).
@@ -487,11 +494,12 @@ def _bg_parameters_rma75(pm: np.ndarray, n_pts: int = 2 ** 14) -> dict:
         sa = s * a
 
         def f(u):
-            return (_scipy_norm.pdf(u - sa)
-                    - sa * (_scipy_norm.cdf(u - sa)
-                            + _scipy_norm.cdf(m / s + sa) - 1))
+            return _scipy_norm.pdf(u - sa) - sa * (
+                _scipy_norm.cdf(u - sa) + _scipy_norm.cdf(m / s + sa) - 1
+            )
 
         from scipy.optimize import brentq
+
         t = brentq(f, -5, 10, xtol=1e-12)
         return m - s * t
 
@@ -500,7 +508,7 @@ def _bg_parameters_rma75(pm: np.ndarray, n_pts: int = 2 ** 14) -> dict:
     pmbg = _r_density_mode(bg_data, n_pts)
     mubg = pmbg
     bg_data = pm[pm < pmbg] - pmbg
-    bgsd = np.sqrt(np.sum(bg_data ** 2) / (len(bg_data) - 1)) * np.sqrt(2)
+    bgsd = np.sqrt(np.sum(bg_data**2) / (len(bg_data) - 1)) * np.sqrt(2)
 
     q75 = 0.75
     alpha3 = -(float(np.quantile(pm, q75)) - pmbg) / np.log(1 - q75)
@@ -509,7 +517,7 @@ def _bg_parameters_rma75(pm: np.ndarray, n_pts: int = 2 ** 14) -> dict:
     mu3 = (mu3 + mubg) / 2
 
     bg_data3 = pm[pm < mu3] - mu3
-    bgsd3 = np.sqrt(np.sum(bg_data3 ** 2) / (len(bg_data3) - 1)) * np.sqrt(2)
+    bgsd3 = np.sqrt(np.sum(bg_data3**2) / (len(bg_data3) - 1)) * np.sqrt(2)
     alpha3 = -(float(np.quantile(pm, q75)) - mu3) / np.log(1 - q75)
     return {"alpha": 1.0 / alpha3, "mu": mu3, "sigma": bgsd3}
 
@@ -565,7 +573,7 @@ def _normexp_saddle_m2loglik(par: np.ndarray, x: np.ndarray) -> float:
     logf = -0.5 * np.log(2.0 * np.pi * k2) - x * theta + k1
     k3 = 2.0 * alpha3 / (omat * omat2)
     k4 = 6.0 * alpha4 / (omat2 * omat2)
-    logf = logf + k4 / (8.0 * k2 * k2) - 5.0 * k3 * k3 / (24.0 * k2 ** 3)
+    logf = logf + k4 / (8.0 * k2 * k2) - 5.0 * k3 * k3 / (24.0 * k2**3)
     return -2.0 * float(logf.sum())
 
 
@@ -587,8 +595,7 @@ def _normexp_m2loglik(par: np.ndarray, x: np.ndarray) -> float:
     # pnorm(0, mu_sf, s, lower.tail=FALSE, log.p=TRUE) = log(1 - Phi((0-mu_sf)/s))
     # = scipy.stats.norm.logsf(-mu_sf / s) = logsf((0 - mu_sf)/s)
     log_upper = _scipy_norm.logsf(-mu_sf / s)
-    return -2.0 * float(np.sum(-np.log(al) - e / al + 0.5 * s2 / (al * al)
-                               + log_upper))
+    return -2.0 * float(np.sum(-np.log(al) - e / al + 0.5 * s2 / (al * al) + log_upper))
 
 
 def _normexp_gm2loglik(par: np.ndarray, x: np.ndarray) -> np.ndarray:
@@ -612,9 +619,9 @@ def _normexp_gm2loglik(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     log_upper = _scipy_norm.logsf(-mu_sf / s)
     psionPsi = np.exp(log_dnorm - log_upper)
 
-    d_mu   = np.sum(1.0 / al - psionPsi)
-    d_s2   = np.sum(0.5 / al2 - (1.0 / al + 0.5 / s2 * mu_sf) * psionPsi)
-    d_al   = np.sum(e / al2 - 1.0 / al - s2 / (al2 * al) + psionPsi * s2 / al2)
+    d_mu = np.sum(1.0 / al - psionPsi)
+    d_s2 = np.sum(0.5 / al2 - (1.0 / al + 0.5 / s2 * mu_sf) * psionPsi)
+    d_al = np.sum(e / al2 - 1.0 / al - s2 / (al2 * al) + psionPsi * s2 / al2)
 
     g = np.array([d_mu, d_s2, d_al], dtype=np.float64)
     g *= -2.0
@@ -652,23 +659,24 @@ def _normexp_hm2loglik(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     dL_ds2 = np.sum(e / al2 - 1.0 / al - s2 / al3 + psionPsi * s2 / al2)
 
     d2L_dbtdbt = np.sum(-psionPsi2 - psionPsi * mu_sf / s2)
-    d2L_dbtds2 = np.sum(-0.5 * eps2 * psionPsi2 / s2
-                        + (-eps2 ** 2 + 2.0 * s2onal * eps2 + s2)
-                          * psionPsi * (0.5 / (s2 * s2)))
-    d2L_dbtdal = np.sum(-1.0 / al2 + (s2 / al2) * psionPsi2
-                        + mu_sf * psionPsi / al2)
+    d2L_dbtds2 = np.sum(
+        -0.5 * eps2 * psionPsi2 / s2
+        + (-(eps2**2) + 2.0 * s2onal * eps2 + s2) * psionPsi * (0.5 / (s2 * s2))
+    )
+    d2L_dbtdal = np.sum(-1.0 / al2 + (s2 / al2) * psionPsi2 + mu_sf * psionPsi / al2)
     d2L_ds2ds2 = np.sum(
-        -(0.25 / (s2 * s2)) * (eps2 ** 2) * psionPsi2
-        + psionPsi * (-e ** 3 + e * (3.0 * al - e) * s2onal
-                      + (e + al) * s2onal2 + s2onal3)
-          / (4.0 * s2 ** 3)
+        -(0.25 / (s2 * s2)) * (eps2**2) * psionPsi2
+        + psionPsi
+        * (-(e**3) + e * (3.0 * al - e) * s2onal + (e + al) * s2onal2 + s2onal3)
+        / (4.0 * s2**3)
     )
     d2L_dalds2 = np.sum(
-        -1.0 / al3 + (0.5 / al2) * (psionPsi2 * eps2
-                                    + (e ** 2 + s2 - s2onal2) * psionPsi / s2)
+        -1.0 / al3 + (0.5 / al2) * (psionPsi2 * eps2 + (e**2 + s2 - s2onal2) * psionPsi / s2)
     )
     d2L_daldal = np.sum(
-        1.0 / al2 - 2.0 * e / al3 + 3.0 * s2 / al4
+        1.0 / al2
+        - 2.0 * e / al3
+        + 3.0 * s2 / al4
         - psionPsi2 * (s2 * s2 / al4)
         - psionPsi * (mu_sf + 2.0 * al) * (s2 / al4)
     )
@@ -727,9 +735,7 @@ def normexp_fit(
     x = np.asarray(x, dtype=np.float64)
     x = x[~np.isnan(x)]
     if len(x) < 4:
-        raise ValueError(
-            "Not enough data: need at least 4 non-missing corrected intensities"
-        )
+        raise ValueError("Not enough data: need at least 4 non-missing corrected intensities")
     if trace:
         print("trace not currently implemented")
 
@@ -744,21 +750,16 @@ def normexp_fit(
 
     if method == "rma":
         out = _bg_parameters(x)
-        return {"par": np.array(
-            [out["mu"], np.log(out["sigma"]), -np.log(out["alpha"])]
-        )}
+        return {"par": np.array([out["mu"], np.log(out["sigma"]), -np.log(out["alpha"])])}
 
     if method == "rma75":
         out = _bg_parameters_rma75(x)
-        return {"par": np.array(
-            [out["mu"], np.log(out["sigma"]), -np.log(out["alpha"])]
-        )}
+        return {"par": np.array([out["mu"], np.log(out["sigma"]), -np.log(out["alpha"])])}
 
     # Starting values (background-normexp.R:53-68)
     q = np.quantile(x, [0.0, 0.05, 0.1, 1.0])
     if q[0] == q[3]:
-        return {"par": np.array([q[0], -np.inf, -np.inf]),
-                "m2loglik": np.nan, "convergence": 0}
+        return {"par": np.array([q[0], -np.inf, -np.inf]), "m2loglik": np.nan, "convergence": 0}
     if q[1] > q[0]:
         mu = q[1]
     elif q[2] > q[0]:
@@ -792,8 +793,7 @@ def normexp_fit(
         par0,
         args=(x,),
         method="Nelder-Mead",
-        options={"maxiter": 500, "xatol": 1.490116e-08,
-                 "fatol": 1.490116e-08, "adaptive": False},
+        options={"maxiter": 500, "xatol": 1.490116e-08, "fatol": 1.490116e-08, "adaptive": False},
     )
     saddle_out = {
         "par": np.asarray(nm_result.x, dtype=np.float64).copy(),
@@ -884,9 +884,7 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     # dnorm(0, mu_sf, sigma, log=TRUE) - pnorm(0, mu_sf, sigma, lower.tail=FALSE, log.p=TRUE)
     # = logpdf((0-mu_sf)/sigma) - log(sigma) - logsf((0-mu_sf)/sigma)
     z = -mu_sf / sigma
-    signal = mu_sf + sigma2 * np.exp(
-        _scipy_norm.logpdf(z) - np.log(sigma) - _scipy_norm.logsf(z)
-    )
+    signal = mu_sf + sigma2 * np.exp(_scipy_norm.logpdf(z) - np.log(sigma) - _scipy_norm.logsf(z))
     obs = ~np.isnan(signal)
     if np.any(signal[obs] < 0):
         warnings.warn(
@@ -903,7 +901,13 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
 
 
 _BACKGROUND_METHODS = (
-    "none", "subtract", "half", "minimum", "movingmin", "edwards", "normexp",
+    "none",
+    "subtract",
+    "half",
+    "minimum",
+    "movingmin",
+    "edwards",
+    "normexp",
 )
 
 
@@ -954,14 +958,11 @@ def background_correct(
     if method == "auto":
         method = "normexp" if Eb is None else "subtract"
     if method not in _BACKGROUND_METHODS:
-        raise ValueError(
-            f"'method' should be one of {_BACKGROUND_METHODS}"
-        )
+        raise ValueError(f"'method' should be one of {_BACKGROUND_METHODS}")
 
     # R's matrix path: if Eb is NULL and method needs background, downgrade
     # to 'none' (background.R:51-52).
-    if Eb is None and method in ("subtract", "half", "minimum",
-                                 "movingmin", "edwards"):
+    if Eb is None and method in ("subtract", "half", "minimum", "movingmin", "edwards"):
         method = "none"
 
     if method == "none":
@@ -1084,13 +1085,18 @@ def aver_arrays(
         df_vals = pd.DataFrame(arr.T, index=id_arr)
         # groupby with sort=False keeps first-appearance order
         sums = df_vals.groupby(level=0, sort=False).sum(min_count=0).reindex(unique_order)
-        counts = (~pd.DataFrame(np.isnan(arr.T), index=id_arr)).groupby(
-            level=0, sort=False).sum().reindex(unique_order)
+        counts = (
+            (~pd.DataFrame(np.isnan(arr.T), index=id_arr))
+            .groupby(level=0, sort=False)
+            .sum()
+            .reindex(unique_order)
+        )
         y = sums.values / counts.values
         return y.T
 
     # Weighted path: lm_fit on one-hot design.
     from .lmfit import lm_fit
+
     one_hot = np.zeros((len(id_arr), len(unique_order)), dtype=np.float64)
     for j, level in enumerate(unique_order):
         one_hot[id_arr == level, j] = 1.0
@@ -1124,13 +1130,13 @@ def _aver_arrays_elist(x: EList, id=None, weights=None) -> EList:
     out = EList(x)
     out["E"] = aver_arrays(E, id=id_arr, weights=w_default)
     if x.get("weights", None) is not None:
-        out["weights"] = aver_arrays(np.asarray(x["weights"], dtype=np.float64),
-                                     id=id_arr, weights=w_default)
+        out["weights"] = aver_arrays(
+            np.asarray(x["weights"], dtype=np.float64), id=id_arr, weights=w_default
+        )
     other = x.get("other", None)
     if other is not None:
         out["other"] = {
-            k: aver_arrays(np.asarray(v, dtype=np.float64), id=id_arr,
-                           weights=w_default)
+            k: aver_arrays(np.asarray(v, dtype=np.float64), id=id_arr, weights=w_default)
             for k, v in other.items()
         }
     # R: y <- x[,!d] first, then overwrites slots. So drop duplicate targets.
@@ -1165,8 +1171,7 @@ def _aver_arrays_anndata(adata, id=None, weights=None):
     id_arr = np.asarray([str(v) for v in id])
     if id_arr.shape[0] != E.shape[1]:
         raise ValueError(
-            f"length of id ({id_arr.shape[0]}) must match number of "
-            f"samples ({E.shape[1]})"
+            f"length of id ({id_arr.shape[0]}) must match number of samples ({E.shape[1]})"
         )
 
     # Delegate the averaging to the matrix path; output is (n_genes, n_unique).
@@ -1307,8 +1312,7 @@ def _vsn_trsf(y, par):
     a = par[:n_cols]
     b = par[n_cols:]
     fb = np.exp(b)
-    return np.where(np.isnan(y), np.nan,
-                    np.arcsinh(fb[np.newaxis, :] * y + a[np.newaxis, :]))
+    return np.where(np.isnan(y), np.nan, np.arcsinh(fb[np.newaxis, :] * y + a[np.newaxis, :]))
 
 
 def _vsn_lts_select(hy, lts_quantile):
@@ -1323,7 +1327,6 @@ def _vsn_lts_select(hy, lts_quantile):
 
     # rank(hmean, na.last=TRUE): NaNs go to the highest ranks.
     finite = ~np.isnan(hmean)
-    order = np.empty(n_rows, dtype=np.int64)
     finite_idx = np.where(finite)[0]
     nan_idx = np.where(~finite)[0]
     finite_sort = finite_idx[np.argsort(hmean[finite_idx], kind="stable")]
@@ -1451,9 +1454,7 @@ def normalize_vsn(
         raise ValueError("x must be a 2-D matrix")
     n_rows, n_cols = x.shape
     if n_cols < 2:
-        raise ValueError(
-            "x must have 2 or more columns when no reference is supplied"
-        )
+        raise ValueError("x must have 2 or more columns when no reference is supplied")
 
     # Initial parameters: a=0, b=0 per column (unit scale factor, the
     # natural "no scaling" starting point). R/vsn's pstartHeuristic
@@ -1469,13 +1470,11 @@ def normalize_vsn(
     # vsnLTS loop: ML on the active rows, then trim to the best 90% by
     # squared row residual within hmean-rank quintile.
     whsel = np.arange(n_rows)
-    cur = pstart
     rsv_par = pstart
     iter_par = pstart
     for it in range(cvg_niter):
         sub = x if it == 0 else x[whsel]
-        rsv_par, _fail = _vsn_ml_fit(sub, iter_par, factr=factr,
-                                     pgtol=pgtol, maxit=maxit)
+        rsv_par, _fail = _vsn_ml_fit(sub, iter_par, factr=factr, pgtol=pgtol, maxit=maxit)
         iter_par = rsv_par  # warm-start the next iteration (matches R)
         if abs(lts_quantile - 1.0) < np.sqrt(np.finfo(float).eps):
             break

@@ -71,12 +71,14 @@ def _factor_levels(factor) -> tuple[np.ndarray, np.ndarray]:
     # Numeric (integer or float)
     if np.issubdtype(arr.dtype, np.number):
         unique_sorted = np.sort(np.unique(arr))
+
         # R's `as.character(numeric)` formatting: integers render without
         # decimals, floats use R's default (effectively Python's default too)
         def _render(x):
             if float(x).is_integer():
                 return str(int(x))
             return str(x)
+
         levels = np.array([_render(v) for v in unique_sorted])
         str_values = np.array([_render(v) for v in arr])
         return levels, str_values
@@ -161,9 +163,14 @@ def remove_batch_effect(
     X = np.asarray(eawp["exprs"], dtype=np.float64)
 
     if batch is None and batch2 is None and covariates is None:
-        return put_eawp({"E": X}, original_input,
-                        out_layer=out_layer, weights_layer=None,
-                        uns_key=uns_key, single_matrix=True)
+        return put_eawp(
+            {"E": X},
+            original_input,
+            out_layer=out_layer,
+            weights_layer=None,
+            uns_key=uns_key,
+            single_matrix=True,
+        )
 
     parts = []
     if batch is not None:
@@ -187,8 +194,7 @@ def remove_batch_effect(
 
     if design is None:
         warnings.warn(
-            "design matrix of interest not specified. Assuming a "
-            "one-group experiment.",
+            "design matrix of interest not specified. Assuming a one-group experiment.",
             UserWarning,
         )
         design = np.ones((X.shape[1], 1), dtype=np.float64)
@@ -207,7 +213,7 @@ def remove_batch_effect(
     # batch-attribution can be trusted for that probe.
     nan_row = np.any(np.isnan(coef), axis=1)
     coef[nan_row, :] = 0.0
-    beta = coef[:, design.shape[1]:]
+    beta = coef[:, design.shape[1] :]
     corrected = X - beta @ X_batch.T
 
     return put_eawp(
@@ -271,9 +277,7 @@ def _lm_effects_residual(
     if array_weights is not None:
         aw = np.asarray(array_weights, dtype=np.float64)
         if aw.size != n:
-            raise ValueError(
-                "Length of array_weights doesn't match number of arrays"
-            )
+            raise ValueError("Length of array_weights doesn't match number of arrays")
         if np.any(aw <= 0) or np.any(np.isnan(aw)):
             raise ValueError("array_weights must be positive")
         ws = np.sqrt(aw)
@@ -287,9 +291,7 @@ def _lm_effects_residual(
             raise ValueError("correlation must be set when block is given")
         block_arr = np.asarray(block).ravel()
         if block_arr.size != n:
-            raise ValueError(
-                "Length of block does not match number of arrays"
-            )
+            raise ValueError("Length of block does not match number of arrays")
         ub, inv = np.unique(block_arr, return_inverse=True)
         Z = (inv[:, None] == np.arange(len(ub))).astype(np.float64)
         cormatrix = Z @ (float(correlation) * Z.T)
@@ -394,18 +396,16 @@ def wsva(
 
     if weight_by_sd:
         if plot:
-            warnings.warn("Plot not available with weight_by_sd=True",
-                          UserWarning)
+            warnings.warn("Plot not available with weight_by_sd=True", UserWarning)
         current_design = design
         for _ in range(n_sv):
             Effects = _lm_effects_residual(y_mat, current_design, **eff_kwargs)
-            s = np.sqrt(np.mean(Effects ** 2, axis=1))
+            s = np.sqrt(np.mean(Effects**2, axis=1))
             Effects_w = s[:, None] * Effects
             U, _, _ = np.linalg.svd(Effects_w, full_matrices=False)
             u = U[:, 0] * s
             sv = (u[:, None] * y_mat).sum(axis=0)
-            current_design = np.concatenate(
-                [current_design, sv.reshape(-1, 1)], axis=1)
+            current_design = np.concatenate([current_design, sv.reshape(-1, 1)], axis=1)
         SV = current_design[:, p:].T  # (n_sv, narrays)
     else:
         Effects = _lm_effects_residual(y_mat, design, **eff_kwargs)
@@ -415,14 +415,15 @@ def wsva(
 
         if plot:
             from .plotting import _require_matplotlib
+
             plt = _require_matplotlib()
-            lam = s ** 2
+            lam = s**2
             lam = lam / lam.sum()
             _, ax = plt.subplots()
             ax.plot(np.arange(1, len(lam) + 1), lam, "o")
             ax.set_xlabel("Surrogate variable number")
             ax.set_ylabel("Proportion variance explained")
 
-    A = (SV ** 2).mean(axis=1)
+    A = (SV**2).mean(axis=1)
     SV = (SV / np.sqrt(A)[:, None]).T  # (narrays, n_sv)
     return SV

@@ -35,10 +35,7 @@ from ..helpers import (
     run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 # ----------------------------------------------------------------------
@@ -61,13 +58,11 @@ def _three_group_fit(seed=0, n_genes=20, n_samples=12):
     design[8:, 2] = 1
     expr_df = pd.DataFrame(
         expr,
-        index=[f"g{i+1}" for i in range(n_genes)],
-        columns=[f"s{j+1}" for j in range(n_samples)],
+        index=[f"g{i + 1}" for i in range(n_genes)],
+        columns=[f"s{j + 1}" for j in range(n_samples)],
     )
     fit = lm_fit(expr_df, design)
-    contrasts = make_contrasts(
-        "x1-x0", "x2-x0", levels=["x0", "x1", "x2"]
-    )
+    contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
     fit = contrasts_fit(fit, contrasts)
     fit = e_bayes(fit)
     return expr_df, design, fit
@@ -80,12 +75,12 @@ def _save_inputs(expr, design):
     else:
         df_expr = pd.DataFrame(
             expr,
-            index=[f"g{i+1}" for i in range(expr.shape[0])],
-            columns=[f"s{j+1}" for j in range(expr.shape[1])],
+            index=[f"g{i + 1}" for i in range(expr.shape[0])],
+            columns=[f"s{j + 1}" for j in range(expr.shape[1])],
         )
     df_design = pd.DataFrame(
         design,
-        index=[f"s{j+1}" for j in range(design.shape[0])],
+        index=[f"s{j + 1}" for j in range(design.shape[0])],
         columns=[f"x{j}" for j in range(design.shape[1])],
     )
     return {"expr": df_expr, "design": df_design}
@@ -129,12 +124,7 @@ class TestRigorousTopTableF:
             warnings.simplefilter("always")
             top_table_f(fit, number=5)
         msgs = [str(w.message).lower() for w in caught]
-        assert any(
-            "obsolete" in m
-            or "deprecat" in m
-            or "toptablef" in m
-            for m in msgs
-        ), (
+        assert any("obsolete" in m or "deprecat" in m or "toptablef" in m for m in msgs), (
             "R's topTableF emits a deprecation message at every call "
             "(topTableF.R:7); pylimma's top_table_f should mirror this "
             f"with a DeprecationWarning or similar. Captured: {msgs}"
@@ -186,13 +176,11 @@ class TestRigorousTopTableF:
         r_cols = [str(c).strip('"') for c in np.asarray(r_out["cols"]).ravel()]
         # R's default-name columns
         expected = [c for c in r_cols if c.startswith("Coef")]
-        assert expected == ["Coef1", "Coef2"], (
-            f"Sanity: R should emit Coef1,Coef2; got {r_cols}"
-        )
+        assert expected == ["Coef1", "Coef2"], f"Sanity: R should emit Coef1,Coef2; got {r_cols}"
         # pylimma must expose the same coefficient column names
-        py_coef_cols = [c for c in py_tt.columns if c not in (
-            "ave_expr", "F", "p_value", "adj_p_value"
-        )]
+        py_coef_cols = [
+            c for c in py_tt.columns if c not in ("ave_expr", "F", "p_value", "adj_p_value")
+        ]
         assert py_coef_cols == expected, (
             f"R uses 'Coef1','Coef2' as default names (topTableF.R:13); "
             f"pylimma emits {py_coef_cols}"
@@ -210,7 +198,7 @@ class TestRigorousTopTableF:
         does not emit the column.
         """
         _, _, fit = _three_group_fit(seed=3, n_genes=12)
-        ids = [f"PROBE_{i+1}" for i in range(12)]
+        ids = [f"PROBE_{i + 1}" for i in range(12)]
         py_tt = top_table_f(fit, number=10, genelist=ids)
 
         r_template = (
@@ -302,9 +290,7 @@ class TestRigorousTopTableF:
                 f"{type(exc).__name__}: {exc}"
             )
         else:
-            assert len(py_tt) == r_n, (
-                f"R kept {r_n} rows; pylimma kept {len(py_tt)}"
-            )
+            assert len(py_tt) == r_n, f"R kept {r_n} rows; pylimma kept {len(py_tt)}"
 
     # ------------------------------------------------------------------
     # R-B19 (topTableF.R:88): genelist columns appear BEFORE coef columns
@@ -319,9 +305,8 @@ class TestRigorousTopTableF:
         """
         _, _, fit = _three_group_fit(seed=6, n_genes=12)
         gl = pd.DataFrame(
-            {"symbol": [f"S{i+1}" for i in range(12)],
-             "chrom": ["chr1"] * 12},
-            index=[f"g{i+1}" for i in range(12)],
+            {"symbol": [f"S{i + 1}" for i in range(12)], "chrom": ["chr1"] * 12},
+            index=[f"g{i + 1}" for i in range(12)],
         )
         py_tt = top_table_f(fit, number=5, genelist=gl)
 
@@ -342,9 +327,11 @@ class TestRigorousTopTableF:
         sym_pos = r_cols.index("symbol")
         chr_pos = r_cols.index("chrom")
         # Coef columns should come AFTER genelist columns in R
-        coef_positions = [i for i, c in enumerate(r_cols)
-                          if c not in ("symbol", "chrom", "AveExpr", "F",
-                                       "P.Value", "adj.P.Val")]
+        coef_positions = [
+            i
+            for i, c in enumerate(r_cols)
+            if c not in ("symbol", "chrom", "AveExpr", "F", "P.Value", "adj.P.Val")
+        ]
         assert all(p > sym_pos and p > chr_pos for p in coef_positions), (
             f"Sanity: in R, coef cols come after genelist; got {r_cols}"
         )
@@ -353,12 +340,12 @@ class TestRigorousTopTableF:
         py_cols = list(py_tt.columns)
         py_sym_pos = py_cols.index("symbol") if "symbol" in py_cols else -1
         # If symbol is at end, py_sym_pos > coef positions -> bug
-        py_coef_positions = [i for i, c in enumerate(py_cols)
-                             if c not in ("symbol", "chrom", "ave_expr",
-                                          "F", "p_value", "adj_p_value")]
-        assert py_coef_positions and all(
-            p > py_sym_pos for p in py_coef_positions
-        ), (
+        py_coef_positions = [
+            i
+            for i, c in enumerate(py_cols)
+            if c not in ("symbol", "chrom", "ave_expr", "F", "p_value", "adj_p_value")
+        ]
+        assert py_coef_positions and all(p > py_sym_pos for p in py_coef_positions), (
             f"R places genelist columns BEFORE coefficient columns "
             f"(topTableF.R:88). pylimma column order: {py_cols}"
         )
@@ -413,7 +400,7 @@ class TestRigorousTopTableF:
         # currently never reads rownames from coefficients.
         coef_df = pd.DataFrame(
             fit["coefficients"],
-            index=[f"g{i+1}" if i % 2 == 0 else f"g{i}" for i in range(10)],
+            index=[f"g{i + 1}" if i % 2 == 0 else f"g{i}" for i in range(10)],
         )
         # 0->g1, 1->g1 (dup), 2->g3, 3->g3 (dup), ...
         # So at least one duplicate exists.
@@ -435,9 +422,7 @@ class TestRigorousTopTableF:
         inputs = _save_inputs(expr_df, design)
         r_out = run_r_comparison(inputs, r_template, ["cols", "rn_out"])
         r_cols = [str(c).strip('"') for c in np.asarray(r_out["cols"]).ravel()]
-        assert "ID" in r_cols, (
-            f"Sanity: R emits ID column for duplicated rownames; got {r_cols}"
-        )
+        assert "ID" in r_cols, f"Sanity: R emits ID column for duplicated rownames; got {r_cols}"
         assert "ID" in py_tt.columns, (
             f"R promotes duplicated coef rownames to an ID column "
             f"(topTableF.R:28); pylimma columns: {list(py_tt.columns)}"
@@ -491,17 +476,15 @@ class TestRigorousTopTableF:
         )
         inputs = _save_inputs(expr_df, design)
         r_out = run_r_comparison(
-            inputs, r_template,
-            ["rn", "AveExpr", "F_stat", "P_Value", "adj_P_Val",
-             "coef1", "coef2"],
+            inputs,
+            r_template,
+            ["rn", "AveExpr", "F_stat", "P_Value", "adj_P_Val", "coef1", "coef2"],
         )
 
         # Rank match
         r_rn = [str(s).strip('"') for s in np.asarray(r_out["rn"]).ravel()]
         py_rn = list(py_tt.index)
-        assert py_rn == r_rn, (
-            f"Default sort_by='F': ranking differs.\nR={r_rn}\nPy={py_rn}"
-        )
+        assert py_rn == r_rn, f"Default sort_by='F': ranking differs.\nR={r_rn}\nPy={py_rn}"
 
         # Each slot
         for r_key, py_key in [
@@ -547,7 +530,8 @@ class TestRigorousTopTableF:
 
         res_f = compare_arrays(
             np.asarray(r_out["F_stat"]).astype(float).ravel(),
-            py_tt["F"].values, rtol=1e-8,
+            py_tt["F"].values,
+            rtol=1e-8,
         )
         assert res_f["match"], (
             f"F differs after sort_by='none': max_rel={res_f['max_rel_diff']:.2e}"
@@ -609,19 +593,14 @@ class TestRigorousTopTableF:
         r_rn = [str(s).strip('"') for s in np.asarray(r_out["rn"]).ravel()]
 
         # Same row count
-        assert len(py_tt) == r_n, (
-            f"NaN F p-value row count: R={r_n}, Py={len(py_tt)}"
-        )
+        assert len(py_tt) == r_n, f"NaN F p-value row count: R={r_n}, Py={len(py_tt)}"
         # Same identities
         py_rn = list(py_tt.index)
         assert set(py_rn) == set(r_rn), (
-            f"NaN handling differs.\nR set: {sorted(r_rn)}\n"
-            f"Py set: {sorted(py_rn)}"
+            f"NaN handling differs.\nR set: {sorted(r_rn)}\nPy set: {sorted(py_rn)}"
         )
         # The NaN row (g3) must NOT appear in the output (filter applied)
-        assert "g3" not in py_rn, (
-            "Gene with NaN F p-value should be filtered out when p_value<1"
-        )
+        assert "g3" not in py_rn, "Gene with NaN F p-value should be filtered out when p_value<1"
 
     # ------------------------------------------------------------------
     # R-B11d (topTableF.R:34): duplicated rn replaced by 1:nrow integers
@@ -654,6 +633,5 @@ class TestRigorousTopTableF:
         py_rn = [str(x) for x in py_tt.index]
         # Both should be 1..10 in some order matching sort_by='none'
         assert r_rn == py_rn, (
-            f"Duplicated rownames -> integer rn (topTableF.R:34);\n"
-            f"R={r_rn}\nPy={py_rn}"
+            f"Duplicated rownames -> integer rn (topTableF.R:34);\nR={r_rn}\nPy={py_rn}"
         )

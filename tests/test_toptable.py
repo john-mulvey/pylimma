@@ -1,15 +1,15 @@
 """Tests for pylimma toptable module."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
 
-from pylimma.toptable import top_table
-from pylimma.lmfit import lm_fit
+from pylimma.contrasts import contrasts_fit, make_contrasts
 from pylimma.ebayes import e_bayes
-from pylimma.contrasts import make_contrasts, contrasts_fit
-
+from pylimma.lmfit import lm_fit
+from pylimma.toptable import top_table
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -36,15 +36,9 @@ class TestTopTable:
 
         # Compare statistics for top gene
         gene1 = ref["gene"].iloc[0]
-        np.testing.assert_allclose(
-            result.loc[gene1, "log_fc"], ref["log_fc"].iloc[0], rtol=1e-5
-        )
-        np.testing.assert_allclose(
-            result.loc[gene1, "t"], ref["t"].iloc[0], rtol=1e-5
-        )
-        np.testing.assert_allclose(
-            result.loc[gene1, "b"], ref["b"].iloc[0], rtol=1e-5
-        )
+        np.testing.assert_allclose(result.loc[gene1, "log_fc"], ref["log_fc"].iloc[0], rtol=1e-5)
+        np.testing.assert_allclose(result.loc[gene1, "t"], ref["t"].iloc[0], rtol=1e-5)
+        np.testing.assert_allclose(result.loc[gene1, "b"], ref["b"].iloc[0], rtol=1e-5)
 
         assert "adj_p_value" in result.columns
 
@@ -281,10 +275,12 @@ class TestTopTable:
         fit = lm_fit(expr, design)
         fit = e_bayes(fit)
 
-        genelist = pd.DataFrame({
-            "symbol": [f"GENE{i}" for i in range(50)],
-            "description": [f"Description {i}" for i in range(50)],
-        })
+        genelist = pd.DataFrame(
+            {
+                "symbol": [f"GENE{i}" for i in range(50)],
+                "description": [f"Description {i}" for i in range(50)],
+            }
+        )
 
         result = top_table(fit, coef=1, number=10, genelist=genelist)
 
@@ -302,7 +298,6 @@ class TestTopTable:
         fit = e_bayes(fit)
 
         # Sort by p-value, then resort by logFC
-        result_p = top_table(fit, coef=1, number=50, sort_by="P")
         result_resort = top_table(fit, coef=1, number=50, sort_by="P", resort_by="logFC")
 
         # After resort, should be sorted by signed logFC descending (R behaviour)
@@ -354,12 +349,24 @@ class TestTopTable:
         fit = e_bayes(fit)
 
         # Genelist with existing ID column and duplicated index
-        genelist = pd.DataFrame({
-            "ID": [f"EXISTING_{i}" for i in range(10)],
-            "symbol": ["A", "A", "B", "C", "C", "D", "E", "E", "F", "G"],
-        })
-        genelist.index = ["GeneA", "GeneA", "GeneB", "GeneC", "GeneC",
-                          "GeneD", "GeneE", "GeneE", "GeneF", "GeneG"]
+        genelist = pd.DataFrame(
+            {
+                "ID": [f"EXISTING_{i}" for i in range(10)],
+                "symbol": ["A", "A", "B", "C", "C", "D", "E", "E", "F", "G"],
+            }
+        )
+        genelist.index = [
+            "GeneA",
+            "GeneA",
+            "GeneB",
+            "GeneC",
+            "GeneC",
+            "GeneD",
+            "GeneE",
+            "GeneE",
+            "GeneF",
+            "GeneG",
+        ]
 
         result = top_table(fit, coef=1, number=10, genelist=genelist)
 

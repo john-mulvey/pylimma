@@ -14,21 +14,16 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
-import pandas as pd
 import pytest
 
 from pylimma.squeeze_var import fit_f_dist
 
 from ..helpers import (
-    compare_arrays,
     limma_available,
     run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 # ---------------------------------------------------------------------------
@@ -51,9 +46,7 @@ def _r_fit_f_dist(x, df1, covariate=None, timeout=60):
     else:
         py_data["df1"] = np.asarray(df1, dtype=float)
         df1_str = "df1=df1_input[,1]"
-        df1_csv = (
-            "df1_input <- as.matrix(read.csv('{tmpdir}/df1.csv', row.names=1))\n"
-        )
+        df1_csv = "df1_input <- as.matrix(read.csv('{tmpdir}/df1.csv', row.names=1))\n"
 
     if covariate is None:
         cov_str = "covariate=NULL"
@@ -61,9 +54,7 @@ def _r_fit_f_dist(x, df1, covariate=None, timeout=60):
     else:
         py_data["cov"] = np.asarray(covariate, dtype=float)
         cov_str = "covariate=cov_input[,1]"
-        cov_csv = (
-            "cov_input <- as.matrix(read.csv('{tmpdir}/cov.csv', row.names=1))\n"
-        )
+        cov_csv = "cov_input <- as.matrix(read.csv('{tmpdir}/cov.csv', row.names=1))\n"
 
     code = f"""
     suppressMessages(library(limma))
@@ -114,10 +105,8 @@ class TestRigorousFitFDist:
         assert py["df2"] == 0.0
         # And against R directly
         r = _r_fit_f_dist(np.array([0.42]), df1=5)
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-15)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), atol=1e-15)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-15)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), atol=1e-15)
 
     # ------------------------------------------------------------------
     # R-B3a (fitFDist.R:14-19): scalar df1 invalid -> return NA/NA
@@ -136,20 +125,24 @@ class TestRigorousFitFDist:
         r = _r_fit_f_dist(x, df1=0.0)
         py = fit_f_dist(x, df1=0.0)
         # R returns NaN scale, NaN df2
-        np.testing.assert_array_equal(np.isnan(_atleast_1d(r["scale"])),
-                                      np.isnan(_atleast_1d(py["scale"])))
-        np.testing.assert_array_equal(np.isnan(_atleast_1d(r["df2"])),
-                                      np.isnan(_atleast_1d(py["df2"])))
+        np.testing.assert_array_equal(
+            np.isnan(_atleast_1d(r["scale"])), np.isnan(_atleast_1d(py["scale"]))
+        )
+        np.testing.assert_array_equal(
+            np.isnan(_atleast_1d(r["df2"])), np.isnan(_atleast_1d(py["df2"]))
+        )
 
     def test_scalar_df1_negative_returns_nan(self):
         """Exercises R-B3a: scalar df1<0 returns NaN/NaN."""
         x = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
         r = _r_fit_f_dist(x, df1=-1.0)
         py = fit_f_dist(x, df1=-1.0)
-        np.testing.assert_array_equal(np.isnan(_atleast_1d(r["scale"])),
-                                      np.isnan(_atleast_1d(py["scale"])))
-        np.testing.assert_array_equal(np.isnan(_atleast_1d(r["df2"])),
-                                      np.isnan(_atleast_1d(py["df2"])))
+        np.testing.assert_array_equal(
+            np.isnan(_atleast_1d(r["scale"])), np.isnan(_atleast_1d(py["scale"]))
+        )
+        np.testing.assert_array_equal(
+            np.isnan(_atleast_1d(r["df2"])), np.isnan(_atleast_1d(py["df2"]))
+        )
 
     def test_scalar_df1_inf_returns_nan(self):
         """Exercises R-B3a: scalar df1=Inf returns NaN/NaN.
@@ -162,6 +155,7 @@ class TestRigorousFitFDist:
         x = np.array([0.1, 0.2, 0.3, 0.4, 0.5])
         # Use inline R because the CSV helper does not preserve "Inf".
         from ..helpers import run_r_code
+
         np.savetxt("/tmp/_x.csv", x)
         code = """
         suppressMessages(library(limma))
@@ -173,15 +167,15 @@ class TestRigorousFitFDist:
         r_scale_na, r_df2_na = [s == "TRUE" for s in out.split()]
 
         py = fit_f_dist(x, df1=np.inf)
-        py_scale_na = np.isnan(py["scale"]) if np.isscalar(py["scale"]) else np.all(np.isnan(_atleast_1d(py["scale"])))
+        py_scale_na = (
+            np.isnan(py["scale"])
+            if np.isscalar(py["scale"])
+            else np.all(np.isnan(_atleast_1d(py["scale"])))
+        )
         py_df2_na = np.isnan(py["df2"])
 
-        assert r_scale_na == py_scale_na, (
-            f"R scale_NA={r_scale_na}, Py scale_NA={py_scale_na}"
-        )
-        assert r_df2_na == py_df2_na, (
-            f"R df2_NA={r_df2_na}, Py df2_NA={py_df2_na}"
-        )
+        assert r_scale_na == py_scale_na, f"R scale_NA={r_scale_na}, Py scale_NA={py_scale_na}"
+        assert r_df2_na == py_df2_na, f"R df2_NA={r_df2_na}, Py df2_NA={py_df2_na}"
 
     # ------------------------------------------------------------------
     # R-B3b (fitFDist.R:21): vector df1 length mismatch -> stop
@@ -225,10 +219,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5)
         r = _r_fit_f_dist(x, df1=5)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-8)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-8)
 
     def test_null_covariate_vector_df1_full_match(self):
         """Exercises R-B14 with vector df1: math should match exactly.
@@ -244,10 +236,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=df1)
         r = _r_fit_f_dist(x, df1=df1)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-8)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-8)
 
     # ------------------------------------------------------------------
     # R-B5 (fitFDist.R:28): covariate length mismatch -> stop
@@ -289,10 +279,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5, covariate=cov)
         r = _r_fit_f_dist(x, df1=5, covariate=cov)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)
 
     # ------------------------------------------------------------------
     # R-B7b (fitFDist.R:36-37): all infinite -> covariate <- sign(covariate)
@@ -312,10 +300,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5, covariate=cov)
         r = _r_fit_f_dist(x, df1=5, covariate=cov)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)
 
     # ------------------------------------------------------------------
     # R-B8 + R-B10 (fitFDist.R:43, 47-54): notallok subsetting
@@ -338,10 +324,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5)
         r = _r_fit_f_dist(x, df1=5)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-8)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-8)
 
     # ------------------------------------------------------------------
     # R-B9 (fitFDist.R:45): nok==1 -> return list(scale=x[ok], df2=0)
@@ -352,10 +336,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5)
         r = _r_fit_f_dist(x, df1=5)
         # R returns scalar 0.7, 0
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-15)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), atol=1e-15)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-15)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), atol=1e-15)
 
     # ------------------------------------------------------------------
     # R-B11 (fitFDist.R:57-67): covariate with insufficient unique values -> recurse
@@ -375,15 +357,13 @@ class TestRigorousFitFDist:
         py_scale = _atleast_1d(py["scale"])
         r_scale = _atleast_1d(r["scale"])
         np.testing.assert_allclose(r_scale, py_scale, rtol=1e-8)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-8)
 
     # ------------------------------------------------------------------
     # R-B12a (fitFDist.R:73-75): m==0 (>50% zero variances) -> warning + m<-1
     # ------------------------------------------------------------------
     def test_more_than_half_zero_warns(self):
         """Exercises R-B12a: median(x)==0 triggers eBayes-unreliable warning."""
-        n = 30
         # >50% are zero
         x = np.concatenate([np.zeros(20), np.linspace(0.1, 1, 10)])
 
@@ -392,10 +372,8 @@ class TestRigorousFitFDist:
         # And R produces same numerical output
         # (R also warns; we just compare numbers)
         r = _r_fit_f_dist(x, df1=5)
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-6)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B12b (fitFDist.R:77): some zero variances but median > 0 -> warning
@@ -411,10 +389,8 @@ class TestRigorousFitFDist:
         with pytest.warns(UserWarning, match="Zero sample variances"):
             py = fit_f_dist(x, df1=5)
         r = _r_fit_f_dist(x, df1=5)
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-6)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B15 (fitFDist.R:90-102): covariate non-null -> spline fit
@@ -439,10 +415,10 @@ class TestRigorousFitFDist:
         )
         # Tolerance: spline basis differs slightly between scipy BSpline
         # and R's splines::ns(); 1e-5 is the documented level.
-        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5,
-                                   err_msg="trend scale differs from R")
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-6)
+        np.testing.assert_allclose(
+            r_scale, py_scale, rtol=1e-5, err_msg="trend scale differs from R"
+        )
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B15 with notallok=TRUE: spline fit + predict for non-ok entries
@@ -476,10 +452,10 @@ class TestRigorousFitFDist:
         assert py_scale.shape == r_scale.shape
 
         # All-positions check, including the non-ok positions
-        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5,
-                                   err_msg="trend scale differs from R")
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-6)
+        np.testing.assert_allclose(
+            r_scale, py_scale, rtol=1e-5, err_msg="trend scale differs from R"
+        )
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
     # ------------------------------------------------------------------
     # Critical sub-case of R-B16: bad x at boundary (extreme covariate values)
@@ -531,10 +507,8 @@ class TestRigorousFitFDist:
         assert np.isfinite(py["df2"])
         assert np.isfinite(float(_atleast_1d(r["df2"])[0]))
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-8)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-8)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-8)
 
     # ------------------------------------------------------------------
     # R-B21a (fitFDist.R:111-115): evar<=0, null covariate -> df2=Inf, s20=mean(x)
@@ -555,8 +529,7 @@ class TestRigorousFitFDist:
         assert np.isinf(r_df2), f"r_df2={r_df2}, expected Inf"
 
         # scale = mean(x) = 0.5
-        np.testing.assert_allclose(_atleast_1d(r["scale"]),
-                                   _atleast_1d(py["scale"]), rtol=1e-12)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-12)
 
     # ------------------------------------------------------------------
     # R-B21b (fitFDist.R:116-117): evar<=0 with covariate -> s20=exp(emean)
@@ -568,7 +541,6 @@ class TestRigorousFitFDist:
         but with effectively zero residual variance after de-trending.
         """
         n = 80
-        rng = np.random.default_rng(112)
         cov = np.linspace(2, 10, n)
         # Variance is constant after removing the trend
         x = np.full(n, 0.5)
@@ -606,5 +578,4 @@ class TestRigorousFitFDist:
         py_scale = _atleast_1d(py["scale"])
         r_scale = _atleast_1d(r["scale"])
         np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]),
-                                   _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)

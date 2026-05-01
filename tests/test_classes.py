@@ -30,13 +30,13 @@ import pytest
 
 from pylimma import EList, MArrayLM, get_eawp, put_eawp
 
-
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
 # -----------------------------------------------------------------------------
 # Part 1: R-parity for [i, j] subsetting
 # -----------------------------------------------------------------------------
+
 
 def _load_matrix(path: Path) -> np.ndarray:
     return pd.read_csv(path, index_col=0).values
@@ -54,14 +54,15 @@ def _build_elist_from_fixtures() -> EList:
     design = _load_matrix(FIXTURES / "R_elist_full_design.csv")
     gene_names = list(genes.index)
     sample_names = list(targets.index)
-    return EList({
-        "E": pd.DataFrame(E, index=gene_names, columns=sample_names),
-        "weights": pd.DataFrame(W, index=gene_names, columns=sample_names),
-        "genes": genes,
-        "targets": targets,
-        "design": pd.DataFrame(design, index=sample_names,
-                               columns=["Intercept", "groupB"]),
-    })
+    return EList(
+        {
+            "E": pd.DataFrame(E, index=gene_names, columns=sample_names),
+            "weights": pd.DataFrame(W, index=gene_names, columns=sample_names),
+            "genes": genes,
+            "targets": targets,
+            "design": pd.DataFrame(design, index=sample_names, columns=["Intercept", "groupB"]),
+        }
+    )
 
 
 ELIST_SUBSET_CASES = [
@@ -70,9 +71,11 @@ ELIST_SUBSET_CASES = [
     ("cols", slice(None), slice(0, 4)),
     ("both", slice(0, 10), slice(0, 4)),
     ("rowstr", ["gene3", "gene7", "gene15"], slice(None)),
-    ("rowbool",
-     np.array([False, True, False, True, False, True, False, True,
-               False, True] + [False] * 20), slice(None)),
+    (
+        "rowbool",
+        np.array([False, True, False, True, False, True, False, True, False, True] + [False] * 20),
+        slice(None),
+    ),
 ]
 
 
@@ -83,18 +86,22 @@ def test_elist_subset_parity_numerical(tag, i, j):
     sub = el if tag == "full" else el[i, j]
 
     np.testing.assert_allclose(
-        np.asarray(sub.E), _load_matrix(FIXTURES / f"R_elist_{tag}_E.csv"),
-        rtol=1e-6, atol=1e-12,
+        np.asarray(sub.E),
+        _load_matrix(FIXTURES / f"R_elist_{tag}_E.csv"),
+        rtol=1e-6,
+        atol=1e-12,
     )
     np.testing.assert_allclose(
         np.asarray(sub.weights),
         _load_matrix(FIXTURES / f"R_elist_{tag}_weights.csv"),
-        rtol=1e-6, atol=1e-12,
+        rtol=1e-6,
+        atol=1e-12,
     )
     np.testing.assert_allclose(
         np.asarray(sub.design),
         _load_matrix(FIXTURES / f"R_elist_{tag}_design.csv"),
-        rtol=1e-6, atol=1e-12,
+        rtol=1e-6,
+        atol=1e-12,
     )
 
 
@@ -142,24 +149,23 @@ def _build_marraylm_from_fixtures() -> MArrayLM:
     i_slots = _load_df(FIXTURES / "R_marraylm_full_i_slots.csv")
     genes = _load_df(FIXTURES / "R_marraylm_full_genes.csv")
     gene_names = list(i_slots.index)
-    return MArrayLM({
-        "coefficients": pd.DataFrame(
-            coef, index=gene_names, columns=["Intercept", "groupB"]),
-        "stdev_unscaled": pd.DataFrame(
-            stdev, index=gene_names, columns=["Intercept", "groupB"]),
-        "t": pd.DataFrame(tstat, index=gene_names,
-                          columns=["Intercept", "groupB"]),
-        "p_value": pd.DataFrame(pval, index=gene_names,
-                                columns=["Intercept", "groupB"]),
-        "lods": pd.DataFrame(lods, index=gene_names,
-                             columns=["Intercept", "groupB"]),
-        "Amean": i_slots["Amean"].values,
-        "sigma": i_slots["sigma"].values,
-        "df_residual": i_slots["df_residual"].values,
-        "df_total": i_slots["df_total"].values,
-        "s2_post": i_slots["s2_post"].values,
-        "genes": genes,
-    })
+    return MArrayLM(
+        {
+            "coefficients": pd.DataFrame(coef, index=gene_names, columns=["Intercept", "groupB"]),
+            "stdev_unscaled": pd.DataFrame(
+                stdev, index=gene_names, columns=["Intercept", "groupB"]
+            ),
+            "t": pd.DataFrame(tstat, index=gene_names, columns=["Intercept", "groupB"]),
+            "p_value": pd.DataFrame(pval, index=gene_names, columns=["Intercept", "groupB"]),
+            "lods": pd.DataFrame(lods, index=gene_names, columns=["Intercept", "groupB"]),
+            "Amean": i_slots["Amean"].values,
+            "sigma": i_slots["sigma"].values,
+            "df_residual": i_slots["df_residual"].values,
+            "df_total": i_slots["df_total"].values,
+            "s2_post": i_slots["s2_post"].values,
+            "genes": genes,
+        }
+    )
 
 
 MARRAYLM_SUBSET_CASES = [
@@ -178,13 +184,12 @@ def test_marraylm_subset_parity_numerical(tag, i, j):
     np.testing.assert_allclose(
         np.asarray(sub.coefficients),
         _load_matrix(FIXTURES / f"R_marraylm_{tag}_coefficients.csv"),
-        rtol=1e-6, atol=1e-12,
+        rtol=1e-6,
+        atol=1e-12,
     )
     exp_i = _load_df(FIXTURES / f"R_marraylm_{tag}_i_slots.csv")
-    np.testing.assert_allclose(np.asarray(sub.Amean),
-                                exp_i["Amean"].values, rtol=1e-6, atol=1e-12)
-    np.testing.assert_allclose(np.asarray(sub.sigma),
-                                exp_i["sigma"].values, rtol=1e-6, atol=1e-12)
+    np.testing.assert_allclose(np.asarray(sub.Amean), exp_i["Amean"].values, rtol=1e-6, atol=1e-12)
+    np.testing.assert_allclose(np.asarray(sub.sigma), exp_i["sigma"].values, rtol=1e-6, atol=1e-12)
 
 
 def test_marraylm_column_subset_leaves_gene_scalar_slots_unchanged():
@@ -207,9 +212,7 @@ def test_head_returns_correct_rows():
     el = _build_elist_from_fixtures()
     h = el.head(5)
     assert isinstance(h, EList)
-    np.testing.assert_array_equal(
-        np.asarray(h.E), np.asarray(el.E)[:5]
-    )
+    np.testing.assert_array_equal(np.asarray(h.E), np.asarray(el.E)[:5])
 
 
 # -----------------------------------------------------------------------------
@@ -219,16 +222,18 @@ def test_head_returns_correct_rows():
 # clobbered design), the numerics diverge. These are the load-bearing
 # tests for the dispatchers.
 
+
 def _test_counts():
     rng = np.random.default_rng(42)
     counts = rng.poisson(20, (100, 8)).astype(float)
-    design = np.column_stack([np.ones(8), np.array([0]*4 + [1]*4)])
+    design = np.column_stack([np.ones(8), np.array([0] * 4 + [1] * 4)])
     return counts, design
 
 
 def test_voom_ndarray_elist_anndata_numerically_identical():
     pytest.importorskip("anndata")
     from anndata import AnnData
+
     from pylimma import voom
 
     counts, design = _test_counts()
@@ -241,12 +246,11 @@ def test_voom_ndarray_elist_anndata_numerically_identical():
 
     # All three must agree to machine precision on both E and weights
     np.testing.assert_allclose(v_el.E, v_arr["E"], rtol=1e-12, atol=1e-12)
-    np.testing.assert_allclose(v_el.weights, v_arr["weights"],
-                                rtol=1e-12, atol=1e-12)
-    np.testing.assert_allclose(adata.layers["voom_E"].T, v_arr["E"],
-                                rtol=1e-12, atol=1e-12)
-    np.testing.assert_allclose(adata.layers["voom_weights"].T,
-                                v_arr["weights"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(v_el.weights, v_arr["weights"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(adata.layers["voom_E"].T, v_arr["E"], rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(
+        adata.layers["voom_weights"].T, v_arr["weights"], rtol=1e-12, atol=1e-12
+    )
 
 
 def test_voom_anndata_uns_contains_design_and_libsize():
@@ -254,6 +258,7 @@ def test_voom_anndata_uns_contains_design_and_libsize():
     the two layer matrices."""
     pytest.importorskip("anndata")
     from anndata import AnnData
+
     from pylimma import voom
 
     counts, design = _test_counts()
@@ -270,6 +275,7 @@ def test_normalize_actually_transforms_the_data():
     non-trivial. Without this, the equivalence tests below could all pass
     trivially if the function returned its input unchanged."""
     from pylimma import normalize_between_arrays
+
     rng = np.random.default_rng(7)
     E = rng.standard_normal((100, 6))
     E[:, 0] += 5  # skew one sample so quantile normalisation has work to do
@@ -281,13 +287,13 @@ def test_normalize_actually_transforms_the_data():
     # sorted columns should match exactly
     sorted_cols = np.sort(out, axis=0)
     for j in range(1, out.shape[1]):
-        np.testing.assert_allclose(sorted_cols[:, j], sorted_cols[:, 0],
-                                    rtol=1e-12, atol=1e-12)
+        np.testing.assert_allclose(sorted_cols[:, j], sorted_cols[:, 0], rtol=1e-12, atol=1e-12)
 
 
 def test_normalize_ndarray_elist_anndata_numerically_identical():
     pytest.importorskip("anndata")
     from anndata import AnnData
+
     from pylimma import normalize_between_arrays
 
     rng = np.random.default_rng(3)
@@ -301,8 +307,7 @@ def test_normalize_ndarray_elist_anndata_numerically_identical():
 
     assert result is None
     np.testing.assert_allclose(out_el.E, out_arr, rtol=1e-12, atol=1e-12)
-    np.testing.assert_allclose(adata.layers["normalized"].T, out_arr,
-                                rtol=1e-12, atol=1e-12)
+    np.testing.assert_allclose(adata.layers["normalized"].T, out_arr, rtol=1e-12, atol=1e-12)
 
 
 def test_array_weights_equivalence_across_inputs():
@@ -310,21 +315,19 @@ def test_array_weights_equivalence_across_inputs():
     equivalent ndarray / EList / dict / AnnData input."""
     pytest.importorskip("anndata")
     from anndata import AnnData
+
     from pylimma import array_weights, voom
 
     counts, design = _test_counts()
     v = voom(counts, design)  # dict
 
     aw_dict = array_weights(v)
-    aw_elist = array_weights(
-        EList({"E": v["E"], "weights": v["weights"], "design": design})
-    )
+    aw_elist = array_weights(EList({"E": v["E"], "weights": v["weights"], "design": design}))
     aw_arr = array_weights(v["E"], design=design, weights=v["weights"])
 
     adata = AnnData(X=v["E"].T)
     adata.layers["weights"] = v["weights"].T
-    aw_adata = array_weights(adata, design=design, layer=None,
-                              weights=v["weights"])
+    aw_adata = array_weights(adata, design=design, layer=None, weights=v["weights"])
 
     np.testing.assert_allclose(aw_elist, aw_dict, rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(aw_arr, aw_dict, rtol=1e-12, atol=1e-12)
@@ -340,13 +343,12 @@ def test_duplicate_correlation_equivalence_across_inputs():
     block = np.array([1, 1, 2, 2, 3, 3, 4, 4])
 
     dc_arr = duplicate_correlation(v["E"], design=design, block=block)
-    dc_elist = duplicate_correlation(
-        EList({"E": v["E"], "design": design}), block=block
-    )
+    dc_elist = duplicate_correlation(EList({"E": v["E"], "design": design}), block=block)
     np.testing.assert_allclose(
         dc_elist["consensus_correlation"],
         dc_arr["consensus_correlation"],
-        rtol=1e-12, atol=1e-12,
+        rtol=1e-12,
+        atol=1e-12,
     )
 
 
@@ -354,11 +356,14 @@ def test_duplicate_correlation_equivalence_across_inputs():
 # Part 3: dispatcher error + write-back contracts
 # -----------------------------------------------------------------------------
 
+
 def test_get_eawp_rejects_unsupported_wrapper_by_name():
     """A class named like a Bioconductor wrapper should raise with a
     pointer to the scope policy, not fall through to the ndarray branch."""
+
     class RGList:
         pass
+
     with pytest.raises(TypeError, match="policy_data_class_wrappers"):
         get_eawp(RGList())
 
@@ -376,30 +381,32 @@ def test_get_eawp_anndata_transposes_and_extracts_metadata():
     from anndata import AnnData
 
     X = np.random.default_rng(0).standard_normal((6, 10))  # 6 samples x 10 genes
-    obs = pd.DataFrame({"group": ["A", "A", "A", "B", "B", "B"]},
-                       index=[f"sample{i}" for i in range(6)])
-    var = pd.DataFrame({"symbol": [f"g{i}" for i in range(10)]},
-                       index=[f"gene{i}" for i in range(10)])
+    obs = pd.DataFrame(
+        {"group": ["A", "A", "A", "B", "B", "B"]}, index=[f"sample{i}" for i in range(6)]
+    )
+    var = pd.DataFrame(
+        {"symbol": [f"g{i}" for i in range(10)]}, index=[f"gene{i}" for i in range(10)]
+    )
     adata = AnnData(X=X, obs=obs, var=var)
 
     out = get_eawp(adata)
     assert out["exprs"].shape == (10, 6)
     np.testing.assert_allclose(out["exprs"], X.T)
-    assert out["targets"] is not None and list(out["targets"]["group"]) == \
-        list(obs["group"])
-    assert out["probes"] is not None and list(out["probes"]["symbol"]) == \
-        list(var["symbol"])
+    assert out["targets"] is not None and list(out["targets"]["group"]) == list(obs["group"])
+    assert out["probes"] is not None and list(out["probes"]["symbol"]) == list(var["symbol"])
 
 
 def test_get_eawp_dataframe_with_id_column_branch():
     """DataFrame input with a single non-numeric column should treat that
     column as gene IDs - the branch at classes.py:_parse_design-adjacent."""
-    df = pd.DataFrame({
-        "id": [f"g{i}" for i in range(5)],
-        "s1": np.arange(5, dtype=float),
-        "s2": np.arange(5, dtype=float) + 1,
-        "s3": np.arange(5, dtype=float) + 2,
-    })
+    df = pd.DataFrame(
+        {
+            "id": [f"g{i}" for i in range(5)],
+            "s1": np.arange(5, dtype=float),
+            "s2": np.arange(5, dtype=float) + 1,
+            "s3": np.arange(5, dtype=float) + 2,
+        }
+    )
     out = get_eawp(df)
     assert out["exprs"].shape == (5, 3)
     assert out["probes"] is not None
@@ -463,12 +470,14 @@ def test_put_eawp_requires_E_key():
 
 def test_put_eawp_elist_preserves_unrelated_slots():
     """Slots the caller didn't update must survive the put_eawp round-trip."""
-    el = EList({
-        "E": np.zeros((5, 3)),
-        "design": np.eye(3),
-        "genes": pd.DataFrame({"symbol": list("abcde")}),
-        "custom_slot": "keep_me",
-    })
+    el = EList(
+        {
+            "E": np.zeros((5, 3)),
+            "design": np.eye(3),
+            "genes": pd.DataFrame({"symbol": list("abcde")}),
+            "custom_slot": "keep_me",
+        }
+    )
     out = put_eawp({"E": np.ones((5, 3))}, el)
     assert isinstance(out, EList)
     np.testing.assert_array_equal(out.E, np.ones((5, 3)))
@@ -485,10 +494,12 @@ def test_put_eawp_anndata_uns_only_payload_when_weights_layered():
     from anndata import AnnData
 
     adata = AnnData(X=np.random.default_rng(0).standard_normal((4, 3)))
-    slots = {"E": np.ones((3, 4)),
-             "weights": np.full((3, 4), 2.0),
-             "design": np.eye(4),
-             "lib_size": np.array([1, 2, 3, 4])}
+    slots = {
+        "E": np.ones((3, 4)),
+        "weights": np.full((3, 4), 2.0),
+        "design": np.eye(4),
+        "lib_size": np.array([1, 2, 3, 4]),
+    }
     put_eawp(slots, adata, out_layer="E", weights_layer="W", uns_key="meta")
 
     assert "E" in adata.layers and "W" in adata.layers

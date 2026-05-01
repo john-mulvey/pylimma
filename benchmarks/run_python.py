@@ -24,13 +24,11 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 import pylimma
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "data"))
 import generate_data as gd
-
 
 N_REPS = 5
 RESULTS_DIR = Path(__file__).parent / "results"
@@ -57,6 +55,7 @@ def time_and_memory(fn, *args, **kwargs):
 # Pipelines
 # ---------------------------------------------------------------------------
 
+
 def pipeline_a(expr, design, contrasts):
     fit = pylimma.lm_fit(expr, design)
     fit = pylimma.contrasts_fit(fit, contrasts=contrasts)
@@ -77,8 +76,7 @@ def pipeline_c(counts, design, contrasts, gene_sets):
     fit = pylimma.lm_fit(v["E"], design, weights=v["weights"])
     fit = pylimma.contrasts_fit(fit, contrasts=contrasts)
     fit = pylimma.e_bayes(fit)
-    return pylimma.camera(v["E"], index=gene_sets,
-                          design=design, contrast=contrasts[:, 0])
+    return pylimma.camera(v["E"], index=gene_sets, design=design, contrast=contrasts[:, 0])
 
 
 def pipeline_d_splicing(expr, design, geneid):
@@ -92,14 +90,18 @@ def pipeline_d_splicing(expr, design, geneid):
 # Harness
 # ---------------------------------------------------------------------------
 
+
 def _repeat(label, fn, *args, **kwargs):
-    fn(*args, **kwargs)                                         # warm up
+    fn(*args, **kwargs)  # warm up
     elapsed, peak = [], []
     for _ in range(N_REPS):
         t, m, _ = time_and_memory(fn, *args, **kwargs)
-        elapsed.append(t); peak.append(m)
-    print(f"  {label:40s}  median={np.median(elapsed):.3f}s "
-          f"min={min(elapsed):.3f}s max={max(elapsed):.3f}s")
+        elapsed.append(t)
+        peak.append(m)
+    print(
+        f"  {label:40s}  median={np.median(elapsed):.3f}s "
+        f"min={min(elapsed):.3f}s max={max(elapsed):.3f}s"
+    )
     return {"elapsed_seconds": elapsed, "peak_rss_bytes": peak}
 
 
@@ -107,12 +109,13 @@ def _repeat(label, fn, *args, **kwargs):
 # Dataset-specific pipeline runners
 # ---------------------------------------------------------------------------
 
+
 def run_all(results, *, small):
     key = "all_small" if small else "all"
     data = gd.load_all(small=small)
     expr = data["expr"].values
     # Two-group BT: B-cell (B, B1-B4) vs T-cell (T, T1-T4).
-    bt = data["targets"]["BT"].astype(str).str[0]               # "B" or "T"
+    bt = data["targets"]["BT"].astype(str).str[0]  # "B" or "T"
     design, C = gd.build_two_group_design(bt)
     print(f"[{key}] shape={expr.shape}")
     results[key] = {
@@ -130,18 +133,12 @@ def run_gse60450(results):
     print(f"[gse60450] shape={counts.shape}")
     rng = np.random.default_rng(7)
     n_genes = counts.shape[0]
-    gene_sets = {
-        f"set_{i}": rng.choice(n_genes, size=30, replace=False)
-        for i in range(50)
-    }
+    gene_sets = {f"set_{i}": rng.choice(n_genes, size=30, replace=False) for i in range(50)}
     results["gse60450"] = {
         "shape": list(counts.shape),
-        "pipeline_a": _repeat("pipeline_a", pipeline_a,
-                              np.log2(counts + 1), design, C),
-        "pipeline_b": _repeat("pipeline_b (voom)", pipeline_b,
-                              counts, design, C),
-        "pipeline_c": _repeat("pipeline_c (voom+camera)", pipeline_c,
-                              counts, design, C, gene_sets),
+        "pipeline_a": _repeat("pipeline_a", pipeline_a, np.log2(counts + 1), design, C),
+        "pipeline_b": _repeat("pipeline_b (voom)", pipeline_b, counts, design, C),
+        "pipeline_c": _repeat("pipeline_c (voom+camera)", pipeline_c, counts, design, C, gene_sets),
     }
 
 
@@ -152,10 +149,8 @@ def run_yoruba(results):
     print(f"[yoruba] shape={counts.shape}")
     results["yoruba"] = {
         "shape": list(counts.shape),
-        "pipeline_a": _repeat("pipeline_a", pipeline_a,
-                              np.log2(counts + 1), design, C),
-        "pipeline_b": _repeat("pipeline_b (voom)", pipeline_b,
-                              counts, design, C),
+        "pipeline_a": _repeat("pipeline_a", pipeline_a, np.log2(counts + 1), design, C),
+        "pipeline_b": _repeat("pipeline_b (voom)", pipeline_b, counts, design, C),
     }
 
 
@@ -170,8 +165,9 @@ def run_pasilla(results):
     print(f"[pasilla] shape={counts.shape}")
     results["pasilla"] = {
         "shape": list(counts.shape),
-        "pipeline_d": _repeat("pipeline_d (splicing)", pipeline_d_splicing,
-                              np.log2(counts + 1), design, geneid),
+        "pipeline_d": _repeat(
+            "pipeline_d (splicing)", pipeline_d_splicing, np.log2(counts + 1), design, geneid
+        ),
     }
 
 
@@ -184,9 +180,8 @@ def main():
         "processor": platform.processor(),
         "n_reps": N_REPS,
         "thread_counts": {
-            k: os.environ.get(k, "") for k in (
-                "OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"
-            )
+            k: os.environ.get(k, "")
+            for k in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS")
         },
         "timestamp": datetime.utcnow().isoformat(timespec="seconds") + "Z",
         "datasets": {},
@@ -198,8 +193,7 @@ def main():
     run_pasilla(results["datasets"])
 
     out = RESULTS_DIR / (
-        f"python_{datetime.utcnow().strftime('%Y%m%d')}_"
-        f"{platform.system().lower()}.json"
+        f"python_{datetime.utcnow().strftime('%Y%m%d')}_{platform.system().lower()}.json"
     )
     out.write_text(json.dumps(results, indent=2))
     print(f"\nWrote {out}")

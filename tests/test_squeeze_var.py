@@ -1,12 +1,12 @@
 """Tests for pylimma squeeze_var module."""
 
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pytest
-from pathlib import Path
 
-from pylimma.squeeze_var import fit_f_dist, fit_f_dist_unequal_df1, squeeze_var, _squeeze_var_core
-
+from pylimma.squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_unequal_df1, squeeze_var
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -101,12 +101,8 @@ class TestSqueezeVar:
         sample_var = var_input["sample_var"].values
         result = squeeze_var(sample_var, df=5)
 
-        np.testing.assert_allclose(
-            result["var_prior"], ref["var_prior"].iloc[0], rtol=1e-5
-        )
-        np.testing.assert_allclose(
-            result["df_prior"], ref["df_prior"].iloc[0], rtol=1e-5
-        )
+        np.testing.assert_allclose(result["var_prior"], ref["var_prior"].iloc[0], rtol=1e-5)
+        np.testing.assert_allclose(result["df_prior"], ref["df_prior"].iloc[0], rtol=1e-5)
         np.testing.assert_allclose(result["var_post"], ref["var_post"].values, rtol=1e-5)
 
     def test_empty_input(self):
@@ -248,9 +244,7 @@ class TestFitFDistUnequalDF1:
         result_standard = fit_f_dist(var, df1=df1_val)
 
         # Should be reasonably close (not identical due to different methods)
-        np.testing.assert_allclose(
-            result_unequal["scale"], result_standard["scale"], rtol=0.3
-        )
+        np.testing.assert_allclose(result_unequal["scale"], result_standard["scale"], rtol=0.3)
         # df2 can differ more due to method differences
         assert result_unequal["df2"] > 0
         assert result_standard["df2"] > 0

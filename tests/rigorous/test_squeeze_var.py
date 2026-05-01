@@ -12,21 +12,16 @@ helpers.run_r_comparison so any regression surfaces immediately.
 from __future__ import annotations
 
 import numpy as np
-import pandas as pd
 import pytest
 
-from pylimma.squeeze_var import squeeze_var, _squeeze_var_core
+from pylimma.squeeze_var import _squeeze_var_core, squeeze_var
 
 from ..helpers import (
-    compare_arrays,
     limma_available,
     run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 # ---------------------------------------------------------------------------
@@ -73,8 +68,7 @@ def _r_squeeze_var(var, df, **kwargs):
     """
 
     result = run_r_comparison(
-        py_data={"var": np.asarray(var, dtype=float),
-                 "df": np.asarray(df, dtype=float)},
+        py_data={"var": np.asarray(var, dtype=float), "df": np.asarray(df, dtype=float)},
         r_code_template=code,
         output_vars=["var_post", "df_prior", "var_prior"],
     )
@@ -108,9 +102,11 @@ def _r_squeeze_var_with_cov(var, df, covariate, **kwargs):
     """
 
     result = run_r_comparison(
-        py_data={"var": np.asarray(var, dtype=float),
-                 "df": np.asarray(df, dtype=float),
-                 "cov": np.asarray(covariate, dtype=float)},
+        py_data={
+            "var": np.asarray(var, dtype=float),
+            "df": np.asarray(df, dtype=float),
+            "cov": np.asarray(covariate, dtype=float),
+        },
         r_code_template=code,
         output_vars=["var_post", "df_prior", "var_prior"],
     )
@@ -147,10 +143,12 @@ class TestRigorousSqueezeVar:
         # And differential: R returns same shape and values
         r = _r_squeeze_var(var, np.full(2, 5.0))
         np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-12)
-        np.testing.assert_allclose(_atleast_1d(r["var_prior"]),
-                                   _atleast_1d(py["var_prior"]), rtol=1e-12)
-        np.testing.assert_allclose(_atleast_1d(r["df_prior"]),
-                                   _atleast_1d(py["df_prior"]), atol=1e-12)
+        np.testing.assert_allclose(
+            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-12
+        )
+        np.testing.assert_allclose(
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), atol=1e-12
+        )
 
     # ------------------------------------------------------------------
     # R-B3 (squeezeVar.R:17): var[df==0] <- 0 when length(df)>1
@@ -173,10 +171,12 @@ class TestRigorousSqueezeVar:
 
         # Compare full slots tightly
         np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-8)
-        np.testing.assert_allclose(_atleast_1d(r["var_prior"]),
-                                   _atleast_1d(py["var_prior"]), rtol=1e-8)
-        np.testing.assert_allclose(_atleast_1d(r["df_prior"]),
-                                   _atleast_1d(py["df_prior"]), rtol=1e-8)
+        np.testing.assert_allclose(
+            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-8
+        )
+        np.testing.assert_allclose(
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-8
+        )
 
     # ------------------------------------------------------------------
     # R-B4 (squeezeVar.R:20): non-NULL span forces legacy=FALSE
@@ -196,10 +196,12 @@ class TestRigorousSqueezeVar:
         r = _r_squeeze_var(sample_var, df, span=0.5)
 
         np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
-        np.testing.assert_allclose(_atleast_1d(r["var_prior"]),
-                                   _atleast_1d(py["var_prior"]), rtol=1e-6)
-        np.testing.assert_allclose(_atleast_1d(r["df_prior"]),
-                                   _atleast_1d(py["df_prior"]), rtol=1e-6)
+        np.testing.assert_allclose(
+            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-6
+        )
+        np.testing.assert_allclose(
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-6
+        )
 
     # ------------------------------------------------------------------
     # R-B5a (squeezeVar.R:23-26): legacy is NULL & all dfp equal -> legacy=TRUE
@@ -215,10 +217,12 @@ class TestRigorousSqueezeVar:
         r = _r_squeeze_var(sample_var, df)
 
         np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
-        np.testing.assert_allclose(_atleast_1d(r["df_prior"]),
-                                   _atleast_1d(py["df_prior"]), rtol=1e-6)
-        np.testing.assert_allclose(_atleast_1d(r["var_prior"]),
-                                   _atleast_1d(py["var_prior"]), rtol=1e-6)
+        np.testing.assert_allclose(
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-6
+        )
+        np.testing.assert_allclose(
+            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-6
+        )
 
     # ------------------------------------------------------------------
     # R-B5b: unequal df -> legacy=FALSE (and df_prior is per-gene array in R)
@@ -309,8 +313,9 @@ class TestRigorousSqueezeVar:
         r = _r_squeeze_var(sample_var, df, legacy=True, robust=False)
 
         np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-8)
-        np.testing.assert_allclose(_atleast_1d(r["df_prior"]),
-                                   _atleast_1d(py["df_prior"]), rtol=1e-8)
+        np.testing.assert_allclose(
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-8
+        )
 
     # ------------------------------------------------------------------
     # R-B8 (squeezeVar.R:37-41): non-legacy path; df.prior=df2.shrunk if non-null else df2
@@ -330,10 +335,12 @@ class TestRigorousSqueezeVar:
         r = _r_squeeze_var(sample_var, df, legacy=False, robust=False)
 
         np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df_prior"]),
-                                   _atleast_1d(py["df_prior"]), rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["var_prior"]),
-                                   _atleast_1d(py["var_prior"]), rtol=1e-5)
+        np.testing.assert_allclose(
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-5
+        )
+        np.testing.assert_allclose(
+            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-5
+        )
 
     def test_non_legacy_robust_unequal_df1_path(self):
         """Exercises R-B8: legacy=FALSE,robust=TRUE - df_prior=df2_shrunk."""
@@ -347,8 +354,9 @@ class TestRigorousSqueezeVar:
         r = _r_squeeze_var(sample_var, df, legacy=False, robust=True)
 
         np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df_prior"]),
-                                   _atleast_1d(py["df_prior"]), rtol=1e-5)
+        np.testing.assert_allclose(
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-5
+        )
 
     # ------------------------------------------------------------------
     # R-B11 (.squeezeVar:57-58): canonical formula with finite df_prior
@@ -407,9 +415,7 @@ class TestRigorousSqueezeVar:
         expected = var_prior.copy()
         finite = np.array([0, 2, 4])
         for i in finite:
-            expected[i] = (
-                df[i] * var[i] + df_prior[i] * var_prior[i]
-            ) / (df[i] + df_prior[i])
+            expected[i] = (df[i] * var[i] + df_prior[i] * var_prior[i]) / (df[i] + df_prior[i])
         np.testing.assert_allclose(result, expected, rtol=1e-12)
 
     # ------------------------------------------------------------------
@@ -457,22 +463,19 @@ class TestRigorousSqueezeVar:
         # Compare behaviour: try R first
         r_failed = False
         try:
-            r = _r_squeeze_var(var, df)
-        except RuntimeError as e:
+            _r_squeeze_var(var, df)
+        except RuntimeError:
             r_failed = True
-            r_err = str(e)
 
         # pylimma behaviour
         py_failed = False
         try:
-            py = squeeze_var(var, df=df)
-        except (ValueError, RuntimeError) as e:
+            squeeze_var(var, df=df)
+        except (ValueError, RuntimeError):
             py_failed = True
 
         # If R raised, pylimma should also raise
-        assert r_failed == py_failed, (
-            f"R failed={r_failed}, pylimma failed={py_failed}"
-        )
+        assert r_failed == py_failed, f"R failed={r_failed}, pylimma failed={py_failed}"
 
     # ------------------------------------------------------------------
     # Trend (covariate) path; legacy=TRUE
@@ -512,14 +515,12 @@ class TestRigorousSqueezeVar:
         # Without span: legacy=TRUE
         py_legacy = squeeze_var(sample_var, df=df)
         r_legacy = _r_squeeze_var(sample_var, df)
-        np.testing.assert_allclose(r_legacy["var_post"], py_legacy["var_post"],
-                                   rtol=1e-6)
+        np.testing.assert_allclose(r_legacy["var_post"], py_legacy["var_post"], rtol=1e-6)
 
         # With span: legacy=FALSE - results should differ from above
         py_new = squeeze_var(sample_var, df=df, span=0.5)
         r_new = _r_squeeze_var(sample_var, df, span=0.5)
-        np.testing.assert_allclose(r_new["var_post"], py_new["var_post"],
-                                   rtol=1e-5)
+        np.testing.assert_allclose(r_new["var_post"], py_new["var_post"], rtol=1e-5)
 
     # ------------------------------------------------------------------
     # Combined: legacy=False + covariate

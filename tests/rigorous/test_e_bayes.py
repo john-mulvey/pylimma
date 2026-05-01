@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylimma.ebayes import e_bayes, _tmixture_matrix, _tmixture_vector
+from pylimma.ebayes import _tmixture_matrix, _tmixture_vector, e_bayes
 from pylimma.lmfit import lm_fit
 
 from ..helpers import (
@@ -27,18 +27,13 @@ from ..helpers import (
     run_r_comparison,
 )
 
-
-pytestmark = pytest.mark.skipif(
-    not limma_available(), reason="R/limma not available"
-)
+pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 
 
 def _two_group_expr(rng=None, n_genes=30, n_samples=8, seed=0):
     rng = rng if rng is not None else np.random.default_rng(seed)
     expr = rng.standard_normal((n_genes, n_samples))
-    design = np.column_stack(
-        [np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)]
-    )
+    design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
     return expr, design
 
 
@@ -96,9 +91,7 @@ class TestRigorousEBayes:
         rng = np.random.default_rng(7)
         n_genes, n_samples = 40, 8
         expr = rng.standard_normal((n_genes, n_samples))
-        design = np.column_stack(
-            [np.ones(n_samples), np.array([0]*4 + [1]*4, dtype=float)]
-        )
+        design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
         # Numeric covariate (e.g., GC content or sequence length)
         covariate = rng.uniform(5, 12, size=n_genes)
 
@@ -121,8 +114,7 @@ class TestRigorousEBayes:
         lods <- eb$lods
         """
         r_results = run_r_comparison(
-            py_data={"expr": pd.DataFrame(expr), "design": pd.DataFrame(design),
-                     "cov": cov_df},
+            py_data={"expr": pd.DataFrame(expr), "design": pd.DataFrame(design), "cov": cov_df},
             r_code_template=r_code,
             output_vars=["t_stat", "s2_prior", "s2_post", "lods"],
         )
@@ -140,9 +132,7 @@ class TestRigorousEBayes:
         py_t = np.asarray(eb["t"], dtype=np.float64)
         r_t = np.asarray(r_results["t_stat"], dtype=np.float64)
         result = compare_arrays(r_t, py_t, rtol=1e-8)
-        assert result["match"], (
-            f"trend=numeric t differs: max_rel={result['max_rel_diff']:.2e}"
-        )
+        assert result["match"], f"trend=numeric t differs: max_rel={result['max_rel_diff']:.2e}"
 
         # s2_post
         py_s2p = np.asarray(eb["s2_post"], dtype=np.float64)
@@ -156,9 +146,7 @@ class TestRigorousEBayes:
         py_lods = np.asarray(eb["lods"], dtype=np.float64)
         r_lods = np.asarray(r_results["lods"], dtype=np.float64)
         result = compare_arrays(r_lods, py_lods, rtol=1e-6)
-        assert result["match"], (
-            f"trend=numeric lods differs: max_rel={result['max_rel_diff']:.2e}"
-        )
+        assert result["match"], f"trend=numeric lods differs: max_rel={result['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # R-B8a (.ebayes:51): non-numeric trend -> stop
@@ -205,11 +193,13 @@ class TestRigorousEBayes:
         means = np.linspace(0, 6, n_genes)
         expr = rng.standard_normal((n_genes, n_samples)) * np.exp(means[:, None])
         # Three groups for 2 non-trivial contrasts
-        design = np.column_stack([
-            np.ones(n_samples),
-            np.array([0]*4 + [1]*4 + [0]*4, dtype=float),
-            np.array([0]*4 + [0]*4 + [1]*4, dtype=float),
-        ])
+        design = np.column_stack(
+            [
+                np.ones(n_samples),
+                np.array([0] * 4 + [1] * 4 + [0] * 4, dtype=float),
+                np.array([0] * 4 + [0] * 4 + [1] * 4, dtype=float),
+            ]
+        )
         fit_py = lm_fit(expr, design)
         # proportion=0 -> ntarget=0 -> tmixture returns NA -> fallback path
         with warnings.catch_warnings():
@@ -266,9 +256,7 @@ class TestRigorousEBayes:
         # to its neighbours.
         # Simplest reliable trigger: set sigma to a constant after lmFit.
         expr = rng.standard_normal((n_genes, n_samples))
-        design = np.column_stack(
-            [np.ones(n_samples), np.array([0]*4 + [1]*4, dtype=float)]
-        )
+        design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
         fit = lm_fit(expr, design)
         # Force sigma to a constant - simulates infinite-df-prior squeeze
         fit["sigma"] = np.full_like(fit["sigma"], np.median(fit["sigma"]))
@@ -276,9 +264,7 @@ class TestRigorousEBayes:
         eb_py = e_bayes(fit)
         # df_prior should be > 1e6 (Inf branch trigger)
         df_prior = float(np.asarray(eb_py["df_prior"]).ravel()[0])
-        assert df_prior > 1e6, (
-            f"df_prior should be Inf-like for constant sigma, got {df_prior}"
-        )
+        assert df_prior > 1e6, f"df_prior should be Inf-like for constant sigma, got {df_prior}"
 
         # The Inf branch uses kernel = t2 * (1 - 1/r) / 2.
         # Sanity: lods should be finite (no NaN from the kernel).
@@ -297,9 +283,7 @@ class TestRigorousEBayes:
         expr = rng.standard_normal((n_genes, n_samples))
         # Inflate variance of last 5 genes to create outliers
         expr[-5:, :] *= 5.0
-        design = np.column_stack(
-            [np.ones(n_samples), np.array([0]*4 + [1]*4, dtype=float)]
-        )
+        design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
 
         fit = lm_fit(expr, design)
         eb_py = e_bayes(fit, robust=True)
@@ -334,9 +318,7 @@ class TestRigorousEBayes:
             np.asarray(eb_py["s2_post"]).ravel(),
             rtol=1e-6,
         )
-        assert result["match"], (
-            f"robust s2_post differs: max_rel={result['max_rel_diff']:.2e}"
-        )
+        assert result["match"], f"robust s2_post differs: max_rel={result['max_rel_diff']:.2e}"
 
         # Compare lods (kernel branch result)
         result = compare_arrays(
@@ -344,9 +326,7 @@ class TestRigorousEBayes:
             np.asarray(eb_py["lods"]),
             rtol=1e-6,
         )
-        assert result["match"], (
-            f"robust lods differs: max_rel={result['max_rel_diff']:.2e}"
-        )
+        assert result["match"], f"robust lods differs: max_rel={result['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # R-B17 (tmixture.vector ebayes.R:135-140): df_residual varies (some
@@ -368,9 +348,7 @@ class TestRigorousEBayes:
         expr[:30, 0] = np.nan
         # Add some DE signal for tmixture to actually estimate v0
         expr[:5, 6:] += 3.0
-        design = np.column_stack(
-            [np.ones(n_samples), np.array([0]*6 + [1]*6, dtype=float)]
-        )
+        design = np.column_stack([np.ones(n_samples), np.array([0] * 6 + [1] * 6, dtype=float)])
 
         fit = lm_fit(expr, design)
         eb_py = e_bayes(fit)
@@ -398,9 +376,7 @@ class TestRigorousEBayes:
             np.asarray(eb_py["df_total"]).ravel(),
             rtol=1e-8,
         )
-        assert result["match"], (
-            f"df_total differs: max_rel={result['max_rel_diff']:.2e}"
-        )
+        assert result["match"], f"df_total differs: max_rel={result['max_rel_diff']:.2e}"
 
         # var_prior is the tmixture output - this exercises R-B17
         result = compare_arrays(
@@ -418,9 +394,7 @@ class TestRigorousEBayes:
             np.asarray(eb_py["lods"]),
             rtol=1e-6,
         )
-        assert result["match"], (
-            f"lods differs: max_rel={result['max_rel_diff']:.2e}"
-        )
+        assert result["match"], f"lods differs: max_rel={result['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # R-B3 (eBayes:21): F-stat block skipped when design is rank-
@@ -437,7 +411,7 @@ class TestRigorousEBayes:
         n_genes, n_samples = 20, 8
         expr = rng.standard_normal((n_genes, n_samples))
         # Rank-deficient design: third column duplicates second
-        x = np.array([0]*4 + [1]*4, dtype=float)
+        x = np.array([0] * 4 + [1] * 4, dtype=float)
         design = np.column_stack([np.ones(n_samples), x, x])
         # lm_fit will fit it, but the design itself is rank-deficient
         # (col 3 == col 2)
@@ -450,6 +424,7 @@ class TestRigorousEBayes:
         # In Python, we should not have F either.
         if eb_py.get("design") is not None:
             from pylimma.lmfit import is_fullrank
+
             if not is_fullrank(eb_py["design"]):
                 assert "F" not in eb_py or eb_py.get("F") is None, (
                     "F should not be set when design is rank-deficient"
@@ -466,11 +441,13 @@ class TestRigorousEBayes:
         rng = np.random.default_rng(3)
         n_genes, n_samples = 25, 10
         expr = rng.standard_normal((n_genes, n_samples))
-        design = np.column_stack([
-            np.ones(n_samples),
-            np.array([0]*5 + [1]*5, dtype=float),
-            rng.standard_normal(n_samples),
-        ])
+        design = np.column_stack(
+            [
+                np.ones(n_samples),
+                np.array([0] * 5 + [1] * 5, dtype=float),
+                rng.standard_normal(n_samples),
+            ]
+        )
 
         fit = lm_fit(expr, design)
         eb_py = e_bayes(fit)
@@ -495,18 +472,14 @@ class TestRigorousEBayes:
             np.asarray(eb_py["F"]).ravel(),
             rtol=1e-6,
         )
-        assert result["match"], (
-            f"F differs: max_rel={result['max_rel_diff']:.2e}"
-        )
+        assert result["match"], f"F differs: max_rel={result['max_rel_diff']:.2e}"
 
         result = compare_arrays(
             np.asarray(r_results["F_p_value"]).ravel(),
             np.asarray(eb_py["F_p_value"]).ravel(),
             rtol=1e-6,
         )
-        assert result["match"], (
-            f"F_p_value differs: max_rel={result['max_rel_diff']:.2e}"
-        )
+        assert result["match"], f"F_p_value differs: max_rel={result['max_rel_diff']:.2e}"
 
     # ------------------------------------------------------------------
     # R-B3 false: design absent from fit -> no F slot
@@ -515,9 +488,7 @@ class TestRigorousEBayes:
         """Exercises R-B3: ebayes.R:21 (no design slot -> no F)."""
         rng = np.random.default_rng(4)
         expr = rng.standard_normal((15, 8))
-        design = np.column_stack(
-            [np.ones(8), np.array([0]*4 + [1]*4, dtype=float)]
-        )
+        design = np.column_stack([np.ones(8), np.array([0] * 4 + [1] * 4, dtype=float)])
         fit = lm_fit(expr, design)
         # Wipe design from fit
         fit.pop("design", None)
@@ -566,10 +537,7 @@ class TestRigorousEBayes:
         # R: stop("v0.lim must have length 2")
         # Python: silently uses indices [0] and [1], ignoring extras
         try:
-            result = _tmixture_matrix(
-                tstat, stdev_unscaled, 5.0, 0.01,
-                v0_lim=(0.1, 1.0, 999.0)
-            )
+            result = _tmixture_matrix(tstat, stdev_unscaled, 5.0, 0.01, v0_lim=(0.1, 1.0, 999.0))
             assert result is not None
         except (IndexError, ValueError, TypeError):
             pass
@@ -617,9 +585,11 @@ class TestRigorousEBayes:
                                       v0.lim=c(0.01, 2.0))
         """
         r_results = run_r_comparison(
-            py_data={"tstat": pd.DataFrame({"x": tstat}),
-                     "stdev": pd.DataFrame({"x": stdev}),
-                     "df": pd.DataFrame({"x": df_vec})},
+            py_data={
+                "tstat": pd.DataFrame({"x": tstat}),
+                "stdev": pd.DataFrame({"x": stdev}),
+                "df": pd.DataFrame({"x": df_vec}),
+            },
             r_code_template=r_code,
             output_vars=["v0"],
         )
@@ -657,9 +627,11 @@ class TestRigorousEBayes:
         v0 <- limma:::tmixture.vector(tstat, stdev, df=df, proportion=0.1)
         """
         r_results = run_r_comparison(
-            py_data={"tstat": pd.DataFrame({"x": tstat}),
-                     "stdev": pd.DataFrame({"x": stdev}),
-                     "df": pd.DataFrame({"x": df})},
+            py_data={
+                "tstat": pd.DataFrame({"x": tstat}),
+                "stdev": pd.DataFrame({"x": stdev}),
+                "df": pd.DataFrame({"x": df}),
+            },
             r_code_template=r_code,
             output_vars=["v0"],
         )
@@ -680,9 +652,7 @@ class TestRigorousEBayes:
         expr = rng.standard_normal((n_genes, n_samples))
         # Add some DE signal
         expr[:5, 4:] += 2.5
-        design = np.column_stack(
-            [np.ones(n_samples), np.array([0]*4 + [1]*4, dtype=float)]
-        )
+        design = np.column_stack([np.ones(n_samples), np.array([0] * 4 + [1] * 4, dtype=float)])
 
         fit = lm_fit(expr, design)
         eb_py = e_bayes(fit)
@@ -699,8 +669,14 @@ class TestRigorousEBayes:
             py_data={"expr": pd.DataFrame(expr), "design": pd.DataFrame(design)},
             r_code_template=r_code,
             output_vars=[
-                "t_stat", "p_value", "lods", "s2_post", "df_total",
-                "var_prior", "F_stat", "F_p_value",
+                "t_stat",
+                "p_value",
+                "lods",
+                "s2_post",
+                "df_total",
+                "var_prior",
+                "F_stat",
+                "F_p_value",
             ],
         )
 

@@ -52,7 +52,6 @@ import pandas as pd
 from .classes import EList, MArrayLM
 from .utils import p_adjust, tricube_moving_average
 
-
 _LEGEND_ANCHORS = {
     "bottomright": "lower right",
     "bottom": "lower center",
@@ -87,8 +86,7 @@ def _resolve_legend(legend):
         pos = str(legend)
     if pos not in _LEGEND_ANCHORS:
         raise ValueError(
-            f"'{pos}' is not a valid legend anchor. Must be one of "
-            f"{list(_LEGEND_ANCHORS)}"
+            f"'{pos}' is not a valid legend anchor. Must be one of {list(_LEGEND_ANCHORS)}"
         )
     return True, _LEGEND_ANCHORS[pos]
 
@@ -96,6 +94,7 @@ def _resolve_legend(legend):
 # ----------------------------------------------------------------------------
 # plotWithHighlights
 # ----------------------------------------------------------------------------
+
 
 def plot_with_highlights(
     x,
@@ -137,13 +136,11 @@ def plot_with_highlights(
             return True
         a = np.asarray(arr)
         if a.dtype.kind in ("U", "S", "O"):
-            return all(v is None or (isinstance(v, float) and np.isnan(v))
-                       for v in a.tolist())
+            return all(v is None or (isinstance(v, float) and np.isnan(v)) for v in a.tolist())
         return bool(np.all(np.isnan(a.astype(float, copy=False))))
 
     if status is None or _all_na(status):
-        ax.scatter(x, y, marker=bg_pch, c=bg_col,
-                   s=(float(bg_cex) * 25) ** 1, **kwargs)
+        ax.scatter(x, y, marker=bg_pch, c=bg_col, s=(float(bg_cex) * 25) ** 1, **kwargs)
         if main is not None:
             ax.set_title(main)
         ax.set_xlabel(xlab)
@@ -161,13 +158,13 @@ def plot_with_highlights(
         status_values = unique[order]
         values = status_values[1:].tolist()
     else:
-        values = [str(v) for v in (values if isinstance(values, (list, tuple, np.ndarray))
-                                   else [values])]
+        values = [
+            str(v) for v in (values if isinstance(values, (list, tuple, np.ndarray)) else [values])
+        ]
 
     nvalues = len(values)
     if nvalues == 0:
-        ax.scatter(x, y, marker=bg_pch, c=bg_col,
-                   s=(float(bg_cex) * 25))
+        ax.scatter(x, y, marker=bg_pch, c=bg_col, s=(float(bg_cex) * 25))
         if main is not None:
             ax.set_title(main)
         ax.set_xlabel(xlab)
@@ -196,27 +193,41 @@ def plot_with_highlights(
     hl_cex_v = np.array(_rep_len(hl_cex, nvalues).tolist(), dtype=np.float64)
     if hl_col is None:
         base = 1 if nonhi else 0
-        default_cycle = ["red", "blue", "green", "orange", "purple",
-                         "brown", "pink", "gray", "olive", "cyan"]
-        hl_col_v = np.array([default_cycle[(base + i) % len(default_cycle)]
-                             for i in range(nvalues)], dtype=object)
+        default_cycle = [
+            "red",
+            "blue",
+            "green",
+            "orange",
+            "purple",
+            "brown",
+            "pink",
+            "gray",
+            "olive",
+            "cyan",
+        ]
+        hl_col_v = np.array(
+            [default_cycle[(base + i) % len(default_cycle)] for i in range(nvalues)], dtype=object
+        )
     else:
         hl_col_v = _rep_len(hl_col, nvalues)
 
     # Draw background first
     if nonhi:
-        ax.scatter(x[bg_mask], y[bg_mask], marker=bg_pch, c=bg_col,
-                   s=(float(bg_cex) * 25))
+        ax.scatter(x[bg_mask], y[bg_mask], marker=bg_pch, c=bg_col, s=(float(bg_cex) * 25))
 
     # Draw highlighted points by category
     for i, val in enumerate(values):
         sel = status_arr == val
         if not np.any(sel):
             continue
-        ax.scatter(x[sel], y[sel], marker=hl_pch_v[i],
-                   c=[hl_col_v[i]],
-                   s=(float(hl_cex_v[i]) * 25),
-                   label=val)
+        ax.scatter(
+            x[sel],
+            y[sel],
+            marker=hl_pch_v[i],
+            c=[hl_col_v[i]],
+            s=(float(hl_cex_v[i]) * 25),
+            label=val,
+        )
 
     # Ensure axes limits include all data (R's plot sets type="n" then adds)
     ax.set_xlabel(xlab)
@@ -234,6 +245,7 @@ def plot_with_highlights(
 # ----------------------------------------------------------------------------
 # plotMA / plotMD
 # ----------------------------------------------------------------------------
+
 
 def _get_matrix_E(object, *, want_weights=False):
     """Extract (E, weights) from ndarray / EList / dict. Returns
@@ -317,11 +329,11 @@ def plot_ma(
         x = np.asarray(object["Amean"], dtype=np.float64)
     else:
         E, w = _get_matrix_E(object, want_weights=True)
-        x, y = _ma_from_matrix(E, int(array), weights=w,
-                                zero_weights=zero_weights)
+        x, y = _ma_from_matrix(E, int(array), weights=w, zero_weights=zero_weights)
 
-    return plot_with_highlights(x, y, status=status, xlab=xlab, ylab=ylab,
-                                main=main, ax=ax, **kwargs)
+    return plot_with_highlights(
+        x, y, status=status, xlab=xlab, ylab=ylab, main=main, ax=ax, **kwargs
+    )
 
 
 def plot_md(
@@ -360,16 +372,17 @@ def plot_md(
         x = np.asarray(object["Amean"], dtype=np.float64)
     else:
         E, w = _get_matrix_E(object, want_weights=True)
-        x, y = _ma_from_matrix(E, int(column), weights=w,
-                                zero_weights=zero_weights)
+        x, y = _ma_from_matrix(E, int(column), weights=w, zero_weights=zero_weights)
 
-    return plot_with_highlights(x, y, status=status, xlab=xlab, ylab=ylab,
-                                main=main, ax=ax, **kwargs)
+    return plot_with_highlights(
+        x, y, status=status, xlab=xlab, ylab=ylab, main=main, ax=ax, **kwargs
+    )
 
 
 # ----------------------------------------------------------------------------
 # volcanoplot / plotSA
 # ----------------------------------------------------------------------------
+
 
 def volcano_plot(
     fit,
@@ -396,9 +409,7 @@ def volcano_plot(
 
     style_low = str(style).lower()
     if style_low not in ("p-value", "b-statistic"):
-        raise ValueError(
-            f"style must be 'p-value' or 'b-statistic', got {style!r}"
-        )
+        raise ValueError(f"style must be 'p-value' or 'b-statistic', got {style!r}")
 
     c = coef
     if isinstance(c, str):
@@ -412,10 +423,7 @@ def volcano_plot(
 
     if style_low == "p-value":
         if fit.get("p_value") is None:
-            raise ValueError(
-                "No p-values found in linear model fit object. "
-                "Please run e_bayes."
-            )
+            raise ValueError("No p-values found in linear model fit object. Please run e_bayes.")
         p = np.asarray(fit["p_value"])
         y = -np.log10(p[:, c] if p.ndim > 1 else p)
         if ylab is None:
@@ -423,8 +431,7 @@ def volcano_plot(
     else:
         if fit.get("lods") is None:
             raise ValueError(
-                "No B-statistics found in linear model fit object. "
-                "Please run e_bayes."
+                "No B-statistics found in linear model fit object. Please run e_bayes."
             )
         lods = np.asarray(fit["lods"])
         y = lods[:, c] if lods.ndim > 1 else lods
@@ -445,7 +452,7 @@ def volcano_plot(
             gene_names = np.asarray(names)
         gene_names = np.array([str(g) for g in gene_names.tolist()])
         o = np.argsort(-y, kind="stable")
-        i_top = o[:int(highlight)]
+        i_top = o[: int(highlight)]
         for i in i_top:
             ax.text(x[i], y[i], gene_names[i][:8], color=hl_col, fontsize=8)
 
@@ -504,7 +511,7 @@ def plot_sa(
         y[dfg < 1e-6] = np.nan
         if fit.get("weights") is not None:
             w = np.asarray(fit["weights"])
-            allzero = (np.nansum(w > 0, axis=1) == 0)
+            allzero = np.nansum(w > 0, axis=1) == 0
             y[allzero] = np.nan
 
     colv = np.array([col[0]] * len(y), dtype=object)
@@ -518,7 +525,7 @@ def plot_sa(
         else:
             s20_bcast = s20_arr
         with np.errstate(invalid="ignore", divide="ignore"):
-            s2 = y ** 2 / s20_bcast
+            s2 = y**2 / s20_bcast
             pdn = f_dist.cdf(s2, dfn=dfg, dfd=df2)
             pup = f_dist.sf(s2, dfn=dfg, dfd=df2)
         raw = 2 * np.minimum(pdn, pup)
@@ -529,20 +536,17 @@ def plot_sa(
 
     if ax is None:
         _, ax = plt.subplots()
-    ax.scatter(x, y_plot, marker=pch, c=colv.tolist(),
-               s=(float(cex) * 25))
+    ax.scatter(x, y_plot, marker=pch, c=colv.tolist(), s=(float(cex) * 25))
     ax.set_xlabel(xlab)
     ax.set_ylabel(ylab)
 
     if s20 is not None:
         s20_arr = np.atleast_1d(np.asarray(s20, dtype=np.float64))
         if s20_arr.size == 1:
-            ax.axhline(float(np.sqrt(np.sqrt(s20_arr[0]))),
-                       color="blue")
+            ax.axhline(float(np.sqrt(np.sqrt(s20_arr[0]))), color="blue")
         else:
             o = np.argsort(x, kind="stable")
-            ax.plot(x[o], np.sqrt(np.sqrt(s20_arr[o])),
-                    color="blue")
+            ax.plot(x[o], np.sqrt(np.sqrt(s20_arr[o])), color="blue")
 
     if df0_arr.size > 1:
         ax.legend(["Normal", "Outlier"], loc="upper right")
@@ -553,6 +557,7 @@ def plot_sa(
 # ----------------------------------------------------------------------------
 # plotDensities
 # ----------------------------------------------------------------------------
+
 
 def _r_density_gaussian(
     x: np.ndarray,
@@ -595,19 +600,17 @@ def _r_density_gaussian(
     interior = (ix >= 0) & (ix <= n - 2)
     np.add.at(y, ix[interior], (1 - fx[interior]) * w)
     np.add.at(y, ix[interior] + 1, fx[interior] * w)
-    left = (ix == -1)
-    right = (ix == n - 1)
+    left = ix == -1
+    right = ix == n - 1
     if left.any():
-        np.add.at(y, np.zeros(int(left.sum()), dtype=np.int64),
-                  fx[left] * w)
+        np.add.at(y, np.zeros(int(left.sum()), dtype=np.int64), fx[left] * w)
     if right.any():
-        np.add.at(y, np.full(int(right.sum()), n - 1, dtype=np.int64),
-                  (1 - fx[right]) * w)
+        np.add.at(y, np.full(int(right.sum()), n - 1, dtype=np.int64), (1 - fx[right]) * w)
 
     dx = (up - lo) / (n - 1)
     kords = np.empty(2 * n)
-    kords[:n + 1] = np.arange(n + 1) * dx
-    kords[n + 1:] = -np.arange(n - 1, 0, -1) * dx
+    kords[: n + 1] = np.arange(n + 1) * dx
+    kords[n + 1 :] = -np.arange(n - 1, 0, -1) * dx
 
     # Gaussian kernel at bandwidth bw, evaluated on kords
     kv = np.exp(-0.5 * (kords / bw) ** 2) / (bw * np.sqrt(2 * np.pi))
@@ -646,14 +649,14 @@ def plot_densities(
     if isinstance(object, EList):
         E = np.asarray(object["E"], dtype=np.float64)
         if not log:
-            E = 2.0 ** E
+            E = 2.0**E
         colnames = None
         if isinstance(object.get("E"), pd.DataFrame):
             colnames = list(object["E"].columns)
     elif isinstance(object, dict) and "E" in object:
         E = np.asarray(object["E"], dtype=np.float64)
         if not log:
-            E = 2.0 ** E
+            E = 2.0**E
         colnames = None
     elif isinstance(object, pd.DataFrame):
         E = object.values.astype(np.float64)
@@ -674,8 +677,18 @@ def plot_densities(
     levels = list(dict.fromkeys(group_arr.tolist()))  # preserve appearance
     ngroup = len(levels)
 
-    default_cycle = ["red", "blue", "green", "orange", "purple", "brown",
-                     "pink", "gray", "olive", "cyan"]
+    default_cycle = [
+        "red",
+        "blue",
+        "green",
+        "orange",
+        "purple",
+        "brown",
+        "pink",
+        "gray",
+        "olive",
+        "cyan",
+    ]
     if col is None:
         col_list = [default_cycle[i % len(default_cycle)] for i in range(ngroup)]
     else:
@@ -705,8 +718,9 @@ def plot_densities(
 
     show_legend, loc = _resolve_legend(legend)
     if show_legend and ngroup > 1:
-        handles = [plt.Line2D([], [], color=level_to_col[lev], linewidth=2,
-                              label=lev) for lev in levels]
+        handles = [
+            plt.Line2D([], [], color=level_to_col[lev], linewidth=2, label=lev) for lev in levels
+        ]
         ax.legend(handles=handles, loc=loc)
 
     return ax
@@ -715,6 +729,7 @@ def plot_densities(
 # ----------------------------------------------------------------------------
 # plotMDS / _mds_coordinates
 # ----------------------------------------------------------------------------
+
 
 def _mds_coordinates(
     x: np.ndarray,
@@ -733,19 +748,14 @@ def _mds_coordinates(
     ``eigen_values``, ``eigen_vectors``.
     """
     if gene_selection not in ("pairwise", "common"):
-        raise ValueError(
-            f"gene_selection must be 'pairwise' or 'common', "
-            f"got {gene_selection!r}"
-        )
+        raise ValueError(f"gene_selection must be 'pairwise' or 'common', got {gene_selection!r}")
 
     x = np.asarray(x, dtype=np.float64)
     if x.ndim != 2:
         raise ValueError("x must be 2-dimensional")
     nsamples = x.shape[1]
     if nsamples < 3:
-        raise ValueError(
-            f"Only {nsamples} columns of data: need at least 3"
-        )
+        raise ValueError(f"Only {nsamples} columns of data: need at least 3")
 
     # Drop rows with missing/Inf values
     good = np.all(np.isfinite(x), axis=1)
@@ -849,8 +859,7 @@ def plot_mds(
         sample_names = None
 
     ndim = max(int(dim_plot[0]), int(dim_plot[1])) + 1
-    result = _mds_coordinates(x_mat, top=top,
-                              gene_selection=gene_selection, ndim=ndim)
+    result = _mds_coordinates(x_mat, top=top, gene_selection=gene_selection, ndim=ndim)
 
     eigvals = result["eigen_values"]
     eigvecs = result["eigen_vectors"]
@@ -859,8 +868,7 @@ def plot_mds(
     xcoord = eigvecs[:, i1] * np.sqrt(lam[i1])
     ycoord = eigvecs[:, i2] * np.sqrt(lam[i2])
 
-    axislabel = ("Leading logFC dim" if gene_selection == "pairwise"
-                 else "Principal Component")
+    axislabel = "Leading logFC dim" if gene_selection == "pairwise" else "Principal Component"
     if xlab is None:
         xlab = f"{axislabel} {i1 + 1}"
     if ylab is None:
@@ -874,9 +882,11 @@ def plot_mds(
         _, ax = plt.subplots()
 
     if labels is None and pch is None:
-        labels = sample_names if sample_names is not None else [
-            str(i + 1) for i in range(x_mat.shape[1])
-        ]
+        labels = (
+            sample_names
+            if sample_names is not None
+            else [str(i + 1) for i in range(x_mat.shape[1])]
+        )
 
     if labels is not None:
         labels = [str(lab) for lab in labels]
@@ -886,8 +896,7 @@ def plot_mds(
         for xi, yi, lab in zip(xcoord, ycoord, labels):
             ax.text(xi, yi, lab, ha="center", va="center", fontsize=10 * cex)
     else:
-        ax.scatter(xcoord, ycoord, marker=pch if pch is not None else "o",
-                   s=(float(cex) * 25))
+        ax.scatter(xcoord, ycoord, marker=pch if pch is not None else "o", s=(float(cex) * 25))
 
     ax.set_xlabel(xlab)
     ax.set_ylabel(ylab)
@@ -898,6 +907,7 @@ def plot_mds(
 # venn
 # ----------------------------------------------------------------------------
 
+
 def venn_counts(x, include: str = "both") -> pd.DataFrame:
     """Cross-tabulate significance indicators. Port of R limma's
     ``vennCounts``.
@@ -905,9 +915,7 @@ def venn_counts(x, include: str = "both") -> pd.DataFrame:
     ``include`` is ``"both"``, ``"up"``, or ``"down"``.
     """
     if include not in ("both", "up", "down"):
-        raise ValueError(
-            f"include must be 'both', 'up', or 'down', got {include!r}"
-        )
+        raise ValueError(f"include must be 'both', 'up', or 'down', got {include!r}")
 
     if isinstance(x, pd.DataFrame):
         col_names = list(x.columns)
@@ -926,12 +934,12 @@ def venn_counts(x, include: str = "both") -> pd.DataFrame:
         indicator = np.sign((x_arr < 0).astype(np.int64))
 
     ncontrasts = indicator.shape[1]
-    noutcomes = 2 ** ncontrasts
+    noutcomes = 2**ncontrasts
     outcomes = np.zeros((noutcomes, ncontrasts), dtype=np.int64)
     for j in range(ncontrasts):
         # R: rep(0:1, times=2^(j-1), each=2^(ncontrasts-j))  (1-based j)
         # In 0-based:   times = 2^j, each = 2^(ncontrasts-1-j)
-        times = 2 ** j
+        times = 2**j
         each = 2 ** (ncontrasts - 1 - j)
         pattern = np.tile(np.repeat(np.array([0, 1]), each), times)
         outcomes[:, j] = pattern
@@ -1005,9 +1013,7 @@ def venn_diagram(
 
     nsets = counts_df.shape[1] - 1
     if nsets > 3:
-        raise NotImplementedError(
-            f"pylimma's venn_diagram only supports 1-3 sets; got {nsets}"
-        )
+        raise NotImplementedError(f"pylimma's venn_diagram only supports 1-3 sets; got {nsets}")
 
     if names is None:
         names = list(counts_df.columns[:nsets])
@@ -1025,14 +1031,13 @@ def venn_diagram(
         counts_col_list = [str(cc[i % len(cc)]) for i in range(len_inc)]
 
     if show_include is None:
-        show_include = (len_inc == 2)
+        show_include = len_inc == 2
 
     # Build count lookup keyed by bit-pattern string
     def _pattern_counts(df):
         patterns = df.iloc[:, :nsets].astype(int).values
         cts = df["Counts"].astype(int).values
-        return {"".join(str(v) for v in row): int(c)
-                for row, c in zip(patterns, cts)}
+        return {"".join(str(v) for v in row): int(c) for row, c in zip(patterns, cts)}
 
     z = _pattern_counts(counts_df)
     z2 = _pattern_counts(counts2_df) if len_inc == 2 else None
@@ -1046,68 +1051,77 @@ def venn_diagram(
 
     theta = np.linspace(0, 2 * np.pi, 361)
     xcentres = {1: [0.0], 2: [-1.0, 1.0], 3: [-1.0, 1.0, 0.0]}[nsets]
-    ycentres = {1: [0.0], 2: [0.0, 0.0],
-                3: [1.0 / np.sqrt(3), 1.0 / np.sqrt(3),
-                    -2.0 / np.sqrt(3)]}[nsets]
+    ycentres = {
+        1: [0.0],
+        2: [0.0, 0.0],
+        3: [1.0 / np.sqrt(3), 1.0 / np.sqrt(3), -2.0 / np.sqrt(3)],
+    }[nsets]
     r = 1.5
     xtext = {1: [-1.2], 2: [-1.2, 1.2], 3: [-1.2, 1.2, 0.0]}[nsets]
     ytext = {1: [1.8], 2: [1.8, 1.8], 3: [2.4, 2.4, -3.0]}[nsets]
 
     for k in range(nsets):
-        ax.plot(xcentres[k] + r * np.cos(theta),
-                ycentres[k] + r * np.sin(theta),
-                color=circle_col_list[k], linewidth=lwd)
-        ax.text(xtext[k], ytext[k], names[k], fontsize=12 * cex[0],
-                ha="center")
+        ax.plot(
+            xcentres[k] + r * np.cos(theta),
+            ycentres[k] + r * np.sin(theta),
+            color=circle_col_list[k],
+            linewidth=lwd,
+        )
+        ax.text(xtext[k], ytext[k], names[k], fontsize=12 * cex[0], ha="center")
 
     if nsets in (1, 2):
-        ax.plot([-3, 3, 3, -3, -3], [-2.5, -2.5, 2.5, 2.5, -2.5],
-                color="black", linewidth=lwd)
+        ax.plot([-3, 3, 3, -3, -3], [-2.5, -2.5, 2.5, 2.5, -2.5], color="black", linewidth=lwd)
     else:
-        ax.plot([-3, 3, 3, -3, -3], [-3.5, -3.5, 3.3, 3.3, -3.5],
-                color="black", linewidth=lwd)
+        ax.plot([-3, 3, 3, -3, -3], [-3.5, -3.5, 3.3, 3.3, -3.5], color="black", linewidth=lwd)
 
     def _show_counts(zz, cex_val, adj, color, leg):
         if nsets == 1:
-            ax.text(2.3, -2.1, str(zz["1"]), color=color, fontsize=10 * cex_val,
-                    ha="center", va=adj)
-            ax.text(0, 0, str(zz["0"]), color=color, fontsize=10 * cex_val,
-                    ha="center", va=adj)
+            ax.text(
+                2.3, -2.1, str(zz["1"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+            )
+            ax.text(0, 0, str(zz["0"]), color=color, fontsize=10 * cex_val, ha="center", va=adj)
             if show_include:
-                ax.text(-2.3, -2.1, leg, color=color, fontsize=10 * cex_val,
-                        ha="center", va=adj)
+                ax.text(-2.3, -2.1, leg, color=color, fontsize=10 * cex_val, ha="center", va=adj)
         elif nsets == 2:
-            ax.text(2.3, -2.1, str(zz["00"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(1.5, 0.1, str(zz["10"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(-1.5, 0.1, str(zz["01"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(0, 0.1, str(zz["11"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
+            ax.text(
+                2.3, -2.1, str(zz["00"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+            )
+            ax.text(
+                1.5, 0.1, str(zz["10"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+            )
+            ax.text(
+                -1.5, 0.1, str(zz["01"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+            )
+            ax.text(0, 0.1, str(zz["11"]), color=color, fontsize=10 * cex_val, ha="center", va=adj)
             if show_include:
-                ax.text(-2.3, -2.1, leg, color=color,
-                        fontsize=10 * cex_val, ha="center", va=adj)
+                ax.text(-2.3, -2.1, leg, color=color, fontsize=10 * cex_val, ha="center", va=adj)
         else:
-            ax.text(2.5, -3, str(zz["000"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(0, -1.7, str(zz["001"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(1.5, 1, str(zz["010"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(.75, -.35, str(zz["011"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(-1.5, 1, str(zz["100"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(-.75, -.35, str(zz["101"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(0, .9, str(zz["110"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
-            ax.text(0, 0, str(zz["111"]), color=color,
-                    fontsize=10 * cex_val, ha="center", va=adj)
+            ax.text(
+                2.5, -3, str(zz["000"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+            )
+            ax.text(
+                0, -1.7, str(zz["001"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+            )
+            ax.text(1.5, 1, str(zz["010"]), color=color, fontsize=10 * cex_val, ha="center", va=adj)
+            ax.text(
+                0.75, -0.35, str(zz["011"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+            )
+            ax.text(
+                -1.5, 1, str(zz["100"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+            )
+            ax.text(
+                -0.75,
+                -0.35,
+                str(zz["101"]),
+                color=color,
+                fontsize=10 * cex_val,
+                ha="center",
+                va=adj,
+            )
+            ax.text(0, 0.9, str(zz["110"]), color=color, fontsize=10 * cex_val, ha="center", va=adj)
+            ax.text(0, 0, str(zz["111"]), color=color, fontsize=10 * cex_val, ha="center", va=adj)
             if show_include:
-                ax.text(-2.5, -3, leg, color=color,
-                        fontsize=10 * cex_val, ha="center", va=adj)
+                ax.text(-2.5, -3, leg, color=color, fontsize=10 * cex_val, ha="center", va=adj)
 
     adj = "center" if len_inc == 1 else "bottom"
     _show_counts(z, cex[0], adj, counts_col_list[0], include_list[0])
@@ -1126,8 +1140,17 @@ def venn_diagram(
 # coolmap's R version delegates layout to gplots::heatmap.2; this port
 # re-implements the layout in matplotlib, so gplots is not an upstream.
 
-_COOLMAP_LINKAGES = {"none", "ward.D", "single", "complete", "average",
-                     "mcquitty", "median", "centroid", "ward.D2"}
+_COOLMAP_LINKAGES = {
+    "none",
+    "ward.D",
+    "single",
+    "complete",
+    "average",
+    "mcquitty",
+    "median",
+    "centroid",
+    "ward.D2",
+}
 
 
 def _coolmap_linkage(name: str) -> str:
@@ -1135,14 +1158,12 @@ def _coolmap_linkage(name: str) -> str:
     if n in ("w", "wa", "war", "ward"):
         n = "ward.D2"
     if n not in _COOLMAP_LINKAGES:
-        raise ValueError(
-            f"linkage must be one of {_COOLMAP_LINKAGES}, got {name!r}"
-        )
+        raise ValueError(f"linkage must be one of {_COOLMAP_LINKAGES}, got {name!r}")
     # Translate R -> scipy method names
     mapping = {
         "ward.D": "ward",  # R's ward.D is the older (non-squared) method;
-                           # scipy only has squared-distance 'ward'. We map
-                           # to 'ward' which matches R's ward.D2.
+        # scipy only has squared-distance 'ward'. We map
+        # to 'ward' which matches R's ward.D2.
         "ward.D2": "ward",
         "mcquitty": "weighted",
     }
@@ -1154,21 +1175,18 @@ _COOLMAP_PALETTES = {"redblue", "redgreen", "yellowblue", "whitered"}
 
 def _coolmap_cmap(name: str):
     from matplotlib.colors import LinearSegmentedColormap
+
     if name not in _COOLMAP_PALETTES:
-        raise ValueError(
-            f"col must be one of {_COOLMAP_PALETTES}, got {name!r}"
-        )
+        raise ValueError(f"col must be one of {_COOLMAP_PALETTES}, got {name!r}")
     if name == "redblue":
-        return LinearSegmentedColormap.from_list(
-            "redblue", ["#0000ee", "white", "#ee0000"], N=256)
+        return LinearSegmentedColormap.from_list("redblue", ["#0000ee", "white", "#ee0000"], N=256)
     if name == "redgreen":
-        return LinearSegmentedColormap.from_list(
-            "redgreen", ["green", "black", "red"], N=256)
+        return LinearSegmentedColormap.from_list("redgreen", ["green", "black", "red"], N=256)
     if name == "yellowblue":
         return LinearSegmentedColormap.from_list(
-            "yellowblue", ["#0000ee", "white", "#eeee00"], N=256)
-    return LinearSegmentedColormap.from_list(
-        "whitered", ["white", "#ee0000"], N=256)
+            "yellowblue", ["#0000ee", "white", "#eeee00"], N=256
+        )
+    return LinearSegmentedColormap.from_list("whitered", ["white", "#ee0000"], N=256)
 
 
 def coolmap(
@@ -1189,13 +1207,12 @@ def coolmap(
     is not ported). Returns the matplotlib Figure.
     """
     plt = _require_matplotlib()
-    from scipy.cluster.hierarchy import linkage, leaves_list
+    from scipy.cluster.hierarchy import leaves_list, linkage
     from scipy.spatial.distance import pdist
 
     if cluster_by not in ("de pattern", "expression level"):
         raise ValueError(
-            f"cluster_by must be 'de pattern' or 'expression level', "
-            f"got {cluster_by!r}"
+            f"cluster_by must be 'de pattern' or 'expression level', got {cluster_by!r}"
         )
     if show_dendrogram not in ("both", "row", "column", "none"):
         raise ValueError(
@@ -1235,7 +1252,7 @@ def coolmap(
         else:
             df_row = np.full(M.shape[0], df, dtype=np.float64)
         Z = M - row_means[:, None]
-        V = np.nansum(Z ** 2, axis=1) / df_row
+        V = np.nansum(Z**2, axis=1) / df_row
         Z = Z / np.sqrt(V + 0.01)[:, None]
         sym = True
     else:
@@ -1245,9 +1262,7 @@ def coolmap(
     # Column clustering
     if linkage_col == "none":
         col_order = np.arange(Z.shape[1])
-        show_dendrogram_eff = (show_dendrogram
-                               .replace("both", "row")
-                               .replace("column", "none"))
+        show_dendrogram_eff = show_dendrogram.replace("both", "row").replace("column", "none")
     else:
         col_link = linkage(pdist(Z.T, metric="euclidean"), method=link_col)
         col_order = leaves_list(col_link)
@@ -1255,9 +1270,7 @@ def coolmap(
 
     if linkage_row == "none":
         row_order = np.arange(Z.shape[0])
-        show_dendrogram_eff = (show_dendrogram_eff
-                               .replace("both", "column")
-                               .replace("row", "none"))
+        show_dendrogram_eff = show_dendrogram_eff.replace("both", "column").replace("row", "none")
         row_link = None
     else:
         row_link = linkage(pdist(Z, metric="euclidean"), method=link_row)
@@ -1275,20 +1288,19 @@ def coolmap(
         vmax = float(np.nanmax(Z_reordered))
 
     fig, ax_main = plt.subplots(figsize=(6, 6))
-    im = ax_main.imshow(Z_reordered, aspect="auto", cmap=cmap,
-                        vmin=vmin, vmax=vmax)
+    im = ax_main.imshow(Z_reordered, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
     ax_main.set_xticks(np.arange(len(col_labels)))
     ax_main.set_xticklabels(col_labels, rotation=90, fontsize=8)
     ax_main.set_yticks(np.arange(len(row_labels)))
     ax_main.set_yticklabels(row_labels, fontsize=6)
-    fig.colorbar(im, ax=ax_main,
-                 label="Z-Score" if sym else "log2(expression)")
+    fig.colorbar(im, ax=ax_main, label="Z-Score" if sym else "log2(expression)")
     return fig
 
 
 # ----------------------------------------------------------------------------
 # barcodeplot
 # ----------------------------------------------------------------------------
+
 
 def barcode_plot(
     statistics,
@@ -1317,14 +1329,9 @@ def barcode_plot(
     # Check / coerce index
     if index is None:
         if gene_weights is None:
-            raise ValueError(
-                "Must specify at least one of index or gene_weights"
-            )
+            raise ValueError("Must specify at least one of index or gene_weights")
         if len(gene_weights) != nstat:
-            raise ValueError(
-                "No index and length(gene_weights) doesn't equal "
-                "length(statistics)"
-            )
+            raise ValueError("No index and length(gene_weights) doesn't equal length(statistics)")
         index = np.ones(nstat, dtype=bool)
         index2 = None
     else:
@@ -1353,9 +1360,7 @@ def barcode_plot(
         if np.any(np.isnan(gw)):
             raise ValueError("Need to provide gene_weights without NAs")
         if np.all(gw == 0):
-            raise ValueError(
-                "gene_weights equal to zero: no selected genes to plot"
-            )
+            raise ValueError("gene_weights equal to zero: no selected genes to plot")
         idx_mask = _as_logical(index, nstat)
         if len(gw) != int(idx_mask.sum()):
             raise ValueError("Length of gene_weights disagrees with size of set")
@@ -1457,7 +1462,10 @@ def barcode_plot(
                 WTS = True
             max_wt = max(np.max(set1["wt"][r]), np.max(set2["wt"][r2]))
             len_up = set1["wt"][r] / max_wt
-            len_down = set2["wt"][r2] / max_wt
+            # TODO: confirm whether _len_down should be used (R barcodeplot.R:188
+            # passes len.down to segments() drawing the second-set bars; the
+            # corresponding plotting branch is not yet ported)
+            _len_down = set2["wt"][r2] / max_wt
 
     pos_dir = bool(np.all(len_up > 0))
     shift = 0.1 if WTS else 0.0
@@ -1472,9 +1480,11 @@ def barcode_plot(
     if not TWO:
         ylim_worm = [0.0, 2.1] if worm else [0.0, 1.0]
 
-    ylim = [-1.0, 1.5]
+    # TODO: confirm whether _ylim should be used (R barcodeplot.R:283 derives
+    # barlim from ylim for the bar-rectangle drawing, which is not yet ported)
+    _ylim = [-1.0, 1.5]
     if TWO:
-        ylim = [-1.5, 1.5]
+        _ylim = [-1.5, 1.5]
 
     if ax is None:
         _, ax = plt.subplots()
@@ -1482,34 +1492,36 @@ def barcode_plot(
     if TWO:
         ax.set_ylim(ylim_worm[0] - shift, ylim_worm[1] + shift)
     else:
-        ax.set_ylim(ylim_worm[0] - shift * (not pos_dir),
-                    ylim_worm[1] + shift * pos_dir)
+        ax.set_ylim(ylim_worm[0] - shift * (not pos_dir), ylim_worm[1] + shift * pos_dir)
 
-    npos = int(np.sum(stat > quantiles[1]))
-    nneg = int(np.sum(stat < quantiles[0]))
+    # TODO: confirm whether _npos / _nneg should be used (R barcodeplot.R:290-292
+    # uses these to draw coloured background rectangles; not yet ported)
+    _npos = int(np.sum(stat > quantiles[1]))
+    _nneg = int(np.sum(stat < quantiles[0]))
 
     # Compute worm (main numeric substrate output)
     worm1 = None
-    worm2 = None
+    # TODO: confirm whether _worm2 should be used (R barcodeplot.R:344,356,386
+    # compute worm2 and plot worm2.scale; the second-set worm-plot branch is
+    # not yet ported)
+    _worm2 = None
     if worm:
         idx_sorted = set1["idx"].astype(np.float64)
         if not WTS:
             ave_enrich1 = len(r) / n
-            worm1 = (tricube_moving_average(idx_sorted, span=span_worm)
-                     / ave_enrich1)
+            worm1 = tricube_moving_average(idx_sorted, span=span_worm) / ave_enrich1
             if TWO:
                 ave_enrich2 = len(r2) / n
-                worm2 = (tricube_moving_average(-set2["idx"].astype(np.float64),
-                                                span=span_worm)
-                         / ave_enrich2)
+                _worm2 = (
+                    tricube_moving_average(-set2["idx"].astype(np.float64), span=span_worm)
+                    / ave_enrich2
+                )
         else:
             ave_enrich1 = np.mean(set1["wt"])
-            worm1 = (tricube_moving_average(set1["wt"], span=span_worm)
-                     / ave_enrich1)
+            worm1 = tricube_moving_average(set1["wt"], span=span_worm) / ave_enrich1
             if TWO:
                 ave_enrich2 = np.mean(set2["wt"])
-                worm2 = (tricube_moving_average(-set2["wt"], span=span_worm)
-                         / ave_enrich2)
+                _worm2 = tricube_moving_average(-set2["wt"], span=span_worm) / ave_enrich2
 
         def rescale(x, new_lo, new_hi, old_lo, old_hi):
             if old_hi == old_lo:
@@ -1517,10 +1529,8 @@ def barcode_plot(
             return new_lo + (x - old_lo) / (old_hi - old_lo) * (new_hi - new_lo)
 
         max_w1 = float(np.max(worm1))
-        worm1_scale = rescale(worm1, 1.1 + shift * pos_dir,
-                              2.1 + shift * pos_dir, 0.0, max_w1)
-        ax.plot(np.arange(1, n + 1), worm1_scale,
-                color=col_bars[0], linewidth=2)
+        worm1_scale = rescale(worm1, 1.1 + shift * pos_dir, 2.1 + shift * pos_dir, 0.0, max_w1)
+        ax.plot(np.arange(1, n + 1), worm1_scale, color=col_bars[0], linewidth=2)
 
     ax.set_xlabel(xlab)
     return ax
@@ -1532,7 +1542,7 @@ def _as_logical(index, n):
     if arr.dtype == bool:
         if len(arr) != n:
             out = np.zeros(n, dtype=bool)
-            out[:len(arr)] = arr
+            out[: len(arr)] = arr
             return out
         return arr.copy()
     mask = np.zeros(n, dtype=bool)
@@ -1589,8 +1599,9 @@ def plotlines(
     return ax
 
 
-def mdplot(x, columns=(0, 1), xlab: str = "Mean",
-           ylab: str = "Difference", main=None, ax=None, **kwargs):
+def mdplot(
+    x, columns=(0, 1), xlab: str = "Mean", ylab: str = "Difference", main=None, ax=None, **kwargs
+):
     """
     Mean-difference plot of two columns of a matrix.
 
@@ -1605,14 +1616,19 @@ def mdplot(x, columns=(0, 1), xlab: str = "Mean",
     m = (x[:, i] + x[:, j]) / 2.0
     if main is None:
         main = f"Column {j + 1} vs Column {i + 1}"
-    return plot_with_highlights(
-        x=m, y=d, xlab=xlab, ylab=ylab, main=main, ax=ax, **kwargs
-    )
+    return plot_with_highlights(x=m, y=d, xlab=xlab, ylab=ylab, main=main, ax=ax, **kwargs)
 
 
-def heat_diagram(results, coef, primary: int = 0, names=None,
-                 orientation: str = "landscape", limit=None,
-                 ncolors: int = 123, ax=None):
+def heat_diagram(
+    results,
+    coef,
+    primary: int = 0,
+    names=None,
+    orientation: str = "landscape",
+    limit=None,
+    ncolors: int = 123,
+    ax=None,
+):
     """
     Heat diagram of fold-changes across conditions.
 
@@ -1630,6 +1646,7 @@ def heat_diagram(results, coef, primary: int = 0, names=None,
     DE = np.abs(results[:, primary]) > 0.5
     if not DE.any():
         import warnings as _w
+
         _w.warn("Nothing significant to plot")
         return None
 
@@ -1657,12 +1674,26 @@ def heat_diagram(results, coef, primary: int = 0, names=None,
     return {"coef": coef_mat, "names": names, "im": im, "ax": ax}
 
 
-def plot_rldf(y, design=None, z=None, nprobes: int = 100, plot: bool = True,
-              labels_y=None, labels_z=None, pch_y=None, pch_z=None,
-              col_y="black", col_z="black",
-              show_dimensions=(0, 1), ndim=None,
-              var_prior=None, df_prior=None, trend: bool = False,
-              robust: bool = False, ax=None):
+def plot_rldf(
+    y,
+    design=None,
+    z=None,
+    nprobes: int = 100,
+    plot: bool = True,
+    labels_y=None,
+    labels_z=None,
+    pch_y=None,
+    pch_z=None,
+    col_y="black",
+    col_z="black",
+    show_dimensions=(0, 1),
+    ndim=None,
+    var_prior=None,
+    df_prior=None,
+    trend: bool = False,
+    robust: bool = False,
+    ax=None,
+):
     """
     Regularised linear discriminant function plot.
 
@@ -1712,8 +1743,9 @@ def plot_rldf(y, design=None, z=None, nprobes: int = 100, plot: bool = True,
     ``predicting`` is also populated. Backwards-compatible aliases
     ``training_scores``, ``top_probes`` and ``test_scores`` are kept.
     """
-    from .squeeze_var import squeeze_var
     import matplotlib.pyplot as plt
+
+    from .squeeze_var import squeeze_var
 
     y = np.asarray(y, dtype=np.float64)
     g, n = y.shape
@@ -1725,10 +1757,12 @@ def plot_rldf(y, design=None, z=None, nprobes: int = 100, plot: bool = True,
             raise ValueError("design not specified and all labels_y are different")
         # Build ~ f design
         levels, inv = np.unique(labs, return_inverse=True)
-        design = np.column_stack([
-            np.ones(n),
-            (inv[:, None] == np.arange(1, len(levels))).astype(float),
-        ])
+        design = np.column_stack(
+            [
+                np.ones(n),
+                (inv[:, None] == np.arange(1, len(levels))).astype(float),
+            ]
+        )
     design = np.asarray(design, dtype=np.float64)
     if design.shape[0] != n:
         raise ValueError("nrow(design) doesn't match ncol(y)")
@@ -1752,13 +1786,12 @@ def plot_rldf(y, design=None, z=None, nprobes: int = 100, plot: bool = True,
     U = Q_full.T @ y.T  # (n, g)
     UB = U[1:p, :]  # rows 2:p, shape (p-1, g); R's 1-based U[2:p,] -> Python U[1:p,]
     UW = U[p:, :]  # rows p+1:n, shape (n-p, g)
-    s2 = np.mean(UW ** 2, axis=0)  # (g,)
+    s2 = np.mean(UW**2, axis=0)  # (g,)
 
     # Prior variance / df (plotrldf.R:68-79)
     if var_prior is None or df_prior is None:
         covariate = np.mean(y, axis=1) if trend else None
-        sv = squeeze_var(s2, df=float(df_residual),
-                         covariate=covariate, robust=robust)
+        sv = squeeze_var(s2, df=float(df_residual), covariate=covariate, robust=robust)
         var_prior = sv["var_prior"]
         df_prior = sv["df_prior"]
     var_prior = np.atleast_1d(np.asarray(var_prior, dtype=np.float64))
@@ -1773,7 +1806,7 @@ def plot_rldf(y, design=None, z=None, nprobes: int = 100, plot: bool = True,
 
     # Select top probes by moderated F (plotrldf.R:82-95)
     if g > nprobes:
-        modF = np.mean(UB ** 2, axis=0) / (s2 + df_prior * var_prior)
+        modF = np.mean(UB**2, axis=0) / (s2 + df_prior * var_prior)
         order = np.argsort(-modF, kind="stable")
         top = order[:nprobes]
         y_sel = y[top, :]
@@ -1850,23 +1883,33 @@ def plot_rldf(y, design=None, z=None, nprobes: int = 100, plot: bool = True,
             for xi, yi, lab in zip(d_y[:, d1], d_y[:, d2], labels_y):
                 ax.text(xi, yi, str(lab), color=col_y)
         else:
-            ax.scatter(d_y[:, d1], d_y[:, d2], c=col_y,
-                       marker=str(pch_y) if pch_y is not None else "o")
+            ax.scatter(
+                d_y[:, d1], d_y[:, d2], c=col_y, marker=str(pch_y) if pch_y is not None else "o"
+            )
         if z_sel is not None:
             d_z = result["predicting"]
             if pch_z is None and labels_z is not None:
                 for xi, yi, lab in zip(d_z[:, d1], d_z[:, d2], labels_z):
                     ax.text(xi, yi, str(lab), color=col_z)
             else:
-                ax.scatter(d_z[:, d1], d_z[:, d2], c=col_z,
-                           marker=str(pch_z) if pch_z is not None else "x")
+                ax.scatter(
+                    d_z[:, d1], d_z[:, d2], c=col_z, marker=str(pch_z) if pch_z is not None else "x"
+                )
         ax.set_xlabel(f"Discriminant Function {d1 + 1}")
         ax.set_ylabel(f"Discriminant Function {d2 + 1}")
     return result
 
 
-def plot_exons(fit, coef=None, geneid=None, genecolname: str = "GeneID",
-               exoncolname=None, rank: int = 1, fdr: float = 0.05, ax=None):
+def plot_exons(
+    fit,
+    coef=None,
+    geneid=None,
+    genecolname: str = "GeneID",
+    exoncolname=None,
+    rank: int = 1,
+    fdr: float = 0.05,
+    ax=None,
+):
     """
     Plot log-fold-changes of exons for a single gene.
 
@@ -1874,6 +1917,7 @@ def plot_exons(fit, coef=None, geneid=None, genecolname: str = "GeneID",
     """
     import matplotlib.pyplot as plt
     import pandas as pd
+
     from .utils import p_adjust
 
     if fit.get("p_value") is None:
@@ -1917,8 +1961,9 @@ def plot_exons(fit, coef=None, geneid=None, genecolname: str = "GeneID",
     return ax
 
 
-def plot_exon_junc(fit, coef=None, geneid=None, genecolname=None,
-                   fdr: float = 0.05, annotation=None, ax=None):
+def plot_exon_junc(
+    fit, coef=None, geneid=None, genecolname=None, fdr: float = 0.05, annotation=None, ax=None
+):
     """
     Exon / junction plot for a diff_splice fit.
 
@@ -1927,6 +1972,7 @@ def plot_exon_junc(fit, coef=None, geneid=None, genecolname=None,
     """
     import matplotlib.pyplot as plt
     import pandas as pd
+
     from .utils import p_adjust
 
     if genecolname is None:
@@ -1958,12 +2004,20 @@ def plot_exon_junc(fit, coef=None, geneid=None, genecolname=None,
     is_exon = length.values > 1
     if ax is None:
         _fig, ax = plt.subplots()
-    ax.scatter(np.where(is_exon)[0], fc_g[is_exon],
-               color=np.where(adj_g[is_exon] < fdr, "red", "grey"),
-               marker="s", label="Exon")
-    ax.scatter(np.where(~is_exon)[0], fc_g[~is_exon],
-               color=np.where(adj_g[~is_exon] < fdr, "orange", "black"),
-               marker="x", label="Junction")
+    ax.scatter(
+        np.where(is_exon)[0],
+        fc_g[is_exon],
+        color=np.where(adj_g[is_exon] < fdr, "red", "grey"),
+        marker="s",
+        label="Exon",
+    )
+    ax.scatter(
+        np.where(~is_exon)[0],
+        fc_g[~is_exon],
+        color=np.where(adj_g[~is_exon] < fdr, "orange", "black"),
+        marker="x",
+        label="Junction",
+    )
     ax.axhline(0.0, color="black", linewidth=0.5)
     ax.set_xlabel("Feature")
     ax.set_ylabel("log2 FC")
@@ -2022,12 +2076,12 @@ def plot_ma_3by2(
         Absolute paths of the written files (in page order).
     """
     import os
+
     import matplotlib.pyplot as plt
 
     if device not in ("png", "jpeg", "pdf", "postscript"):
         raise ValueError(
-            f"device {device!r} not recognised; "
-            "must be one of 'png', 'jpeg', 'pdf', 'postscript'"
+            f"device {device!r} not recognised; must be one of 'png', 'jpeg', 'pdf', 'postscript'"
         )
     ext = "ps" if device == "postscript" else device
     if path is None:
@@ -2054,13 +2108,13 @@ def plot_ma_3by2(
             col_names = list(getattr(object, "obs_names"))
 
     if main is None:
-        main = list(col_names) if col_names is not None else [
-            f"Array {i + 1}" for i in range(n_arrays)
-        ]
-    elif len(main) != n_arrays:
-        raise ValueError(
-            f"len(main)={len(main)} does not match n_arrays={n_arrays}"
+        main = (
+            list(col_names)
+            if col_names is not None
+            else [f"Array {i + 1}" for i in range(n_arrays)]
         )
+    elif len(main) != n_arrays:
+        raise ValueError(f"len(main)={len(main)} does not match n_arrays={n_arrays}")
 
     # Common x/y limits computed once over the whole matrix.
     common_xlim = common_ylim = None
