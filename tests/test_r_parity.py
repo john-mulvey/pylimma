@@ -4075,7 +4075,7 @@ class TestPhase3BranchCoverage:
 # Second-pass audit verification tests (2026-04-22)
 # =============================================================================
 #
-# These tests verify the 20 findings in bug_hunt_second_pass_2026_04_21.md.
+# These tests verify the 20 findings from a second-pass audit (2026-04-22).
 # Each test either:
 #   (a) compares pylimma output to live R output via run_r_comparison, or
 #   (b) asserts a Python-only behavioural property (crashes, warnings, slot
@@ -4883,7 +4883,7 @@ class TestGoanaTrendInterface:
 # =============================================================================
 
 
-class TestChooseLowessSpanRParity:
+class TestChooseLowessSpanPublicAPI:
     def test_n_to_span_table(self):
         from pylimma import choose_lowess_span
         ref = pd.read_csv(FIXTURES_DIR / "R_choose_lowess_span.csv")

@@ -40,7 +40,7 @@ point on the flat saddle-likelihood plateau.
 better.
 
 normalize_vsn output drifts up to ~2.4e-4 from R/vsn 3.66.0
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``normalize_vsn`` matches R's ``normalizeVSN`` (which delegates to
 the Bioconductor ``vsn`` package) within ``rtol ~2.4e-4``. The

@@ -1,10 +1,9 @@
 """
 Rigorous branch-coverage audit for ``pylimma.lmfit.lm_series``.
 
-Each test exercises a specific R branch of ``lm.series`` (lmfit.R:91-188) and
-compares pylimma's output against a live R subprocess for numerical parity at
-rtol=1e-8. Branch numbers refer to the audit report at
-``audits/lm_series.md``.
+Each test exercises a specific R branch of ``lm.series`` (R limma's
+lmfit.R:91-188) and compares pylimma's output against a live R subprocess
+for numerical parity at rtol=1e-8.
 """
 
 from __future__ import annotations

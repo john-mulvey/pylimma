@@ -1,9 +1,8 @@
 """
 Rigorous per-branch parity tests for pylimma.lmfit.lm_fit.
 
-Each test exercises a specific R branch of lmFit() in
-prior_art/limma/R/lmfit.R. Branch numbers reference the audit at
-audits/lm_fit.md (Step 2 inventory).
+Each test exercises a specific R branch of lmFit() in R limma's
+lmfit.R.
 
 These tests were added by a rigorous single-function audit on
 2026-04-23. They are intentionally tight (rtol=1e-8) and mostly run

@@ -75,8 +75,7 @@ bypassed the fit-consumer dispatcher). All 14 with code impact are
 fixed; three were closed as by-design trade-offs (var-annotation
 merging on ``top_table``, AnnData view semantics, and empty-contrast
 type leak - the last as a side-effect of the h5ad-serialisation
-fix). The full bug hunt report is at ``bug_hunt_anndata_2026_04_20.md``
-in the project root. The regression suite grew by 31 tests as part
+fix). The regression suite grew by 31 tests as part
 of the audit (570 total).
 
 Publication figures
@@ -84,5 +83,5 @@ Publication figures
 
 Publication-quality figures (R-vs-pylimma log-FC scatter, moderated-t
 scatter, -log10(p) scatter, rank-concordance curve, runtime bars) are
-planned for the four parity notebooks as part of the preprint effort
-(plan.md Step 5) and will be embedded here once generated.
+planned for the four parity notebooks and will be embedded here once
+generated.

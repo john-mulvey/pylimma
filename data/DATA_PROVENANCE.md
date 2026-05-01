@@ -169,8 +169,7 @@ to a log-abundance proteomics matrix.
 **Source**. The raw spectra and FragPipe processing outputs are
 deposited in ProteomeXchange via PRIDE (accession TBD - confirm
 from the published article's Data Availability statement before
-release). The CSVs in this directory are produced by
-`extract_mulvey_proteomics.py` at the project root from the
+release). The CSVs in this directory are extracted from the
 median-subtraction-normalised proteingroup matrix.
 
 **Licence**. *Molecular & Cellular Proteomics* has been a fully
