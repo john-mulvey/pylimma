@@ -1969,3 +1969,155 @@ def plot_exon_junc(fit, coef=None, geneid=None, genecolname=None,
     ax.set_ylabel("log2 FC")
     ax.legend()
     return ax
+
+
+def plot_ma_3by2(
+    object,
+    prefix: str = "MA",
+    path: str | None = None,
+    main: list[str] | None = None,
+    zero_weights: bool = False,
+    common_lim: bool = True,
+    device: str = "png",
+    **kwargs,
+) -> list[str]:
+    """
+    Write MA plots to disk, six per page in a 3x2 grid.
+
+    Port of R limma's ``plotMA3by2``. Writes one file per page; for a
+    matrix with ``n_arrays`` columns the function emits
+    ``ceil(n_arrays / 6)`` files named
+    ``<path>/<prefix>-<i1>-<i2>.<ext>``.
+
+    Parameters
+    ----------
+    object : ndarray, EList, or MArrayLM
+        Matrix-like or pylimma fit. ``ndarray`` and ``EList`` go through
+        ``plot_ma``'s matrix path; ``MArrayLM`` plots ``coefficients``
+        column by column. RGList / MAList / EListRaw inputs (R's
+        two-colour S4 wrappers) are out of scope.
+    prefix : str, default "MA"
+        Filename prefix. Files are written as
+        ``{path}/{prefix}-{i1}-{i2}.{ext}`` where ``i1``..``i2`` are
+        1-based array indices for that page (matching R).
+    path : str, optional
+        Output directory. Defaults to the current working directory.
+    main : list of str, optional
+        Per-array title. Defaults to column names where available.
+    zero_weights : bool, default False
+        Forwarded to ``plot_ma``.
+    common_lim : bool, default True
+        If True, all pages share the same x and y limits computed from
+        the full matrix (matching R's default).
+    device : str, default "png"
+        Output format. One of ``"png"``, ``"jpeg"``, ``"pdf"``,
+        ``"postscript"`` (passed to matplotlib's ``savefig``; matplotlib
+        chooses the backend from the file extension).
+    **kwargs
+        Forwarded to ``plot_ma``.
+
+    Returns
+    -------
+    list of str
+        Absolute paths of the written files (in page order).
+    """
+    import os
+    import matplotlib.pyplot as plt
+
+    if device not in ("png", "jpeg", "pdf", "postscript"):
+        raise ValueError(
+            f"device {device!r} not recognised; "
+            "must be one of 'png', 'jpeg', 'pdf', 'postscript'"
+        )
+    ext = "ps" if device == "postscript" else device
+    if path is None:
+        path = "."
+
+    # Resolve substrate matrix and per-column labels.
+    if isinstance(object, MArrayLM):
+        if object.get("coefficients") is None:
+            raise ValueError("fit must contain coefficients")
+        if object.get("Amean") is None:
+            raise ValueError("Amean component is absent.")
+        coefs = np.asarray(object["coefficients"])
+        if coefs.ndim == 1:
+            coefs = coefs[:, np.newaxis]
+        n_arrays = coefs.shape[1]
+        col_names = object.get("contrast_names") or object.get("coef_names")
+    else:
+        E, _ = _get_matrix_E(object, want_weights=True)
+        n_arrays = E.shape[1]
+        col_names = None
+        if hasattr(object, "var_names"):
+            pass  # AnnData has var_names but we want sample/array names
+        if hasattr(object, "obs_names"):
+            col_names = list(getattr(object, "obs_names"))
+
+    if main is None:
+        main = list(col_names) if col_names is not None else [
+            f"Array {i + 1}" for i in range(n_arrays)
+        ]
+    elif len(main) != n_arrays:
+        raise ValueError(
+            f"len(main)={len(main)} does not match n_arrays={n_arrays}"
+        )
+
+    # Common x/y limits computed once over the whole matrix.
+    common_xlim = common_ylim = None
+    if common_lim:
+        if isinstance(object, MArrayLM):
+            x_all = np.asarray(object["Amean"], dtype=np.float64)
+            y_all = coefs
+        else:
+            E, w = _get_matrix_E(object, want_weights=True)
+            # A and M for each column: A_i = mean of remaining cols,
+            # M_i = E[:, i] - A_i. Vectorised.
+            n = E.shape[1]
+            row_sum = np.nansum(E, axis=1, keepdims=True)
+            A_all = (row_sum - E) / max(n - 1, 1)
+            M_all = E - A_all
+            if not zero_weights and w is not None:
+                M_all = np.where(w > 0, M_all, np.nan)
+            x_all = A_all
+            y_all = M_all
+        common_xlim = (np.nanmin(x_all), np.nanmax(x_all))
+        common_ylim = (np.nanmin(y_all), np.nanmax(y_all))
+
+    written: list[str] = []
+    n_pages = -(-n_arrays // 6)  # ceil
+    for ipage in range(n_pages):
+        i1 = ipage * 6 + 1
+        i2 = min((ipage + 1) * 6, n_arrays)
+
+        # R uses width=6.5 inches, height=10 inches for vector
+        # devices; PNG/JPEG bumped to 6.5*140 x 10*140 px @ default
+        # ~72 dpi historic legacy. We pin the PDF/PS aspect and let
+        # matplotlib's savefig handle DPI for raster outputs.
+        fig, axes = plt.subplots(3, 2, figsize=(6.5, 10.0))
+        axes = axes.flatten()
+
+        for slot in range(6):
+            array_idx = ipage * 6 + slot
+            ax = axes[slot]
+            if array_idx >= n_arrays:
+                ax.set_axis_off()
+                continue
+            plot_ma(
+                object,
+                array=array_idx,
+                coef=array_idx if isinstance(object, MArrayLM) else None,
+                main=main[array_idx],
+                zero_weights=zero_weights,
+                ax=ax,
+                **kwargs,
+            )
+            if common_lim:
+                ax.set_xlim(common_xlim)
+                ax.set_ylim(common_ylim)
+
+        out_file = os.path.join(path, f"{prefix}-{i1}-{i2}.{ext}")
+        fig.savefig(out_file, format=ext if ext != "ps" else "ps")
+        plt.close(fig)
+        written.append(out_file)
+
+    return written

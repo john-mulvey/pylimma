@@ -8,6 +8,7 @@
 #   arrayWeightsGeneByGene.R  Copyright (C) 2005-2020 Matt Ritchie, Cynthia Liu,
 #                                                     Gordon Smyth
 #   arrayWeightsQuick.R       Copyright (C) 2004      Gordon Smyth
+#   weights.R (modifyWeights) Copyright (C) 2003-2020 Gordon Smyth
 # Python port: Copyright (C) 2026 John Mulvey
 """
 Array weights for limma.
@@ -15,6 +16,8 @@ Array weights for limma.
 Implements functions to estimate sample-specific quality weights:
 - array_weights(): Main entry point for estimating array quality weights
 - array_weights_quick(): Quick approximation to array weights
+- modify_weights(): Multiply rows of a weights matrix by status-specific
+  scalars
 """
 
 from __future__ import annotations
@@ -754,3 +757,58 @@ def array_weights_quick(
 
     mures2 = (sigma[:, np.newaxis] ** 2) * (1.0 - h)[np.newaxis, :]
     return 1.0 / np.nanmean(res * res / mures2, axis=0)
+
+
+def modify_weights(
+    weights,
+    status,
+    values,
+    multipliers,
+) -> np.ndarray:
+    """
+    Multiply rows of a weights matrix by status-specific scalars.
+
+    Port of R limma's ``modifyWeights``. For each entry in ``values``,
+    rows whose ``status`` matches that entry are multiplied (in place
+    on a copy) by the corresponding multiplier.
+
+    Parameters
+    ----------
+    weights : array_like
+        Weights matrix of shape (n_features, n_arrays). 1-D inputs are
+        promoted to a single-column matrix to mirror R's
+        ``as.matrix(weights)``.
+    status : array_like of str
+        Per-row status labels. Length must equal ``nrow(weights)``.
+    values : sequence of str
+        Status values to act on.
+    multipliers : float or sequence of float
+        Multiplier for each value. A single multiplier is recycled to
+        the length of ``values``.
+
+    Returns
+    -------
+    ndarray
+        Updated weights matrix, same shape as the input (1-D inputs
+        come back as a column matrix to match R).
+    """
+    status = np.asarray([str(s) for s in status])
+    weights = np.asarray(weights, dtype=np.float64)
+    if weights.ndim == 1:
+        weights = weights.reshape(-1, 1)
+    weights = weights.copy()
+    values = [str(v) for v in values]
+    multipliers = np.atleast_1d(np.asarray(multipliers, dtype=np.float64))
+
+    if status.size != weights.shape[0]:
+        raise ValueError("nrows of weights must equal length of status")
+    if multipliers.size == 1:
+        multipliers = np.repeat(multipliers, len(values))
+    if len(values) != multipliers.size:
+        raise ValueError("no. values doesn't match no. multipliers")
+
+    for value, mult in zip(values, multipliers):
+        mask = status == value
+        if np.any(mask):
+            weights[mask, :] = mult * weights[mask, :]
+    return weights

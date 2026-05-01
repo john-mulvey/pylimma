@@ -5069,6 +5069,30 @@ class TestNormalizeVSNRParity:
         )
 
 
+class TestModifyWeightsRParity:
+    def test_vector_input_with_two_statuses(self):
+        from pylimma import modify_weights
+        ref = pd.read_csv(FIXTURES_DIR / "R_modify_weights_vec.csv")
+        py = modify_weights(
+            ref["w"].values,
+            ref["status"].values,
+            values=["neg", "pos"],
+            multipliers=[0.0, 5.0],
+        )
+        # R's modifyWeights returns a column matrix for 1-D input.
+        np.testing.assert_array_equal(py.ravel(), ref["out"].values)
+
+    def test_matrix_input_with_scalar_multiplier(self):
+        from pylimma import modify_weights
+        w = pd.read_csv(FIXTURES_DIR / "R_modify_weights_mat_in.csv").values
+        status = pd.read_csv(
+            FIXTURES_DIR / "R_modify_weights_mat_status.csv"
+        )["status"].values
+        ref = pd.read_csv(FIXTURES_DIR / "R_modify_weights_mat_out.csv").values
+        py = modify_weights(w, status, values=["a", "c"], multipliers=2.0)
+        np.testing.assert_allclose(py, ref, rtol=1e-12, atol=1e-15)
+
+
 class TestPublicAPIPromotion:
     """Audit gap (2026-04-30): symbols that R limma exports must be
     importable from top-level pylimma without underscore prefix."""

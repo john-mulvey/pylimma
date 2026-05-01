@@ -66,7 +66,7 @@ from pylimma.geneset import (
     top_romer,
 )
 from pylimma.voom import voom, voom_with_quality_weights, vooma, vooma_lm_fit, vooma_by_group
-from pylimma.weights import array_weights, array_weights_quick
+from pylimma.weights import array_weights, array_weights_quick, modify_weights
 from pylimma.dups import (
     duplicate_correlation,
     ave_dups,
@@ -89,6 +89,7 @@ from pylimma.batch import remove_batch_effect, wsva
 from pylimma.plotting import (
     plot_with_highlights,
     plot_ma,
+    plot_ma_3by2,
     plot_md,
     volcano_plot,
     plot_sa,
@@ -136,6 +137,7 @@ __all__ = [
     "vooma_lm_fit",
     "array_weights",
     "array_weights_quick",
+    "modify_weights",
     # Duplicate probes / replicates
     "duplicate_correlation",
     "ave_dups",
@@ -157,6 +159,7 @@ __all__ = [
     # Visualisation
     "plot_with_highlights",
     "plot_ma",
+    "plot_ma_3by2",
     "plot_md",
     "volcano_plot",
     "plot_sa",
