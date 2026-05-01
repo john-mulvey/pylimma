@@ -67,12 +67,19 @@ from pylimma.geneset import (
 )
 from pylimma.voom import voom, voom_with_quality_weights, vooma, vooma_lm_fit, vooma_by_group
 from pylimma.weights import array_weights, array_weights_quick
-from pylimma.dups import duplicate_correlation, ave_dups, avereps
+from pylimma.dups import (
+    duplicate_correlation,
+    ave_dups,
+    avereps,
+    unique_genelist,
+    unwrap_dups,
+)
 from pylimma.normalize import (
     normalize_between_arrays,
     normalize_quantiles,
     normalize_median_values,
     normalize_cyclic_loess,
+    normalize_vsn,
     normexp_fit,
     normexp_signal,
     background_correct,
@@ -133,11 +140,14 @@ __all__ = [
     "duplicate_correlation",
     "ave_dups",
     "avereps",
+    "unique_genelist",
+    "unwrap_dups",
     # Normalization
     "normalize_between_arrays",
     "normalize_quantiles",
     "normalize_median_values",
     "normalize_cyclic_loess",
+    "normalize_vsn",
     "normexp_fit",
     "normexp_signal",
     "background_correct",

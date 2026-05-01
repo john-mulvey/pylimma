@@ -68,6 +68,24 @@ for R. All are GPL-compatible with pylimma's GPL-3.0-or-later licence.
     Copyright:  Rafael A. Irizarry, Laurent Gautier, Benjamin Milo Bolstad,
                 Crispin Miller, and contributors.
 
+  vsn (https://bioconductor.org/packages/vsn)
+    Used in:    pylimma/normalize.py normalize_vsn() ports vsn::vsnMatrix
+                (variance-stabilising normalisation via maximum profile
+                likelihood with LTS robustification, single-stratum,
+                affine-calibration matrix path) called by R limma's
+                normalizeVSN.default. The L-BFGS-B optimisation in
+                vsn/src/vsn2.c is reimplemented via
+                scipy.optimize.minimize.
+    Licence:    Artistic-2.0; see
+                https://bioconductor.org/packages/release/bioc/html/vsn.html.
+    Copyright:  Wolfgang Huber [aut, cre], Anja von Heydebreck [aut],
+                Dennis Kostka, David Kreil, Hans-Ulrich Klein,
+                Robert Gentleman, Deepayan Sarkar, Gordon Smyth (ctb).
+    Reference:  Huber, W., von Heydebreck, A., Sueltmann, H., Poustka, A.,
+                Vingron, M. (2002). Variance stabilization applied to
+                microarray data calibration and to the quantification of
+                differential expression. Bioinformatics 18, S96-S104.
+
 Per-file attribution
 --------------------
 

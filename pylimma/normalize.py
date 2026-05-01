@@ -5,6 +5,7 @@
 #          normalizeMedianValues)        Copyright (C) 2002-2016 Gordon Smyth
 #   norm.R (normalizeCyclicLoess)        Copyright (C) 2010-2026 Yunshun Chen,
 #                                                                Gordon Smyth
+#   norm.R (normalizeVSN.default)        Copyright (C) 2010      Gordon Smyth
 #   background-normexp.R                 Copyright (C) 2002-2015 Gordon Smyth,
 #                                                                Jeremy Silver
 #   src/normexp.c (saddle, m2loglik,
@@ -18,6 +19,13 @@
 # Bioconductor affy package (which limma's normexp.fit calls per array):
 #   affy::bg.parameters                  Copyright (C) Rafael A. Irizarry et al.;
 #                                        LGPL (>= 2.0)
+#
+# normalize_vsn() additionally ports the algorithm from the Bioconductor
+# vsn package (which limma's normalizeVSN.default calls per matrix):
+#   vsn/R/vsn2.R, vsn/src/vsn2.c         Copyright (C) 2002-2009 Wolfgang Huber;
+#                                        contributions from Markus Ruschhaupt,
+#                                        Dennis Kostka, David Kreil;
+#                                        Artistic-2.0
 #
 # Python port: Copyright (C) 2026 John Mulvey
 """
@@ -1180,3 +1188,307 @@ def _aver_arrays_anndata(adata, id=None, weights=None):
 
     # averaged is (n_genes, n_unique_ids); AnnData wants (n_samples, n_genes).
     return ad.AnnData(X=np.asarray(averaged).T, obs=obs_new, var=var_new)
+
+
+# ============================================================================
+# normalize_vsn (port of vsn::vsnMatrix; called by R limma's normalizeVSN)
+# ============================================================================
+#
+# Algorithm reference: vsn/R/vsn2.R + vsn/src/vsn2.c (Wolfgang Huber 2002-2009).
+# We port the matrix path that R limma's normalizeVSN.default invokes:
+# single stratum, no reference, default options, calib="affine". Strata,
+# reference, sample, "calib=none" branches and the AffyBatch / RGList /
+# EListRaw S4 dispatchers are out of scope (RGList / EListRaw are not
+# ported per policy_data_class_wrappers).
+#
+# Model. Per-column parameters (a_j, b_j) for j = 1..ncol. The variance-
+# stabilising transform is h(y_ij) = arsinh(exp(b_j) * y_ij + a_j). After
+# fitting, the row means mu_i are profiled out and the (a, b) are chosen
+# to maximise the log-likelihood under the assumption that the h(y_ij)
+# are jointly normal with row-mean mu_i and a single column-shared
+# variance sigsq.
+#
+# Optimiser. R/vsn calls L-BFGS-B via the LINPACK-era lbfgsb wrapper. We
+# call scipy.optimize.minimize(method="L-BFGS-B"). Same algorithm,
+# different implementation; converged parameters typically agree to
+# rtol ~ 1e-4. The resulting transformation matches R to a tighter
+# tolerance because small parameter wiggles compress through the asinh.
+#
+# LTS robustification. After each ML fit, residuals are computed for ALL
+# rows; rows are split into 5 hmean-rank quintiles and within each (slice,
+# stratum) cell, only rows with squared-residual below the 90th percentile
+# are kept for the next iteration (slice 1, the lowest-intensity rows,
+# is exempt and always kept whole). Up to 7 iterations.
+
+
+def _vsn_neg_loglik_and_grad(par, y_full, valid_full):
+    """
+    Negative profile log-likelihood and gradient for vsn affine
+    calibration, single stratum.
+
+    par layout: [a_1, ..., a_C, b_1, ..., b_C] for C columns.
+    The transform is h(y) = arsinh(exp(b_j)*y + a_j).
+    """
+    n_rows, n_cols = y_full.shape
+    a = par[:n_cols]
+    b = par[n_cols:]
+    fb = np.exp(b)
+
+    # z_ij = exp(b_j)*y_ij + a_j
+    z = fb[np.newaxis, :] * y_full + a[np.newaxis, :]
+    asly = np.where(valid_full, np.arcsinh(z), 0.0)
+    one_plus_z2 = 1.0 + z * z
+    ma = np.where(valid_full, 1.0 / np.sqrt(one_plus_z2), 0.0)
+
+    # Profile mu: per-row mean of asly over valid columns.
+    n_per_row = valid_full.sum(axis=1)
+    row_sum = (asly * valid_full).sum(axis=1)
+    with np.errstate(invalid="ignore"):
+        mu = np.where(n_per_row > 0, row_sum / n_per_row, np.nan)
+
+    # Residuals (zero on invalid cells; mu of all-NaN rows is NaN).
+    valid_resid = valid_full & ~np.isnan(mu)[:, np.newaxis]
+    resid = np.where(valid_resid, asly - np.where(np.isnan(mu), 0.0, mu)[:, np.newaxis], 0.0)
+    ssq = (resid * resid).sum()
+
+    # n_total counts only cells whose row has at least one valid entry,
+    # matching the C code: rows with all-NaN are skipped from ssq.
+    n_total = int(valid_resid.sum())
+    sigsq = ssq / n_total if n_total > 0 else np.inf
+
+    # Jacobian terms (only over rows with mu defined, mirroring the
+    # 1st-sweep loop in vsn2.c which counts every non-NA y_ij).
+    jac1 = (np.log(one_plus_z2) * valid_full).sum()
+    n_per_col = valid_full.sum(axis=0).astype(float)
+    jac2 = (n_per_col * b).sum()
+    jacobian = 0.5 * jac1 - jac2
+
+    nll = n_total / 2.0 * np.log(2.0 * np.pi * sigsq) + n_total / 2.0 + jacobian
+
+    # Gradient. From vsn2.c grad_loglik:
+    #   z_grad = resid / sigsq + ma * z
+    #   grad_a_j = sum_i z_grad[i,j] * ma[i,j]
+    #   grad_b_j = exp(b_j) * sum_i z_grad[i,j] * ma[i,j] * y[i,j] - n_j
+    # (the n_j term comes from sb-(double)nj/FUN(b[j]), then DFDB(b)*FUN(b)=exp(2b),
+    #  pulled through to give exp(b)*sum - n_j.)
+    rfac = 1.0 / sigsq if sigsq > 0 else 0.0
+    z_grad = resid * rfac + ma * z
+    grad_a = (z_grad * ma * valid_resid).sum(axis=0)
+    grad_b = fb * (z_grad * ma * y_full * valid_resid).sum(axis=0) - n_per_col
+    grad = np.concatenate([grad_a, grad_b])
+    return nll, grad
+
+
+def _vsn_ml_fit(y, pstart, factr=5e7, pgtol=2e-4, maxit=60000):
+    """Profile-likelihood ML fit via L-BFGS-B (single stratum, affine)."""
+    from scipy.optimize import minimize
+
+    n_rows, n_cols = y.shape
+    valid = ~np.isnan(y)
+    y_filled = np.where(valid, y, 0.0)
+
+    bounds = [(None, None)] * n_cols + [(-100.0, 100.0)] * n_cols
+    eps = np.finfo(float).eps
+    result = minimize(
+        _vsn_neg_loglik_and_grad,
+        pstart,
+        args=(y_filled, valid),
+        jac=True,
+        method="L-BFGS-B",
+        bounds=bounds,
+        options={"ftol": factr * eps, "gtol": pgtol, "maxiter": maxit},
+    )
+    return result.x, int(not result.success)
+
+
+def _vsn_trsf(y, par):
+    """Apply h(y) = arsinh(exp(b)*y + a), single stratum, affine."""
+    n_rows, n_cols = y.shape
+    a = par[:n_cols]
+    b = par[n_cols:]
+    fb = np.exp(b)
+    return np.where(np.isnan(y), np.nan,
+                    np.arcsinh(fb[np.newaxis, :] * y + a[np.newaxis, :]))
+
+
+def _vsn_lts_select(hy, lts_quantile):
+    """
+    Robust trimming after an ML fit: split rows into 5 quintile slices by
+    hmean rank, drop rows whose squared-residual is above the per-slice
+    quantile (slice 1 is exempt). Single-stratum version.
+    """
+    hmean = np.nanmean(hy, axis=1)
+    rvar = np.nansum((hy - hmean[:, np.newaxis]) ** 2, axis=1)
+    n_rows = hy.shape[0]
+
+    # rank(hmean, na.last=TRUE): NaNs go to the highest ranks.
+    finite = ~np.isnan(hmean)
+    order = np.empty(n_rows, dtype=np.int64)
+    finite_idx = np.where(finite)[0]
+    nan_idx = np.where(~finite)[0]
+    finite_sort = finite_idx[np.argsort(hmean[finite_idx], kind="stable")]
+    sorted_all = np.concatenate([finite_sort, nan_idx])
+    rank = np.empty(n_rows, dtype=np.float64)
+    rank[sorted_all] = np.arange(1, n_rows + 1, dtype=np.float64)
+
+    # cut(rank, breaks=5) -> 5 equal-width bins on the rank scale [1..n].
+    n_slices = 5
+    edges = np.linspace(1.0, float(n_rows), n_slices + 1)
+    # cut(..., right=TRUE, include.lowest=FALSE by default for cut):
+    # bin k contains rank in (edges[k-1], edges[k]], with the lowest
+    # value getting the lowest bin (cut's default attaches the lower
+    # boundary to bin 1).
+    slice_ = np.digitize(rank, edges[1:-1], right=False)
+    slice_ = np.clip(slice_, 0, n_slices - 1)
+
+    # Per-slice quantile of rvar.
+    keep = np.zeros(n_rows, dtype=bool)
+    for s in range(n_slices):
+        in_slice = slice_ == s
+        if not np.any(in_slice):
+            continue
+        if s == 0:
+            keep |= in_slice  # slice 1 always kept (exempt)
+            continue
+        slice_rvar = rvar[in_slice]
+        finite_rvar = slice_rvar[~np.isnan(slice_rvar)]
+        if finite_rvar.size == 0:
+            keep |= in_slice
+            continue
+        threshold = np.quantile(finite_rvar, lts_quantile)
+        keep |= in_slice & (rvar <= threshold)
+    return np.where(keep)[0]
+
+
+def _scaling_factor_transform(b):
+    """vsn's f(b) = exp(b) (the 'affine' scale-factor parameterisation)."""
+    return np.exp(b)
+
+
+def normalize_vsn(
+    x: np.ndarray,
+    lts_quantile: float = 0.9,
+    cvg_niter: int = 7,
+    factr: float = 5e7,
+    pgtol: float = 2e-4,
+    maxit: int = 60000,
+) -> np.ndarray:
+    """
+    Variance-stabilising normalisation (vsn).
+
+    Port of the matrix-path used by R limma's ``normalizeVSN.default``,
+    which delegates to ``vsn::vsnMatrix``. Fits per-column offset and
+    scale parameters under the model
+    ``h(y_ij) = arsinh(exp(b_j)*y_ij + a_j)``, then returns the
+    transformed matrix on a base-2-log-like scale (offset to align
+    array means).
+
+    This is the **single-stratum, no-reference, ``calib="affine"``**
+    code path - the one limma calls. Stratified fits, reference-based
+    fits, sub-sampling and ``calib="none"`` are not ported.
+
+    Parameters
+    ----------
+    x : ndarray
+        Expression matrix, shape ``(n_features, n_arrays)``. Raw
+        intensities (not log-transformed). NaN allowed.
+    lts_quantile : float, default 0.9
+        Quantile used by the LTS robust iteration. ``1.0`` disables
+        the robust iteration (single ML fit).
+    cvg_niter : int, default 7
+        Maximum number of LTS-ML iterations.
+    factr, pgtol, maxit :
+        L-BFGS-B options (passed through to
+        ``scipy.optimize.minimize(method="L-BFGS-B")``). Defaults
+        match R/vsn's ``defaultpar``.
+
+    Returns
+    -------
+    ndarray
+        Transformed matrix, same shape as ``x``. Values are on a
+        base-2-log-like scale; for typical microarray-style inputs,
+        differences between columns are calibrated out.
+
+    Notes
+    -----
+    **Loglik is flat in a uniform-shift-in-b direction.** For typical
+    microarray-style intensities ``exp(b_j) * y_ij`` dominates ``a_j``
+    and ``arsinh(z) ~ log(2 z) = log(2) + b_j + log(y_ij)``, so a
+    uniform shift ``b -> b + delta`` adds the same constant to every
+    transformed cell. The profile-likelihood row-mean centring and
+    the per-stratum ``hoffset`` rescaling both absorb this shift, so
+    the log-likelihood is asymptotically flat under it. Different
+    L-BFGS-B implementations land at different points along this
+    flat valley despite reporting near-identical nll.
+
+    **End-to-end parity is rtol ~ 2e-4 against R/vsn 3.66.0**, not the
+    rtol ~ 1e-6 typical of pylimma's other ports, for that reason.
+    The output IS still invariant under the b shift in the asymptotic
+    limit; the residual disagreement comes from the finite-``y``
+    correction. The transform itself (``_vsn_trsf`` plus the
+    ``hoffset`` formula) is bit-faithful to ``vsn::vsn2trsf`` and is
+    verified in
+    ``TestNormalizeVSNRParity::test_transform_at_r_params_matches_r_to_machine_precision``
+    (rtol=1e-6).
+
+    **Deliberate divergence from R's pstart heuristic.** R/vsn's
+    ``pstartHeuristic`` initialises ``b = 1``; with R's LINPACK
+    ``lbfgsb`` that walks down to ``b ~ 0``. With scipy's L-BFGS-B
+    starting from ``b = 1`` walks up to ``b ~ 1.1``, landing in a
+    different region of the flat valley and giving rtol ~ 4e-3.
+    pylimma starts from ``b = 0`` (unit scale factor, the natural
+    "no scaling" initial guess) which keeps scipy's converged point
+    in the same valley region as R's, reducing end-to-end rel-diff
+    to rtol ~ 2e-4. ``pstart`` is documented as a heuristic in
+    ``R/vsn2.R`` and is not surfaced through limma's
+    ``normalizeVSN.default`` interface, so this change is invisible
+    to users translating limma scripts. See
+    ``notes_during_implementation.md`` 2026-05-01 entry for the full
+    discussion.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    if x.ndim != 2:
+        raise ValueError("x must be a 2-D matrix")
+    n_rows, n_cols = x.shape
+    if n_cols < 2:
+        raise ValueError(
+            "x must have 2 or more columns when no reference is supplied"
+        )
+
+    # Initial parameters: a=0, b=0 per column (unit scale factor, the
+    # natural "no scaling" starting point). R/vsn's pstartHeuristic
+    # uses b=1; with R's LINPACK lbfgsb that walks DOWN toward b=0,
+    # whereas scipy's L-BFGS-B with the same loose tolerances walks
+    # UP and lands in a different region of the loglik's flat valley
+    # (the loglik is asymptotically flat under a uniform shift in b
+    # for large y, so multiple optima exist). Starting at b=0 keeps
+    # scipy's converged params close to R's; output rel-diff drops
+    # from ~4e-3 (b=1 start) to ~2e-4 (b=0 start).
+    pstart = np.zeros(2 * n_cols)
+
+    # vsnLTS loop: ML on the active rows, then trim to the best 90% by
+    # squared row residual within hmean-rank quintile.
+    whsel = np.arange(n_rows)
+    cur = pstart
+    rsv_par = pstart
+    iter_par = pstart
+    for it in range(cvg_niter):
+        sub = x if it == 0 else x[whsel]
+        rsv_par, _fail = _vsn_ml_fit(sub, iter_par, factr=factr,
+                                     pgtol=pgtol, maxit=maxit)
+        iter_par = rsv_par  # warm-start the next iteration (matches R)
+        if abs(lts_quantile - 1.0) < np.sqrt(np.finfo(float).eps):
+            break
+        # Apply current params to the FULL data and re-trim.
+        hy = _vsn_trsf(x, rsv_par)
+        whsel = _vsn_lts_select(hy, lts_quantile)
+
+    # hoffset: per-stratum offset applied so that arrays sit on a common
+    # log2 scale. R/vsn: hoffset = log2(2 * scalingFactorTransformation
+    # (rowMeans(coef[,,2]))). For single stratum, coef[,,2] reshapes to
+    # the b vector (length n_cols), so:
+    b_coefs = rsv_par[n_cols:]
+    hoffset = float(np.log2(2.0 * _scaling_factor_transform(np.mean(b_coefs))))
+
+    hx = _vsn_trsf(x, rsv_par)  # natural-log asinh values
+    return hx / np.log(2.0) - hoffset

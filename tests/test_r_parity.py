@@ -5018,6 +5018,57 @@ class TestContrastAsCoefRParity:
         )
 
 
+class TestNormalizeVSNRParity:
+    """vsn parity. The vsn loglik is asymptotically flat under a uniform
+    shift in the per-column scale parameter b (in the large-y limit
+    h(y) = arsinh(exp(b)*y + a) becomes log(2*exp(b)*y) up to higher
+    orders, and the per-array hoffset absorbs uniform shifts in b
+    exactly). Different L-BFGS-B implementations land at different
+    points along this flat valley. The transform OUTPUT after applying
+    h(y) and subtracting hoffset is invariant under the shift only in
+    that asymptotic limit; for finite y the residual is what we
+    measure here. With pylimma's b=0 starting point (vs R/vsn's b=1)
+    scipy and R land close enough that the output agrees to rtol~2e-4.
+    """
+    def test_matrix_path_against_r(self):
+        from pylimma import normalize_vsn
+        x = pd.read_csv(FIXTURES_DIR / "R_normalize_vsn_input.csv").values
+        ref = pd.read_csv(FIXTURES_DIR / "R_normalize_vsn_output.csv").values
+        py = normalize_vsn(x)
+        assert py.shape == ref.shape
+        cmp = compare_arrays(ref, py, rtol=5e-4, atol=2e-3)
+        assert cmp["match"], (
+            f"normalize_vsn differs from R (vsn 3.66.0): "
+            f"max_rel={cmp['max_rel_diff']:.3e} max_abs={cmp['max_abs_diff']:.3e}"
+        )
+
+    def test_transform_at_r_params_matches_r_to_machine_precision(self):
+        """Validate the transform / hoffset / log2-rescale code path is
+        a bit-faithful port of vsn::vsn2trsf + vsnMatrix's hoffset
+        formula: at R's converged parameters, our transform must match
+        R's output exactly. Any disagreement here would be a real bug
+        independent of the L-BFGS-B path divergence.
+        """
+        from pylimma.normalize import _vsn_trsf, _scaling_factor_transform
+        x = pd.read_csv(FIXTURES_DIR / "R_normalize_vsn_input.csv").values
+        ref = pd.read_csv(FIXTURES_DIR / "R_normalize_vsn_output.csv").values
+
+        # R's converged parameters (vsn 3.66.0 / R 4.2 with default LTS).
+        r_a = np.array([4.409965, 20.84624, -16.38552,
+                        -11.44246, 13.92938, -11.86607])
+        r_b = np.array([0.04816764, 0.2026553, -0.1191883,
+                        0.10851, 0.01599425, -0.03746323])
+        r_par = np.concatenate([r_a, r_b])
+        hx = _vsn_trsf(x, r_par)
+        hoffset = float(np.log2(2.0 * _scaling_factor_transform(np.mean(r_b))))
+        py_at_r = hx / np.log(2.0) - hoffset
+        cmp = compare_arrays(ref, py_at_r, rtol=1e-6, atol=1e-7)
+        assert cmp["match"], (
+            f"transform at R params differs: "
+            f"max_rel={cmp['max_rel_diff']:.3e} max_abs={cmp['max_abs_diff']:.3e}"
+        )
+
+
 class TestPublicAPIPromotion:
     """Audit gap (2026-04-30): symbols that R limma exports must be
     importable from top-level pylimma without underscore prefix."""
