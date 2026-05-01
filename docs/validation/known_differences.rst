@@ -13,9 +13,9 @@ have been mistaken for ongoing differences.
 Accepted differences
 --------------------
 
-Two differences remain after porting. Both are statistical artefacts
-of numerical-algorithm choices, not porting bugs. Both are quantified,
-reproducible, and inside published tolerances.
+Three differences remain after porting. All three are statistical
+artefacts of numerical-algorithm choices, not porting bugs. All are
+quantified, reproducible, and inside published tolerances.
 
 normexp saddle-point fit drifts up to ~2e-4 from R
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -38,6 +38,53 @@ point on the flat saddle-likelihood plateau.
 **Tolerance.** Parity tests for ``method="saddle"`` use
 ``rtol=1e-3``. All other normexp methods are at ``rtol=1e-10`` or
 better.
+
+normalize_vsn output drifts up to ~2.4e-4 from R/vsn 3.66.0
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``normalize_vsn`` matches R's ``normalizeVSN`` (which delegates to
+the Bioconductor ``vsn`` package) within ``rtol ~2.4e-4``. The
+transform formula and ``hoffset`` rescaling are bit-faithful: at
+R's converged parameters pylimma reproduces R's output to
+``rtol ~1e-7`` (verified by
+``TestNormalizeVSNRParity::test_transform_at_r_params_matches_r_to_machine_precision``).
+The remaining drift comes entirely from the L-BFGS-B optimisation
+step.
+
+**Root cause.** The vsn profile log-likelihood is asymptotically
+flat under a uniform shift in the per-column scale parameter
+``b``. In the large-``y`` limit ``arsinh(z) ~ log(2 z) = log(2) +
+b + log(y)``, so a uniform shift adds the same constant to every
+transformed cell, the row-mean centring absorbs it, and the
+per-stratum ``hoffset = log2(2 * exp(mean(b)))`` rescaling absorbs
+it again at the end. The likelihood becomes asymptotically flat
+under that direction. R/vsn calls LINPACK's ``lbfgsb`` and
+pylimma calls ``scipy.optimize.minimize(method="L-BFGS-B")``;
+under the same loose convergence tolerances the two
+implementations land at different points along the flat valley
+despite reporting near-identical negative log-likelihood
+(typically agreeing to four decimal places). Because the
+absorption is exact only asymptotically, the residual disagreement
+in the *transformed output* at finite ``y`` is the figure quoted
+above.
+
+**Tolerance.** Parity tests for ``normalize_vsn`` use
+``rtol=5e-4`` for the end-to-end output and ``rtol=1e-6`` for the
+transform-at-R-params verification.
+
+**Note.** Because the likelihood is genuinely flat in this
+direction the divergence is irreducible without a regularisation
+term breaking the flat direction (which would itself be a
+deviation from R). pylimma chooses ``b=0`` (unit scale factor) as
+the L-BFGS-B starting point rather than R/vsn's ``b=1``: with
+``b=0`` scipy's optimiser stays in the same valley region as R's,
+giving the ``2.4e-4`` figure above; with ``b=1`` (R's
+``pstartHeuristic``) scipy walks to the opposite end of the
+valley, giving ``rtol ~4e-3``. This is a deliberate divergence
+from R's heuristic; ``pstart`` is documented as a heuristic in
+``vsn/R/vsn2.R`` and is not exposed by limma's
+``normalizeVSN.default``, so the change is invisible to limma
+users.
 
 Monte-Carlo rotation tests (``roast``, ``mroast``, ``romer``, ``gene_set_test``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
