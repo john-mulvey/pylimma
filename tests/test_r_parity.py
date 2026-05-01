@@ -2623,8 +2623,7 @@ class TestVoomInterfaceParams:
 
     def test_voom_plot_smoke(self, voom_data):
         """voom(plot=True) renders a trend plot without raising."""
-        import matplotlib
-
+        matplotlib = pytest.importorskip("matplotlib")
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
@@ -2639,8 +2638,7 @@ class TestVoomInterfaceParams:
         assert np.allclose(v["weights"], v_silent["weights"])
 
     def test_vooma_plot_smoke(self, voom_data):
-        import matplotlib
-
+        matplotlib = pytest.importorskip("matplotlib")
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
@@ -2655,8 +2653,7 @@ class TestVoomInterfaceParams:
         assert np.allclose(va["weights"], va_silent["weights"])
 
     def test_voomalmfit_plot_smoke(self, voom_data):
-        import matplotlib
-
+        matplotlib = pytest.importorskip("matplotlib")
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
@@ -2672,8 +2669,7 @@ class TestVoomInterfaceParams:
 
     def test_voomqw_plot_smoke(self, voom_data):
         """voom_with_quality_weights(plot=True) renders both trend and bar plot."""
-        import matplotlib
-
+        matplotlib = pytest.importorskip("matplotlib")
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
