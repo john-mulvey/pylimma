@@ -1,10 +1,11 @@
 # Benchmark dataset provenance and licensing
 
-pylimma's benchmark suite redistributes four publicly available
+pylimma's benchmark suite redistributes five publicly available
 biological datasets. The CSVs in this directory were extracted from
-their upstream Bioconductor data packages and GEO supplementary
-files on the date noted in each section. None of the upstream data
-licences conflict with pylimma's own GPL-3.0-or-later licence.
+their upstream Bioconductor data packages, GEO supplementary files,
+or the published article's supporting data on the date noted in
+each section. None of the upstream data licences conflict with
+pylimma's own GPL-3.0-or-later licence.
 
 Dataset redistribution is deliberate (it pins the benchmark inputs
 to a specific version and removes the link-rot failure mode from
@@ -140,9 +141,59 @@ samples, raw counts. Classic RNA-seq scaling-test dataset.
 
 ---
 
+## 5. Mulvey 2026 cardiac proteomics - `mulvey_proteome.csv.gz`, `mulvey_targets.csv`
+
+**What**: Tissue proteomics from a human cardiac cohort comprising 6
+non-failing controls and 9 heart-failure samples (5 peripartum
+cardiomyopathy + 4 non-peripartum cardiomyopathy, collapsed into a
+single `heart_failure` group for the demo). FragPipe proteingroup
+matrix, log2-transformed and median-subtraction-normalised. ~5,000
+proteins x 15 samples, indexed by UniProt accession with gene
+symbol, PSM count, max peptide probability and reference intensity
+as leading metadata columns.
+
+This is the proteomics-flavoured worked example for the AnnData
+input idiom; the limma microarray-style pipeline (no `voom`) applied
+to a log-abundance proteomics matrix.
+
+**Upstream paper**. Cite this if you use the data in a study:
+
+> Mulvey, J. F., Sailer, C., Achter, J. S., Milburn, G. N.,
+> Bretherton, R. C., Kahnert, K., Erbil Bilir, S., Hvid, H., Pyke, C.,
+> Gustafsson, F., Adamo, L., Campbell, K. S., Herum, K. M., and
+> Lundby, A. (2026). An Unbiased Molecular Characterization of
+> Peripartum Cardiomyopathy Hearts Identifies Mast Cell Chymase as
+> a New Diagnostic Candidate. *Molecular & Cellular Proteomics*
+> 25(2), 101510. doi:10.1016/j.mcpro.2026.101510
+
+**Source**. The raw spectra and FragPipe processing outputs are
+deposited in ProteomeXchange via PRIDE (accession TBD - confirm
+from the published article's Data Availability statement before
+release). The CSVs in this directory are produced by
+`extract_mulvey_proteomics.py` at the project root from the
+median-subtraction-normalised proteingroup matrix.
+
+**Licence**. *Molecular & Cellular Proteomics* has been a fully
+open-access journal under **CC BY 4.0** since 2021, so the published
+article and its supporting data are GPL-compatible. Confirm the
+specific licence stamp on the article landing page before tagging
+a release.
+
+PRIDE deposits are released under the depositor's choice of CC0 or
+CC BY 4.0; both are GPL-compatible.
+
+**Author standing**. The lead author of pylimma (John Mulvey) is
+the first author of Mulvey 2026, so redistribution of the derived
+matrix in this repository is consented to by an author of the
+source work.
+
+**Extracted**: 2026-04-29.
+
+---
+
 ## Licence compatibility summary
 
-All four upstream licences are compatible with pylimma's
+All five upstream licences are compatible with pylimma's
 GPL-3.0-or-later licence:
 
 | Dataset          | Upstream licence | Compatible with GPL-3.0-or-later? |
@@ -151,10 +202,12 @@ GPL-3.0-or-later licence:
 | GSE60450         | NCBI public data | Yes (no restrictions beyond attribution) |
 | Pasilla          | LGPL             | Yes (LGPL is a strict subset of GPL terms) |
 | Pickrell/Yoruba  | MIT              | Yes (MIT is GPL-compatible)         |
+| Mulvey 2026      | CC BY 4.0 (MCP)  | Yes (CC BY 4.0 is GPL-compatible)   |
 
 pylimma redistributes the data values only, not the Bioconductor
-package source code. The attribution above fulfills the attribution
-requirements of each upstream licence.
+package source code or the journal's typeset article. The
+attribution above fulfils the attribution requirements of each
+upstream licence.
 
 If you are an upstream author and object to pylimma's
 redistribution, please open an issue on the pylimma repository and
