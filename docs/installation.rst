@@ -15,7 +15,7 @@ Requirements
 From PyPI
 ---------
 
-pylimma will be available on PyPI from its first tagged release:
+Install pylimma from PyPI:
 
 .. code-block:: bash
 
@@ -34,7 +34,7 @@ From source
 
 .. code-block:: bash
 
-   git clone <repo-url>
+   git clone https://github.com/john-mulvey/pylimma.git
    cd pylimma
    pip install -e .[dev,plot]
 

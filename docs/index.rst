@@ -41,9 +41,6 @@ Contents
    installation
    quickstart
    api
-   tutorials/voom_rnaseq
-   tutorials/proteomics
-   tutorials/gene_set_testing
 
 .. toctree::
    :maxdepth: 2
@@ -54,6 +51,7 @@ Contents
    tutorials/pasilla
    tutorials/yoruba
    tutorials/kang_pbmc
+   tutorials/mulvey
 
 .. toctree::
    :maxdepth: 2

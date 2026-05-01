@@ -14,6 +14,8 @@ Linear modelling
 
    pylimma.lm_fit
    pylimma.lm_series
+   pylimma.gls_series
+   pylimma.mrlm
    pylimma.contrasts_fit
    pylimma.make_contrasts
    pylimma.model_matrix
@@ -88,6 +90,18 @@ Gene set testing
    pylimma.gene_set_test
    pylimma.rank_sum_test_with_correlation
 
+GO / KEGG enrichment
+--------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   pylimma.goana
+   pylimma.top_go
+   pylimma.kegga
+   pylimma.top_kegg
+   pylimma.goana_trend
+
 Statistical utilities
 ---------------------
 
@@ -101,6 +115,18 @@ Statistical utilities
    pylimma.prop_true_null
    pylimma.detection_p_values
    pylimma.weighted_lowess
+   pylimma.au_roc
+
+Model selection and mixture models
+----------------------------------
+
+.. autosummary::
+   :toctree: generated/
+
+   pylimma.select_model
+   pylimma.fitmixture
+   pylimma.genas
+   pylimma.pred_fcm
 
 Splicing
 --------

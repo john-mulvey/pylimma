@@ -501,7 +501,7 @@ def mrlm(
     Notes
     -----
     This function implements R's MASS::rlm algorithm exactly:
-    - MAD scale estimation: median(|resid|) / 0.6745
+    - MAD scale estimation: ``median(abs(resid)) / 0.6745``
     - Huber weights: psi(u)/u where psi is the Huber function
     - Convergence on residuals: sqrt(sum((old - new)^2) / sum(old^2))
 

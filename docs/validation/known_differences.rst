@@ -7,13 +7,12 @@ tolerance is ``rtol=1e-6, atol=1e-12`` for deterministic statistics,
 and a log10-scale comparison for p-values.
 
 The sections below document every numerical gap that remains after
-porting, plus the bugs fixed during porting that might otherwise
-have been mistaken for ongoing differences.
+porting.
 
 Accepted differences
 --------------------
 
-Three differences remain after porting. All three are statistical
+Four differences remain after porting. All four are statistical
 artefacts of numerical-algorithm choices, not porting bugs. All are
 quantified, reproducible, and inside published tolerances.
 
@@ -136,43 +135,3 @@ change that aligns the two patterns is detected automatically.
 ``sigma`` is also at machine epsilon, t-statistics are inf/NaN,
 and the empirical-Bayes posterior is dominated by the prior
 regardless of which "garbage" stdev was returned.
-
-Fixed during porting
---------------------
-
-These would have been "known differences" in an early draft of
-pylimma but were resolved before release. They are listed here so
-that future audits do not flag them as open issues.
-
-- **Natural-spline basis**: the in-tree natural-spline basis now uses
-  B-splines with QR constraint projection, matching R's
-  ``splines::ns()`` exactly.
-- **Mixed model in ``duplicate_correlation``**: now uses a
-  line-for-line port of ``statmod::mixedModel2Fit``.
-- **``mrlm`` scale**: ``sigma`` is now returned from the last IRLS
-  iteration, matching R's ``rlm``-based scale (was computed
-  post-hoc).
-- **``arrayWeights`` REML**: now the full Fisher-scoring port; the
-  initial simplified approximation is retired. ``arrayWeightsPrWtsREML``
-  is also fully ported.
-- **``arrayWeightsQuick``**: now the leverage-corrected
-  mean-squared-residual formula from R (was an MAD-based
-  approximation).
-- **``glmgam.fit``**: now the damped Fisher-scoring port with
-  Levenberg-Marquardt line search (was plain IRLS).
-- **Core-pipeline audit (2026-04-14)**: a targeted review of the
-  linear-modelling code path found and fixed eight R-parity bugs -
-  Hochberg p-adjustment, ``approxfun`` ``rule=2``, ``match.arg``
-  semantics, stable sort order, spline-trend empty-slice NaN,
-  LOWESS delta default, ``df`` in-place mutation, and the
-  robust/``ndups`` correlation check.
-- **``remove_batch_effect`` rank-deficient handling**: NaN rows now
-  zero the entire coefficient row when any column is dropped,
-  matching R regardless of which pivot ``lm_fit`` selects.
-- **``_sum_to_zero_design`` factor ordering**: level ordering is now
-  type-aware (numeric sort for int/float, preserved for
-  ``pd.Categorical``, alphabetical for character, ``["FALSE","TRUE"]``
-  for bool), matching R's ``as.factor`` dispatch.
-- **``diff_splice(legacy=True)``**: now forwards to
-  ``squeeze_var(legacy=True)``, matching R fixtures to
-  ``rtol=1e-6``.

@@ -39,13 +39,12 @@ from pylimma.geneset import (
     wilcox_gst,
 )
 from pylimma.lmfit import (
+    gls_series,
     is_fullrank,
     lm_fit,
+    lm_series,
     mrlm,
     non_estimable,
-)
-from pylimma.lmfit import (
-    lm_series as lm_series,
 )
 from pylimma.normalize import (
     aver_arrays,
@@ -127,10 +126,9 @@ __all__ = [
     "put_eawp",
     # Core pipeline
     "lm_fit",
+    "lm_series",
+    "gls_series",
     "mrlm",
-    # lm_series intentionally not exported - it is an implementation
-    # detail of lm_fit and its public R counterpart takes ndups/spacing
-    # kwargs that pylimma handles via lm_fit's dispatcher instead.
     "contrasts_fit",
     "contrast_as_coef",
     "e_bayes",

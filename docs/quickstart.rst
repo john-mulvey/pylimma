@@ -64,11 +64,12 @@ limma's ``EList``:
 Next steps
 ----------
 
-- :doc:`tutorials/voom_rnaseq` - complete voom pipeline on the GSE60450
-  mouse mammary dataset, the standard limma / voom tutorial.
-- :doc:`tutorials/proteomics` - log-abundance proteomics workflow with
+- :doc:`tutorials/gse60450` - voom pipeline on the GSE60450 mouse
+  mammary dataset, the standard limma / voom tutorial.
+- :doc:`tutorials/mulvey` - log-abundance proteomics workflow with
   missing-value handling.
-- :doc:`tutorials/gene_set_testing` - camera, fry, and roast.
+- :doc:`tutorials/yoruba` - voom plus gene-set testing with
+  ``camera`` and ``roast``.
 - :doc:`api` - full API reference.
 - :doc:`validation/known_differences` - documented numerical
   differences from R limma (all within published tolerances).

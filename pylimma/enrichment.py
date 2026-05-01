@@ -173,11 +173,11 @@ def kegga(
     Port of R limma's ``kegga`` (``kegga.R``). See module docstring for
     the gene_pathway format and the Phase-1 scope cuts.
 
+    All parameters except ``pathway_names`` have identical semantics to
+    :func:`goana`; see that function's docstring for full descriptions.
+
     Parameters
     ----------
-    de, gene_pathway, universe, species, prior_prob, covariate, plot,
-    fdr, trend, **kwargs
-        See :func:`goana`. Identical semantics.
     pathway_names : DataFrame, optional
         Two-column mapping from pathway id (column 0) to human-readable
         description (column 1). If absent, the output's ``pathway``
