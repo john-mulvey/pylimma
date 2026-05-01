@@ -1,8 +1,12 @@
+[![tests](https://github.com/john-mulvey/pylimma/actions/workflows/tests.yml/badge.svg)](https://github.com/john-mulvey/pylimma/actions/workflows/tests.yml)
+[![docs](https://readthedocs.org/projects/pylimma/badge/?version=latest)](https://pylimma.readthedocs.io)
+[![PyPI](https://img.shields.io/pypi/v/pylimma)](https://pypi.org/project/pylimma/)
+[![Python](https://img.shields.io/pypi/pyversions/pylimma)](https://pypi.org/project/pylimma/)
+[![License](https://img.shields.io/pypi/l/pylimma)](https://github.com/john-mulvey/pylimma/blob/main/LICENSE)
+
 # pylimma
 
 A Python port of [R limma](https://bioconductor.org/packages/limma/) for differential expression and abundance analysis.
-
-[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue)](LICENSE)
 
 ## Scope
 
@@ -18,21 +22,19 @@ It accepts three input idioms for any analysis:
 
 ## Installation
 
-pylimma is not yet on PyPI. Install the latest version directly from GitHub:
-
 ```bash
-pip install git+https://github.com/john-mulvey/pylimma.git
+pip install pylimma
 ```
 
-Optional extras (use the same `git+` URL with the appropriate marker):
+Optional extras:
 
 ```bash
-pip install "pylimma[plot] @ git+https://github.com/john-mulvey/pylimma.git"   # matplotlib for diagnostics
-pip install "pylimma[dev]  @ git+https://github.com/john-mulvey/pylimma.git"   # pytest, ruff, mypy
-pip install "pylimma[docs] @ git+https://github.com/john-mulvey/pylimma.git"   # sphinx + nbsphinx
+pip install "pylimma[plot]"   # matplotlib for diagnostic plots
+pip install "pylimma[dev]"    # pytest, ruff, mypy
+pip install "pylimma[docs]"   # sphinx + nbsphinx
 ```
 
-For an editable development install:
+For an editable development install from source:
 
 ```bash
 git clone https://github.com/john-mulvey/pylimma.git
@@ -40,7 +42,7 @@ cd pylimma
 pip install -e ".[dev,plot]"
 ```
 
-Requires Python >= 3.10.
+Requires Python >= 3.10. Documentation: [pylimma.readthedocs.io](https://pylimma.readthedocs.io).
 
 ## Quick start
 
