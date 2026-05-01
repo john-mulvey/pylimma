@@ -370,8 +370,13 @@ class TestTopTable:
         assert "ID" in result.columns
         assert "ID0" in result.columns
 
-    def test_unique_rownames_no_id_column_added(self):
-        """Test that unique gene names don't trigger ID column creation."""
+    def test_explicit_vector_genelist_creates_id_column(self):
+        """Explicit vector genelist becomes an ID column (R toptable.R:168).
+
+        Mirrors R: `topTable(..., genelist=ids)` wraps `ids` as
+        `data.frame(ID=ids)`; the row index stays as
+        `rownames(fit$coefficients)` (or 1:N when absent).
+        """
         np.random.seed(42)
         expr = np.random.randn(10, 8)
         design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
@@ -379,12 +384,11 @@ class TestTopTable:
         fit = lm_fit(expr, design)
         fit = e_bayes(fit)
 
-        # Unique gene names
         unique_genes = [f"Gene{i}" for i in range(10)]
-
         result = top_table(fit, coef=1, number=10, genelist=unique_genes)
 
-        # No ID column should be added
-        assert "ID" not in result.columns
-        # Index should be the original gene names
-        assert set(result.index) == set(unique_genes)
+        # ID column carries the explicit genelist values
+        assert "ID" in result.columns
+        assert set(result["ID"]) == set(unique_genes)
+        # Row index is integer 1..N (no rownames on the input)
+        assert set(result.index) == set(range(1, 11))

@@ -216,6 +216,12 @@ def lm_series(
         rank : int
         pivot : ndarray
     """
+    # R lmfit.R:97: `M <- as.matrix(M)` silently coerces DataFrame and
+    # similar containers. Mirror that so internal callers (and the
+    # rigorous tests) don't trip over a downstream pd-vs-np mismatch.
+    M = np.asarray(M, dtype=np.float64)
+    design = np.asarray(design, dtype=np.float64)
+
     n_genes, n_samples = M.shape
     n_coefs = design.shape[1]
 
@@ -226,17 +232,28 @@ def lm_series(
     # as_matrix_weights always returns a fresh copy, so the
     # subsequent ``weights[weights <= 0] = np.nan`` is safe
     # (see known_diff_weights_mutation.md).
+    # Track whether the input was array-weights-shaped (length-N
+    # vector or (1, N) row matrix) - mirrors R's `arrayweights`
+    # attribute (weights.R:74,83). lmfit.R:135 uses the attribute -
+    # NOT the value pattern - to choose the fast path. Without this
+    # flag, a (G, N) matrix with row-equal values would coincidentally
+    # take pylimma's fast path while R takes the slow path, giving
+    # ~19% drift in cov_coefficients (mirrors gls_series F1).
+    is_array_weights = False
     if weights is not None:
+        weights_in = np.asarray(weights)
+        is_array_weights = (
+            (weights_in.ndim == 1 and weights_in.size == n_samples)
+            or (weights_in.ndim == 2 and weights_in.shape == (1, n_samples))
+        )
         weights = as_matrix_weights(weights, (n_genes, n_samples))
         weights[weights <= 0] = np.nan
         M = M.copy()
         M[~np.isfinite(weights)] = np.nan
 
-    # Check if we can do fast computation (no missing values, no probe-specific weights)
+    # Check if we can do fast computation (no missing values, no probe-specific weights).
     has_missing = np.any(~np.isfinite(M))
-    has_probe_weights = weights is not None and not np.allclose(
-        weights, weights[0:1, :], equal_nan=True
-    )
+    has_probe_weights = weights is not None and not is_array_weights
 
     if not has_missing and not has_probe_weights:
         # Fast path: fit all genes at once
@@ -559,17 +576,33 @@ def mrlm(
             y_work = y_obs
             X_work = X
 
+        # Check per-gene design rank. R's MASS::rlm errors with
+        # "'x' is singular: singular fits are not implemented in 'rlm'"
+        # for rank-deficient inputs; mirror that behaviour rather than
+        # silently returning lstsq's minimum-norm solution.
+        _, _, _, rank_x = _qr_r_style(X_work)
+        if rank_x < n_coefs:
+            raise ValueError(
+                "'x' is singular: singular fits are not implemented in 'rlm'"
+            )
+
         # OLS initial fit
         coef, _, rank_fit, _ = np.linalg.lstsq(X_work, y_work, rcond=None)
         resid = y_work - X_work @ coef
 
         # IRLS iterations (matching R's MASS::rlm)
-        # R computes scale at START of each iteration and returns that value
+        # R computes scale at START of each iteration and returns that value.
+        # sqrt_w defaults to ones so that if the loop breaks on scale==0
+        # before any weighting (saturated design), the post-loop QR uses
+        # the unweighted X - matching R's initial `lm.wfit(x, y, w=rep(1,n))`.
         scale = np.median(np.abs(resid)) / 0.6745  # Initial scale
+        sqrt_w = np.ones(len(y_obs))
+        converged = False
         for _ in range(maxit):
             # MAD scale estimate (computed at start of iteration)
             scale = np.median(np.abs(resid)) / 0.6745
             if scale == 0:
+                converged = True  # R: `done <- TRUE` in MASS::rlm
                 break
 
             # Compute robust weights
@@ -592,7 +625,15 @@ def mrlm(
             resid = new_resid
 
             if conv <= acc:
+                converged = True
                 break
+
+        # MASS::rlm warns when IRLS hits maxit without converging; R's
+        # mrlm forwards that warning per gene.
+        if not converged:
+            warnings.warn(
+                f"'rlm' failed to converge in {maxit} steps"
+            )
 
         coefficients[i, :] = coef
 
@@ -625,6 +666,7 @@ def mrlm(
         "sigma": sigma,
         "df_residual": df_residual,
         "cov_coefficients": cov_coefficients,
+        "pivot": pivot,
         "rank": rank,
     }
 
@@ -717,7 +759,18 @@ def gls_series(
 
     # Normalise weight shape through asMatrixWeights; helper returns
     # a fresh copy so the subsequent NaN/zero writes are safe.
+    # Track whether the input was array-weights-shaped (length-N vector
+    # or (1, N) row matrix) - this mirrors R's `arrayweights` attribute
+    # set inside asMatrixWeights (weights.R:74,83). The attribute is
+    # stripped by unwrapdups (dups.R:14-16), and limma's fast/slow
+    # dispatch (lmfit.R:301) reads the attribute - not the value pattern.
+    is_array_weights = False
     if weights is not None:
+        weights_in = np.asarray(weights)
+        is_array_weights = (
+            (weights_in.ndim == 1 and weights_in.size == n_arrays)
+            or (weights_in.ndim == 2 and weights_in.shape == (1, n_arrays))
+        )
         weights = as_matrix_weights(weights, (n_genes, n_arrays))
         weights[np.isnan(weights)] = 0
         M = M.copy()
@@ -742,6 +795,7 @@ def gls_series(
         M = unwrap_dups(M, ndups=ndups, spacing=spacing)
         if weights is not None:
             weights = unwrap_dups(weights, ndups=ndups, spacing=spacing)
+            is_array_weights = False  # R's unwrapdups strips arrayweights attr
 
         # Expand design for duplicates
         design = np.kron(design, np.ones((ndups, 1)))
@@ -765,11 +819,10 @@ def gls_series(
     # Initialize output
     stdev_unscaled = np.full((n_genes, n_coefs), np.nan)
 
-    # Check if fast computation is possible
+    # Check if fast computation is possible. Mirror R lmfit.R:301:
+    # `NoProbeWts <- all(is.finite(M)) && (is.null(weights) || arrayweights attr)`.
     has_missing = np.any(~np.isfinite(M))
-    has_probe_weights = weights is not None and not np.allclose(
-        weights, weights[0:1, :], equal_nan=True
-    )
+    has_probe_weights = weights is not None and not is_array_weights
 
     if not has_missing and not has_probe_weights:
         # Fast path: fit all genes at once
@@ -1125,6 +1178,9 @@ def lm_fit(
         raise ValueError("Expression data must be 2-dimensional")
 
     n_genes, n_samples = expr.shape
+    # R lmfit.R:31: `if(!nrow(y$exprs)) stop("expression matrix has zero rows")`.
+    if n_genes == 0:
+        raise ValueError("expression matrix has zero rows")
 
     # Fall back to the design carried on the input object before
     # defaulting to an intercept, matching R's lmFit one-liner:
@@ -1197,9 +1253,29 @@ def lm_fit(
             weights=weights,
         )
 
-    # Promote to MArrayLM and add post-fit slots
+    # R lmfit.R:77-81: warn when some genes have a mix of NA and non-NA
+    # coefficients (i.e. partial estimability per-gene).
+    coefs_arr = np.asarray(fit["coefficients"])
+    if coefs_arr.ndim == 2 and coefs_arr.shape[1] > 1:
+        per_gene_nas = np.sum(np.isnan(coefs_arr), axis=1)
+        n_partial = int(np.sum(
+            (per_gene_nas > 0) & (per_gene_nas < coefs_arr.shape[1])
+        ))
+        if n_partial > 0:
+            warnings.warn(f"Partial NA coefficients for {n_partial} probe(s)")
+
+    # Promote to MArrayLM and add post-fit slots.
+    # R lmfit.R:55-62: `y$Amean <- rowMeans(y$exprs, na.rm=TRUE)`, then
+    # if ndups>1 reshape via `unwrapdups` and `rowMeans` again so Amean
+    # has one entry per fitted gene (matching coefficients row count).
     fit = MArrayLM(fit)
-    fit["Amean"] = np.nanmean(expr, axis=1)
+    amean = np.nanmean(expr, axis=1)
+    if ndups > 1:
+        amean = np.nanmean(
+            unwrap_dups(amean.reshape(-1, 1), ndups=ndups, spacing=spacing),
+            axis=1,
+        )
+    fit["Amean"] = amean
     fit["design"] = design
     # R's lmFit does fit$genes <- y$probes (lmfit.R:84). pylimma's
     # AnnData/DataFrame branches pre-compute gene_names from var_names

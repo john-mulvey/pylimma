@@ -363,13 +363,9 @@ def e_bayes(
     var_prior = _tmixture_matrix(t_stat, stdev_unscaled, df_total, proportion, var_prior_lim)
 
     if np.any(np.isnan(var_prior)):
-        # R's ebayes.R:72 does `var.prior[is.na] <- 1/s2.prior`, which
-        # relies on R's silent vector recycling when s2.prior is per-gene
-        # (trend=True). Numpy's broadcast fails on shape mismatch. Use
-        # the first s2_prior element as a scalar fallback - matches R's
-        # effective behaviour (recycled from position 1).
-        fallback = 1.0 / float(np.atleast_1d(s2_prior)[0])
-        var_prior[np.isnan(var_prior)] = fallback
+        nan_mask = np.isnan(var_prior)
+        s2_flat = np.atleast_1d(s2_prior).astype(np.float64).ravel()
+        var_prior[nan_mask] = np.resize(1.0 / s2_flat, int(nan_mask.sum()))
         warnings.warn("Estimation of var_prior failed - set to default value")
 
     # Compute log-odds
@@ -715,12 +711,15 @@ def top_treat(
         )
         coef = coef[0]                                          # type: ignore[index]
 
-    if sort_by == "b":
+    # R treat.R:86-87 raises whenever sort.by/resort.by names B; the
+    # comparison is on the raw user value, so capital "B" must also
+    # be rejected.
+    if isinstance(sort_by, str) and sort_by.lower() == "b":
         raise ValueError(
             'Trying to sort_by="b", but treat does not produce a '
             "B-statistic"
         )
-    if resort_by == "b":
+    if isinstance(resort_by, str) and resort_by.lower() == "b":
         raise ValueError(
             'Trying to resort_by="b", but treat does not produce a '
             "B-statistic"

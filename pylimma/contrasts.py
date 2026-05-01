@@ -402,12 +402,22 @@ def contrasts_fit(
             contrasts[idx, j] = 1.0
         contrast_names = selected_names
 
-    # Extract contrast names if DataFrame, then convert to array
+    # Extract contrast names if DataFrame, then convert to array.
+    # Capture row names too so we can replicate R's row/col name check.
+    contrast_rownames = None
     if isinstance(contrasts, pd.DataFrame):
         contrast_names = list(contrasts.columns)
+        contrast_rownames = list(contrasts.index)
         contrasts = contrasts.values
 
-    contrasts = np.asarray(contrasts, dtype=np.float64)
+    # R contrasts.R:31: `if(!is.numeric(contrasts)) stop("contrasts
+    # must be a numeric matrix")`. Reject logical / character inputs
+    # before the float coercion silently turns booleans into 0/1 and
+    # parses string digits.
+    contrasts_raw = np.asarray(contrasts)
+    if contrasts_raw.dtype == np.bool_ or not np.issubdtype(contrasts_raw.dtype, np.number):
+        raise ValueError("contrasts must be a numeric matrix")
+    contrasts = contrasts_raw.astype(np.float64, copy=False)
     if contrasts.ndim == 1:
         contrasts = contrasts.reshape(-1, 1)
     if contrasts.shape[0] != n_coef:
@@ -417,6 +427,22 @@ def contrasts_fit(
         )
     if np.any(np.isnan(contrasts)):
         raise ValueError("NAs not allowed in contrasts")
+
+    # R contrasts.R:35-40: rn = rownames(contrasts), cn = colnames(
+    # fit$coefficients); rename "(Intercept)" -> "Intercept" in both
+    # then warn if they don't match.
+    fit_coef_names = fit.get("coef_names")
+    if contrast_rownames is not None and fit_coef_names is not None:
+        rn = list(contrast_rownames)
+        cn = list(fit_coef_names)
+        if rn and rn[0] == "(Intercept)":
+            rn[0] = "Intercept"
+        if cn and cn[0] == "(Intercept)":
+            cn[0] = "Intercept"
+        if rn != cn:
+            warnings.warn(
+                "row names of contrasts don't match col names of coefficients"
+            )
 
     fit["contrasts"] = contrasts
     n_contrasts = contrasts.shape[1]

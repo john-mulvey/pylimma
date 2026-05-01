@@ -124,7 +124,14 @@ def _winsorized_moments(
     return mean, var
 
 
-def _natural_spline_basis(x: np.ndarray, df: int, intercept: bool = True) -> np.ndarray:
+def _natural_spline_basis(
+    x: np.ndarray,
+    df: int,
+    intercept: bool = True,
+    boundary_knots: tuple | None = None,
+    interior_knots: np.ndarray | None = None,
+    return_knots: bool = False,
+):
     """
     Create natural cubic spline basis matrix matching R's splines::ns().
 
@@ -139,10 +146,18 @@ def _natural_spline_basis(x: np.ndarray, df: int, intercept: bool = True) -> np.
         Degrees of freedom (number of basis functions).
     intercept : bool
         Whether to include intercept column.
+    boundary_knots, interior_knots : optional
+        Pre-computed knots. When supplied, the basis is evaluated at
+        ``x`` using those knots (matching R's
+        ``predict(ns_obj, newx=...)`` semantics). When None, knots are
+        derived from ``x`` itself.
+    return_knots : bool
+        When True, also return the (boundary_knots, interior_knots)
+        tuple alongside the basis so callers can re-evaluate at new x.
 
     Returns
     -------
-    ndarray
+    ndarray (or (ndarray, knots) tuple)
         Spline basis matrix of shape (len(x), df).
     """
     from scipy.interpolate import BSpline
@@ -155,22 +170,33 @@ def _natural_spline_basis(x: np.ndarray, df: int, intercept: bool = True) -> np.
 
     # For df=1, just return intercept or constant
     if df == 1:
-        return np.ones((n, 1))
+        basis = np.ones((n, 1))
+        if return_knots:
+            return basis, ((x.min(), x.max()), np.array([]))
+        return basis
 
     # Number of interior knots (matching R's ns logic)
     n_interior = df - 1 - int(intercept)
     if n_interior < 0:
         n_interior = 0
 
-    # Boundary knots
-    boundary = (x.min(), x.max())
+    # Boundary knots: derive from x unless caller supplied them.
+    if boundary_knots is None:
+        boundary = (x.min(), x.max())
+    else:
+        boundary = boundary_knots
 
     # Handle edge case where all x values are identical
     if boundary[0] == boundary[1]:
-        return np.ones((n, 1)) if df == 1 else np.column_stack([np.ones(n), np.zeros(n)])[:, :df]
+        basis = np.ones((n, 1)) if df == 1 else np.column_stack([np.ones(n), np.zeros(n)])[:, :df]
+        if return_knots:
+            return basis, (boundary, np.array([]))
+        return basis
 
-    # Interior knots at quantiles (matching R's seq approach)
-    if n_interior > 0:
+    # Interior knots: derive from x unless caller supplied them.
+    if interior_knots is not None:
+        interior_knots = np.asarray(interior_knots, dtype=np.float64)
+    elif n_interior > 0:
         knot_probs = np.linspace(0, 1, n_interior + 2)[1:-1]
         interior_knots = np.quantile(x, knot_probs)
     else:
@@ -218,6 +244,8 @@ def _natural_spline_basis(x: np.ndarray, df: int, intercept: bool = True) -> np.
     transformed = Q.T @ basis.T
     basis_final = transformed.T[:, 2:]  # Drop first 2 columns (constrained directions)
 
+    if return_knots:
+        return basis_final, (boundary, interior_knots)
     return basis_final
 
 
@@ -237,13 +265,22 @@ def _fit_spline_trend(e: np.ndarray, covariate: np.ndarray, splinedf: int) -> tu
     Returns
     -------
     tuple
-        (fitted_values, residual_variance, coefficients, basis_func)
+        (fitted_values, residual_variance, coefficients, design,
+        spline_knots). ``spline_knots`` is ``(boundary, interior)`` or
+        None when the linear fallback fired; callers can replay the
+        basis at new x via ``_natural_spline_basis(...,
+        boundary_knots=..., interior_knots=...)``.
     """
     n = len(e)
 
-    # Create spline basis
+    # Create spline basis. Capture the knots so callers can re-evaluate
+    # the basis at new covariate points (matching R's
+    # `predict(design, newx=...)` in fitFDist.R:90-97).
+    spline_knots = None
     try:
-        design = _natural_spline_basis(covariate, df=splinedf, intercept=True)
+        design, spline_knots = _natural_spline_basis(
+            covariate, df=splinedf, intercept=True, return_knots=True
+        )
     except Exception:
         # Fall back to simple linear fit
         design = np.column_stack([np.ones(n), covariate])
@@ -270,7 +307,7 @@ def _fit_spline_trend(e: np.ndarray, covariate: np.ndarray, splinedf: int) -> tu
     else:
         residual_var = 0.0
 
-    return fitted, residual_var, coef, design
+    return fitted, residual_var, coef, design, spline_knots
 
 
 def fit_f_dist(
@@ -327,10 +364,19 @@ def fit_f_dist(
     if n == 1:
         return {"scale": float(x[0]), "df2": 0.0}
 
-    # Handle df1
+    # Handle df1. R fitFDist.R:13-19 checks scalar df1 validity BEFORE
+    # broadcasting; an invalid scalar returns NA/NA immediately rather
+    # than falling through to per-element handling with an all-False
+    # ok mask.
     df1 = np.asarray(df1, dtype=np.float64)
     if df1.ndim == 0:
+        if not (np.isfinite(df1) and df1 > 1e-15):
+            return {"scale": np.nan, "df2": np.nan}
         df1 = np.full(n, float(df1))
+    elif len(df1) != n:
+        # R fitFDist.R:21: `if(length(df1) != n) stop(...)`. Without
+        # this check pylimma falls through to a numpy IndexError.
+        raise ValueError("x and df1 have different lengths")
 
     # Check covariate
     if covariate is not None:
@@ -406,17 +452,34 @@ def fit_f_dist(
         evar = np.var(e, ddof=1)
     else:
         # Fit spline trend
-        emean, evar, coef, design = _fit_spline_trend(e, covariate, splinedf)
+        emean, evar, coef, design, spline_knots = _fit_spline_trend(
+            e, covariate, splinedf
+        )
 
-        # Expand emean to full length if needed
+        # Expand emean to full length if needed. Reuse the spline_knots
+        # captured during the fit so the basis is evaluated at the
+        # not-ok covariate points using the SAME knots - matching R's
+        # `design2 <- predict(design, newx=covariate.notok)`
+        # (fitFDist.R:91). Rebuilding the basis from
+        # ``covariate_notok`` would derive new boundary/interior
+        # knots and yield a different function.
         if notallok:
             emean_full = np.zeros(n)
             emean_full[ok] = emean
-            # Predict for non-ok values using spline
             try:
-                design_notok = _natural_spline_basis(
-                    covariate_notok, df=splinedf, intercept=True
-                )
+                if spline_knots is not None:
+                    design_notok = _natural_spline_basis(
+                        covariate_notok,
+                        df=splinedf,
+                        intercept=True,
+                        boundary_knots=spline_knots[0],
+                        interior_knots=spline_knots[1],
+                    )
+                else:
+                    # Linear fallback path: replay [1, x] design.
+                    design_notok = np.column_stack(
+                        [np.ones(len(covariate_notok)), covariate_notok]
+                    )
                 emean_full[~ok] = design_notok[:, :len(coef)] @ coef
             except Exception:
                 # Fall back to nearest neighbor or mean
@@ -426,6 +489,12 @@ def fit_f_dist(
     # Estimate scale and df2
     evar = evar - np.mean(polygamma(1, df1 / 2))  # subtract trigamma
 
+    # R fitFDist.R: NaN evar (e.g. all-NaN var input) propagates as NA
+    # df2 / NA scale; the `if(any(x==0))` and `if(evar > 0)` branches
+    # raise "missing value where TRUE/FALSE needed" downstream. Mirror
+    # that signal here so the caller's `anyNA(df.prior)` check fires.
+    if np.isnan(evar):
+        return {"scale": np.nan, "df2": np.nan}
     if evar > 0:
         df2 = 2 * trigamma_inverse(evar)
         s20 = np.exp(emean - logmdigamma(df2 / 2))
@@ -1159,13 +1228,17 @@ def squeeze_var(
     if span is not None:
         legacy = False
 
-    # Choose legacy or new hyperparameter method depending on whether df are unequal
+    # Choose legacy or new hyperparameter method depending on whether
+    # df are unequal. R squeezeVar.R:23-26: when df has no positive
+    # entries, `identical(min(empty), max(empty))` is `identical(Inf,
+    # -Inf)` which is FALSE, so R routes to the unequal-df1 fitter
+    # (which then errors with "Could not estimate prior df").
     if legacy is None:
         df_pos = df[df > 0]
         if len(df_pos) > 0:
             legacy = np.min(df_pos) == np.max(df_pos)
         else:
-            legacy = True
+            legacy = False
 
     # Estimate hyperparameters
     if legacy:

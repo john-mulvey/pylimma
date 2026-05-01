@@ -225,7 +225,11 @@ def top_table(
                 new_coef_idx.append(c)
         coef_idx = new_coef_idx
 
-    # Get genelist from fit if not provided
+    # Get genelist from fit if not provided. Track whether the value
+    # came from the user (explicit) or from `fit["genes"]` (auto-default
+    # from rownames in pylimma). R only wraps explicit vectors into an
+    # ID column (toptable.R:168); rownames are kept as row index.
+    genelist_explicit = genelist is not None
     if genelist is None:
         genelist = fit.get("genes")
 
@@ -245,6 +249,10 @@ def top_table(
         if confint:
             import warnings
             warnings.warn("confint is ignored for F-test (multiple coefficients)")
+        # R toptable.R:46: `if(sort.by=="B") sort.by <- "F"` - silent
+        # translation when routing to .topTableF.
+        if sort_by == "B":
+            sort_by = "F"
         return top_table_f(
             fit,
             coef_idx=coef_idx,
@@ -255,6 +263,7 @@ def top_table(
             resort_by=resort_by,
             p_value=p_value,
             lfc=lfc,
+            _genelist_explicit=genelist_explicit,
         )
     else:
         return _top_table_t(
@@ -268,6 +277,7 @@ def top_table(
             p_value=p_value,
             lfc=lfc,
             confint=confint,
+            _genelist_explicit=genelist_explicit,
         )
 
 
@@ -282,23 +292,52 @@ def _top_table_t(
     p_value: float,
     lfc: float,
     confint: bool | float,
+    _genelist_explicit: bool = False,
 ) -> pd.DataFrame:
     """Top table for single coefficient (t-statistics)."""
     coefficients = fit["coefficients"]
     n_genes = coefficients.shape[0]
 
-    # Extract statistics
+    # Extract statistics. R toptable.R:273-275 conditions the AveExpr
+    # and B columns on slot presence (`if(!is.null(A))`,
+    # `if(include.B)`). Track presence so the DataFrame builder can
+    # omit the columns when their source is missing - matching R's
+    # `data.frame$col <- NULL` no-op behaviour.
     log_fc = coefficients[:, coef]
     t_stat = fit["t"][:, coef]
     p_val = fit["p_value"][:, coef]
     lods = fit.get("lods")
-    if lods is None:
-        b_stat = np.full(n_genes, np.nan)
-    else:
+    has_lods = lods is not None
+    if has_lods:
         b_stat = lods[:, coef] if lods.ndim > 1 else lods
-    ave_expr = fit.get("Amean", np.full(n_genes, np.nan))
+    else:
+        # R toptable.R:209-211: missing lods + sort/resort.by="B" raises.
+        if sort_by == "B":
+            raise ValueError(
+                "Trying to sort.by B, but B-statistic (lods) "
+                "not found in MArrayLM object"
+            )
+        if resort_by == "B":
+            raise ValueError(
+                "Trying to resort.by B, but B-statistic (lods) "
+                "not found in MArrayLM object"
+            )
+        b_stat = np.full(n_genes, np.nan)
+    has_amean = "Amean" in fit and fit["Amean"] is not None
+    if has_amean:
+        ave_expr = np.asarray(fit["Amean"])
+        # R: `if(NCOL(A)>1) A <- rowMeans(A, na.rm=TRUE)`.
+        if ave_expr.ndim > 1 and ave_expr.shape[1] > 1:
+            ave_expr = np.nanmean(ave_expr, axis=1)
+    else:
+        ave_expr = np.full(n_genes, np.nan)
 
-    # Handle genelist
+    # Handle genelist. R toptable.R:168 wraps an explicit vector
+    # genelist as `data.frame(ID=genelist)` so it appears as an ID
+    # column. pylimma additionally auto-defaults `genelist` to
+    # `fit["genes"]` (set from rownames in lm_fit) - that auto-default
+    # is treated as the row index, NOT an ID column, to preserve
+    # rownames flow through the pipeline.
     if genelist is None:
         genes = [f"gene{i+1}" for i in range(n_genes)]
         genelist_df = None
@@ -306,8 +345,19 @@ def _top_table_t(
         genes = list(genelist.index) if len(genelist.index) == n_genes else list(range(n_genes))
         genelist_df = genelist.copy()
     elif isinstance(genelist, (list, np.ndarray)):
-        genes = list(genelist) if len(genelist) == n_genes else [f"gene{i}" for i in range(n_genes)]
-        genelist_df = None
+        if len(genelist) == n_genes:
+            if _genelist_explicit:
+                # Explicit vector → ID column, row index from fit rownames
+                # (or 1..N fallback matching R toptable.R:170-172).
+                genelist_df = pd.DataFrame({"ID": list(genelist)})
+                genes = list(range(1, n_genes + 1))
+            else:
+                # Auto-default from fit["genes"] → use as row index
+                genes = list(genelist)
+                genelist_df = None
+        else:
+            genes = [f"gene{i}" for i in range(n_genes)]
+            genelist_df = None
     else:
         genes = [f"gene{i+1}" for i in range(n_genes)]
         genelist_df = None
@@ -332,16 +382,18 @@ def _top_table_t(
     # Multiple testing adjustment
     adj_p_val = p_adjust(p_val, method=adjust_method)
 
-    # Filter by p-value and lfc thresholds
+    # Filter by p-value and lfc thresholds.
+    # R toptable.R:233-246 gates filtering on `p.value < 1 | lfc > 0`,
+    # masking NaN sig rows to FALSE only inside that block. With default
+    # arguments R does no filtering and preserves NaN-p-value rows.
     keep = np.ones(n_genes, dtype=bool)
-    if p_value < 1:
-        keep &= adj_p_val <= p_value
-    if lfc > 0:
-        # R's .topTableT uses `abs(M) >= lfc` (toptable.R:234), keeping
-        # genes whose |logFC| is exactly on the threshold. pylimma used
-        # strict `>` which silently dropped boundary genes.
-        keep &= np.abs(log_fc) >= lfc
-    keep &= ~np.isnan(p_val)  # Remove NaN p-values
+    if p_value < 1 or lfc > 0:
+        if p_value < 1:
+            keep &= adj_p_val <= p_value
+        if lfc > 0:
+            # `abs(M) >= lfc` (toptable.R:234) - inclusive boundary.
+            keep &= np.abs(log_fc) >= lfc
+        keep &= ~np.isnan(p_val)  # R: sig[is.na(sig)] <- FALSE
 
     if not np.any(keep):
         return pd.DataFrame()
@@ -363,12 +415,14 @@ def _top_table_t(
     # Helper function for sorting
     # use_abs: primary sort uses abs() for t and logFC; resort uses signed values (R behaviour)
     def _get_sort_order(sort_col, data_dict, default_order, use_abs=True):
+        # R toptable.R:188: `sort.by="A" || sort.by=="Amean"` -> "AveExpr".
         sort_by_map = {
             "B": "b", "b": "b",
             "P": "p", "p": "p",
             "T": "t", "t": "t",
             "logFC": "logFC", "log_fc": "logFC", "M": "logFC",
-            "AveExpr": "AveExpr", "ave_expr": "AveExpr", "A": "AveExpr",
+            "AveExpr": "AveExpr", "ave_expr": "AveExpr",
+            "A": "AveExpr", "Amean": "AveExpr",
             "none": "none",
         }
         col = sort_by_map.get(sort_col, sort_col)
@@ -427,27 +481,20 @@ def _top_table_t(
         if margin_error is not None:
             margin_error = margin_error[resort_order]
 
-    # Build DataFrame
+    # Build DataFrame. R toptable.R:268-280 puts AveExpr / B in the
+    # output only when their source slots are non-NULL. Mirror that.
+    cols: dict[str, np.ndarray] = {"log_fc": log_fc}
     if confint and margin_error is not None:
-        df = pd.DataFrame({
-            "log_fc": log_fc,
-            "ci_l": log_fc - margin_error,
-            "ci_r": log_fc + margin_error,
-            "ave_expr": ave_expr,
-            "t": t_stat,
-            "p_value": p_val,
-            "adj_p_value": adj_p_val,
-            "b": b_stat,
-        })
-    else:
-        df = pd.DataFrame({
-            "log_fc": log_fc,
-            "ave_expr": ave_expr,
-            "t": t_stat,
-            "p_value": p_val,
-            "adj_p_value": adj_p_val,
-            "b": b_stat,
-        })
+        cols["ci_l"] = log_fc - margin_error
+        cols["ci_r"] = log_fc + margin_error
+    if has_amean:
+        cols["ave_expr"] = ave_expr
+    cols["t"] = t_stat
+    cols["p_value"] = p_val
+    cols["adj_p_value"] = adj_p_val
+    if has_lods:
+        cols["b"] = b_stat
+    df = pd.DataFrame(cols)
 
     # Add genelist columns if DataFrame
     if genelist_df is not None:
@@ -473,6 +520,7 @@ def top_table_f(
     *,
     coef_idx: list[int] | None = None,
     resort_by: str | None = None,
+    _genelist_explicit: bool | None = None,
 ) -> pd.DataFrame:
     """
     Top table for multiple coefficients ranked by F-statistic.
@@ -520,17 +568,43 @@ def top_table_f(
     DataFrame
         Table of top genes ranked by F-statistic.
     """
-    # Resolve lfc from fc / lfc exactly as R does.
+    # R topTableF.R:7 emits a deprecation message on every call. Mirror
+    # it with DeprecationWarning so downstream tooling (pytest's
+    # warning capture, IDE linters) sees an equivalent signal.
+    import warnings as _warnings
+    _warnings.warn(
+        "top_table_f is obsolete and will be removed in a future "
+        "version of pylimma. Please consider using top_table instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
+    # Resolve lfc from fc / lfc exactly as R does (toptable.R:33-39):
+    # when fc is supplied, lfc is silently overridden with log2(fc) -
+    # any user-supplied lfc value is discarded without warning.
     if fc is not None:
         if fc < 1:
-            raise ValueError("fc must be >= 1 (fold-change cannot be less than 1)")
-        if lfc is not None:
-            raise ValueError("Specify either fc or lfc, not both")
+            raise ValueError("fc must be greater than or equal to 1")
         lfc = float(np.log2(fc))
     elif lfc is None:
         lfc = 0.0
 
-    coef_matrix = np.asarray(fit["coefficients"])
+    # R topTableF.R:38: `sort.by <- match.arg(sort.by, c("F","none"))`.
+    # match.arg errors on anything else; mirror that here.
+    if sort_by not in ("F", "none"):
+        raise ValueError(
+            f"sort_by={sort_by!r} not recognised. Must be one of 'F', 'none'."
+        )
+
+    # R topTableF.R:12: `rn <- rownames(M)`. When fit["coefficients"]
+    # is a DataFrame, surface its index as `coef_rownames` so duplicate
+    # detection (R-B11a topTableF.R:27-28) can promote them to an ID
+    # column. Plain ndarray inputs leave coef_rownames at None.
+    coef_obj = fit["coefficients"]
+    coef_rownames = None
+    if isinstance(coef_obj, pd.DataFrame):
+        coef_rownames = list(coef_obj.index)
+    coef_matrix = np.asarray(coef_obj)
     if coef_idx is None:
         # R's topTableF uses the whole coefficient matrix.
         coef_idx = list(range(coef_matrix.shape[1]))
@@ -538,7 +612,19 @@ def top_table_f(
     n_genes = coefficients.shape[0]
 
     # Default genelist from fit, matching R's genelist=fit$genes.
-    if genelist is None:
+    # _genelist_explicit is 3-state: True/False from the wrapper
+    # (which has already handled auto-default), None when the user
+    # invoked top_table_f directly. In the direct-call case we need
+    # to auto-detect: a non-None genelist at entry IS explicit.
+    if _genelist_explicit is None:
+        if genelist is not None:
+            _genelist_explicit = True
+        else:
+            _genelist_explicit = False
+            genelist = fit.get("genes")
+    elif genelist is None:
+        # Wrapper passed an explicit flag but no genelist - this can
+        # happen if the wrapper's auto-default also returned None.
         genelist = fit.get("genes")
 
     # F-statistics
@@ -548,35 +634,76 @@ def top_table_f(
     if f_stat is None or f_p_val is None:
         raise ValueError("F-statistics not found. Run e_bayes() with multiple coefficients.")
 
-    ave_expr = fit.get("Amean", np.full(n_genes, np.nan))
+    # R topTableF.R:89: `tab$AveExpr <- Amean[o]`. When Amean is NULL,
+    # R's `data.frame$col <- NULL` is a no-op, so the column is absent.
+    # Track absence explicitly so the DataFrame builder can omit it.
+    has_amean = "Amean" in fit and fit["Amean"] is not None
+    if has_amean:
+        ave_expr = np.asarray(fit["Amean"])
+        # R: `if(NCOL(A)>1) A <- rowMeans(A, na.rm=TRUE)`.
+        if ave_expr.ndim > 1 and ave_expr.shape[1] > 1:
+            ave_expr = np.nanmean(ave_expr, axis=1)
+    else:
+        ave_expr = np.full(n_genes, np.nan)
 
-    # Handle genelist
+    # Handle genelist. R topTableF.R:85 wraps an explicit vector as
+    # `data.frame(ProbeID=genelist)` so it appears as a ProbeID column.
+    # pylimma's auto-default from `fit["genes"]` is used as the row
+    # index instead - see `_top_table_t` for the same pattern.
     if genelist is None:
-        genes = [f"gene{i+1}" for i in range(n_genes)]
+        genes = (
+            list(coef_rownames) if coef_rownames is not None
+            else [f"gene{i+1}" for i in range(n_genes)]
+        )
         genelist_df = None
     elif isinstance(genelist, pd.DataFrame):
         genes = list(genelist.index) if len(genelist.index) == n_genes else list(range(n_genes))
         genelist_df = genelist.copy()
     elif isinstance(genelist, (list, np.ndarray)):
-        genes = list(genelist) if len(genelist) == n_genes else [f"gene{i}" for i in range(n_genes)]
-        genelist_df = None
+        if len(genelist) == n_genes:
+            if _genelist_explicit:
+                genelist_df = pd.DataFrame({"ProbeID": list(genelist)})
+                genes = list(range(1, n_genes + 1))
+            else:
+                genes = list(genelist)
+                genelist_df = None
+        else:
+            genes = [f"gene{i}" for i in range(n_genes)]
+            genelist_df = None
     else:
         genes = [f"gene{i+1}" for i in range(n_genes)]
         genelist_df = None
 
-    # Handle duplicated gene names (DataFrame index must be unique)
-    genes, genelist_df = _handle_duplicated_rownames(genes, genelist_df)
+    # R topTableF.R:87-100: when rownames(M) (i.e. fit$coefficients
+    # rownames) has duplicates, promote them to an ID/ID0 column and
+    # reset rn to 1..N. coef_rownames is None for ndarray fits;
+    # _handle_duplicated_rownames() catches the simpler case of
+    # duplicates inside `genes` itself.
+    if coef_rownames is not None and len(coef_rownames) != len(set(coef_rownames)):
+        if genelist_df is None:
+            genelist_df = pd.DataFrame({"ID": list(coef_rownames)})
+        elif "ID" in genelist_df.columns:
+            genelist_df = genelist_df.copy()
+            genelist_df["ID0"] = list(coef_rownames)
+        else:
+            genelist_df = genelist_df.copy()
+            genelist_df["ID"] = list(coef_rownames)
+        genes = list(range(1, n_genes + 1))
+    else:
+        # Handle duplicated gene names (DataFrame index must be unique)
+        genes, genelist_df = _handle_duplicated_rownames(genes, genelist_df)
 
     # Multiple testing adjustment
     adj_p_val = p_adjust(f_p_val, method=adjust_method)
 
-    # Filter
+    # Filter (R topTableF.R: NaN sig dropped only when filtering is active).
     keep = np.ones(n_genes, dtype=bool)
-    if p_value < 1:
-        keep &= adj_p_val <= p_value
-    if lfc > 0:
-        keep &= np.any(np.abs(coefficients) > lfc, axis=1)
-    keep &= ~np.isnan(f_p_val)
+    if p_value < 1 or lfc > 0:
+        if p_value < 1:
+            keep &= adj_p_val <= p_value
+        if lfc > 0:
+            keep &= np.any(np.abs(coefficients) > lfc, axis=1)
+        keep &= ~np.isnan(f_p_val)
 
     if not np.any(keep):
         return pd.DataFrame()
@@ -640,21 +767,28 @@ def top_table_f(
     # Build DataFrame with coefficient columns
     # Use contrast_names if available, otherwise generate default names
     stored_names = fit.get("contrast_names") or fit.get("coef_names")
+    # R topTableF.R:13: default colnames are `Coef1, Coef2, ...`
+    # (1-based, no separator) when fit$coefficients has none.
     if stored_names is not None:
         coef_names = [stored_names[i] for i in coef_idx]
     else:
-        coef_names = [f"coef_{i}" for i in coef_idx]
-    df = pd.DataFrame(coefficients, columns=coef_names)
-    df["ave_expr"] = ave_expr
-    df["F"] = f_stat
-    df["p_value"] = f_p_val
-    df["adj_p_value"] = adj_p_val
+        coef_names = [f"Coef{i+1}" for i in coef_idx]
 
-    # Add genelist columns if DataFrame
+    # R topTableF.R:88 builds the table with genelist FIRST, then
+    # coefficient columns: `tab <- data.frame(genelist[o,,drop=FALSE],
+    # M[o,,drop=FALSE])`. Mirror that column order.
+    cols: dict[str, np.ndarray] = {}
     if genelist_df is not None:
         for col in genelist_df.columns:
-            if col not in df.columns:
-                df[col] = genelist_df[col].values
+            cols[col] = genelist_df[col].values
+    for j, name in enumerate(coef_names):
+        cols[name] = coefficients[:, j]
+    if has_amean:
+        cols["ave_expr"] = ave_expr
+    cols["F"] = f_stat
+    cols["p_value"] = f_p_val
+    cols["adj_p_value"] = adj_p_val
+    df = pd.DataFrame(cols)
 
     df.index = genes
     df.index.name = "gene"
