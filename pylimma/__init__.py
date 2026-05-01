@@ -42,9 +42,11 @@ from pylimma.lmfit import (
     gls_series,
     is_fullrank,
     lm_fit,
-    lm_series,
     mrlm,
     non_estimable,
+)
+from pylimma.lmfit import (
+    lm_series as lm_series,
 )
 from pylimma.normalize import (
     aver_arrays,
@@ -126,9 +128,14 @@ __all__ = [
     "put_eawp",
     # Core pipeline
     "lm_fit",
-    "lm_series",
     "gls_series",
     "mrlm",
+    # lm_series is intentionally not in __all__ - it is an
+    # implementation detail of lm_fit. R limma exports lm.series via
+    # NAMESPACE pattern but lm_fit's dispatcher already handles R's
+    # ndups/spacing kwargs, so adding them to lm_series would be
+    # redundant API surface. lm_series remains importable as
+    # pylimma.lm_series for advanced users; it just isn't in *.
     "contrasts_fit",
     "contrast_as_coef",
     "e_bayes",

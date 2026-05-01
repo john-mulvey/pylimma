@@ -13,7 +13,6 @@ Linear modelling
    :toctree: generated/
 
    pylimma.lm_fit
-   pylimma.lm_series
    pylimma.gls_series
    pylimma.mrlm
    pylimma.contrasts_fit
