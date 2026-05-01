@@ -8,7 +8,8 @@
 #   qqt.R (qqf)                Copyright (C) 2012      Belinda Phipson
 #   ebayes.R (trigamma_inverse helper)
 #                              Copyright (C) 2002-2004 Gordon Smyth
-#   zscore.R                   Copyright (C) 2012-2019 Gordon Smyth
+#   zscore.R                   Copyright (C) 2003-2020 Gordon Smyth
+#   zscoreHyper.R              Copyright (C) 2012      Gordon Smyth
 #   tricubeMovingAverage.R     Copyright (C) 2014-2015 Gordon Smyth,
 #                                                      Yifang Hu
 #   convest.R                  Copyright (C) 2004-2020 Egil Ferkingstad,
@@ -777,6 +778,206 @@ def p_adjust(p: np.ndarray, method: str = "BH") -> np.ndarray:
 
     adjusted[valid] = adj_valid
     return adjusted
+
+
+# ---------------------------------------------------------------------------
+# zscore family (port of R limma's zscore, zscoreGamma, zscoreHyper)
+# ---------------------------------------------------------------------------
+
+
+_ZSCORE_DISTRIBUTIONS = {
+    "norm": _scipy_stats.norm,
+    "t": _scipy_stats.t,
+    "f": _scipy_stats.f,
+    "chisq": _scipy_stats.chi2,
+    "beta": _scipy_stats.beta,
+    "exp": _scipy_stats.expon,
+    "binom": _scipy_stats.binom,
+    "pois": _scipy_stats.poisson,
+}
+
+
+def zscore(
+    q: np.ndarray | float,
+    distribution: str,
+    **dist_kwargs,
+) -> np.ndarray:
+    """
+    Z-score equivalents for deviates from a specified distribution.
+
+    Port of R limma's ``zscore``. Computes the z-score of a value drawn
+    from ``distribution`` by mapping the corresponding tail probability
+    onto a standard normal quantile, preserving log-scale accuracy in
+    the tails.
+
+    Parameters
+    ----------
+    q : array_like
+        Deviates whose z-score equivalents are wanted.
+    distribution : str
+        Distribution name. R's naming convention (without the leading
+        ``p``) is used: ``"norm"``, ``"t"``, ``"f"``, ``"chisq"``,
+        ``"beta"``, ``"exp"``, ``"binom"``, ``"pois"``. Use the
+        dedicated :func:`zscore_gamma` and :func:`zscore_hyper`
+        functions for the gamma and hypergeometric cases.
+    **dist_kwargs
+        Distribution parameters passed through to scipy.stats. Names
+        mirror R's ``p<distribution>`` arguments (e.g. ``df`` for
+        ``"t"``; ``df1`` and ``df2`` for ``"f"``).
+
+    Returns
+    -------
+    ndarray
+        Z-scores with the same shape as ``q``.
+    """
+    from scipy.special import ndtri_exp
+
+    if distribution == "gamma":
+        return zscore_gamma(q, **dist_kwargs)
+    if distribution == "hyper":
+        return zscore_hyper(q, **dist_kwargs)
+    if distribution not in _ZSCORE_DISTRIBUTIONS:
+        raise ValueError(
+            f"distribution '{distribution}' not recognised. "
+            "Must be one of 'norm', 't', 'f', 'gamma', 'hyper', "
+            "'chisq', 'beta', 'exp', 'binom', 'pois'."
+        )
+    dist = _ZSCORE_DISTRIBUTIONS[distribution]
+
+    q = np.asarray(q, dtype=np.float64)
+    z = q.astype(np.float64, copy=True)
+
+    pupper = dist.logsf(q, **dist_kwargs)
+    plower = dist.logcdf(q, **dist_kwargs)
+    up = pupper < plower
+    if np.any(up):
+        z[up] = -ndtri_exp(pupper[up])
+    if np.any(~up):
+        z[~up] = ndtri_exp(plower[~up])
+    return z
+
+
+def zscore_gamma(
+    q: np.ndarray | float,
+    shape: np.ndarray | float,
+    rate: np.ndarray | float = 1.0,
+    scale: np.ndarray | float | None = None,
+) -> np.ndarray:
+    """
+    Z-score equivalents for gamma deviates.
+
+    Port of R limma's ``zscoreGamma``.
+
+    Parameters
+    ----------
+    q : array_like
+        Gamma deviates.
+    shape : array_like or float
+        Shape parameter. Recycled to the length of ``q``.
+    rate : array_like or float, default 1.0
+        Rate parameter. Used only if ``scale`` is omitted; ``scale``
+        defaults to ``1 / rate`` to mirror R's argument convention.
+    scale : array_like or float, optional
+        Scale parameter (``1 / rate``). When supplied takes precedence
+        over ``rate``.
+
+    Returns
+    -------
+    ndarray
+        Z-score equivalents with the same shape as ``q``.
+    """
+    from scipy.special import ndtri_exp
+
+    q = np.asarray(q, dtype=np.float64)
+    n = q.size
+    shape = np.broadcast_to(np.asarray(shape, dtype=np.float64), n).copy()
+    if scale is None:
+        scale = 1.0 / np.asarray(rate, dtype=np.float64)
+    scale = np.broadcast_to(np.asarray(scale, dtype=np.float64), n).copy()
+    z = q.astype(np.float64, copy=True)
+
+    q_flat = q.reshape(-1)
+    z_flat = z.reshape(-1)
+    up = q_flat > shape * scale
+    if np.any(up):
+        logp = _scipy_stats.gamma.logsf(
+            q_flat[up], a=shape[up], scale=scale[up]
+        )
+        z_flat[up] = -ndtri_exp(logp)
+    if np.any(~up):
+        logp = _scipy_stats.gamma.logcdf(
+            q_flat[~up], a=shape[~up], scale=scale[~up]
+        )
+        z_flat[~up] = ndtri_exp(logp)
+    return z
+
+
+def zscore_hyper(
+    q: np.ndarray | float,
+    m: np.ndarray | float,
+    n: np.ndarray | float,
+    k: np.ndarray | float,
+) -> np.ndarray:
+    """
+    Z-score equivalents for hypergeometric deviates.
+
+    Port of R limma's ``zscoreHyper``. Adds a half point-probability
+    correction to either the upper or lower tail before mapping to a
+    standard normal quantile, preserving log-scale accuracy.
+
+    Parameters
+    ----------
+    q : array_like
+        Number of successes observed.
+    m : array_like or float
+        Number of white balls in the urn.
+    n : array_like or float
+        Number of black balls in the urn.
+    k : array_like or float
+        Number of balls drawn.
+
+    Returns
+    -------
+    ndarray
+        Z-score equivalents with the same shape as ``q``.
+    """
+    from scipy.special import ndtri_exp
+
+    q = np.asarray(q, dtype=np.float64)
+    z = q.astype(np.float64, copy=True)
+    M = np.asarray(m, dtype=np.float64) + np.asarray(n, dtype=np.float64)
+    m_arr = np.asarray(m, dtype=np.float64)
+    k_arr = np.asarray(k, dtype=np.float64)
+
+    with np.errstate(invalid="ignore"):
+        d = _scipy_stats.hypergeom.logpmf(q, M, m_arr, k_arr) - np.log(2.0)
+        pupper = _scipy_stats.hypergeom.logsf(q, M, m_arr, k_arr)
+        plower = _scipy_stats.hypergeom.logcdf(q - 1, M, m_arr, k_arr)
+
+    d = np.where(np.isnan(d), -np.inf, d)
+    pupper = np.where(np.isnan(pupper), -np.inf, pupper)
+    plower = np.where(np.isnan(plower), -np.inf, plower)
+
+    # Add half point probability to upper tail in log-space.
+    a = np.where(d > pupper, d, pupper)
+    b = -np.abs(d - pupper)
+    pmidupper = a + np.log1p(np.exp(b))
+    inf_a = np.isinf(a)
+    pmidupper = np.where(inf_a, a, pmidupper)
+
+    # Similarly for lower tail.
+    a = np.where(d > plower, d, plower)
+    b = -np.abs(d - plower)
+    pmidlower = a + np.log1p(np.exp(b))
+    inf_a = np.isinf(a)
+    pmidlower = np.where(inf_a, a, pmidlower)
+
+    up = pmidupper < pmidlower
+    if np.any(up):
+        z[up] = -ndtri_exp(pmidupper[up])
+    if np.any(~up):
+        z[~up] = ndtri_exp(pmidlower[~up])
+    return z
 
 
 # ---------------------------------------------------------------------------

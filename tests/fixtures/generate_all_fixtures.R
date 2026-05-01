@@ -2589,3 +2589,83 @@ write.csv(data.frame(prob = .gt_prob),
           "R_goanatrend.csv", row.names = FALSE)
 
 cat("  Phase 6 fixtures complete.\n")
+
+
+# =============================================================================
+# Forgotten public-API audit (2026-04-30): chooseLowessSpan, qqf, zscore family,
+# loessFit, contrastAsCoef
+# =============================================================================
+cat("\nGenerating forgotten-public-API fixtures...\n")
+
+set.seed(20260430)
+
+# chooseLowessSpan: deterministic over n
+.cls_n <- c(20, 50, 100, 500, 5000)
+write.csv(
+  data.frame(n = .cls_n, span = sapply(.cls_n, chooseLowessSpan)),
+  "R_choose_lowess_span.csv", row.names = FALSE
+)
+
+# qqf: 100 random F-deviates, df1=5, df2=20
+.qqf_y <- rf(100, df1 = 5, df2 = 20)
+.qqf_qq <- qqf(.qqf_y, df1 = 5, df2 = 20, plot.it = FALSE)
+write.csv(
+  data.frame(x = .qqf_qq$x, y = .qqf_qq$y),
+  "R_qqf.csv", row.names = FALSE
+)
+
+# zscore family: per-row distribution parameters
+.zs_n <- 50
+.zs_q_t <- rt(.zs_n, df = 8)
+.zs_df_t <- rep(8.0, .zs_n)
+.zs_q_gamma <- rgamma(.zs_n, shape = 3, rate = 0.5)
+.zs_shape <- rep(3.0, .zs_n)
+.zs_rate <- rep(0.5, .zs_n)
+.zs_q_hyper <- rhyper(.zs_n, m = 30, n = 70, k = 20)
+.zs_m <- rep(30L, .zs_n)
+.zs_n_h <- rep(70L, .zs_n)
+.zs_k <- rep(20L, .zs_n)
+
+write.csv(
+  data.frame(
+    q_t = .zs_q_t, df = .zs_df_t,
+    q_gamma = .zs_q_gamma, shape = .zs_shape, rate = .zs_rate,
+    q_hyper = .zs_q_hyper, m = .zs_m, n = .zs_n_h, k = .zs_k
+  ),
+  "R_zscore_input.csv", row.names = FALSE
+)
+
+write.csv(
+  data.frame(
+    z_t = zscore(.zs_q_t, "t", df = .zs_df_t[1]),
+    z_gamma = zscoreGamma(.zs_q_gamma, shape = .zs_shape, rate = .zs_rate),
+    z_hyper = zscoreHyper(.zs_q_hyper, m = .zs_m, n = .zs_n_h, k = .zs_k)
+  ),
+  "R_zscore.csv", row.names = FALSE
+)
+
+# loessFit: a 200-point noisy sine
+.lf_x <- seq(0, 2 * pi, length.out = 200)
+.lf_y <- sin(.lf_x) + rnorm(200, sd = 0.2)
+.lf_w <- runif(200, 0.5, 1.5)
+.lf_fit <- loessFit(.lf_y, .lf_x, weights = .lf_w, span = 0.3)
+write.csv(
+  data.frame(
+    x = .lf_x, y = .lf_y, w = .lf_w,
+    fitted = .lf_fit$fitted, residuals = .lf_fit$residuals
+  ),
+  "R_loess_fit.csv", row.names = FALSE
+)
+
+# contrastAsCoef: a 2-condition design with one contrast
+.cac_design <- model.matrix(~ 0 + factor(c("A", "A", "A", "B", "B", "B")))
+colnames(.cac_design) <- c("A", "B")
+.cac_contr <- makeContrasts(BvsA = B - A, levels = .cac_design)
+.cac_res <- contrastAsCoef(.cac_design, .cac_contr)
+write.csv(.cac_res$design, "R_contrast_as_coef_design.csv", row.names = FALSE)
+write.csv(
+  data.frame(qr_diag = diag(qr.R(qr(.cac_res$design)))),
+  "R_contrast_as_coef_qr.csv", row.names = FALSE
+)
+
+cat("  Forgotten-public-API fixtures complete.\n")

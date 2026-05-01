@@ -716,8 +716,8 @@ def duplicate_correlation(
     # Normalise weight shape through asMatrixWeights; helper returns
     # a fresh copy so the subsequent NaN writes are safe.
     if weights is not None:
-        from .classes import _as_matrix_weights
-        weights = _as_matrix_weights(weights, (n_genes, n_arrays))
+        from .classes import as_matrix_weights
+        weights = as_matrix_weights(weights, (n_genes, n_arrays))
         weights[weights <= 0] = np.nan
         M = M.copy()
         M[~np.isfinite(weights)] = np.nan

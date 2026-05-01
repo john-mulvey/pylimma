@@ -2,6 +2,7 @@
 #
 # This module is a Python port of code from R limma. Original R copyrights:
 #   contrasts.R                Copyright (C) 2002-2024 Gordon Smyth
+#   contrastAsCoef.R           Copyright (C) 2013-2025 Gordon Smyth
 #   modelmatrix.R              Copyright (C) 2003-2005 Gordon Smyth
 # Python port: Copyright (C) 2026 John Mulvey
 """
@@ -11,6 +12,7 @@ Implements:
 - model_matrix(): create design matrices from formula strings
 - make_contrasts(): create contrast matrices from expressions
 - contrasts_fit(): apply contrasts to a fitted model
+- contrast_as_coef(): re-express contrasts as coefficients
 """
 
 from __future__ import annotations
@@ -21,6 +23,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from scipy import linalg
 
 from .classes import MArrayLM, _resolve_fit_input
 
@@ -551,3 +554,95 @@ def contrasts_fit(
         data.uns[key] = dict(fit)
         return None
     return fit
+
+
+def contrast_as_coef(
+    design,
+    contrast=None,
+    first: bool = True,
+) -> dict:
+    """
+    Reform a design matrix so that contrasts become simple coefficients.
+
+    Port of R limma's ``contrastAsCoef``. Re-parameterises ``design`` so
+    that fitting the new design directly estimates the requested
+    contrasts as coefficients.
+
+    Parameters
+    ----------
+    design : ndarray or DataFrame
+        Design matrix of shape (n_samples, n_coef).
+    contrast : ndarray or DataFrame, optional
+        Contrast matrix of shape (n_coef, n_contrasts). If ``None``,
+        ``design`` is returned unchanged (matching R).
+    first : bool, default True
+        If True, contrast columns are placed first in the new design.
+        If False, they are moved to the end.
+
+    Returns
+    -------
+    dict
+        ``design`` : DataFrame
+            Re-parameterised design with shape (n_samples, n_coef) and
+            named columns.
+        ``coef`` : list of int
+            0-based indices of the contrast columns within the new
+            design.
+        ``qr`` : dict
+            QR decomposition of ``contrast`` with keys ``q``, ``r``,
+            ``pivot``, ``rank``.
+    """
+    from .lmfit import _qr_r_style
+
+    if isinstance(design, pd.DataFrame):
+        design_arr = np.asarray(design.values, dtype=np.float64)
+    else:
+        design_arr = np.asarray(design, dtype=np.float64)
+    if design_arr.ndim == 1:
+        design_arr = design_arr.reshape(-1, 1)
+
+    if contrast is None:
+        return design_arr
+
+    contrast_names = None
+    if isinstance(contrast, pd.DataFrame):
+        contrast_names = list(contrast.columns)
+        contrast_arr = np.asarray(contrast.values, dtype=np.float64)
+    else:
+        contrast_arr = np.asarray(contrast, dtype=np.float64)
+    if contrast_arr.ndim == 1:
+        contrast_arr = contrast_arr.reshape(-1, 1)
+
+    if design_arr.shape[1] != contrast_arr.shape[0]:
+        raise ValueError("Length of contrast doesn't match ncol(design)")
+
+    q, r, pivot, rank = _qr_r_style(contrast_arr)
+    if rank == 0:
+        raise ValueError("contrast is all zero")
+
+    designT = q.T @ design_arr.T
+    R_block = r[:rank, :rank]
+    designT[:rank, :] = linalg.solve_triangular(R_block, designT[:rank, :])
+    new_design = designT.T
+
+    n_cols = new_design.shape[1]
+    col_names = [f"Q{i + 1}" for i in range(n_cols)]
+    if contrast_names is None:
+        col_names[:rank] = [f"C{int(pivot[i]) + 1}" for i in range(rank)]
+    else:
+        col_names[:rank] = list(contrast_names[:rank])
+    coef = list(range(rank))
+
+    if not first:
+        non_coef = [i for i in range(n_cols) if i not in coef]
+        new_design = np.column_stack([new_design[:, non_coef], new_design[:, coef]])
+        col_names = [col_names[i] for i in non_coef] + [col_names[i] for i in coef]
+        coef = list(range(n_cols - rank, n_cols))
+
+    new_design_df = pd.DataFrame(new_design, columns=col_names)
+
+    return {
+        "design": new_design_df,
+        "coef": coef,
+        "qr": {"q": q, "r": r, "pivot": pivot, "rank": rank},
+    }

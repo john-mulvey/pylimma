@@ -3,9 +3,14 @@ pylimma: Python port of R limma for differential expression analysis.
 """
 
 from pylimma._version import __version__
-from pylimma.classes import EList, MArrayLM, get_eawp, put_eawp
-from pylimma.lmfit import lm_fit, lm_series, is_fullrank, non_estimable
-from pylimma.contrasts import make_contrasts, contrasts_fit, model_matrix
+from pylimma.classes import EList, MArrayLM, as_matrix_weights, get_eawp, put_eawp
+from pylimma.lmfit import lm_fit, lm_series, mrlm, is_fullrank, non_estimable
+from pylimma.contrasts import (
+    make_contrasts,
+    contrasts_fit,
+    contrast_as_coef,
+    model_matrix,
+)
 from pylimma.ebayes import e_bayes, treat, top_treat, pred_fcm
 from pylimma.toptable import top_table, top_table_f
 from pylimma.squeeze_var import (
@@ -17,7 +22,14 @@ from pylimma.squeeze_var import (
 from pylimma.decide_tests import decide_tests, classify_tests_f
 from pylimma.utils import (
     qqt,
+    qqf,
+    choose_lowess_span,
+    loess_fit,
+    trigamma_inverse,
+    zscore,
     zscore_t,
+    zscore_gamma,
+    zscore_hyper,
     tricube_moving_average,
     convest,
     prop_true_null,
@@ -94,14 +106,17 @@ __all__ = [
     # Data classes and dispatchers
     "EList",
     "MArrayLM",
+    "as_matrix_weights",
     "get_eawp",
     "put_eawp",
     # Core pipeline
     "lm_fit",
+    "mrlm",
     # lm_series intentionally not exported - it is an implementation
     # detail of lm_fit and its public R counterpart takes ndups/spacing
     # kwargs that pylimma handles via lm_fit's dispatcher instead.
     "contrasts_fit",
+    "contrast_as_coef",
     "e_bayes",
     "treat",
     "top_treat",
@@ -186,7 +201,14 @@ __all__ = [
     "is_fullrank",
     "non_estimable",
     "qqt",
+    "qqf",
+    "choose_lowess_span",
+    "loess_fit",
+    "trigamma_inverse",
+    "zscore",
     "zscore_t",
+    "zscore_gamma",
+    "zscore_hyper",
     "tricube_moving_average",
     "convest",
     "prop_true_null",

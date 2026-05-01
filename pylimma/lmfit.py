@@ -29,7 +29,7 @@ import pandas as pd
 from scipy import linalg
 
 from .dups import unwrap_dups, duplicate_correlation
-from .classes import MArrayLM, get_eawp, _is_anndata, _as_matrix_weights
+from .classes import MArrayLM, get_eawp, _is_anndata, as_matrix_weights
 
 if TYPE_CHECKING:
     from anndata import AnnData
@@ -223,11 +223,11 @@ def lm_series(
     coef_names = [f"x{i}" for i in range(n_coefs)]
 
     # Normalise weight shape via R limma's asMatrixWeights logic;
-    # _as_matrix_weights always returns a fresh copy, so the
+    # as_matrix_weights always returns a fresh copy, so the
     # subsequent ``weights[weights <= 0] = np.nan`` is safe
     # (see known_diff_weights_mutation.md).
     if weights is not None:
-        weights = _as_matrix_weights(weights, (n_genes, n_samples))
+        weights = as_matrix_weights(weights, (n_genes, n_samples))
         weights[weights <= 0] = np.nan
         M = M.copy()
         M[~np.isfinite(weights)] = np.nan
@@ -510,7 +510,7 @@ def mrlm(
     # Normalise weight shape through asMatrixWeights and copy-guard
     # the subsequent NaN write (see lm_series header comment).
     if weights is not None:
-        weights = _as_matrix_weights(weights, (n_genes, n_samples))
+        weights = as_matrix_weights(weights, (n_genes, n_samples))
         weights[weights <= 0] = np.nan
         M = M.copy()
         M[~np.isfinite(weights)] = np.nan
@@ -718,7 +718,7 @@ def gls_series(
     # Normalise weight shape through asMatrixWeights; helper returns
     # a fresh copy so the subsequent NaN/zero writes are safe.
     if weights is not None:
-        weights = _as_matrix_weights(weights, (n_genes, n_arrays))
+        weights = as_matrix_weights(weights, (n_genes, n_arrays))
         weights[np.isnan(weights)] = 0
         M = M.copy()
         M[weights < 1e-15] = np.nan

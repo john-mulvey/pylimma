@@ -47,7 +47,7 @@ import pandas as pd
 # ----------------------------------------------------------------------------
 
 
-def _as_matrix_weights(
+def as_matrix_weights(
     weights,
     dim: tuple[int, int] | None = None,
 ) -> np.ndarray:
@@ -831,12 +831,12 @@ def put_eawp(
         if slots.get("weights") is not None and weights_layer is not None:
             # Normalise weights to a (n_genes, n_samples) matrix before
             # writing. Covers scalar / length-G probe / length-N array /
-            # (1, N) row / full (G, N) shapes via _as_matrix_weights;
+            # (1, N) row / full (G, N) shapes via as_matrix_weights;
             # without this a 1-D caller would write a 1-D layer and
             # anndata would reject it. Today's public callers (voom,
             # vooma, voom_with_quality_weights) all produce 2-D weights
             # so this is a defensive fix for future callers.
-            W = _as_matrix_weights(slots["weights"], E.shape)
+            W = as_matrix_weights(slots["weights"], E.shape)
             adata.layers[weights_layer] = W.T
         uns_payload = {k: v for k, v in slots.items()
                        if k not in ("E",) and v is not None

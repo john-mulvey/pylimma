@@ -4875,3 +4875,179 @@ class TestGoanaTrendInterface:
         with pytest.raises(NotImplementedError, match="BiasedUrn"):
             kegga(de=de_list, gene_pathway=kgp, pathway_names=pn,
                   universe=universe, trend=True)
+
+
+# =============================================================================
+# Forgotten public-API audit (2026-04-30): chooseLowessSpan, qqf, zscore family,
+# loessFit, contrastAsCoef, plus public-API promotion smoke tests.
+# =============================================================================
+
+
+class TestChooseLowessSpanRParity:
+    def test_n_to_span_table(self):
+        from pylimma import choose_lowess_span
+        ref = pd.read_csv(FIXTURES_DIR / "R_choose_lowess_span.csv")
+        py = np.array([choose_lowess_span(n=int(n)) for n in ref["n"]])
+        res = compare_arrays(ref["span"].values, py, rtol=1e-12, atol=1e-15)
+        assert res["match"], (
+            f"choose_lowess_span differs from R: max_rel={res['max_rel_diff']:.3e}"
+        )
+
+
+class TestQqfRParity:
+    def test_quantile_pairing(self):
+        from pylimma import qqf
+        ref = pd.read_csv(FIXTURES_DIR / "R_qqf.csv")
+        out = qqf(ref["y"].values, df1=5, df2=20, plot_it=False)
+        res_x = compare_arrays(ref["x"].values, out["x"], rtol=1e-10, atol=1e-12)
+        res_y = compare_arrays(ref["y"].values, out["y"], rtol=1e-10, atol=1e-12)
+        assert res_x["match"], (
+            f"qqf x differs: max_rel={res_x['max_rel_diff']:.3e}"
+        )
+        assert res_y["match"], (
+            f"qqf y differs: max_rel={res_y['max_rel_diff']:.3e}"
+        )
+
+
+class TestZscoreRParity:
+    def test_t_gamma_hyper(self):
+        from pylimma import zscore, zscore_gamma, zscore_hyper
+        zin = pd.read_csv(FIXTURES_DIR / "R_zscore_input.csv")
+        ref = pd.read_csv(FIXTURES_DIR / "R_zscore.csv")
+
+        z_t = zscore(zin["q_t"].values, "t", df=float(zin["df"].iloc[0]))
+        z_gamma = zscore_gamma(
+            zin["q_gamma"].values,
+            shape=zin["shape"].values,
+            rate=zin["rate"].values,
+        )
+        z_hyper = zscore_hyper(
+            zin["q_hyper"].values,
+            m=zin["m"].values,
+            n=zin["n"].values,
+            k=zin["k"].values,
+        )
+
+        for name, ref_col, py in [
+            ("t", "z_t", z_t),
+            ("gamma", "z_gamma", z_gamma),
+            ("hyper", "z_hyper", z_hyper),
+        ]:
+            res = compare_arrays(ref[ref_col].values, py, rtol=1e-10, atol=1e-12)
+            assert res["match"], (
+                f"zscore {name} differs: max_rel={res['max_rel_diff']:.3e} "
+                f"max_abs={res['max_abs_diff']:.3e}"
+            )
+
+
+class TestLoessFitRParity:
+    def test_fitted_residuals(self):
+        from pylimma import loess_fit
+        ref = pd.read_csv(FIXTURES_DIR / "R_loess_fit.csv")
+        out = loess_fit(
+            ref["y"].values,
+            ref["x"].values,
+            weights=ref["w"].values,
+            span=0.3,
+        )
+        res_fit = compare_arrays(
+            ref["fitted"].values, out["fitted"], rtol=1e-6, atol=1e-12,
+        )
+        res_resid = compare_arrays(
+            ref["residuals"].values, out["residuals"], rtol=1e-6, atol=1e-12,
+        )
+        assert res_fit["match"], (
+            f"loess_fit fitted differs: max_rel={res_fit['max_rel_diff']:.3e} "
+            f"max_abs={res_fit['max_abs_diff']:.3e}"
+        )
+        assert res_resid["match"], (
+            f"loess_fit residuals differ: max_rel={res_resid['max_rel_diff']:.3e} "
+            f"max_abs={res_resid['max_abs_diff']:.3e}"
+        )
+
+
+class TestContrastAsCoefRParity:
+    def test_design_and_qr(self):
+        from pylimma import contrast_as_coef, make_contrasts
+        ref_design = pd.read_csv(FIXTURES_DIR / "R_contrast_as_coef_design.csv")
+        ref_qr = pd.read_csv(FIXTURES_DIR / "R_contrast_as_coef_qr.csv")
+
+        design = pd.DataFrame(
+            np.array([[1, 0], [1, 0], [1, 0], [0, 1], [0, 1], [0, 1]],
+                     dtype=float),
+            columns=["A", "B"],
+        )
+        contr = make_contrasts(BvsA="B-A", levels=["A", "B"])
+        res = contrast_as_coef(design, contr)
+
+        # Design columns may differ in absolute sign of the orthogonal-
+        # complement column (Q decomposition is unique only up to column
+        # signs); compare absolute values for the unnamed Q column.
+        py_design = res["design"]
+        assert list(py_design.columns) == list(ref_design.columns), (
+            f"column names differ: py={list(py_design.columns)}, "
+            f"r={list(ref_design.columns)}"
+        )
+        for col in ref_design.columns:
+            r_vals = ref_design[col].values
+            py_vals = py_design[col].values
+            if col == "BvsA":
+                cmp = compare_arrays(r_vals, py_vals, rtol=1e-10, atol=1e-12)
+            else:
+                cmp = compare_arrays(
+                    np.abs(r_vals), np.abs(py_vals), rtol=1e-10, atol=1e-12,
+                )
+            assert cmp["match"], (
+                f"contrast_as_coef design column '{col}' differs: "
+                f"max_rel={cmp['max_rel_diff']:.3e}"
+            )
+
+        # QR diagonal of res$design - signs of qr.R diagonal can flip with
+        # column-sign flips, so compare absolute values.
+        from numpy.linalg import qr as np_qr
+        _, py_r = np_qr(py_design.values)
+        py_diag = np.diag(py_r)
+        cmp = compare_arrays(
+            np.abs(ref_qr["qr_diag"].values),
+            np.abs(py_diag),
+            rtol=1e-10, atol=1e-12,
+        )
+        assert cmp["match"], (
+            f"contrast_as_coef qr diagonal differs: "
+            f"max_rel={cmp['max_rel_diff']:.3e}"
+        )
+
+
+class TestPublicAPIPromotion:
+    """Audit gap (2026-04-30): symbols that R limma exports must be
+    importable from top-level pylimma without underscore prefix."""
+
+    def test_mrlm_importable_from_top_level(self):
+        import pylimma
+        assert callable(pylimma.mrlm)
+        # Spot-check: mrlm of an intercept-only design returns coefficients
+        # that are robust column means.
+        rng = np.random.default_rng(0)
+        M = rng.standard_normal((10, 6))
+        out = pylimma.mrlm(M, design=np.ones((6, 1)))
+        assert "coefficients" in out
+        assert out["coefficients"].shape == (10, 1)
+
+    def test_as_matrix_weights_importable_from_top_level(self):
+        import pylimma
+        assert callable(pylimma.as_matrix_weights)
+        # Length-N array weights broadcast across rows.
+        W = pylimma.as_matrix_weights(np.array([1.0, 2.0, 3.0]), dim=(4, 3))
+        assert W.shape == (4, 3)
+        np.testing.assert_array_equal(W[0], np.array([1.0, 2.0, 3.0]))
+        np.testing.assert_array_equal(W[3], np.array([1.0, 2.0, 3.0]))
+
+    def test_trigamma_inverse_importable_from_top_level(self):
+        import pylimma
+        from scipy.special import polygamma
+        assert callable(pylimma.trigamma_inverse)
+        # Round-trip: trigamma(trigamma_inverse(x)) ~ x
+        x = np.array([0.1, 0.5, 1.0, 2.0, 10.0])
+        y = pylimma.trigamma_inverse(x)
+        round_trip = polygamma(1, y)
+        np.testing.assert_allclose(round_trip, x, rtol=1e-7)

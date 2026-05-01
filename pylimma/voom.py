@@ -904,7 +904,7 @@ def vooma_lm_fit(
     from .lmfit import lm_fit
     from .weights import array_weights
     from .dups import duplicate_correlation
-    from .classes import _as_matrix_weights
+    from .classes import as_matrix_weights
 
     # Polymorphic input dispatch (ndarray / dict / EList / AnnData),
     # mirroring voom / vooma. Pull design and prior_weights off the
@@ -1025,8 +1025,8 @@ def vooma_lm_fit(
         # Reshape prior_weights to (n_genes, n_samples) via asMatrixWeights
         # before multiplying so probe-weight / array-weight / scalar shapes
         # all behave like R's vooma path.
-        from .classes import _as_matrix_weights
-        weights = w * _as_matrix_weights(prior_weights, (n_genes, n_samples))
+        from .classes import as_matrix_weights
+        weights = w * as_matrix_weights(prior_weights, (n_genes, n_samples))
     else:
         weights = w
 
@@ -1103,8 +1103,8 @@ def vooma_lm_fit(
             # Reshape prior_weights to (n_genes, n_samples) via
             # asMatrixWeights before multiplying so probe-weight /
             # array-weight / scalar shapes all behave like R's vooma.
-            from .classes import _as_matrix_weights
-            weights = w * _as_matrix_weights(prior_weights, (n_genes, n_samples))
+            from .classes import as_matrix_weights
+            weights = w * as_matrix_weights(prior_weights, (n_genes, n_samples))
         else:
             weights = w
 
@@ -1173,8 +1173,8 @@ def vooma_lm_fit(
     if _is_anndata(original_input):
         adata = original_input
         # Observation weights layer (limma (n_genes, n_samples) -> AnnData
-        # (n_samples, n_genes) via _as_matrix_weights normalisation + .T).
-        W = _as_matrix_weights(weights, (n_genes, n_samples))
+        # (n_samples, n_genes) via as_matrix_weights normalisation + .T).
+        W = as_matrix_weights(weights, (n_genes, n_samples))
         adata.layers[weights_layer] = W.T
         # Fit slots under the lm_fit uns key (plain dict for h5ad compat).
         bundled = {"EList", "voom_xy", "voom_line", "targets", "span"}
