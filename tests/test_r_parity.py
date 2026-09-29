@@ -5677,9 +5677,19 @@ class TestDecideTestsBranchParity:
             ("p_hierarchical_BY", "hierarchical", "BY", {"coefficients": "coef"}),
             ("p_hierarchical_nocoef", "hierarchical", "BH", {}),
             ("p_hierarchical_genewise_none", "hierarchical", "none", {"genewise_p_value": "genewise"}),
+            ("p_hierarchical_genewise_BH_intended", "hierarchical", "BH", {"genewise_p_value": "genewise"}),
+            ("p_hierarchical_genewise_bonferroni_intended", "hierarchical", "bonferroni", {"genewise_p_value": "genewise"}),
+            ("p_hierarchical_genewise_holm_intended", "hierarchical", "holm", {"genewise_p_value": "genewise"}),
+            ("p_hierarchical_genewise_BY_intended", "hierarchical", "BY", {"genewise_p_value": "genewise"}),
         ],
     )
     def test_pvalue_matrix_matches_r(self, case, method, adjust, extra):
+        """``*_intended`` cases: literal R errors (see test_errors_match_r's
+        p_hierarchical_genewise_bh); the reference is R's decideTests.default
+        with ngenes <- nrow(p) added, i.e. limma's intended behaviour."""
+        if case.endswith("_intended"):
+            r_error = load_r_csv_no_index("dt_errors").set_index("case")["r_error"]["p_hierarchical_genewise_bh"]
+            assert "ngenes" in r_error
         inputs = {
             "coef": lambda: load_r_csv_no_index("dt_input_coef").to_numpy(dtype=float),
             "tstat": lambda: load_r_csv_no_index("dt_input_tstat").to_numpy(dtype=float),
@@ -5694,14 +5704,13 @@ class TestDecideTestsBranchParity:
         "case",
         [
             "fit_hierarchical_na", "fit_nestedF_na", "fit_bad_method", "p_nestedF",
-            "p_out_of_range", "p_coef_dims", "p_with_na", "p_hierarchical_genewise_bh",
+            "p_out_of_range", "p_coef_dims", "p_with_na",
         ],
     )
     def test_errors_match_r(self, case):
         assert isinstance(load_r_csv_no_index("dt_errors").set_index("case")["r_error"][case], str)
         p = load_r_csv_no_index("dt_input_p").to_numpy(dtype=float)
         coef = load_r_csv_no_index("dt_input_coef").to_numpy(dtype=float)
-        genewise = load_r_csv_no_index("dt_input_genewise")["genewise"].to_numpy()
         call = {
             "fit_hierarchical_na": lambda: decide_tests(self._fit("fit_na"), method="hierarchical"),
             "fit_nestedF_na": lambda: decide_tests(self._fit("fit_na"), method="nestedF"),
@@ -5710,7 +5719,6 @@ class TestDecideTestsBranchParity:
             "p_out_of_range": lambda: decide_tests(p * 2),
             "p_coef_dims": lambda: decide_tests(p, coefficients=coef[:, :2]),
             "p_with_na": lambda: decide_tests(self._fit("fit_na")["p_value"]),
-            "p_hierarchical_genewise_bh": lambda: decide_tests(p, method="hierarchical", genewise_p_value=genewise),
         }[case]
         with pytest.raises(ValueError):
             call()

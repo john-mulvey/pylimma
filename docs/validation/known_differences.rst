@@ -135,3 +135,38 @@ change that aligns the two patterns is detected automatically.
 ``sigma`` is also at machine epsilon, t-statistics are inf/NaN,
 and the empirical-Bayes posterior is dominated by the prior
 regardless of which "garbage" stdev was returned.
+
+Deliberate divergences: intended rather than literal R behaviour
+----------------------------------------------------------------
+
+Where R limma contains a clear bug, pylimma follows the behaviour the
+limma code evidently intends rather than reproducing the bug. Each
+case below is tested against a reference computed in R with the
+single-line correction applied, and the literal R behaviour is
+recorded in the fixtures alongside it.
+
+decide_tests: hierarchical method with a supplied genewise_p_value
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a matrix of p-values, ``decideTests.default(method="hierarchical",
+genewise.p.value=...)`` in limma 3.66.0 fails with
+``object 'ngenes' not found`` for every ``adjust.method`` except
+``"none"``. ``ngenes`` is defined only inside the branch that
+computes Simes genewise p-values when none are supplied, but the
+p-value cut-off multiplier uses it in both cases.
+
+pylimma uses ``ngenes = nrow(p)`` in both cases. The reference
+fixtures (``R_dt_p_hierarchical_genewise_*_intended.csv``) come from
+R's ``decideTests.default`` with ``ngenes <- nrow(p)`` inserted before
+its ``switch()``; the fixture script checks that the patched function
+reproduces R exactly wherever R itself succeeds.
+
+genas: logFC / predFC subsets re-centre the coefficients
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In ``genas(subset="logFC")`` and ``genas(subset="predFC")``, limma
+assigns the re-centred coefficients to ``fit$coeff``. R's ``$<-`` does
+not partial-match, so this creates a new list element and the
+re-centring never reaches the likelihood, which reads
+``fit$coefficients``. pylimma applies the re-centring as the code
+intends.

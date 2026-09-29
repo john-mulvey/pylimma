@@ -282,10 +282,14 @@ def decide_tests(
 
     Notes
     -----
-    For a p-value matrix, R's ``decideTests.default`` fails when
-    ``genewise.p.value`` is supplied with any adjust method other than
-    "none" (it references ``ngenes``, which is only defined when it
-    computes Simes p-values itself). pylimma raises in the same cases.
+    Deliberate divergence from R (intended rather than literal
+    behaviour): for a p-value matrix with ``method="hierarchical"``, R
+    limma 3.66.0's ``decideTests.default`` fails with "object 'ngenes'
+    not found" when ``genewise.p.value`` is supplied with any adjust
+    method other than "none", because ``ngenes`` is only defined in the
+    branch that computes Simes p-values itself. pylimma uses
+    ``ngenes = nrow(p)`` in both cases, which is what the surrounding
+    code intends; results match R's function with that one line added.
     """
     method = _match_arg(method, _DECIDE_METHODS, "method")
     adjust_method = _match_arg(adjust_method, _ADJUST_METHODS, "adjust.method")
@@ -436,11 +440,10 @@ def _decide_tests_default(
         if genewise_p_value is None:
             simes = ncontrasts / np.arange(1, ncontrasts + 1)
             genewise_p_value = np.min(np.sort(p, axis=1) * simes, axis=1)
-        elif adjust_method != "none":
-            raise ValueError(
-                "genewise_p_value with adjust_method other than 'none' fails in R's "
-                "decideTests.default (object 'ngenes' not found)"
-            )
+        # Intended rather than literal limma behaviour: R defines ngenes only
+        # inside its Simes branch, so a supplied genewise.p.value fails for
+        # every adjust.method except "none" (object 'ngenes' not found).
+        # ngenes is nrow(p) in both cases here. See known_differences.rst.
         de_gene = p_adjust(np.asarray(genewise_p_value, dtype=np.float64), method=adjust_method) <= p_value
         p[~de_gene, :] = 1.0
         for g in np.flatnonzero(de_gene):

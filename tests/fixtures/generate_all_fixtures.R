@@ -3282,8 +3282,26 @@ for (.adj in c("BH", "none", "bonferroni", "holm", "BY")) {
 }
 .dt_default("p_hierarchical_nocoef", "hierarchical", "BH")
 # Supplied genewise.p.value: R only defines ngenes when it computes Simes
-# p-values itself, so every adjust.method except "none" errors (see errors)
+# p-values itself, so every adjust.method except "none" errors (see errors).
+# pylimma follows the intended behaviour, ngenes = nrow(p); the reference
+# comes from decideTests.default with that single line added before switch().
 .dt_default("p_hierarchical_genewise_none", "hierarchical", "none", genewise.p.value = .dt_gw)
+.dt_decide_intended <- limma:::decideTests.default
+.dt_body <- as.list(body(.dt_decide_intended))
+.dt_switch <- which(vapply(.dt_body, function(e) is.call(e) && identical(e[[1]], as.name("switch")), TRUE))
+body(.dt_decide_intended) <- as.call(append(.dt_body, list(quote(ngenes <- nrow(p))), after = .dt_switch - 1))
+environment(.dt_decide_intended) <- asNamespace("limma")
+# The patch changes nothing where R itself works
+stopifnot(identical(
+  unclass(.dt_decide_intended(.dt_p, method = "hierarchical", coefficients = .dt_coef))[],
+  unclass(decideTests(.dt_p, method = "hierarchical", coefficients = .dt_coef))[]
+))
+for (.adj in c("BH", "bonferroni", "holm", "BY")) {
+  .res <- unclass(.dt_decide_intended(.dt_p, method = "hierarchical", adjust.method = .adj,
+                                      genewise.p.value = .dt_gw))
+  attributes(.res) <- list(dim = dim(.res))
+  write.csv(.res, sprintf("R_dt_p_hierarchical_genewise_%s_intended.csv", .adj), row.names = FALSE)
+}
 
 write.csv(do.call(rbind, .dt_rows), "R_dt_cases.csv", row.names = FALSE)
 
