@@ -18,8 +18,8 @@ Faithful ports:
   ``plotting.py``.
 
 Accepts matrix / dict / EList / AnnData via the ``get_eawp`` /
-``put_eawp`` dispatchers. RGList / MAList / EListRaw are out of scope
-(see ``memory/policy_data_class_wrappers.md``).
+``put_eawp`` dispatchers. R's two-colour classes (RGList / MAList /
+EListRaw) are not ported.
 """
 
 from __future__ import annotations

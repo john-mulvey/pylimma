@@ -230,9 +230,8 @@ class TestRigorousLmSeries:
         _assert_slots_match(py_fit, r_out)
 
     def test_b4_does_not_mutate_caller_weights(self):
-        """R-B4 guard: R's weights[weights<=0] <- NA is copy-on-modify.
-        known_diff_weights_mutation.md records the prior pylimma bug. Assert
-        the fix holds: caller's weights array is unchanged after the call."""
+        """R-B4 guard: R's weights[weights<=0] <- NA is copy-on-modify, so
+        the caller's weights array must be unchanged after the call."""
         rng = np.random.default_rng(14)
         M = rng.standard_normal((6, 4))
         design = np.column_stack([np.ones(4), [0, 0, 1, 1]])
@@ -242,7 +241,7 @@ class TestRigorousLmSeries:
         snapshot = weights.copy()
         lm_series(M, design, weights=weights)
         assert np.array_equal(weights, snapshot), (
-            "lm_series mutated caller's weights (regression of known_diff_weights_mutation.md)"
+            "lm_series mutated the caller's weights (R is copy-on-modify)"
         )
 
     # -------------------- R-B5: ndups > 1 unwrapping ----------------------

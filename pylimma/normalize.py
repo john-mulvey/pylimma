@@ -41,8 +41,7 @@ Faithful port of the matrix-applicable methods in R limma's
 
 Two-channel-only methods (``Aquantile``, ``Gquantile``, ``Rquantile``,
 ``Tquantile``) are not ported - they require RGList/MAList input which is
-out of scope under pylimma's AnnData / flat-array design (see the
-``policy_data_class_wrappers`` memory entry).
+out of scope under pylimma's AnnData / flat-array design.
 """
 
 from __future__ import annotations
@@ -933,8 +932,7 @@ def background_correct(
     passed separately as ``background`` (matches ``backgroundCorrect.matrix``
     ``Eb`` parameter).
 
-    Two-colour / RGList / MAList dispatch is out of scope (see
-    ``memory/policy_data_class_wrappers.md``). ``movingmin`` and
+    Two-colour / RGList / MAList dispatch is out of scope. ``movingmin`` and
     ``edwards`` both require a printer / spotted-array layout and raise
     ``NotImplementedError``; the ``printer`` parameter is accepted for R
     signature compatibility but is only used by those out-of-scope paths.
@@ -1204,7 +1202,7 @@ def _aver_arrays_anndata(adata, id=None, weights=None):
 # single stratum, no reference, default options, calib="affine". Strata,
 # reference, sample, "calib=none" branches and the AffyBatch / RGList /
 # EListRaw S4 dispatchers are out of scope (RGList / EListRaw are not
-# ported per policy_data_class_wrappers).
+# ported).
 #
 # Model. Per-column parameters (a_j, b_j) for j = 1..ncol. The variance-
 # stabilising transform is h(y_ij) = arsinh(exp(b_j) * y_ij + a_j). After
@@ -1445,8 +1443,7 @@ def normalize_vsn(
     to rtol ~ 2e-4. ``pstart`` is documented as a heuristic in
     ``R/vsn2.R`` and is not surfaced through limma's
     ``normalizeVSN.default`` interface, so this change is invisible
-    to users translating limma scripts. See
-    ``notes_during_implementation.md`` 2026-05-01 entry for the full
+    to users translating limma scripts. See ``docs/validation/known_differences.rst`` for the full
     discussion.
     """
     x = np.asarray(x, dtype=np.float64)

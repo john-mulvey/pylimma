@@ -170,3 +170,15 @@ not partial-match, so this creates a new list element and the
 re-centring never reaches the likelihood, which reads
 ``fit$coefficients``. pylimma applies the re-centring as the code
 intends.
+
+Deliberate interface difference: EList design and weights in voom
+-----------------------------------------------------------------
+
+R's ``voom`` and ``voomWithQualityWeights`` call ``as.matrix()`` on an
+``EList`` input, which silently drops every slot except ``E``. pylimma's
+``voom`` uses the EList's ``design`` and ``weights`` slots, and
+``voom_with_quality_weights`` its ``design`` slot, when the caller does
+not pass them explicitly, and emits a ``UserWarning`` each time so that
+code ported from R does not change results unnoticed. Passing
+``design=`` / ``weights=`` explicitly reproduces R exactly. ``vooma`` and
+``vooma_lm_fit`` already match R and do not warn.

@@ -35,7 +35,7 @@ side; these functions take an ``rng`` argument that is forwarded to
 ``numpy.random.default_rng``. Deterministic summaries (``ngenes``,
 observed set statistics, active proportions) match R to machine precision;
 Monte-Carlo p-values from independently-seeded streams agree to within
-the Monte-Carlo sampling error (see ``known_diff_roast_rng.md``).
+the Monte-Carlo sampling error (see ``docs/validation/known_differences.rst``).
 """
 
 from __future__ import annotations

@@ -341,8 +341,7 @@ class TestRigorousMrlm:
             "and scipy's LAPACK SVD produce different machine-epsilon residual "
             "noise patterns, so the iter-1 MAD scale Huber-downweights different "
             "samples. Real-world impact zero (residuals are 6+ orders above "
-            "machine eps in real data). See docs/validation/known_differences.rst "
-            "and audits/mrlm.md (Finding 5)."
+            "machine eps in real data). See docs/validation/known_differences.rst."
         ),
     )
     def test_b9c_zero_residual_scale(self):

@@ -98,8 +98,8 @@ def diff_splice(
 
     # For AnnData input, prefer adata.var as the exon-annotation table
     # so string lookups like ``geneid="gene"`` find ``adata.var["gene"]``
-    # directly. fit["genes"] is a list of var_names on the AnnData path
-    # (per the no-duplication decision for #2 in the audit), which would
+    # directly. On the AnnData path fit["genes"] is only the list of
+    # var_names (lm_fit does not copy adata.var into the fit), which would
     # otherwise fail a column-name lookup.
     n_exons = np.asarray(fit["coefficients"]).shape[0]
     if _adata is not None and _adata.var is not None and len(_adata.var.columns):

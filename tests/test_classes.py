@@ -365,7 +365,7 @@ def test_get_eawp_rejects_unsupported_wrapper_by_name():
     class RGList:
         pass
 
-    with pytest.raises(TypeError, match="policy_data_class_wrappers"):
+    with pytest.raises(TypeError, match="out of scope"):
         get_eawp(RGList())
 
 

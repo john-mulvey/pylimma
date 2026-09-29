@@ -146,7 +146,7 @@ def _which_genes(fit_subset, subset: str):
     # pylimma applies the re-centring as the author clearly intended
     # (reading the author's intent from the surrounding code + help
     # page). Numerical output therefore diverges from R for these two
-    # subsets; see docstring note and known_diff_genas_recentring.md.
+    # subsets; see the docstring note and ``docs/validation/known_differences.rst``.
     if subset == "logFC":
         q1 = float(np.quantile(np.abs(coef1), 0.9))
         q2 = float(np.quantile(np.abs(coef2), 0.9))
@@ -294,7 +294,7 @@ def genas(
     applies the re-centring as the author's code clearly intended.
     For ``subset in {"all", "Fpval", "p.union", "p.int"}`` pylimma
     matches R's numerical output to within optimiser tolerance.
-    See ``known_diff_genas_recentring.md`` in the memory index.
+    See ``docs/validation/known_differences.rst``.
     """
     from .ebayes import e_bayes
     from .utils import fit_gamma_intercept

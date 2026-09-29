@@ -3576,8 +3576,8 @@ class TestNormexpFitRParity:
 
     def test_saddle(self, fg):
         # scipy Nelder-Mead vs R nmmin converge to different points on the
-        # saddle-likelihood's flat plateau; rtol=1e-3 matches the
-        # known_diff_normexp_saddle memory entry. MLE refinement collapses
+        # saddle-likelihood's flat plateau; rtol=1e-3 as documented in
+        # docs/validation/known_differences.rst. MLE refinement collapses
         # to 1e-13; test_mle below exercises that.
         expected = load_r_csv_no_index("normexp_fit_saddle")["par"].values
         got = normexp_fit(fg, method="saddle")["par"]
@@ -3633,7 +3633,7 @@ class TestBackgroundCorrectRParity:
 
     def test_normexp(self, matrices):
         # Saddle-plateau sensitivity bounds absolute error at ~2e-2 on
-        # corrected-signal scale (50-300). See known_diff_normexp_saddle.
+        # corrected-signal scale (50-300). See docs/validation/known_differences.rst.
         E, Eb = matrices
         got = background_correct(E, background=Eb, method="normexp", verbose=False)
         expected = load_r_csv_no_index("background_correct_normexp").values

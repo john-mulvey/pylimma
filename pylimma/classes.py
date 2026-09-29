@@ -65,8 +65,8 @@ def as_matrix_weights(
     6. anything else - ``ValueError("weights is of unexpected size")``.
 
     The result is always freshly allocated so downstream ``weights[...] = ...``
-    writes do not leak into the caller's memory (see
-    ``known_diff_weights_mutation.md``).
+    writes do not leak into the caller's memory (R's copy-on-modify
+    semantics leave the caller's weights unchanged).
 
     R's branch order is preserved verbatim. In particular, if ``G == N``
     a length-G vector is treated as probe weights (branch 4), matching
@@ -600,7 +600,7 @@ def get_eawp(
         If obj is of an unsupported class. Two-channel microarray wrappers
         (RGList, MAList, EListRaw) and Bioconductor S4 containers
         (ExpressionSet, eSet, PLMset, marrayNorm) are deliberately out of
-        scope - see policy_data_class_wrappers in project memory.
+        scope; extract the expression matrix instead.
     """
     if obj is None:
         raise TypeError("data object is None")
@@ -692,8 +692,8 @@ def get_eawp(
     if cls_name in _UNSUPPORTED_WRAPPER_NAMES:
         raise TypeError(
             f"{cls_name} is not supported by pylimma. "
-            "Two-channel and Bioconductor S4 wrappers are out of scope "
-            "(policy_data_class_wrappers). Extract the expression matrix "
+            "Two-channel and Bioconductor S4 wrappers are out of scope. "
+            "Extract the expression matrix "
             "and pass it directly, or wrap it in pylimma.EList."
         )
 

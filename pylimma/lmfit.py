@@ -266,8 +266,8 @@ def lm_series(
 
     # Normalise weight shape via R limma's asMatrixWeights logic;
     # as_matrix_weights always returns a fresh copy, so the
-    # subsequent ``weights[weights <= 0] = np.nan`` is safe
-    # (see known_diff_weights_mutation.md).
+    # subsequent ``weights[weights <= 0] = np.nan`` is safe (R's
+    # copy-on-modify semantics leave the caller's weights unchanged).
     # Track whether the input was array-weights-shaped (length-N
     # vector or (1, N) row matrix) - mirrors R's `arrayweights`
     # attribute (weights.R:74,83). lmfit.R:135 uses the attribute -

@@ -164,7 +164,7 @@ class TestRigorousLmFit:
     # N/A against R for EList: R's getEAWP (getEAWP at lmfit.R:438-453)
     # populates y$printer only for unclassed MAList-style lists, never
     # for EList. Since MAList / RGList wrappers are deliberately
-    # out-of-scope for pylimma (policy_data_class_wrappers), this
+    # out of scope for pylimma, this
     # branch has no reachable R pathway in pylimma-accepted inputs
     # and is documented rather than tested. (pylimma's _printer_attr
     # will happily read from an EList dict, which is a harmless

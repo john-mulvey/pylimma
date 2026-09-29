@@ -199,7 +199,7 @@ def voom(
     # (voom.R:32) which drops every slot except E. pylimma keeps the more
     # useful behaviour of honouring EList['design'] and EList['weights']
     # but warns so users porting R code know the divergence is there.
-    # See known_diff_voom_elist_warning.md for rationale.
+    # See ``docs/validation/known_differences.rst``.
     _input_is_elist = isinstance(original_input, EList)
     if design is None and eawp.get("design") is not None:
         if _input_is_elist:
