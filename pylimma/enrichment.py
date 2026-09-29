@@ -18,29 +18,27 @@ goana_trend              Per-gene DE-probability estimate from a covariate
                          (used internally for length / abundance bias
                          correction), port of R limma's ``goanaTrend``.
 
-Phase-1 scope
--------------
-This first-cut port focuses on the database-free path. Two cuts versus
-R limma:
+Scope
+-----
+The port covers the database-free path. Two differences from R limma:
 
-1. **Bioconductor database lookups dropped.** R limma's ``goana.default``
-   reaches into ``GO.db`` / ``org.<species>.eg.db``; ``kegga.default``
-   reaches into the live KEGG REST API. pylimma deliberately does not
-   wrap Bioconductor annotation databases (see
-   ``policy_data_class_wrappers``). Both ports require the caller to
-   supply a ``gene_pathway`` data frame mapping gene IDs to pathway IDs
-   (the universal interface, fully database-free). The
+1. **Bioconductor database lookups are not ported.** R limma's
+   ``goana.default`` reaches into ``GO.db`` / ``org.<species>.eg.db``;
+   ``kegga.default`` reaches into the live KEGG REST API. pylimma does
+   not wrap Bioconductor annotation databases. Both ports require the
+   caller to supply a ``gene_pathway`` data frame mapping gene IDs to
+   pathway IDs (the universal interface, fully database-free). The
    ``getGeneKEGGLinks`` and ``getKEGGPathwayNames`` helpers, which exist
    in R only to fetch from the KEGG REST API, are not ported.
 
-2. **BiasedUrn deferred.** R's ``trend=TRUE`` path performs Wallenius'
-   noncentral hypergeometric test via ``BiasedUrn::pWNCHypergeo`` /
-   ``dWNCHypergeo`` for length / abundance bias correction. BiasedUrn
-   is GPL-2-or-later (compatible) but a substantial side-quest and is
-   staged to a separate Phase 2. Phase 1 raises
-   ``NotImplementedError`` whenever ``trend`` is truthy or a covariate
-   is supplied to a ``*.default`` method - silently falling back to
-   plain hypergeometric would be wrong-but-plausible-looking.
+2. **The bias-corrected test is not yet ported.** R's ``trend=TRUE``
+   path performs Wallenius' noncentral hypergeometric test via
+   ``BiasedUrn::pWNCHypergeo`` / ``dWNCHypergeo`` for length /
+   abundance bias correction. pylimma raises ``NotImplementedError``
+   whenever ``trend`` is truthy or a covariate is supplied to a
+   ``*.default`` method, rather than silently falling back to the plain
+   hypergeometric test, which would give plausible-looking but wrong
+   results.
 
 The plain-hypergeometric branch (``trend=False``) ports verbatim and is
 numerically validated against R limma fixtures.
@@ -94,7 +92,7 @@ def goana(
     Gene-ontology over-representation analysis.
 
     Port of R limma's ``goana`` (``goana.R``). See module docstring for
-    the gene_pathway format and the Phase-1 scope cuts.
+    the gene_pathway format and the scope notes.
 
     Parameters
     ----------
@@ -114,17 +112,17 @@ def goana(
         Per-gene null DE probability (R name: ``null.prob``).
     covariate : sequence of float, optional
         Covariate values aligned to the universe; if supplied,
-        ``trend`` becomes implicit and ``goana_trend`` is run.
-        Phase 1 raises ``NotImplementedError``.
+        ``trend`` becomes implicit and ``goana_trend`` is run. Not yet
+        supported: raises ``NotImplementedError``.
     plot : bool, default False
         Forwarded to ``goana_trend`` when applicable.
     fdr : float, default 0.05
         FDR threshold for selecting up/down DE genes from a fit object
         (R name: ``FDR``). Only used in the MArrayLM branch.
     trend : bool, numeric, or str, default False
-        Use length / abundance bias correction. Phase 1 raises
-        ``NotImplementedError`` for any truthy / numeric / character
-        value.
+        Use length / abundance bias correction. Not yet supported:
+        raises ``NotImplementedError`` for any truthy / numeric /
+        character value.
     **kwargs
         ``coef`` and ``geneid`` for the MArrayLM branch.
     """
@@ -171,7 +169,7 @@ def kegga(
     KEGG pathway over-representation analysis.
 
     Port of R limma's ``kegga`` (``kegga.R``). See module docstring for
-    the gene_pathway format and the Phase-1 scope cuts.
+    the gene_pathway format and the scope notes.
 
     All parameters except ``pathway_names`` have identical semantics to
     :func:`goana`; see that function's docstring for full descriptions.
@@ -552,8 +550,8 @@ def _normalise_gene_pathway(gene_pathway, *, optional_extra_cols=False):
     """
     if gene_pathway is None:
         raise ValueError(
-            "gene_pathway is required; pylimma does not bundle GO.db / "
-            "KEGG REST lookups (see policy_data_class_wrappers)."
+            "gene_pathway is required; pylimma does not look up GO.db or the "
+            "KEGG REST API, so supply a gene-to-pathway mapping."
         )
     df = pd.DataFrame(gene_pathway).copy()
     if df.shape[1] < 2:

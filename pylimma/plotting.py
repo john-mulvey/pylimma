@@ -1557,7 +1557,8 @@ def _as_logical(index, n):
 
 
 # ===========================================================================
-# Additional port additions (Phase E.5 of the bug-hunt follow-up plan)
+# plotlines, mdplot, heat_diagram, plot_rldf, plot_exons, plot_exon_junc,
+# plot_ma_3by2
 # ===========================================================================
 
 
