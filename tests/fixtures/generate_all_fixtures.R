@@ -1892,13 +1892,13 @@ write.csv(rbe3, "R_rbe_batch_batch2.csv", row.names = FALSE)
 cat("  normalisation and batch-correction fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Normalisation and batch-correction audit forcing fixtures (2026-04-16)
+# Normalisation and batch-correction branch-forcing fixtures
 # -----------------------------------------------------------------------------
-# Added during the normalisation and batch-correction R-parity audit to force
-# R branches that the original fixtures did not exercise. Do not restructure
-# the blocks above when editing these; append new branches here.
+# Force R branches that the normalisation and batch-correction fixtures above
+# do not exercise. Do not restructure the blocks above when editing these;
+# append new branches here.
 
-cat("Normalisation and batch-correction audit forcing fixtures...\n")
+cat("Normalisation and batch-correction branch-forcing fixtures...\n")
 
 cat("  normexp.fit(n.pts=200) downsample path...\n")
 set.seed(2026)
@@ -1976,7 +1976,7 @@ rbe_int <- removeBatchEffect(E_int_batch, batch = batch_int, design = design_int
 write.csv(rbe_int, "R_rbe_integer_batch.csv", row.names = FALSE)
 write.csv(E_int_batch, "R_rbe_integer_batch_E_input.csv", row.names = FALSE)
 
-cat("  Normalisation and batch-correction audit forcing fixtures complete.\n")
+cat("  Normalisation and batch-correction branch-forcing fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
 # Gene-set testing fixtures
@@ -2602,10 +2602,9 @@ cat("  enrichment fixtures complete.\n")
 
 
 # =============================================================================
-# Forgotten public-API audit (2026-04-30): chooseLowessSpan, qqf, zscore family,
-# loessFit, contrastAsCoef
+# Public API: chooseLowessSpan, qqf, zscore family, loessFit, contrastAsCoef
 # =============================================================================
-cat("\nGenerating forgotten-public-API fixtures...\n")
+cat("\nGenerating public-API fixtures (chooseLowessSpan, qqf, zscore, loessFit, contrastAsCoef)...\n")
 
 set.seed(20260430)
 
@@ -2678,7 +2677,7 @@ write.csv(
   "R_contrast_as_coef_qr.csv", row.names = FALSE
 )
 
-cat("  Forgotten-public-API fixtures complete.\n")
+cat("  Public-API fixtures complete.\n")
 
 # =============================================================================
 # weightedLowess (weighted_lowess.c) and loessFit: branch-forcing fixtures

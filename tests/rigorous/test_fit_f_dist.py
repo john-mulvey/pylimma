@@ -4,9 +4,9 @@ Rigorous per-branch parity tests for pylimma.squeeze_var.fit_f_dist.
 Each test exercises a specific R branch of fitFDist() in R limma's
 fitFDist.R.
 
-These tests were added by a rigorous single-function audit. They are
-intentionally tight (rtol=1e-8 where possible) and run a live R subprocess
-via helpers.run_r_comparison so any regression surfaces immediately.
+These tests are intentionally tight (rtol=1e-8 where possible) and run a live R
+subprocess via helpers.run_r_comparison so any regression surfaces
+immediately.
 """
 
 from __future__ import annotations

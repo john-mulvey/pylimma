@@ -4,10 +4,9 @@ Rigorous per-branch parity tests for pylimma.toptable.top_table.
 Each test exercises a specific R branch of topTable / .topTableT /
 .topTableF in R limma's toptable.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-29. They run a live R subprocess via helpers.run_r_comparison
-so any regression surfaces immediately. Tolerances are tight (rtol=1e-8
-for stats, log10_diff<=1.0 for p-values).
+These tests run a live R subprocess via helpers.run_r_comparison so any
+regression surfaces immediately. Tolerances are tight (rtol=1e-8 for
+stats, log10_diff<=1.0 for p-values).
 """
 
 from __future__ import annotations

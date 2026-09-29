@@ -4,12 +4,11 @@ Rigorous per-branch parity tests for pylimma.lmfit.lm_fit.
 Each test exercises a specific R branch of lmFit() in R limma's
 lmfit.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-23. They are intentionally tight (rtol=1e-8) and mostly run
-a live R subprocess via helpers.run_r_comparison so that any
-regression surfaces immediately. Tests that only assert a warning /
-error (not a numerical output) do not need live R because the
-trigger condition is documented in the R source.
+These tests are intentionally tight (rtol=1e-8) and mostly run a live R
+subprocess via helpers.run_r_comparison so that any regression surfaces
+immediately. Tests that only assert a warning / error (not a numerical
+output) do not need live R because the trigger condition is documented
+in the R source.
 """
 
 from __future__ import annotations

@@ -3866,9 +3866,8 @@ class TestNormalisationSmokePipeline:
 
 class TestNormalisationBatchBranchCoverage:
     """Forcing tests for normexp_fit / normexp_signal / background_correct /
-    aver_arrays / remove_batch_effect R branches that the primary suite did
-    not exercise. Added during the 2026-04-16 normalisation and
-    batch-correction R-parity audit.
+    aver_arrays / remove_batch_effect R branches that the primary suite does
+    not exercise.
     """
 
     # --- normexp_fit branches -------------------------------------------------
@@ -4077,22 +4076,21 @@ class TestNormalisationBatchBranchCoverage:
 
 
 # =============================================================================
-# Second-pass audit verification tests (2026-04-22)
+# Interface, fit-slot and edge-case parity
 # =============================================================================
 #
-# These tests verify the 20 findings from a second-pass audit (2026-04-22).
-# Each test either:
-#   (a) compares pylimma output to live R output via run_r_comparison, or
-#   (b) asserts a Python-only behavioural property (crashes, warnings, slot
-#       presence).
-#
-# BEFORE the fixes land, every test in this block is expected to FAIL -
-# that failure IS the verification that the finding is real.
-# AFTER the fixes land, every test should PASS.
-#
-# Findings are grouped by verification tier (A/B/C) as in the plan file
-# /Users/John/.claude/plans/create-a-plan-of-twinkly-clock.md.
+# Each test either compares pylimma output to live R output via
+# run_r_comparison, or asserts a Python-only behavioural property (errors,
+# warnings, slot presence). Grouped by what they check:
+#   - coefficient names, filter boundaries, weights, EList handling and plot_rldf
+#   - fit slots, contrasts_fit edge cases and argument pass-through
+#   - Python-only checks (no R needed)
 # =============================================================================
+
+
+# -----------------------------------------------------------------------------
+# Coefficient names, filter boundaries, weights, EList handling and plot_rldf
+# -----------------------------------------------------------------------------
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
@@ -4488,7 +4486,7 @@ class TestFinding8PlotRldfMathRParity:
 
 
 # -----------------------------------------------------------------------------
-# Tier B - code-reading findings needing R confirmation
+# Fit slots, contrasts_fit edge cases and argument pass-through
 # -----------------------------------------------------------------------------
 
 
@@ -4615,7 +4613,7 @@ class TestFinding19CoefficientsIntDocRParity:
 
 
 # -----------------------------------------------------------------------------
-# Tier C - Python-only verification (no R needed)
+# Python-only checks (no R needed)
 # -----------------------------------------------------------------------------
 
 
@@ -4913,8 +4911,8 @@ class TestGoanaTrendInterface:
 
 
 # =============================================================================
-# Forgotten public-API audit (2026-04-30): chooseLowessSpan, qqf, zscore family,
-# loessFit, contrastAsCoef, plus public-API promotion smoke tests.
+# Public API: chooseLowessSpan, qqf, zscore family, loessFit, contrastAsCoef,
+# plus top-level import checks for exported functions.
 # =============================================================================
 
 
@@ -5127,8 +5125,8 @@ class TestModifyWeightsRParity:
 
 
 class TestPublicAPIPromotion:
-    """Audit gap (2026-04-30): symbols that R limma exports must be
-    importable from top-level pylimma without underscore prefix."""
+    """Symbols that R limma exports must be importable from top-level
+    pylimma without an underscore prefix."""
 
     def test_mrlm_importable_from_top_level(self):
         import pylimma

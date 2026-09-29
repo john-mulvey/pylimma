@@ -4,11 +4,10 @@ Rigorous per-branch parity tests for pylimma.contrasts.contrasts_fit.
 Each test exercises a specific R branch of contrasts.fit() in R
 limma's contrasts.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-29. They run a live R subprocess via helpers.run_r_comparison
-so any divergence surfaces immediately. Tests that only assert a
-warning / error (not a numerical output) document the trigger
-condition from R source and exercise pylimma's behaviour directly.
+These tests run a live R subprocess via helpers.run_r_comparison so any
+divergence surfaces immediately. Tests that only assert a warning /
+error (not a numerical output) document the trigger condition from R
+source and exercise pylimma's behaviour directly.
 """
 
 from __future__ import annotations

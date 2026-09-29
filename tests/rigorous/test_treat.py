@@ -4,12 +4,11 @@ Rigorous per-branch parity tests for pylimma.ebayes.treat.
 Each test exercises a specific R branch of treat() in R limma's
 treat.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-29. They run a live R subprocess via helpers.run_r_comparison
-so any regression surfaces immediately. Tolerances are tight (rtol=1e-8
-for stats, log10_diff<=1.0 for p-values) and every output slot of the
-fit (t, p_value, s2_post, df_total, df_prior, s2_prior, treat_lfc,
-lods) is checked, not just the headline t/p values.
+These tests run a live R subprocess via helpers.run_r_comparison so any
+regression surfaces immediately. Tolerances are tight (rtol=1e-8 for
+stats, log10_diff<=1.0 for p-values) and every output slot of the fit
+(t, p_value, s2_post, df_total, df_prior, s2_prior, treat_lfc, lods) is
+checked, not just the headline t/p values.
 """
 
 from __future__ import annotations

@@ -9,8 +9,6 @@ toptable.py:1-6 and the docstring at toptable.py:480). The internal
 deprecation message and is also reached via ``top_table(coef=NULL)``
 multi-coef dispatch.
 
-Tests added by a rigorous single-function audit on 2026-04-29.
-
 Tests run a live R subprocess via helpers.run_r_comparison so any
 regression surfaces immediately. Tolerances are tight (rtol=1e-8 for
 stats, log10_diff<=1.0 for p-values).

@@ -4,10 +4,8 @@ Rigorous per-branch parity tests for pylimma.ebayes.e_bayes.
 Each test exercises a specific R branch of eBayes() / .ebayes() /
 tmixture.matrix() / tmixture.vector() in R limma's ebayes.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-29. They are intentionally tight (rtol=1e-8) and run a live R
-subprocess via helpers.run_r_comparison so any regression surfaces
-immediately.
+These tests are intentionally tight (rtol=1e-8) and run a live R subprocess via
+helpers.run_r_comparison so any regression surfaces immediately.
 """
 
 from __future__ import annotations

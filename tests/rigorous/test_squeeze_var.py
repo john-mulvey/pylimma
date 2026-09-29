@@ -4,8 +4,7 @@ Rigorous per-branch parity tests for pylimma.squeeze_var.squeeze_var.
 Each test exercises a specific R branch of squeezeVar() / .squeezeVar()
 in R limma's squeezeVar.R.
 
-These tests were added by a rigorous single-function audit. They are
-intentionally tight (rtol=1e-8) and run a live R subprocess via
+These tests are intentionally tight (rtol=1e-8) and run a live R subprocess via
 helpers.run_r_comparison so any regression surfaces immediately.
 """
 
