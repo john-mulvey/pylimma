@@ -3030,7 +3030,7 @@ class TestSqueezeVarAsymWinsorRParity:
         assert np.isclose(r_vp, py_vp, rtol=1e-6), f"var_prior differs: R={r_vp}, Py={py_vp}"
 
 
-class TestNonEstimableRParity:
+class TestLmFitNonEstimableRParity:
     """nonEstimable rank-deficient parity."""
 
     def test_rank_deficient(self):
@@ -4092,7 +4092,7 @@ class TestNormalisationBatchBranchCoverage:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestInterceptStripRParity:
+class TestTopTableInterceptStripRParity:
     """top_table(coef=None) on a design with an '(Intercept)' column drops the
     intercept, as R's topTable does ('Removing intercept from test
     coefficients'), and returns the single-contrast table."""
@@ -4172,7 +4172,7 @@ class TestContrastsFitNamedCoefRParity:
         )
 
 
-class TestLfcBoundaryRParity:
+class TestTopTableLfcBoundaryRParity:
     """top_table's lfc filter keeps a gene whose |logFC| equals lfc exactly
     (R uses '>='). The fit is hand-built so the boundary value is exact on
     both sides, avoiding floating-point differences between R's and
@@ -4481,7 +4481,7 @@ class TestPlotRldfMathRParity:
 # -----------------------------------------------------------------------------
 
 
-class TestFitMethodSlotRParity:
+class TestLmFitMethodSlotRParity:
     """lm_fit sets fit['method'], as R's lmFit sets fit$method."""
 
     def test_fit_method_populated(self):
@@ -4493,7 +4493,7 @@ class TestFitMethodSlotRParity:
         assert fit["method"] == "ls", f"fit['method'] should be 'ls', got {fit.get('method')!r}"
 
 
-class TestFitProportionSlotRParity:
+class TestEBayesProportionSlotRParity:
     """e_bayes sets fit['proportion'], as R's eBayes sets fit$proportion."""
 
     def test_fit_proportion_populated(self):
@@ -4586,7 +4586,7 @@ class TestLmFitRobustKwargsRParity:
         assert fit["coefficients"].shape == (20, 2)
 
 
-class TestCoefficientsIntDocRParity:
+class TestContrastsFitCoefficientsIntDocRParity:
     """contrasts_fit's docstring states that integer coefficients are 0-based
     (R's are 1-based). Checks documentation only."""
 
@@ -4644,7 +4644,7 @@ class TestClassifyTestsFRankDeficientRParity:
             assert result is not None
 
 
-class TestTmixtureStableSortRParity:
+class TestEBayesTmixtureStableSortRParity:
     """The t-mixture estimate in e_bayes breaks ties in the same order as R's
     stable order(..., decreasing=TRUE)."""
 
@@ -4661,7 +4661,7 @@ class TestTmixtureStableSortRParity:
         assert bad not in text, f"ebayes.py still uses unstable sort pattern '{bad}'"
 
 
-class TestVarPriorShapeMismatchRParity:
+class TestEBayesVarPriorShapeMismatchRParity:
     """e_bayes with trend=True (genewise s2_prior) handles the var_prior
     fallback '1/s2_prior' without a shape error; R recycles a scalar."""
 
