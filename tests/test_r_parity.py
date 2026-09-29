@@ -5766,3 +5766,71 @@ class TestInputDispatchParity:
         }[case]()
         with pytest.raises(TypeError):
             lm_fit(frame, self.DESIGN)
+
+
+# =============================================================================
+# selectModel: branch-forcing parity
+# =============================================================================
+
+
+class TestSelectModelRParity:
+    """select_model information criteria, preferred model and criterion for
+    every branch of R's selectModel."""
+
+    @staticmethod
+    def _inputs(named: bool = True):
+        y = load_r_csv_no_index("sm_y").to_numpy(dtype=float)
+        cov = load_r_csv_no_index("sm_covariates")
+        designs = [
+            np.ones((12, 1)),
+            np.column_stack([np.ones(12), cov["group"]]),
+            np.column_stack([np.ones(12), cov["group"], cov["cov"]]),
+        ]
+        return y, (dict(zip(["null", "group", "full"], designs)) if named else designs)
+
+    @pytest.mark.parametrize(
+        "case, kwargs, named",
+        [
+            ("aic", dict(criterion="aic"), True),
+            ("bic", dict(criterion="bic"), True),
+            ("mallowscp", dict(criterion="mallowscp", s2_true="vector"), True),
+            ("mallowscp_scalar", dict(criterion="mallowscp", s2_true=1.0), True),
+            ("prior", dict(criterion="aic", df_prior=4, s2_prior=0.9), True),
+            ("unnamed", dict(criterion="bic"), False),
+        ],
+    )
+    def test_matches_r(self, case, kwargs, named):
+        from pylimma import select_model
+
+        y, designs = self._inputs(named)
+        if kwargs.get("s2_true") == "vector":
+            kwargs = dict(kwargs, s2_true=load_r_csv_no_index("sm_s2_true")["s2_true"].to_numpy())
+        # keep_default_na=False: the model named "null" must stay a string
+        r = pd.read_csv(FIXTURES_DIR / f"R_sm_{case}.csv", keep_default_na=False)
+        if case == "aic":
+            assert r["pref"].nunique() == 3  # every model preferred for some genes
+        out = select_model(y, designs, **kwargs)
+        np.testing.assert_allclose(np.asarray(out["IC"], dtype=float), r[["X1", "X2", "X3"]].to_numpy(), rtol=1e-6)
+        assert [str(p) for p in out["pref"]] == list(r["pref"].astype(str))
+        assert out["criterion"] == r["criterion"].iloc[0]
+
+    @pytest.mark.parametrize(
+        "case, kwargs",
+        [
+            ("na_input", dict()),
+            ("prior_without_s2", dict(df_prior=4)),
+            ("mallowscp_without_s2_true", dict(criterion="mallowscp")),
+            ("s2_true_wrong_length", dict(criterion="mallowscp", s2_true=np.array([1.0, 2.0]))),
+            ("bad_criterion", dict(criterion="xv")),
+        ],
+    )
+    def test_errors_match_r(self, case, kwargs):
+        from pylimma import select_model
+
+        assert isinstance(load_r_csv_no_index("sm_errors").set_index("case")["r_error"][case], str)
+        y, designs = self._inputs()
+        if case == "na_input":
+            y = y.copy()
+            y[0, 0] = np.nan
+        with pytest.raises(ValueError):
+            select_model(y, designs, **kwargs)

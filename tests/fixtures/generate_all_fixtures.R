@@ -3632,3 +3632,54 @@ stopifnot(all(is.na(.ie_eb_fb$t[, 3])), isTRUE(all.equal(.ie_eb_fb$var.prior[3],
 .ie_csv("avereps_elist_weights", .ie_av$weights, ids = rownames(.ie_av$weights))
 
 cat("  interface, fit-slot and edge-case fixtures complete.\n")
+
+# =============================================================================
+# selectModel: branch-forcing fixtures
+# =============================================================================
+cat("\nGenerating selectModel fixtures...\n")
+
+set.seed(20261008)
+
+.sm_n <- 60
+.sm_group <- rep(0:1, each = 6)
+.sm_cov <- rnorm(12)
+.sm_y <- matrix(rnorm(.sm_n * 12), .sm_n, 12)
+.sm_y[1:15, 7:12] <- .sm_y[1:15, 7:12] + 1.5               # group effect
+.sm_y[16:30, ] <- .sm_y[16:30, ] + outer(rep(1, 15), 1.2 * .sm_cov)  # covariate effect
+write.csv(.sm_y, "R_sm_y.csv", row.names = FALSE)
+write.csv(data.frame(group = .sm_group, cov = .sm_cov), "R_sm_covariates.csv", row.names = FALSE)
+.sm_designs <- list(null = cbind(1), group = cbind(1, .sm_group), full = cbind(1, .sm_group, .sm_cov))
+.sm_designs$null <- matrix(1, 12, 1)
+.sm_s2_true <- runif(.sm_n, 0.8, 1.2)
+write.csv(data.frame(s2_true = .sm_s2_true), "R_sm_s2_true.csv", row.names = FALSE)
+
+.sm_write <- function(case, sm) {
+  write.csv(data.frame(unname(sm$IC), pref = as.character(sm$pref), criterion = sm$criterion),
+            sprintf("R_sm_%s.csv", case), row.names = FALSE)
+}
+.sm_write("aic", selectModel(.sm_y, .sm_designs, criterion = "aic"))
+.sm_write("bic", selectModel(.sm_y, .sm_designs, criterion = "bic"))
+.sm_write("mallowscp", selectModel(.sm_y, .sm_designs, criterion = "mallowscp", s2.true = .sm_s2_true))
+.sm_write("mallowscp_scalar", selectModel(.sm_y, .sm_designs, criterion = "mallowscp", s2.true = 1))
+.sm_write("prior", selectModel(.sm_y, .sm_designs, criterion = "aic", df.prior = 4, s2.prior = 0.9))
+.sm_write("unnamed", selectModel(.sm_y, unname(.sm_designs), criterion = "bic"))
+.sm_aic <- selectModel(.sm_y, .sm_designs, criterion = "aic")
+stopifnot(length(unique(as.character(.sm_aic$pref))) == 3)   # every model is preferred somewhere
+
+.sm_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.sm_y_na <- .sm_y
+.sm_y_na[1, 1] <- NA
+.sm_errors <- data.frame(
+  case = c("na_input", "prior_without_s2", "mallowscp_without_s2_true", "s2_true_wrong_length", "bad_criterion"),
+  r_error = c(
+    .sm_err(selectModel(.sm_y_na, .sm_designs)),
+    .sm_err(selectModel(.sm_y, .sm_designs, df.prior = 4)),
+    .sm_err(selectModel(.sm_y, .sm_designs, criterion = "mallowscp")),
+    .sm_err(selectModel(.sm_y, .sm_designs, criterion = "mallowscp", s2.true = c(1, 2))),
+    .sm_err(selectModel(.sm_y, .sm_designs, criterion = "xv"))
+  )
+)
+stopifnot(!anyNA(.sm_errors$r_error))
+write.csv(.sm_errors, "R_sm_errors.csv", row.names = FALSE)
+
+cat("  selectModel fixtures complete.\n")

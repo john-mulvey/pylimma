@@ -1,0 +1,6 @@
+"case","r_error"
+"na_input","NAs not allowed"
+"prior_without_s2","s2.prior must be set"
+"mallowscp_without_s2_true","Need s2.true values"
+"s2_true_wrong_length","s2.true wrong length"
+"bad_criterion","'arg' should be one of “aic”, “bic”, “mallowscp”"
