@@ -4464,40 +4464,21 @@ class TestContrastsFitCoefficientsIntDocRParity:
 
 
 class TestClassifyTestsFRankDeficientRParity:
-    """classify_tests_f handles rank-deficient fits, whose cov_coefficients
-    has NaN diagonals for non-estimable coefficients (R's cov.coefficients
-    is (rank, rank) with no NaN padding)."""
+    """classify_tests_f on a rank-deficient fit (non-estimable coefficient)
+    matches R's classifyTestsF."""
 
-    def test_classify_tests_f_no_crash_on_rank_deficient(self):
+    def test_matches_r(self):
         import warnings as _w
 
         from pylimma import classify_tests_f
 
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, 6))
-        # Rank-deficient design: col 2 is identical to col 1
-        design = np.column_stack(
-            [
-                np.ones(6),
-                [0, 0, 0, 1, 1, 1],
-                [0, 0, 0, 1, 1, 1],
-            ]
-        )
+        X = load_r_csv_no_index("ie_rankdef_X").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]]).astype(float)
         with _w.catch_warnings():
-            _w.filterwarnings("ignore", message="Coefficients not estimable")
-            fit = lm_fit(X, design)
-            # Populate the t/F slots needed for classify_tests_f.
-            # Without is_fullrank, e_bayes skips F-stat so we must manually
-            # set a reasonable t/df_residual state for classify_tests_f.
-            # Even with no F-stat from e_bayes, calling classify_tests_f
-            # directly on the fit should not crash.
-            fit = e_bayes(fit)
-            try:
-                result = classify_tests_f(fit, p_value=0.05)
-            except np.linalg.LinAlgError:
-                pytest.fail("classify_tests_f raised LinAlgError on NaN cov")
-            # Returns classification results
-            assert result is not None
+            _w.simplefilter("ignore")
+            fit = e_bayes(lm_fit(X, design))
+        result = np.asarray(classify_tests_f(fit, p_value=0.05), dtype=float)
+        np.testing.assert_array_equal(result, load_r_csv_no_index("ie_rankdef_classifytestsf").to_numpy(dtype=float))
 
 
 class TestEBayesTmixtureStableSortRParity:

@@ -99,35 +99,14 @@ def classify_tests_f(
         cor_matrix = np.asarray(cor_matrix, dtype=np.float64)
     elif fit is not None and fit.get("cov_coefficients") is not None:
         cov = np.asarray(fit["cov_coefficients"], dtype=np.float64)
-        # Strip NaN rows/columns: pylimma's _lm_series_fast fills
-        # non-estimable (rank-deficient) columns with NaN in the
-        # (n_coefs, n_coefs) cov matrix, whereas R's cov.coefficients
-        # has shape (rank, rank) with no NaN padding. Without this mask
-        # the eigendecomposition below crashes on NaN input.
+        # R's cov.coefficients covers only the estimable coefficients
+        # (rank x rank); pylimma pads non-estimable ones with NaN. Use the
+        # estimable block as R does, but keep every t-statistic column: a
+        # gene whose t-statistics include NA is classified NA below, as in R.
+        estimable = ~np.isnan(np.diag(cov))
+        cov = cov[np.ix_(estimable, estimable)]
         diag_vals = np.diag(cov)
-        nan_mask = np.isnan(diag_vals)
-        if nan_mask.any():
-            keep = ~nan_mask
-            cov = cov[np.ix_(keep, keep)]
-            # Also drop corresponding tstat columns so shapes align.
-            tstat = tstat[:, keep]
-            n_tests = tstat.shape[1]
-            diag_vals = np.diag(cov)
-        if n_tests == 0:
-            # Every test was non-estimable - return all-zeros (no gene
-            # classified significant) rather than crashing.
-            if fstat_only:
-                return np.zeros(n_genes), 1, df
-            return np.zeros((n_genes, 1), dtype=int)
-        if n_tests == 1:
-            # After stripping, reduce to the single-coefficient path.
-            fstat = tstat[:, 0] ** 2
-            if fstat_only:
-                return fstat, 1, df
-            p = 2 * stats.t.sf(np.abs(tstat[:, 0]), df)
-            result = np.sign(tstat[:, 0]) * (p < p_value)
-            return result.astype(int).reshape(-1, 1)
-        if np.min(diag_vals) == 0:
+        if diag_vals.size and np.min(diag_vals) == 0:
             cov = cov.copy()
             zero_mask = diag_vals == 0
             cov[np.diag_indices_from(cov)] = np.where(zero_mask, 1.0, diag_vals)
@@ -143,14 +122,15 @@ def classify_tests_f(
         r = n_tests
         Q = np.eye(r) / np.sqrt(r)
 
-    # Compute F-statistic
-    tQ = tstat @ Q
-    fstat = np.sum(tQ**2, axis=1)
-
     df2 = df
+    # R's tstat %*% Q is non-conformable when the correlation matrix covers
+    # fewer coefficients than there are t-statistic columns.
+    conformable = Q.shape[0] == n_tests
 
     if fstat_only:
-        return fstat, r, df2
+        if not conformable:
+            raise ValueError("non-conformable arguments: cor_matrix does not match the number of tests")
+        return np.sum((tstat @ Q) ** 2, axis=1), r, df2
 
     # Classification using step-down procedure. stats.f.ppf with
     # vector df2 returns a vector of per-gene thresholds.
@@ -170,6 +150,8 @@ def classify_tests_f(
         if np.any(np.isnan(x)):
             result[i, :] = np.nan  # R sets to NA, not 0
             continue
+        if not conformable:
+            raise ValueError("non-conformable arguments: cor_matrix does not match the number of tests")
 
         # Check if overall F-test is significant
         if (x @ Q @ Q.T @ x) > qF[i]:
