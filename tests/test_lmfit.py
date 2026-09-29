@@ -381,10 +381,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     ``pylimma.voom(adata)`` writes ``voom_weights`` in AnnData
     orientation (samples x genes); ``pylimma.lm_fit(adata,
-    layer='voom_E')`` must auto-load and transpose that layer. Prior
-    to the 2026-04-20 fix, the AnnData idiom silently produced an
-    unweighted fit - see
-    ``memory/known_diff_voom_weights_layer_not_autoloaded.md``.
+    layer='voom_E')`` must auto-load and transpose that layer, otherwise
+    the AnnData idiom would silently produce an unweighted fit.
     """
 
     def _make_pseudobulk(self):
@@ -542,9 +540,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_array_weights_auto_loads_voom_weights(self):
         """array_weights(adata, layer='voom_E') must auto-load the
-        companion voom_weights layer. Previously silently produced the
-        unweighted-equivalent result because get_eawp returned
-        weights=None for AnnData regardless of companion layers.
+        companion voom_weights layer, rather than silently computing the
+        unweighted-equivalent result.
         """
         import pylimma
 
@@ -691,9 +688,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
         """lm_fit(adata, layer='voom_E') without a design= kwarg must
         pick up the design that voom stashed at
         ``adata.uns['voom']['design']``, mirroring R's lmFit one-liner
-        ``if(is.null(design)) design <- y$design``. Pre-fix, lm_fit
-        silently defaulted to an intercept-only model, producing
-        silently-wrong coefficients.
+        ``if(is.null(design)) design <- y$design``, rather than silently
+        defaulting to an intercept-only model.
         """
         import pylimma
 
@@ -861,9 +857,7 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_voom_accepts_formula_string(self):
         """voom(adata, design='~ group') must parse the formula through
-        patsy against adata.obs, matching lm_fit's dispatch. Pre-fix
-        the string was sent straight into np.asarray and raised
-        ``could not convert string to float``.
+        patsy against adata.obs, matching lm_fit's dispatch.
         """
         import pylimma
 
@@ -941,9 +935,9 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_h5ad_roundtrip_preserves_fit(self):
         """Writing adata to h5ad and reading it back must preserve the
-        full fit. Pre-fix, lm_fit stored an MArrayLM in adata.uns, and
-        anndata's IO registry (which dispatches on exact type) raised
-        ``IORegistryError`` on write. We now store a plain dict.
+        full fit. The fit is stored in adata.uns as a plain dict, because
+        anndata's IO registry dispatches on exact type and cannot write an
+        MArrayLM subclass.
         """
         import tempfile
 
@@ -999,8 +993,7 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_genas_accepts_anndata(self):
         """genas(adata) must route through _resolve_fit_input and
-        operate on adata.uns[key]. Pre-fix it crashed with
-        ``AttributeError: 'AnnData' object has no attribute 'get'``.
+        operate on adata.uns[key].
         """
         import anndata as ad
 
@@ -1098,9 +1091,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
     def test_get_eawp_captures_var_index_without_columns(self):
         """get_eawp must populate y['probes'] as a DataFrame whose
         index carries var_names, even when adata.var has no annotation
-        columns. Pre-fix the zero-columns gate dropped var_names on
-        the common scanpy state where adata.var_names is set but
-        adata.var is empty.
+        columns - the common scanpy state where adata.var_names is set
+        but adata.var is empty.
         """
         import anndata as ad
 

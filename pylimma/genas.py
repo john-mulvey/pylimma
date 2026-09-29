@@ -128,7 +128,7 @@ def _which_genes(fit_subset, subset: str):
         cut2 = p2 * n_genes
         return (r1 <= cut1) & (r2 <= cut2), None
 
-    # DELIBERATE DIVERGENCE FROM R LIMMA (2026-04-20).
+    # DELIBERATE DIVERGENCE FROM R LIMMA.
     # R genas.R:200-202 contains
     #
     #     fit$coeff[,1] <- sign(fit$coeff[,1]) * (abs(fit$coeff[,1]) - q1)

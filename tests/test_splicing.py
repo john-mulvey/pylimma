@@ -110,9 +110,8 @@ def test_diffsplice_legacy_rparity(_diffsplice_fit_legacy, key, file):
 
 def test_diffsplice_anndata_matches_ndarray():
     """diff_splice(adata) must route through _resolve_fit_input and
-    produce the same output as diff_splice(fit_dict). Regression for
-    the AnnData-audit bug where the isinstance check rejected any
-    non-dict / non-MArrayLM input.
+    produce the same output as diff_splice(fit_dict), including for
+    input that is neither a plain dict nor an MArrayLM.
     """
     import anndata as ad
 

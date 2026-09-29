@@ -188,9 +188,8 @@ class TestClassifyTestsF:
 
 class TestDecideTestsAnnDataAutoEBayes:
     """decide_tests(adata) auto-runs e_bayes when the stored fit lacks
-    a p_value slot. Pre-fix, the auto-run result was rebound locally
-    but never written back to adata.uns[key], so a subsequent
-    top_table(adata) raised ``"Need to run e_bayes() first"``.
+    a p_value slot and writes the moderated fit back to adata.uns[key],
+    so a subsequent top_table(adata) finds the e_bayes slots.
     """
 
     def _make_adata(self):

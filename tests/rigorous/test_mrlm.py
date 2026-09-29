@@ -227,7 +227,7 @@ class TestRigorousMrlm:
         py_fit = mrlm(M, design=None)
         # R: passing design=NULL triggers the same default
         r_out = _run_mrlm_r(M, design=np.ones((M.shape[1], 1)))
-        # pivot may be missing on Py side (audit finding); compare what we can
+        # pivot may be absent from the Python fit; compare what we can
         _assert_slots_match(
             py_fit,
             r_out,
