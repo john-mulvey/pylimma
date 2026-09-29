@@ -216,7 +216,8 @@ def test_head_returns_correct_rows():
 
 
 # -----------------------------------------------------------------------------
-# Part 2: polymorphic-input equivalence for Phase 4 functions
+# Part 2: polymorphic-input (ndarray / EList / AnnData) equivalence for voom,
+# normalize_between_arrays, array_weights and duplicate_correlation
 # -----------------------------------------------------------------------------
 # If get_eawp/put_eawp have a bug (missing transpose, lost weights,
 # clobbered design), the numerics diverge. These are the load-bearing

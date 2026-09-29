@@ -808,9 +808,9 @@ tt2_F <- topTable(fit2_eb, coef = NULL, number = Inf)
 write.csv(tt2_F, "R_pipeline_toptable_F.csv", row.names = TRUE)
 
 # -----------------------------------------------------------------------------
-# Phase 2: voom and arrayWeights fixtures
+# voom and arrayWeights fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 2: voom fixtures...\n")
+cat("\nGenerating voom and arrayWeights fixtures...\n")
 
 # RNA-seq count data (simulate realistic counts)
 set.seed(45)
@@ -1049,12 +1049,12 @@ vlf_block <- voomaLmFit(expr_vooma, design_voom, block = block_vooma, plot = FAL
 write.csv(vlf_block$coefficients, "R_voomalmfit_block_coef.csv", row.names = TRUE)
 write.csv(vlf_block$sigma, "R_voomalmfit_block_sigma.csv", row.names = TRUE)
 
-cat("  Phase 2 fixtures complete.\n")
+cat("  voom and arrayWeights fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 2 branch coverage: forcing fixtures for previously untested branches
+# voom / arrayWeights branch coverage: forcing fixtures for previously untested branches
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 2 branch-coverage fixtures...\n")
+cat("\nGenerating voom / arrayWeights branch-coverage fixtures...\n")
 
 # voom with adaptive.span=FALSE and an explicit span value
 cat("  voom (explicit span)...\n")
@@ -1200,12 +1200,12 @@ write.csv(data.frame(n = n_grid, span = span_default),
 write.csv(data.frame(n = n_grid, span = span_legacy),
           "R_chooselowess_legacy.csv", row.names = FALSE)
 
-cat("  Phase 2 branch-coverage fixtures complete.\n")
+cat("  voom / arrayWeights branch-coverage fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 2 Batch 2: bug-fix forcing fixtures
+# arrayWeights / voom bug-fix forcing fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 2 Batch 2 fixtures...\n")
+cat("\nGenerating arrayWeights / voom bug-fix fixtures...\n")
 
 # arrayWeights(method="reml", weights=W) -> .arrayWeightsPrWtsREML
 cat("  arrayWeights (method=reml + prior weights)...\n")
@@ -1241,12 +1241,12 @@ write.csv(vlf_pred_block$coefficients,
 write.csv(vlf_pred_block$sigma,
           "R_voomalmfit_predictor_block_sigma.csv", row.names = TRUE)
 
-cat("  Phase 2 Batch 2 fixtures complete.\n")
+cat("  arrayWeights / voom bug-fix fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 2 Batch 4: normalizeBetweenArrays direct + via voom
+# normalizeBetweenArrays direct + via voom
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 2 Batch 4 fixtures...\n")
+cat("\nGenerating normalizeBetweenArrays fixtures...\n")
 
 # Build a deterministic log-expression matrix with realistic per-column shifts
 set.seed(202604)
@@ -1273,7 +1273,7 @@ write.csv(norm_scale,       "R_norm_scale.csv",       row.names = TRUE)
 write.csv(norm_quantile,    "R_norm_quantile.csv",    row.names = TRUE)
 write.csv(norm_cyclicloess, "R_norm_cyclicloess.csv", row.names = TRUE)
 
-# voom() with each non-default normalize.method (re-uses Phase 2 RNA-seq data)
+# voom() with each non-default normalize.method (re-uses the voom RNA-seq data)
 cat("  voom with normalize.method = scale/quantile/cyclicloess...\n")
 v_normscale       <- voom(counts, design_voom, normalize.method = "scale",
                           plot = FALSE)
@@ -1288,7 +1288,7 @@ write.csv(v_normquantile$weights, "R_voom_normquantile_weights.csv", row.names =
 write.csv(v_normcyclicloess$E,       "R_voom_normcyclicloess_E.csv",       row.names = TRUE)
 write.csv(v_normcyclicloess$weights, "R_voom_normcyclicloess_weights.csv", row.names = TRUE)
 
-cat("  Phase 2 Batch 4 fixtures complete.\n")
+cat("  normalizeBetweenArrays fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
 # model.matrix fixtures
@@ -1326,11 +1326,11 @@ write.csv(mm_numeric, "R_modelmatrix_numeric.csv", row.names = TRUE)
 cat("  model.matrix fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Stage 2 Batch A: branch coverage fixtures (untested sort_by / adjust_method,
+# Branch coverage fixtures: untested sort_by / adjust_method,
 # decide_tests method="separate", asymmetric winsor.tail.p, nonEstimable,
-# p.adjust hochberg)
+# p.adjust hochberg
 # -----------------------------------------------------------------------------
-cat("\n--- Stage 2 Batch A fixtures ---\n")
+cat("\n--- Branch coverage fixtures (topTable, decideTests, eBayes, p.adjust) ---\n")
 
 # topTable alternative sort_by values on eb1 (data1)
 cat("  topTable sort_by=t / logFC / AveExpr / none ...\n")
@@ -1405,16 +1405,16 @@ p_adj_all <- data.frame(
 )
 write.csv(p_adj_all, "R_padjust_all_methods.csv", row.names = FALSE)
 
-cat("  Batch A fixtures complete.\n")
+cat("  Branch coverage fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Stage 2 Batch B: higher-risk branch coverage
+# Higher-risk branch coverage: slow fitting paths and eBayes interactions
 #   - lm.series slow path (NAs + probe-specific weights)
 #   - gls.series slow path (NAs + probe weights + block)
 #   - e_bayes trend=TRUE AND robust=TRUE (interaction)
 #   - mrlm bisquare via MASS::rlm
 # -----------------------------------------------------------------------------
-cat("\n--- Stage 2 Batch B fixtures ---\n")
+cat("\n--- Higher-risk branch coverage fixtures (lm.series, gls.series, eBayes, mrlm) ---\n")
 
 # lm.series slow path: NAs in expression AND probe-specific weights
 cat("  lm.series slow path (NAs + probe weights) ...\n")
@@ -1539,16 +1539,16 @@ write.csv(bi_coef,   "R_mrlm_bisquare_coef.csv",   row.names = FALSE)
 write.csv(data.frame(scale = bi_scale), "R_mrlm_bisquare_scale.csv", row.names = FALSE)
 write.csv(bi_stdev,  "R_mrlm_bisquare_stdev.csv",  row.names = FALSE)
 
-cat("  Batch B fixtures complete.\n")
+cat("  Higher-risk branch coverage fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Stage 2 Batch C: interface completeness
+# Non-default arguments (interface completeness)
 #   - eBayes with non-default stdev.coef.lim
 #   - eBayes robust with non-default winsor.tail.p
 #   - contrasts.fit after weighted lmFit (carries cov.coefficients)
 #   - qqt theoretical quantiles
 # -----------------------------------------------------------------------------
-cat("\n--- Stage 2 Batch C fixtures ---\n")
+cat("\n--- Non-default argument fixtures (eBayes, contrasts.fit, qqt) ---\n")
 
 # eBayes with non-default stdev.coef.lim
 cat("  eBayes stdev.coef.lim=(0.05, 10) ...\n")
@@ -1629,16 +1629,16 @@ write.csv(
   "R_qqt_output.csv", row.names = FALSE
 )
 
-cat("  Batch C fixtures complete.\n")
+cat("  Non-default argument fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Stage 2 Batch D: remaining branches
+# Niche branches
 #   - gls.series intercept-only (all(X==0)) branch
 #   - eBayes mixed Infdf branch (some genes have df.prior=Inf, others finite)
 #   - makeContrasts with level names containing spaces
 #   - lmFit(method="robust", ndups=2)
 # -----------------------------------------------------------------------------
-cat("\n--- Stage 2 Batch D fixtures ---\n")
+cat("\n--- Niche branch fixtures (gls.series, eBayes, makeContrasts, robust lmFit) ---\n")
 
 # gls.series all(X==0) branch: per-gene slow path where observed rows of the
 # design are all zero. Use no-intercept single-column design; put NAs in the
@@ -1761,12 +1761,12 @@ write.csv(
   "R_lmfit_robust_ndups_stats.csv", row.names = TRUE
 )
 
-cat("  Batch D fixtures complete.\n")
+cat("  Niche branch fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 3: Normalisation and Batch Correction fixtures
+# Normalisation and batch-correction fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 3 fixtures...\n")
+cat("\nGenerating normalisation and batch-correction fixtures...\n")
 cat("  R version:", R.version.string, "\n")
 cat("  limma version:", as.character(packageVersion("limma")), "\n")
 
@@ -1783,8 +1783,8 @@ E_fg <- noise + signal
 E_bg <- matrix(rnorm(n_probes * n_arrays, mean = 40, sd = 8),    n_probes, n_arrays)
 colnames(E_fg) <- paste0("array", 1:n_arrays)
 colnames(E_bg) <- paste0("array", 1:n_arrays)
-write.csv(E_fg, "R_phase3_E_foreground.csv", row.names = FALSE)
-write.csv(E_bg, "R_phase3_E_background.csv", row.names = FALSE)
+write.csv(E_fg, "R_intensities_foreground.csv", row.names = FALSE)
+write.csv(E_bg, "R_intensities_background.csv", row.names = FALSE)
 
 # normexp.fit: one column at a time, each method the port supports.
 # Method "rma" requires the affy package and is out of scope for the port.
@@ -1842,6 +1842,7 @@ av_basic    <- avearrays(E_fg, ID = ids)
 av_weighted <- avearrays(E_fg, ID = ids, weights = weights_mat)
 write.csv(av_basic,    "R_avearrays_basic.csv",    row.names = FALSE)
 write.csv(av_weighted, "R_avearrays_weighted.csv", row.names = FALSE)
+write.csv(weights_mat, "R_avearrays_weights_input.csv", row.names = FALSE)
 
 cat("  avearrays.EList...\n")
 el <- new("EList", list(E = E_fg, weights = weights_mat,
@@ -1888,16 +1889,16 @@ rbe3 <- removeBatchEffect(E_rbe, batch = batch, batch2 = batch2,
                           design = design)
 write.csv(rbe3, "R_rbe_batch_batch2.csv", row.names = FALSE)
 
-cat("  Phase 3 fixtures complete.\n")
+cat("  normalisation and batch-correction fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 3 audit forcing fixtures (2026-04-16)
+# Normalisation and batch-correction audit forcing fixtures (2026-04-16)
 # -----------------------------------------------------------------------------
-# Added during Phase 3 R-parity audit to force R branches that the original
-# Phase 3 fixtures did not exercise. Do not restructure the blocks above when
-# editing these; append new branches here.
+# Added during the normalisation and batch-correction R-parity audit to force
+# R branches that the original fixtures did not exercise. Do not restructure
+# the blocks above when editing these; append new branches here.
 
-cat("Phase 3 audit forcing fixtures...\n")
+cat("Normalisation and batch-correction audit forcing fixtures...\n")
 
 cat("  normexp.fit(n.pts=200) downsample path...\n")
 set.seed(2026)
@@ -1975,12 +1976,12 @@ rbe_int <- removeBatchEffect(E_int_batch, batch = batch_int, design = design_int
 write.csv(rbe_int, "R_rbe_integer_batch.csv", row.names = FALSE)
 write.csv(E_int_batch, "R_rbe_integer_batch_E_input.csv", row.names = FALSE)
 
-cat("  Phase 3 audit forcing fixtures complete.\n")
+cat("  Normalisation and batch-correction audit forcing fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 4: Gene Set Testing fixtures
+# Gene-set testing fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 4 fixtures...\n")
+cat("\nGenerating gene-set testing fixtures...\n")
 cat("  R version:", R.version.string, "\n")
 cat("  limma version:", as.character(packageVersion("limma")), "\n")
 
@@ -1989,16 +1990,17 @@ set.seed(4)
 # Shared simulated dataset: 400 genes x 8 samples, 2-group design, three
 # overlapping gene sets, plus a singleton set. Modest differential signal
 # in set A so roast/camera/fry return non-trivial p-values.
-n_genes_p4  <- 400L
-n_arrays_p4 <- 8L
-y_p4        <- matrix(rnorm(n_genes_p4 * n_arrays_p4), n_genes_p4, n_arrays_p4)
-rownames(y_p4) <- paste0("g", seq_len(n_genes_p4))
-group_p4    <- factor(rep(c("A", "B"), each = n_arrays_p4 / 2L))
-design_p4   <- model.matrix(~group_p4)
-contrast_p4 <- 2L  # groupB vs groupA
+n_genes_geneset  <- 400L
+n_arrays_geneset <- 8L
+y_geneset        <- matrix(rnorm(n_genes_geneset * n_arrays_geneset), n_genes_geneset, n_arrays_geneset)
+rownames(y_geneset) <- paste0("g", seq_len(n_genes_geneset))
+group_geneset    <- factor(rep(c("A", "B"), each = n_arrays_geneset / 2L))
+design_geneset   <- model.matrix(~group_geneset)
+colnames(design_geneset) <- c("(Intercept)", "groupB")
+contrast_geneset <- 2L  # groupB vs groupA
 
 # Inject signal into the first 20 genes for group B
-y_p4[1:20, 5:8] <- y_p4[1:20, 5:8] + 1.0
+y_geneset[1:20, 5:8] <- y_geneset[1:20, 5:8] + 1.0
 
 # Gene sets: named list of integer indices (how R limma stores them after
 # ids2indices). Keep some overlap to exercise camera's VIF path.
@@ -2008,18 +2010,18 @@ gene.sets <- list(
   setC = sample(50:200, 30L),
   setD = c(300L)          # singleton (roast/fry must still run)
 )
-write.csv(y_p4,      "R_phase4_y.csv",      row.names = TRUE)
-write.csv(design_p4, "R_phase4_design.csv", row.names = FALSE)
+write.csv(y_geneset,      "R_geneset_y.csv",      row.names = TRUE)
+write.csv(design_geneset, "R_geneset_design.csv", row.names = FALSE)
 # gene sets -> long-form CSV (set_name, gene_index) so the Python side
 # can reconstruct the list without eval()
 sets.long <- do.call(rbind, lapply(names(gene.sets), function(nm)
   data.frame(set = nm, index = gene.sets[[nm]])))
-write.csv(sets.long, "R_phase4_gene_sets.csv", row.names = FALSE)
+write.csv(sets.long, "R_geneset_gene_sets.csv", row.names = FALSE)
 
 # ids2indices: round-trip via identifiers vector
 ids <- ids2indices(
   gene.sets = list(setA = paste0("g", 1:20), setB = paste0("g", 15:40)),
-  identifiers = rownames(y_p4)
+  identifiers = rownames(y_geneset)
 )
 write.csv(data.frame(
   set   = rep(names(ids), lengths(ids)),
@@ -2052,8 +2054,8 @@ write.csv(data.frame(x = tma.x,
 # roast (single set) with FROZEN seed - roast uses sample.int internally
 cat("  roast (single set, seed 4)...\n")
 set.seed(4)
-r_single <- roast(y_p4, index = gene.sets$setA, design = design_p4,
-                  contrast = contrast_p4, nrot = 999)
+r_single <- roast(y_geneset, index = gene.sets$setA, design = design_geneset,
+                  contrast = contrast_geneset, nrot = 999)
 write.csv(as.data.frame(r_single$p.value),       "R_roast_pvalues.csv", row.names = TRUE)
 write.csv(data.frame(ngenes = r_single$ngenes),  "R_roast_ngenes.csv",  row.names = FALSE)
 
@@ -2061,32 +2063,32 @@ write.csv(data.frame(ngenes = r_single$ngenes),  "R_roast_ngenes.csv",  row.name
 cat("  mroast (mean, floormean, median, msq)...\n")
 for (ss in c("mean", "floormean", "mean50", "msq")) {
   set.seed(4)
-  mr <- mroast(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4,
+  mr <- mroast(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
                set.statistic = ss, nrot = 999)
   write.csv(mr, paste0("R_mroast_", ss, ".csv"), row.names = TRUE)
 }
 
 # fry (closed-form, no RNG)
 cat("  fry (single + multi)...\n")
-fr_single <- fry(y_p4, index = gene.sets$setA, design = design_p4, contrast = contrast_p4)
+fr_single <- fry(y_geneset, index = gene.sets$setA, design = design_geneset, contrast = contrast_geneset)
 write.csv(as.data.frame(fr_single), "R_fry_single.csv", row.names = TRUE)
-fr_multi  <- fry(y_p4, index = gene.sets,      design = design_p4, contrast = contrast_p4)
+fr_multi  <- fry(y_geneset, index = gene.sets,      design = design_geneset, contrast = contrast_geneset)
 write.csv(fr_multi, "R_fry_multi.csv", row.names = TRUE)
 
 # camera: ranks-based and parametric paths, with and without VIF estimation
 cat("  camera (default + use.ranks + inter.gene.cor)...\n")
-cam_default <- camera(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4)
+cam_default <- camera(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset)
 write.csv(cam_default, "R_camera_default.csv", row.names = TRUE)
-cam_ranks   <- camera(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4,
+cam_ranks   <- camera(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
                       use.ranks = TRUE)
 write.csv(cam_ranks,   "R_camera_ranks.csv",   row.names = TRUE)
-cam_cor     <- camera(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4,
+cam_cor     <- camera(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
                       inter.gene.cor = 0.05)
 write.csv(cam_cor,     "R_camera_intergene.csv", row.names = TRUE)
 
 # cameraPR: preranked statistic input
-stat <- rnorm(n_genes_p4)
-names(stat) <- rownames(y_p4)
+stat <- rnorm(n_genes_geneset)
+names(stat) <- rownames(y_geneset)
 stat[1:20] <- stat[1:20] + 1.5
 cpr <- cameraPR(stat, index = gene.sets)
 write.csv(cpr, "R_camera_pr.csv", row.names = TRUE)
@@ -2096,14 +2098,14 @@ write.csv(data.frame(statistic = stat), "R_camera_pr_input.csv", row.names = TRU
 cat("  romer (mean, floormean, mean50)...\n")
 for (ss in c("mean", "floormean", "mean50")) {
   set.seed(4)
-  ro <- romer(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4,
+  ro <- romer(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
               set.statistic = ss, nrot = 999)
   write.csv(ro, paste0("R_romer_", ss, ".csv"), row.names = TRUE)
 }
 
 # geneSetTest + rankSumTestWithCorrelation
 cat("  geneSetTest (alternatives, ranks.only)...\n")
-stat_vec <- rnorm(n_genes_p4); stat_vec[1:20] <- stat_vec[1:20] + 1.5
+stat_vec <- rnorm(n_genes_geneset); stat_vec[1:20] <- stat_vec[1:20] + 1.5
 write.csv(data.frame(statistic = stat_vec), "R_genesettest_input.csv", row.names = FALSE)
 if (file.exists("R_geneSetTest.csv")) file.remove("R_geneSetTest.csv")
 for (alt in c("mixed", "up", "down", "either")) {
@@ -2127,7 +2129,7 @@ write.csv(data.frame(less = rstc["less"], greater = rstc["greater"]),
 # the Python parity test has something non-trivial to compare against.
 cat("  geneSetTest simulation (moderate signal)...\n")
 set.seed(7)
-stat_mod <- rnorm(n_genes_p4)
+stat_mod <- rnorm(n_genes_geneset)
 stat_mod[1:40] <- stat_mod[1:40] + 0.35   # modest uplift
 write.csv(data.frame(statistic = stat_mod),
           "R_genesettest_sim_input.csv", row.names = FALSE)
@@ -2167,13 +2169,13 @@ write.csv(data.frame(pi0_default = c1, pi0_200iter = c2),
 cat("  detectionPValues (matrix path)...\n")
 set.seed(4)
 pr_mat <- matrix(rexp(200L * 4L, rate = 1/50), 200L, 4L)
-status_p4 <- c(rep("negative", 30L), rep("regular", 170L))
-dp <- detectionPValues(pr_mat, status = status_p4, negctrl = "negative")
+status_geneset <- c(rep("negative", 30L), rep("regular", 170L))
+dp <- detectionPValues(pr_mat, status = status_geneset, negctrl = "negative")
 write.csv(pr_mat, "R_detectionPValues_input.csv", row.names = FALSE)
-write.csv(data.frame(status = status_p4), "R_detectionPValues_status.csv", row.names = FALSE)
+write.csv(data.frame(status = status_geneset), "R_detectionPValues_status.csv", row.names = FALSE)
 write.csv(dp, "R_detectionPValues.csv", row.names = FALSE)
 
-cat("  Phase 4 fixtures complete.\n")
+cat("  gene-set testing fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
 # Summary
@@ -2183,9 +2185,9 @@ cat(sprintf("Generated %d CSV files\n", length(list.files(pattern = "^R_.*\\.csv
 
 
 # -----------------------------------------------------------------------------
-# Phase 5: Visualisation fixtures
+# Visualisation, wsva and differential-splicing fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 5 fixtures...\n")
+cat("\nGenerating visualisation, wsva and splicing fixtures...\n")
 cat("  R version:", R.version.string, "\n")
 cat("  limma version:", as.character(packageVersion("limma")), "\n")
 
@@ -2195,44 +2197,45 @@ set.seed(5)
 # Shared simulated dataset: 500 genes x 6 samples, 2 groups, for MA/MD/volcano.
 n_genes  <- 500L
 n_arrays <- 6L
-E_p5     <- matrix(rnorm(n_genes * n_arrays, mean = 8, sd = 1), n_genes, n_arrays)
-rownames(E_p5) <- paste0("g", seq_len(n_genes))
-colnames(E_p5) <- paste0("s", seq_len(n_arrays))
-group_p5     <- factor(rep(c("A", "B"), each = n_arrays / 2L))
-design_p5    <- model.matrix(~group_p5)
+E_twogroup     <- matrix(rnorm(n_genes * n_arrays, mean = 8, sd = 1), n_genes, n_arrays)
+rownames(E_twogroup) <- paste0("g", seq_len(n_genes))
+colnames(E_twogroup) <- paste0("s", seq_len(n_arrays))
+group_twogroup     <- factor(rep(c("A", "B"), each = n_arrays / 2L))
+design_twogroup    <- model.matrix(~group_twogroup)
+colnames(design_twogroup) <- c("(Intercept)", "groupB")
 # Inject signal
-E_p5[1:50, 4:6] <- E_p5[1:50, 4:6] + 1.5
-fit_p5  <- lmFit(E_p5, design_p5)
-fit_p5c <- eBayes(contrasts.fit(fit_p5, coefficients = 2))
-write.csv(E_p5,      "R_phase5_E.csv",      row.names = TRUE)
-write.csv(design_p5, "R_phase5_design.csv", row.names = FALSE)
+E_twogroup[1:50, 4:6] <- E_twogroup[1:50, 4:6] + 1.5
+fit_twogroup  <- lmFit(E_twogroup, design_twogroup)
+fit_twogroup_c <- eBayes(contrasts.fit(fit_twogroup, coefficients = 2))
+write.csv(E_twogroup,      "R_twogroup_E.csv",      row.names = TRUE)
+write.csv(design_twogroup, "R_twogroup_design.csv", row.names = FALSE)
 
 # plotMA numeric substrate for an MArrayLM: Amean vs coef[, 1].
-x_ma <- fit_p5c$Amean
-y_ma <- fit_p5c$coefficients[, 1]
+x_ma <- fit_twogroup_c$Amean
+y_ma <- fit_twogroup_c$coefficients[, 1]
 write.csv(data.frame(A = x_ma, M = y_ma),
           "R_plot_ma_data.csv", row.names = TRUE)
 
 # plotMD on a matrix: column 1 vs midpoint of (column 1, rowMeans of others)
 #   This mirrors R plotMD.default lines 99-101 exactly.
-ave_p5 <- rowMeans(E_p5[, -1, drop = FALSE])
-md_x <- (E_p5[, 1] + ave_p5) / 2
-md_y <- E_p5[, 1] - ave_p5
+ave_twogroup <- rowMeans(E_twogroup[, -1, drop = FALSE])
+md_x <- (E_twogroup[, 1] + ave_twogroup) / 2
+md_y <- E_twogroup[, 1] - ave_twogroup
 write.csv(data.frame(A = md_x, M = md_y),
           "R_plot_md_matrix.csv", row.names = TRUE)
 
 # volcano: log2FC vs -log10(p-value) and B-statistic styles
 write.csv(data.frame(
-  log_fc = fit_p5c$coefficients[, 1],
-  neg_log10_p = -log10(fit_p5c$p.value[, 1]),
-  b = fit_p5c$lods[, 1]
+  log_fc = fit_twogroup_c$coefficients[, 1],
+  neg_log10_p = -log10(fit_twogroup_c$p.value[, 1]),
+  b = fit_twogroup_c$lods[, 1]
 ), "R_volcano_data.csv", row.names = TRUE)
 
 # plotSA: sqrt(sigma) on y-axis; trend overlay sqrt(sqrt(s2.prior[order(x)]))
 # in sorted-x order. Two fixtures: trend=TRUE+robust=TRUE gives per-gene
 # s2.prior AND per-gene df.prior (triggers outlier detection); default
 # eBayes gives scalar s2.prior + scalar df.prior (flat line, no outliers).
-fit_trend <- eBayes(contrasts.fit(lmFit(E_p5, design_p5), coefficients = 2),
+fit_trend <- eBayes(contrasts.fit(lmFit(E_twogroup, design_twogroup), coefficients = 2),
                     trend = TRUE, robust = TRUE)
 write.csv(data.frame(
   Amean       = fit_trend$Amean,
@@ -2246,7 +2249,7 @@ write.csv(data.frame(
   trend_y     = sqrt(sqrt(fit_trend$s2.prior[o_trend]))
 ), "R_plot_sa_trend_line.csv", row.names = FALSE)
 
-fit_flat <- eBayes(contrasts.fit(lmFit(E_p5, design_p5), coefficients = 2))
+fit_flat <- eBayes(contrasts.fit(lmFit(E_twogroup, design_twogroup), coefficients = 2))
 write.csv(data.frame(
   Amean       = fit_flat$Amean,
   sqrt_sigma  = sqrt(fit_flat$sigma),
@@ -2258,12 +2261,12 @@ write.csv(data.frame(
 ), "R_plot_sa_flat_line.csv", row.names = FALSE)
 
 # plotDensities: compute the density curves R would draw (default kernel = gaussian)
-pd_densities <- apply(E_p5, 2, function(col) {
+pd_densities <- apply(E_twogroup, 2, function(col) {
   d <- density(col, n = 512)
   data.frame(x = d$x, y = d$y)
 })
 pd_densities_long <- do.call(rbind, lapply(seq_along(pd_densities), function(i)
-  data.frame(sample = colnames(E_p5)[i], pd_densities[[i]])))
+  data.frame(sample = colnames(E_twogroup)[i], pd_densities[[i]])))
 write.csv(pd_densities_long, "R_plot_densities.csv", row.names = FALSE)
 
 # plotMDS: extract coordinates and variance-explained for both gene.selection
@@ -2277,9 +2280,9 @@ write.csv(pd_densities_long, "R_plot_densities.csv", row.names = FALSE)
 }
 for (sel in c("pairwise", "common")) {
   for (top_k in c(100, 500)) {
-    mds <- plotMDS(E_p5, plot = FALSE, top = top_k, gene.selection = sel)
+    mds <- plotMDS(E_twogroup, plot = FALSE, top = top_k, gene.selection = sel)
     write.csv(data.frame(
-      sample = colnames(E_p5),
+      sample = colnames(E_twogroup),
       dim1   = .canonical_sign(mds$x),
       dim2   = .canonical_sign(mds$y),
       var_explained_1 = mds$var.explained[1],
@@ -2313,9 +2316,9 @@ vc_down <- vennCounts(dec, include = "down")
 write.csv(as.data.frame(unclass(vc_down)), "R_venn_counts_down.csv", row.names = FALSE)
 
 # coolmap: dump the scaled matrix and both dendrogram orders for each
-# cluster.by branch. Uses the first 50 genes of E_p5 for compactness.
+# cluster.by branch. Uses the first 50 genes of E_twogroup for compactness.
 for (cb in c("de pattern", "expression level")) {
-  E_cm <- E_p5[1:50, ]
+  E_cm <- E_twogroup[1:50, ]
   if (cb == "de pattern") {
     M <- rowMeans(E_cm, na.rm = TRUE)
     DF <- ncol(E_cm) - 1L
@@ -2374,11 +2377,11 @@ write.csv(data.frame(
 # -----------------------------------------------------------------------------
 cat("  wsva (unweighted + weighted-by-sd)...\n")
 set.seed(5)
-E_wsva <- E_p5
+E_wsva <- E_twogroup
 batch_latent <- rep(c(-0.5, 0.5), each = n_arrays / 2L)
 E_wsva[1:250, ] <- E_wsva[1:250, ] + rep(batch_latent, each = 250L)
-sv_unweighted <- wsva(E_wsva, design_p5, n.sv = 2L, weight.by.sd = FALSE)
-sv_weighted   <- wsva(E_wsva, design_p5, n.sv = 2L, weight.by.sd = TRUE)
+sv_unweighted <- wsva(E_wsva, design_twogroup, n.sv = 2L, weight.by.sd = FALSE)
+sv_weighted   <- wsva(E_wsva, design_twogroup, n.sv = 2L, weight.by.sd = TRUE)
 write.csv(E_wsva, "R_wsva_input.csv", row.names = FALSE)
 write.csv(sv_unweighted, "R_wsva_unweighted.csv", row.names = FALSE)
 write.csv(sv_weighted,   "R_wsva_weighted.csv",   row.names = FALSE)
@@ -2454,11 +2457,11 @@ write.csv(data.frame(
   gene   = top_gene_id
 ), "R_plotSplice_substrate.csv", row.names = FALSE)
 
-cat("  Phase 5 fixtures complete.\n")
+cat("  visualisation, wsva and splicing fixtures complete.\n")
 
 
 # -----------------------------------------------------------------------------
-# Phase 6: GO / KEGG enrichment fixtures (goana, kegga, goanaTrend)
+# GO / KEGG enrichment fixtures (goana, kegga, goanaTrend)
 # -----------------------------------------------------------------------------
 #
 # These fixtures validate pylimma's enrichment.py port. They are deliberately
@@ -2470,7 +2473,7 @@ cat("  Phase 5 fixtures complete.\n")
 # same way). The Term column - which real goana fills from GO.db - is
 # supplied via a synthetic pathway.names table; pylimma's port reads it as
 # the optional 4th column of gene.pathway.
-cat("\nGenerating Phase 6 fixtures (goana / kegga / goanaTrend)...\n")
+cat("\nGenerating enrichment fixtures (goana / kegga / goanaTrend)...\n")
 library(limma)
 
 # Universe of 200 genes
@@ -2595,7 +2598,7 @@ write.csv(data.frame(is_de = .gt_isde, covariate = .gt_cov),
 write.csv(data.frame(prob = .gt_prob),
           "R_goanatrend.csv", row.names = FALSE)
 
-cat("  Phase 6 fixtures complete.\n")
+cat("  enrichment fixtures complete.\n")
 
 
 # =============================================================================

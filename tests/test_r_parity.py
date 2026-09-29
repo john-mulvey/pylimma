@@ -1519,7 +1519,7 @@ class TestPipelineRParity:
 
 
 # =============================================================================
-# Phase 2: voom tests
+# voom, arrayWeights and duplicateCorrelation tests
 # =============================================================================
 
 
@@ -2090,7 +2090,7 @@ class TestVoomaLmFitRParity:
 
 
 # =============================================================================
-# Phase 2 branch coverage: forcing tests for previously untested branches
+# voom / arrayWeights branch coverage: forcing tests for previously untested branches
 # =============================================================================
 
 
@@ -2607,7 +2607,7 @@ class TestVoomNormalizeMethodRParity:
 
 
 class TestVoomInterfaceParams:
-    """Phase 2 Batch 3: optional R parameters added to the public surface."""
+    """Optional voom-family parameters from R added to the public surface."""
 
     def test_voom_norep_targets(self, voom_data):
         """voom no-replication branch returns a targets dict carrying lib_size."""
@@ -2895,7 +2895,7 @@ class TestChooseLowessSpanRParity:
 
 
 # =============================================================================
-# Stage 2 Batch A: branch coverage tests
+# Branch coverage: top_table sort_by / adjust_method, decide_tests separate, asymmetric winsor.tail.p, nonEstimable, p.adjust hochberg
 # =============================================================================
 
 
@@ -3081,7 +3081,8 @@ class TestPAdjustAllMethodsRParity:
 
 
 # =============================================================================
-# Stage 2 Batch B: higher-risk branch coverage
+# Higher-risk branch coverage: lm.series / gls.series slow paths, eBayes trend + robust,
+# mrlm bisquare
 # =============================================================================
 
 
@@ -3235,7 +3236,8 @@ class TestMrlmBisquareRParity:
 
 
 # =============================================================================
-# Stage 2 Batch C: interface completeness
+# Non-default arguments: eBayes stdev.coef.lim / winsor.tail.p, contrasts.fit after
+# weighted lmFit, qqt
 # =============================================================================
 
 
@@ -3360,7 +3362,8 @@ class TestQqtRParity:
 
 
 # =============================================================================
-# Stage 2 Batch D: remaining niche branches
+# Niche branches: gls.series intercept-only, eBayes mixed Inf df.prior, makeContrasts
+# level names with spaces, robust lmFit with ndups
 # =============================================================================
 
 
@@ -3550,7 +3553,7 @@ class TestLmFitRobustNdupsRParity:
 
 
 # =============================================================================
-# Phase 3: normexp, background_correct, avearrays, removeBatchEffect
+# normexp, background_correct, avearrays, removeBatchEffect
 # =============================================================================
 
 
@@ -3559,7 +3562,7 @@ class TestNormexpFitRParity:
 
     @pytest.fixture(scope="class")
     def fg(self):
-        return load_r_csv_no_index("phase3_E_foreground").values[:, 0]
+        return load_r_csv_no_index("intensities_foreground").values[:, 0]
 
     def test_rma(self, fg):
         # Closed-form RMA via affy::bg.parameters port - floating-point parity.
@@ -3619,8 +3622,8 @@ class TestBackgroundCorrectRParity:
 
     @pytest.fixture(scope="class")
     def matrices(self):
-        E = load_r_csv_no_index("phase3_E_foreground").values
-        Eb = load_r_csv_no_index("phase3_E_background").values
+        E = load_r_csv_no_index("intensities_foreground").values
+        Eb = load_r_csv_no_index("intensities_background").values
         return E, Eb
 
     @pytest.mark.parametrize("method", ["none", "subtract", "half", "minimum"])
@@ -3682,11 +3685,11 @@ class TestAverArraysRParity:
 
     @pytest.fixture(scope="class")
     def fg(self):
-        return load_r_csv_no_index("phase3_E_foreground").values
+        return load_r_csv_no_index("intensities_foreground").values
 
     @pytest.fixture(scope="class")
     def weights(self):
-        return load_r_csv_no_index("phase3_avearrays_weights_input").values
+        return load_r_csv_no_index("avearrays_weights_input").values
 
     @pytest.fixture(scope="class")
     def ids(self):
@@ -3839,15 +3842,16 @@ class TestRemoveBatchEffectRParity:
             remove_batch_effect(rbe_inputs["E"], batch=rbe_inputs["batch"])
 
 
-class TestPhase3SmokePipeline:
-    """End-to-end dispatch smoke check: Phase 3 plus Phase 1/2 entry points."""
+class TestNormalisationSmokePipeline:
+    """End-to-end dispatch smoke check: background correction and normalisation
+    feeding lm_fit / e_bayes."""
 
     def test_background_normalize_lmfit_ebayes(self):
         """background_correct -> normalize_between_arrays -> lm_fit -> e_bayes
         runs cleanly and produces a top table (dispatch sanity, not parity)."""
         from pylimma.normalize import normalize_between_arrays
 
-        E = load_r_csv_no_index("phase3_E_foreground").values
+        E = load_r_csv_no_index("intensities_foreground").values
         corrected = background_correct(E, method="normexp", verbose=False)
         # Log-transform so downstream voom-less pipeline is on a sensible scale
         log_E = np.log2(np.maximum(corrected, 1.0))
@@ -3860,9 +3864,11 @@ class TestPhase3SmokePipeline:
         assert "p_value" in tt.columns or "P.Value" in tt.columns
 
 
-class TestPhase3BranchCoverage:
-    """Forcing tests for Phase 3 R branches that the primary Phase 3 suite
-    did not exercise. Added during the 2026-04-16 Phase 3 R-parity audit.
+class TestNormalisationBatchBranchCoverage:
+    """Forcing tests for normexp_fit / normexp_signal / background_correct /
+    aver_arrays / remove_batch_effect R branches that the primary suite did
+    not exercise. Added during the 2026-04-16 normalisation and
+    batch-correction R-parity audit.
     """
 
     # --- normexp_fit branches -------------------------------------------------
@@ -3899,7 +3905,7 @@ class TestPhase3BranchCoverage:
     def test_trace_flag_does_not_alter_output(self):
         # R: if(trace) cat("trace not currently implemented\n")
         # trace must be a no-op numerically.
-        x = load_r_csv_no_index("phase3_E_foreground").values[:, 0]
+        x = load_r_csv_no_index("intensities_foreground").values[:, 0]
         a = normexp_fit(x, method="rma")["par"]
         b = normexp_fit(x, method="rma", trace=True)["par"]
         np.testing.assert_array_equal(a, b)
@@ -3951,7 +3957,7 @@ class TestPhase3BranchCoverage:
             )
 
     def test_invalid_method_raises(self):
-        E = load_r_csv_no_index("phase3_E_foreground").values
+        E = load_r_csv_no_index("intensities_foreground").values
         with pytest.raises(ValueError, match="method"):
             background_correct(E, method="bogus", verbose=False)
 
@@ -3990,12 +3996,12 @@ class TestPhase3BranchCoverage:
         assert got.shape == (5, 2)
 
     def test_ndarray_in_ndarray_out(self):
-        x = load_r_csv_no_index("phase3_E_foreground").values
+        x = load_r_csv_no_index("intensities_foreground").values
         got = aver_arrays(x, id=["a", "a", "b", "b"])
         assert isinstance(got, np.ndarray)
 
     def test_elist_in_elist_out(self):
-        x = load_r_csv_no_index("phase3_E_foreground").values
+        x = load_r_csv_no_index("intensities_foreground").values
         elist = EList(
             {
                 "E": x,
@@ -4008,7 +4014,7 @@ class TestPhase3BranchCoverage:
 
     def test_elist_no_duplicates_returns_unchanged(self):
         # R: if(!any(d)) return(x) for EList with no duplicate IDs.
-        x = load_r_csv_no_index("phase3_E_foreground").values
+        x = load_r_csv_no_index("intensities_foreground").values
         elist = EList(
             {
                 "E": x,
@@ -4761,7 +4767,7 @@ class TestFinding20VoomaByGroupPlotRParity:
 
 
 # =============================================================================
-# Phase 6: enrichment (goana / kegga / goanaTrend)
+# enrichment (goana / kegga / goanaTrend)
 # =============================================================================
 
 
@@ -4895,7 +4901,7 @@ class TestGoanaTrendRParity:
 
 class TestGoanaTrendInterface:
     def test_trend_true_raises_not_implemented(self):
-        """trend=True is the BiasedUrn path, deferred to Phase 2."""
+        """trend=True is the BiasedUrn path, not yet ported."""
         from pylimma import goana, kegga
 
         gp, de_list, universe = _load_goana_inputs()

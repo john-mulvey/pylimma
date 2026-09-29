@@ -1,7 +1,7 @@
 """
-R parity tests for Phase 4 (gene-set testing and statistical utilities).
+R parity tests for gene-set testing and related statistical utilities.
 
-Fixtures are produced by the Phase-4 section of
+Fixtures are produced by the gene-set testing section of
 ``tests/fixtures/generate_all_fixtures.R``.
 """
 
@@ -41,10 +41,10 @@ def _load(name: str, **kwargs) -> pd.DataFrame:
 
 
 @pytest.fixture(scope="module")
-def phase4_data():
-    y = _load("R_phase4_y.csv", index_col=0).values
-    design = _load("R_phase4_design.csv").values
-    gs_long = _load("R_phase4_gene_sets.csv")
+def geneset_data():
+    y = _load("R_geneset_y.csv", index_col=0).values
+    design = _load("R_geneset_design.csv").values
+    gs_long = _load("R_geneset_gene_sets.csv")
     gene_sets = {name: grp["index"].values - 1 for name, grp in gs_long.groupby("set", sort=False)}
     return {"y": y, "design": design, "gene_sets": gene_sets}
 
@@ -124,13 +124,13 @@ def test_ids2indices_removes_empty():
 # ---------------------------------------------------------------------------
 
 
-def test_roast_single_set_deterministic_match(phase4_data):
+def test_roast_single_set_deterministic_match(geneset_data):
     r_pvals = _load("R_roast_pvalues.csv", index_col=0)
     r_ng = _load("R_roast_ngenes.csv")
     py = roast(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"]["setA"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"]["setA"],
+        design=geneset_data["design"],
         contrast=1,
         nrot=999,
         rng=4,
@@ -144,12 +144,12 @@ def test_roast_single_set_deterministic_match(phase4_data):
     )
 
 
-def test_roast_pvalue_log_scale_match(phase4_data):
+def test_roast_pvalue_log_scale_match(geneset_data):
     r_pvals = _load("R_roast_pvalues.csv", index_col=0)
     py = roast(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"]["setA"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"]["setA"],
+        design=geneset_data["design"],
         contrast=1,
         nrot=999,
         rng=4,
@@ -168,12 +168,12 @@ def test_roast_pvalue_log_scale_match(phase4_data):
 
 
 @pytest.mark.parametrize("set_statistic", ["mean", "floormean", "mean50", "msq"])
-def test_mroast_active_proportions_match(phase4_data, set_statistic):
+def test_mroast_active_proportions_match(geneset_data, set_statistic):
     r = _load(f"R_mroast_{set_statistic}.csv", index_col=0)
     py = mroast(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"],
+        design=geneset_data["design"],
         contrast=1,
         set_statistic=set_statistic,
         nrot=999,
@@ -198,12 +198,12 @@ def test_mroast_active_proportions_match(phase4_data, set_statistic):
 
 
 @pytest.mark.parametrize("set_statistic", ["mean", "floormean", "mean50", "msq"])
-def test_mroast_pvalues_log_scale_match(phase4_data, set_statistic):
+def test_mroast_pvalues_log_scale_match(geneset_data, set_statistic):
     r = _load(f"R_mroast_{set_statistic}.csv", index_col=0)
     py = mroast(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"],
+        design=geneset_data["design"],
         contrast=1,
         set_statistic=set_statistic,
         nrot=999,
@@ -230,12 +230,12 @@ def test_mroast_pvalues_log_scale_match(phase4_data, set_statistic):
 # ---------------------------------------------------------------------------
 
 
-def test_fry_single_set_matches_r(phase4_data):
+def test_fry_single_set_matches_r(geneset_data):
     r = _load("R_fry_single.csv", index_col=0)
     py = fry(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"]["setA"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"]["setA"],
+        design=geneset_data["design"],
         contrast=1,
     )
     np.testing.assert_array_equal(py["n_genes"].values, r["NGenes"].values)
@@ -249,12 +249,12 @@ def test_fry_single_set_matches_r(phase4_data):
     )
 
 
-def test_fry_multi_set_matches_r(phase4_data):
+def test_fry_multi_set_matches_r(geneset_data):
     r = _load("R_fry_multi.csv", index_col=0)
     py = fry(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"],
+        design=geneset_data["design"],
         contrast=1,
     )
     r_sorted = r.sort_index()
@@ -280,12 +280,12 @@ def test_fry_multi_set_matches_r(phase4_data):
 # ---------------------------------------------------------------------------
 
 
-def test_camera_default_matches_r(phase4_data):
+def test_camera_default_matches_r(geneset_data):
     r = _load("R_camera_default.csv", index_col=0)
     py = camera(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"],
+        design=geneset_data["design"],
         contrast=1,
     )
     r_sorted = r.sort_index()
@@ -299,12 +299,12 @@ def test_camera_default_matches_r(phase4_data):
     assert cmp["match"], cmp
 
 
-def test_camera_use_ranks_matches_r(phase4_data):
+def test_camera_use_ranks_matches_r(geneset_data):
     r = _load("R_camera_ranks.csv", index_col=0)
     py = camera(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"],
+        design=geneset_data["design"],
         contrast=1,
         use_ranks=True,
     )
@@ -318,12 +318,12 @@ def test_camera_use_ranks_matches_r(phase4_data):
     assert cmp["match"], cmp
 
 
-def test_camera_fixed_cor_matches_r(phase4_data):
+def test_camera_fixed_cor_matches_r(geneset_data):
     r = _load("R_camera_intergene.csv", index_col=0)
     py = camera(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"],
+        design=geneset_data["design"],
         contrast=1,
         inter_gene_cor=0.05,
     )
@@ -337,17 +337,17 @@ def test_camera_fixed_cor_matches_r(phase4_data):
     )
 
 
-def test_inter_gene_correlation_returns_vif_and_corr(phase4_data):
+def test_inter_gene_correlation_returns_vif_and_corr(geneset_data):
     # Sanity check that interGeneCorrelation returns the R shape.
-    out = inter_gene_correlation(phase4_data["y"][:30, :], phase4_data["design"])
+    out = inter_gene_correlation(geneset_data["y"][:30, :], geneset_data["design"])
     assert "vif" in out and "correlation" in out
     assert out["vif"] >= 0.0
 
 
-def test_camera_pr_matches_r(phase4_data):
+def test_camera_pr_matches_r(geneset_data):
     stat_in = _load("R_camera_pr_input.csv", index_col=0)
     r = _load("R_camera_pr.csv", index_col=0)
-    py = camera_pr(stat_in["statistic"].values, index=phase4_data["gene_sets"])
+    py = camera_pr(stat_in["statistic"].values, index=geneset_data["gene_sets"])
     r_sorted = r.sort_index()
     py_sorted = py.sort_index()
     np.testing.assert_array_equal(py_sorted["n_genes"].values, r_sorted["NGenes"].values)
@@ -365,12 +365,12 @@ def test_camera_pr_matches_r(phase4_data):
 
 
 @pytest.mark.parametrize("set_statistic", ["mean", "floormean", "mean50"])
-def test_romer_pvalues_log_scale_match(phase4_data, set_statistic):
+def test_romer_pvalues_log_scale_match(geneset_data, set_statistic):
     r = _load(f"R_romer_{set_statistic}.csv", index_col=0)
     py = romer(
-        phase4_data["y"],
-        index=phase4_data["gene_sets"],
-        design=phase4_data["design"],
+        geneset_data["y"],
+        index=geneset_data["gene_sets"],
+        design=geneset_data["design"],
         contrast=1,
         set_statistic=set_statistic,
         nrot=999,
