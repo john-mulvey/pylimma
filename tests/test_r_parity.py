@@ -5162,3 +5162,121 @@ class TestPublicAPIPromotion:
         y = pylimma.trigamma_inverse(x)
         round_trip = polygamma(1, y)
         np.testing.assert_allclose(round_trip, x, rtol=1e-7)
+
+
+# =============================================================================
+# weightedLowess (weighted_lowess.c) and loessFit: branch-forcing parity
+# =============================================================================
+
+
+def _nan_to_none(column: pd.Series):
+    return None if column.isna().all() else column.to_numpy(dtype=float)
+
+
+class TestWeightedLowessBranchParity:
+    """Each fixture forces a distinct branch of weightedLowess / weighted_lowess.c."""
+
+    @staticmethod
+    def _assert_branch_taken(case: str, r: pd.DataFrame, span: float) -> None:
+        if case in ("interp", "delta_given"):
+            assert r["delta"].iloc[0] > 0 and r["x"].duplicated().any()
+        if case == "small_n":
+            assert r["delta"].iloc[0] == 0
+        if case == "unweighted":
+            # Unit weights and even n: cumulative weight hits exactly half.
+            assert r["weights"].isna().all() and len(r) % 2 == 0
+        if case == "tied_block":
+            # The tied block holds more than a span's worth of weight, so its
+            # windows have zero width; the last anchor ties its predecessor.
+            tied = r["x"] == r["x"].min()
+            assert r.loc[tied, "weights"].sum() > span * r["weights"].sum()
+            assert r["x"].iloc[-1] == r["x"].iloc[-2]
+        if case == "mad_zero":
+            assert (r["robustness"] == 1).all()
+
+    @pytest.mark.parametrize(
+        "case, span",
+        [
+            ("interp", 0.3),
+            ("delta_given", 0.3),
+            ("small_n", 0.3),
+            ("unweighted", 0.3),
+            ("tied_block", 0.2),
+            ("mad_zero", 0.3),
+        ],
+    )
+    def test_matches_r(self, case, span):
+        from pylimma import weighted_lowess
+
+        r = load_r_csv_no_index(f"wl_{case}")
+        self._assert_branch_taken(case, r, span)
+        delta = None if pd.isna(r["delta_arg"].iloc[0]) else float(r["delta_arg"].iloc[0])
+        kwargs = dict(weights=_nan_to_none(r["weights"]), delta=delta, span=span)
+
+        loess_style = weighted_lowess(r["x"], r["y"], **kwargs)
+        np.testing.assert_allclose(loess_style["fitted"], r["fitted"], rtol=1e-6)
+        np.testing.assert_allclose(loess_style["residuals"], r["residuals"], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(loess_style["weights"], r["robustness"], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(loess_style["delta"], r["delta"].iloc[0], rtol=1e-6)
+
+        lowess_style = weighted_lowess(r["x"], r["y"], output_style="lowess", **kwargs)
+        np.testing.assert_allclose(lowess_style["x"], r["lowess_x"], rtol=1e-6)
+        np.testing.assert_allclose(lowess_style["y"], r["lowess_y"], rtol=1e-6)
+
+
+class TestLoessFitBranchParity:
+    """Each fixture forces a distinct branch of R's loessFit."""
+
+    @staticmethod
+    def _assert_branch_taken(case: str, r: pd.DataFrame) -> None:
+        weights = r["weights"]
+        positive = int((weights > 0).sum())
+        span = r["span"].iloc[0]
+        if case == "weighted_na":
+            assert (r["y"].isna() | r["x"].isna()).any() and weights.nunique() > 1
+        if case == "unweighted":
+            assert r["weights_null"].all()
+        if case == "equal_weights":
+            assert weights.nunique() == 1
+        if case == "clamped_weights":
+            assert (weights == 0).any() and r["min_weight"].iloc[0] == 1e-8
+        if case in ("few_positive", "aliased_slope"):
+            assert r["min_weight"].iloc[0] == 0 and 1 < positive < 4 + 1 / span
+        if case == "aliased_slope":
+            assert r.loc[weights > 0, "x"].nunique() == 1
+        if case == "one_positive":
+            assert r["min_weight"].iloc[0] == 0 and positive == 1
+        if case == "span_tiny":
+            assert span < 1 / len(r)
+        if case == "all_na":
+            assert r["y"].isna().all()
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "weighted_na",
+            "unweighted",
+            "equal_weights",
+            "clamped_weights",
+            "few_positive",
+            "one_positive",
+            "aliased_slope",
+            "span_tiny",
+            "all_na",
+        ],
+    )
+    def test_matches_r(self, case):
+        from pylimma import loess_fit
+
+        r = load_r_csv_no_index(f"lf_{case}")
+        self._assert_branch_taken(case, r)
+        fit = loess_fit(
+            r["y"].to_numpy(dtype=float),
+            r["x"].to_numpy(dtype=float),
+            weights=None if r["weights_null"].iloc[0] else r["weights"].to_numpy(dtype=float),
+            span=float(r["span"].iloc[0]),
+            min_weight=float(r["min_weight"].iloc[0]),
+            max_weight=float(r["max_weight"].iloc[0]),
+        )
+        np.testing.assert_allclose(fit["fitted"], r["fitted"], rtol=1e-6)
+        np.testing.assert_allclose(fit["residuals"], r["residuals"], rtol=1e-6, atol=1e-12)

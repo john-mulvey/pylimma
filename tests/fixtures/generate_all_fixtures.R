@@ -2669,3 +2669,106 @@ write.csv(
 )
 
 cat("  Forgotten-public-API fixtures complete.\n")
+
+# =============================================================================
+# weightedLowess (weighted_lowess.c) and loessFit: branch-forcing fixtures
+# =============================================================================
+cat("\nGenerating weightedLowess / loessFit branch fixtures...\n")
+
+set.seed(20260930)
+
+.wl_write <- function(case, x, y, weights, fit_loess, fit_lowess, delta_arg = NA_real_) {
+  write.csv(
+    data.frame(
+      x = x, y = y, weights = if (is.null(weights)) NA_real_ else weights,
+      delta_arg = delta_arg,
+      fitted = fit_loess$fitted, residuals = fit_loess$residuals,
+      robustness = fit_loess$weights, delta = fit_loess$delta,
+      lowess_x = fit_lowess$x, lowess_y = fit_lowess$y
+    ),
+    sprintf("R_wl_%s.csv", case), row.names = FALSE
+  )
+}
+.wl_both <- function(case, x, y, weights = NULL, delta = NULL, span = 0.3) {
+  fl <- weightedLowess(x, y, weights = weights, delta = delta, span = span)
+  fw <- weightedLowess(x, y, weights = weights, delta = delta, span = span, output.style = "lowess")
+  .wl_write(case, x, y, weights, fl, fw, delta_arg = if (is.null(delta)) NA_real_ else delta)
+  invisible(fl)
+}
+
+# More points than npts: delta > 0, anchors + linear interpolation
+.wl_x <- round(runif(1000, 0, 10), 2)
+.wl_y <- sin(.wl_x) + rnorm(1000, sd = 0.3)
+.wl_w <- runif(1000, 0.2, 3)
+.f <- .wl_both("interp", .wl_x, .wl_y, .wl_w)
+stopifnot(.f$delta > 0, anyDuplicated(.wl_x) > 0)
+
+# User-supplied delta
+.f <- .wl_both("delta_given", .wl_x, .wl_y, .wl_w, delta = 0.05)
+
+# Fewer points than npts: delta = 0, every point is an anchor
+.f <- .wl_both("small_n", .wl_x[1:150], .wl_y[1:150], .wl_w[1:150])
+stopifnot(.f$delta == 0)
+
+# Unit weights, even n: the weighted median hits half the total weight exactly
+.f <- .wl_both("unweighted", .wl_x[1:500], .wl_y[1:500])
+
+# A large block of tied x: windows inside the block have zero width
+# (dist < THRESHOLD) and the final anchor ties its predecessor (averaged
+# interpolation)
+.wl_x_tied <- c(rep(0, 400), sort(runif(596, 1, 10)), rep(10, 4))
+.wl_y_tied <- rnorm(1000)
+.f <- .wl_both("tied_block", .wl_x_tied, .wl_y_tied, runif(1000, 0.5, 1.5), span = 0.2)
+
+# Constant response with one outlier: MAD is zero so robustness iterations stop
+.wl_y_const <- rep(1, 300)
+.wl_y_const[10] <- 5
+.f <- .wl_both("mad_zero", .wl_x[1:300], .wl_y_const, .wl_w[1:300])
+stopifnot(all(.f$weights == 1))
+
+# loessFit branches -------------------------------------------------------
+.lf_write <- function(case, y, x, weights, fit, span, min_weight = 1e-5, max_weight = 1e5) {
+  write.csv(
+    data.frame(
+      y = y, x = x, weights = if (is.null(weights)) NA_real_ else weights,
+      weights_null = is.null(weights), span = span,
+      min_weight = min_weight, max_weight = max_weight,
+      fitted = fit$fitted, residuals = fit$residuals
+    ),
+    sprintf("R_lf_%s.csv", case), row.names = FALSE
+  )
+}
+.lf_case <- function(case, y, x, weights = NULL, span = 0.3, min_weight = 1e-5, max_weight = 1e5) {
+  fit <- loessFit(y, x, weights = weights, span = span, min.weight = min_weight, max.weight = max_weight)
+  .lf_write(case, y, x, weights, fit, span, min_weight, max_weight)
+  invisible(fit)
+}
+
+.lf_y <- .wl_y[1:600]
+.lf_x <- .wl_x[1:600]
+.lf_w <- .wl_w[1:600]
+.lf_y[c(3, 30)] <- NA
+.lf_x[c(50)] <- NA
+
+# Weighted, with non-finite y/x dropped
+.lf_case("weighted_na", .lf_y, .lf_x, .lf_w)
+# No weights -> base lowess()
+.lf_case("unweighted", .lf_y, .lf_x)
+# Equal weights treated as NULL -> base lowess()
+.lf_case("equal_weights", .lf_y, .lf_x, rep(2, 600))
+# Zero weights clamped to min.weight/max.weight as fitFDistUnequalDF1 does
+.lf_w0 <- .lf_w
+.lf_w0[seq(1, 600, by = 7)] <- 0
+.lf_case("clamped_weights", .lf_y, .lf_x, .lf_w0, min_weight = 1e-8, max_weight = 1e2)
+# min.weight = 0: too few positive weights -> weighted linear regression
+.lf_case("few_positive", .lf_y[4:13], .lf_x[4:13], c(1, 0, 2, 0, 1, 0, 3, 0, 1, 1), min_weight = 0)
+# min.weight = 0: a single positive weight
+.lf_case("one_positive", .lf_y[4:13], .lf_x[4:13], c(0, 0, 2, 0, 0, 0, 0, 0, 0, 0), min_weight = 0)
+# Positively weighted x all equal: slope aliased in lm.wfit
+.lf_case("aliased_slope", .lf_y[4:13], c(rep(1, 5), 2:6), c(rep(1, 5), rep(0, 5)), min_weight = 0)
+# span below 1/nobs -> fitted = y
+.lf_case("span_tiny", .lf_y[4:13], .lf_x[4:13], .lf_w[4:13], span = 0.05)
+# No finite observations
+.lf_case("all_na", rep(NA_real_, 5), 1:5, rep(1, 5))
+
+cat("  weightedLowess / loessFit branch fixtures complete.\n")
