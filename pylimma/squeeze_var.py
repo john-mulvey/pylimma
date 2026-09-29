@@ -884,9 +884,9 @@ def fit_f_dist_unequal_df1(
     df1 = np.asarray(df1, dtype=np.float64)
     n = len(x)
 
-    # Validate inputs
-    if df1.ndim == 0:
-        df1 = np.full(n, float(df1))
+    # Validate inputs. df1 can be a unit vector (R recycles it).
+    if df1.size == 1:
+        df1 = np.full(n, float(df1.ravel()[0]))
     if len(df1) != n:
         raise ValueError("x and df1 are different lengths")
     if np.any(np.isnan(df1)):
@@ -972,10 +972,15 @@ def fit_f_dist_unequal_df1(
 
         if span is None:
             span = choose_lowess_span(n, small_n=500)
-        # Normalize weights for LOWESS
-        w_norm = w / np.quantile(w, 0.75)
-        w_norm = np.clip(w_norm, 1e-8, 1e2)
-        fit = loess_fit(e, covariate, weights=w_norm, span=span, iterations=1)
+        fit = loess_fit(
+            e,
+            covariate,
+            weights=w / np.quantile(w, 0.75),
+            span=span,
+            iterations=1,
+            min_weight=1e-8,
+            max_weight=1e2,
+        )
         emean = fit["fitted"]
 
     # Maximum likelihood optimization
@@ -1015,6 +1020,7 @@ def fit_f_dist_unequal_df1(
 
     # Robust mode: FDR-based outlier detection
     from scipy.stats import f as f_dist
+    from scipy.stats import rankdata
 
     from .utils import p_adjust
 
@@ -1035,15 +1041,15 @@ def fit_f_dist_unequal_df1(
     if np.min(fdr) == 1:
         return {"scale": s20, "df2": df2}
 
-    # Refit with FDR as prior weights
-    refit = fit_f_dist_unequal_df1(
-        x=x, df1=df1, covariate=covariate, span=span, robust=False, prior_weights=fdr
-    )
+    # Refit with FDR as prior weights. R's Recall() does not forward span,
+    # so the refit chooses its own span.
+    refit = fit_f_dist_unequal_df1(x=x, df1=df1, covariate=covariate, robust=False, prior_weights=fdr)
     s20 = refit["scale"]
     df2 = refit["df2"]
 
-    # Identify right outliers using QQ-type method
-    r = np.argsort(np.argsort(f_stat)[::-1]) + 1  # rank from largest
+    # Identify right outliers using QQ-type method. R's rank() is ascending
+    # with ties averaged.
+    r = rankdata(f_stat)
     uniform_p = (n - r + 0.5) / n
     prob_not_outlier = np.minimum(right_p / uniform_p, 1.0)
 
@@ -1063,12 +1069,11 @@ def fit_f_dist_unequal_df1(
         df2_outlier = np.log(0.5) / np.log(min_right_p) * df2
         # Iterate for accuracy
         new_log_right_p = f_dist.logsf(f_stat[i_min], df1[i_min], df2_outlier)
-        if new_log_right_p != 0:
-            df2_outlier = np.log(0.5) / new_log_right_p * df2_outlier
+        df2_outlier = np.log(0.5) / new_log_right_p * df2_outlier
         df2_shrunk = prob_not_outlier * df2 + (1 - prob_not_outlier) * df2_outlier
 
     # Force df2_shrunk to be monotonic in right_p
-    order = np.argsort(right_p)
+    order = np.argsort(right_p, kind="stable")
     df2_ordered = df2_shrunk[order]
     m_cumsum = np.cumsum(df2_ordered) / np.arange(1, n + 1)
     i_min_cumsum = np.argmin(m_cumsum)

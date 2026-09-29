@@ -31,7 +31,7 @@ from pylimma.normalize import (
     normexp_fit,
     normexp_signal,
 )
-from pylimma.squeeze_var import squeeze_var
+from pylimma.squeeze_var import fit_f_dist_unequal_df1, squeeze_var
 from pylimma.toptable import top_table
 
 from .helpers import (
@@ -5359,3 +5359,118 @@ class TestLmSeriesBranchParity:
         design = load_r_csv_no_index("lsq_rank_zero_design").to_numpy(dtype=float)
         with pytest.raises(ValueError):
             lm_fit(expr, design)
+
+
+# =============================================================================
+# fitFDistUnequalDF1: branch-forcing parity
+# =============================================================================
+
+
+def _assert_log10_pvalues_close(r_pvals, py_pvals, rtol=1e-6):
+    np.testing.assert_allclose(
+        np.log10(np.asarray(py_pvals, dtype=float)),
+        np.log10(np.asarray(r_pvals, dtype=float)),
+        rtol=rtol,
+    )
+
+
+class TestFitFDistUnequalDF1BranchParity:
+    """Each fixture forces a distinct branch of R's fitFDistUnequalDF1.
+
+    The branch-taken preconditions are asserted on the R output first, so a
+    test cannot pass by routing through an easier branch.
+    """
+
+    CASES = [
+        "shrink",
+        "shrink_ties",
+        "trend_robust",
+        "trend_robust_span",
+        "trend_na",
+        "underflow",
+        "left_only",
+        "unit_df1",
+        "prior_weights",
+        "two_informative",
+        "one_informative",
+    ]
+
+    @staticmethod
+    def _assert_branch_taken(case: str, r: pd.DataFrame) -> None:
+        shrunk = r["df2_shrunk"]
+        if case in ("shrink", "shrink_ties", "trend_robust", "trend_robust_span", "unit_df1", "underflow"):
+            assert shrunk.notna().all() and shrunk.nunique() > 1
+        if case == "shrink_ties":
+            tail = r[shrunk < r["df2"]]
+            assert tail.duplicated(subset=["x", "df1"]).any()
+        if case in ("trend_robust", "trend_robust_span", "trend_na", "prior_weights"):
+            assert r["x"].isna().any()
+        if case == "underflow":
+            assert r["df2_outlier"].iloc[0] == 0
+        if case == "left_only":
+            assert shrunk.isna().all() and r["df2_outlier"].isna().all()
+        if case == "prior_weights":
+            assert (r["df1"] < 0.01).any()
+        if case == "one_informative":
+            assert r["scale"].isna().all() and r["df2"].isna().all()
+
+    @pytest.mark.parametrize("case", CASES)
+    def test_matches_r(self, case):
+        r = load_r_csv_no_index(f"ffdu_{case}")
+        self._assert_branch_taken(case, r)
+
+        df1 = r["df1"].to_numpy(dtype=float)
+        if r["df1_is_unit"].iloc[0]:
+            df1 = df1[:1]
+        span = None if pd.isna(r["span"].iloc[0]) else float(r["span"].iloc[0])
+        py = fit_f_dist_unequal_df1(
+            r["x"].to_numpy(dtype=float),
+            df1,
+            covariate=_nan_to_none(r["covariate"]),
+            span=span,
+            robust=bool(r["robust"].iloc[0]),
+            prior_weights=_nan_to_none(r["prior_weights"]),
+        )
+
+        n = len(r)
+        np.testing.assert_allclose(np.broadcast_to(py["scale"], n), r["scale"], rtol=1e-6)
+        np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(py.get("df2_outlier", np.nan), r["df2_outlier"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(
+            np.broadcast_to(py.get("df2_shrunk", np.nan), n), r["df2_shrunk"], rtol=1e-6
+        )
+
+    @pytest.mark.parametrize(
+        "case, kwargs",
+        [
+            ("df1_length", dict(x=[1.0, 2.0, 3.0], df1=[4.0, 4.0])),
+            ("df1_na", dict(x=[1.0, 2.0, 3.0], df1=[4.0, np.nan, 4.0])),
+            ("covariate_length", dict(x=[1.0, 2.0, 3.0], df1=4.0, covariate=[1.0, 2.0])),
+            ("covariate_na", dict(x=[1.0, 2.0, 3.0], df1=4.0, covariate=[1.0, np.nan, 3.0])),
+            ("prior_weights_length", dict(x=[1.0, 2.0, 3.0], df1=4.0, prior_weights=[1.0, 1.0])),
+            ("prior_weights_na", dict(x=[1.0, 2.0, 3.0], df1=4.0, prior_weights=[1.0, np.nan, 1.0])),
+            ("prior_weights_negative", dict(x=[1.0, 2.0, 3.0], df1=4.0, prior_weights=[1.0, -1.0, 1.0])),
+        ],
+    )
+    def test_input_errors_match_r(self, case, kwargs):
+        r_errors = load_r_csv_no_index("ffdu_errors").set_index("case")["r_error"]
+        assert isinstance(r_errors[case], str)  # R stops on this input
+        with pytest.raises(ValueError):
+            fit_f_dist_unequal_df1(**{k: np.asarray(v, dtype=float) for k, v in kwargs.items()})
+
+    @pytest.mark.parametrize("trend", [False, True])
+    def test_ebayes_robust_unequal_df(self, trend):
+        """eBayes(robust=TRUE) with genewise df from missing values, incl. a df=0 gene."""
+        r = load_r_csv_no_index(f"ffdu_ebayes_robust{'_trend' if trend else ''}")
+        assert r["df_prior"].nunique() > 1
+        expr = load_r_csv_no_index("ffdu_ebayes_expr").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        fit = e_bayes(lm_fit(expr, design), robust=True, trend=trend)
+
+        np.testing.assert_allclose(fit["t"][:, 1], r["t"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["p_value"], fit["p_value"][:, 1])
+        np.testing.assert_allclose(fit["lods"][:, 1], r["lods"], rtol=1e-6)
+        np.testing.assert_allclose(fit["s2_post"], r["s2_post"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(fit["df_prior"], len(r)), r["df_prior"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(fit["s2_prior"], len(r)), r["s2_prior"], rtol=1e-6)
+        np.testing.assert_allclose(fit["df_total"], r["df_total"], rtol=1e-6)

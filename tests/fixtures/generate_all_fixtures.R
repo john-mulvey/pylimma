@@ -2875,3 +2875,161 @@ stopifnot(!is.na(.lsq_r0_error))
 write.csv(data.frame(r_error = .lsq_r0_error), "R_lsq_rank_zero_error.csv", row.names = FALSE)
 
 cat("  dqrdc2 / lm.series branch fixtures complete.\n")
+
+# =============================================================================
+# fitFDistUnequalDF1: branch-forcing fixtures
+# Each case forces a distinct R branch; the stored outputs let the Python test
+# assert that the branch was actually taken (e.g. df2.shrunk present).
+# =============================================================================
+cat("\nGenerating fitFDistUnequalDF1 branch fixtures...\n")
+
+set.seed(20260929)
+
+.ffdu_write <- function(case, x, df1, fit, covariate = NULL, prior_weights = NULL,
+                        robust = FALSE, span = NA_real_) {
+  n <- length(x)
+  out <- data.frame(
+    x = x,
+    df1 = rep_len(df1, n),
+    covariate = if (is.null(covariate)) NA_real_ else covariate,
+    prior_weights = if (is.null(prior_weights)) NA_real_ else prior_weights,
+    df1_is_unit = length(df1) == 1L,
+    robust = robust,
+    span = span,
+    scale = rep_len(fit$scale, n),
+    df2 = fit$df2,
+    df2_outlier = if (is.null(fit$df2.outlier)) NA_real_ else fit$df2.outlier,
+    df2_shrunk = if (is.null(fit$df2.shrunk)) NA_real_ else fit$df2.shrunk
+  )
+  write.csv(out, sprintf("R_ffdu_%s.csv", case), row.names = FALSE)
+}
+
+# Variances and residual df from a genewise fit with missing values, as in a
+# proteomics experiment: unequal df1 and a handful of high-variance genes.
+.ffdu_n <- 400
+.ffdu_expr <- matrix(rnorm(.ffdu_n * 8), .ffdu_n, 8)
+.ffdu_expr[1:12, ] <- .ffdu_expr[1:12, ] * 3
+.ffdu_expr[runif(length(.ffdu_expr)) < 0.1] <- NA
+.ffdu_fit <- lmFit(.ffdu_expr, cbind(1, rep(0:1, each = 4)))
+.ffdu_x <- .ffdu_fit$sigma^2
+.ffdu_df1 <- .ffdu_fit$df.residual
+.ffdu_amean <- .ffdu_fit$Amean
+stopifnot(all(.ffdu_df1 > 0), length(unique(.ffdu_df1)) > 1)
+
+# Right outliers -> refit, per-gene df2.shrunk, monotonic step
+.f <- fitFDistUnequalDF1(.ffdu_x, .ffdu_df1, robust = TRUE)
+stopifnot(!is.null(.f$df2.shrunk), length(unique(.f$df2.shrunk)) > 1)
+.ffdu_write("shrink", .ffdu_x, .ffdu_df1, .f, robust = TRUE)
+
+# Tied F-statistics inside the right tail (rank ties)
+.ffdu_x_ties <- .ffdu_x
+.ffdu_df1_ties <- .ffdu_df1
+.top <- order(.ffdu_x / .f$scale, decreasing = TRUE)[1:6]
+.ffdu_x_ties[.top[2:3]] <- .ffdu_x_ties[.top[4]]
+.ffdu_df1_ties[.top[2:3]] <- .ffdu_df1_ties[.top[4]]
+.f <- fitFDistUnequalDF1(.ffdu_x_ties, .ffdu_df1_ties, robust = TRUE)
+stopifnot(!is.null(.f$df2.shrunk), .f$df2.shrunk[.top[4]] < .f$df2)
+.ffdu_write("shrink_ties", .ffdu_x_ties, .ffdu_df1_ties, .f, robust = TRUE)
+
+# Covariate trend + NA variances (zero prior weight) + robust
+.ffdu_x_na <- .ffdu_x
+.ffdu_x_na[c(20, 40, 60)] <- NA
+.f <- fitFDistUnequalDF1(.ffdu_x_na, .ffdu_df1, covariate = .ffdu_amean, robust = TRUE)
+stopifnot(!is.null(.f$df2.shrunk))
+.ffdu_write("trend_robust", .ffdu_x_na, .ffdu_df1, .f, covariate = .ffdu_amean, robust = TRUE)
+
+# As above with an explicit span; R's robust refit does not forward span
+.f_span <- fitFDistUnequalDF1(.ffdu_x_na, .ffdu_df1, covariate = .ffdu_amean, span = 0.5, robust = TRUE)
+stopifnot(!isTRUE(all.equal(.f_span$scale, .f$scale)))
+.ffdu_write("trend_robust_span", .ffdu_x_na, .ffdu_df1, .f_span, covariate = .ffdu_amean, robust = TRUE, span = 0.5)
+
+# Covariate trend + NA variances, non-robust (zero-weight loess floor)
+.f <- fitFDistUnequalDF1(.ffdu_x_na, .ffdu_df1, covariate = .ffdu_amean)
+.ffdu_write("trend_na", .ffdu_x_na, .ffdu_df1, .f, covariate = .ffdu_amean)
+
+# Right-tail probability underflows to zero -> df2.outlier = 0.
+# Needs a large, well-behaved background so the initial df2 stays high.
+.ffdu_x_uf <- rchisq(5000, df = 50) / 50
+.ffdu_x_uf[1] <- 1e20
+.f <- fitFDistUnequalDF1(.ffdu_x_uf, 50, robust = TRUE)
+stopifnot(identical(.f$df2.outlier, 0))
+.ffdu_write("underflow", .ffdu_x_uf, 50, .f, robust = TRUE)
+
+# Left outliers only -> refit returned without df2.shrunk.
+# Random data essentially never satisfies RightP >= UniformP at every rank;
+# a tied background (one shared average rank) with two small values does.
+.ffdu_x_left <- rep(1, 200)
+.ffdu_x_left[1:2] <- 0.01
+.f <- fitFDistUnequalDF1(.ffdu_x_left, 6, robust = TRUE)
+.f_nonrobust <- fitFDistUnequalDF1(.ffdu_x_left, 6)
+stopifnot(is.null(.f$df2.shrunk), !isTRUE(all.equal(.f$scale, .f_nonrobust$scale)))
+.ffdu_write("left_only", .ffdu_x_left, 6, .f, robust = TRUE)
+
+# df1 supplied as a unit vector, robust
+.ffdu_x_unit <- rchisq(.ffdu_n, df = 6) / 6
+.ffdu_x_unit[11:16] <- .ffdu_x_unit[11:16] * 30
+.f <- fitFDistUnequalDF1(.ffdu_x_unit, 6, robust = TRUE)
+stopifnot(!is.null(.f$df2.shrunk))
+.ffdu_write("unit_df1", .ffdu_x_unit, 6, .f, robust = TRUE)
+
+# User prior weights, combined with NA x and df1 < 0.01
+.ffdu_pw <- runif(.ffdu_n, 0.2, 2)
+.ffdu_df1_small <- .ffdu_df1
+.ffdu_df1_small[c(7, 8)] <- 0.001
+.f <- fitFDistUnequalDF1(.ffdu_x_na, .ffdu_df1_small, prior.weights = .ffdu_pw)
+.ffdu_write("prior_weights", .ffdu_x_na, .ffdu_df1_small, .f, prior_weights = .ffdu_pw)
+
+# Exactly two informative values: covariate and robust are dropped
+.ffdu_x_two <- c(0.5, 1.5, rep(0, 8))
+.ffdu_cov_two <- seq(1, 10)
+.f <- fitFDistUnequalDF1(.ffdu_x_two, 4, covariate = .ffdu_cov_two, robust = TRUE)
+.ffdu_write("two_informative", .ffdu_x_two, 4, .f, covariate = .ffdu_cov_two, robust = TRUE)
+
+# Fewer than two informative values -> NA hyperparameters
+.ffdu_x_one <- c(0.5, rep(0, 9))
+.f <- fitFDistUnequalDF1(.ffdu_x_one, 4)
+stopifnot(is.na(.f$scale), is.na(.f$df2))
+.ffdu_write("one_informative", .ffdu_x_one, 4, .f)
+
+# Input checks: record R's error for each stop()
+.ffdu_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.ffdu_errors <- data.frame(
+  case = c("df1_length", "df1_na", "covariate_length", "covariate_na",
+           "prior_weights_length", "prior_weights_na", "prior_weights_negative"),
+  r_error = c(
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), c(4, 4))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), c(4, NA, 4))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, covariate = c(1, 2))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, covariate = c(1, NA, 3))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, prior.weights = c(1, 1))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, prior.weights = c(1, NA, 1))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, prior.weights = c(1, -1, 1)))
+  )
+)
+stopifnot(!anyNA(.ffdu_errors$r_error))
+write.csv(.ffdu_errors, "R_ffdu_errors.csv", row.names = FALSE)
+
+# End to end: eBayes robust (and trend + robust) on the unequal-df fit.
+# A single-observation gene gives df = 0, which squeezeVar passes to
+# fitFDistUnequalDF1 as an uninformative (zero-weight) value.
+.ffdu_expr_e2e <- .ffdu_expr
+.ffdu_expr_e2e[400, ] <- c(1.3, rep(NA, 7))
+.ffdu_design <- cbind(1, rep(0:1, each = 4))
+.ffdu_fit_e2e <- lmFit(.ffdu_expr_e2e, .ffdu_design)
+stopifnot(.ffdu_fit_e2e$df.residual[400] == 0)
+write.csv(.ffdu_expr_e2e, "R_ffdu_ebayes_expr.csv", row.names = FALSE)
+for (.trend in c(FALSE, TRUE)) {
+  .eb <- eBayes(.ffdu_fit_e2e, robust = TRUE, trend = .trend)
+  stopifnot(length(unique(.eb$df.prior)) > 1)
+  write.csv(
+    data.frame(
+      t = .eb$t[, 2], p_value = .eb$p.value[, 2], lods = .eb$lods[, 2],
+      s2_post = .eb$s2.post, df_prior = .eb$df.prior,
+      s2_prior = rep_len(.eb$s2.prior, .ffdu_n), df_total = .eb$df.total
+    ),
+    sprintf("R_ffdu_ebayes_robust%s.csv", if (.trend) "_trend" else ""),
+    row.names = FALSE
+  )
+}
+
+cat("  fitFDistUnequalDF1 branch fixtures complete.\n")

@@ -343,7 +343,13 @@ class TestRigorousSqueezeVar:
         )
 
     def test_non_legacy_robust_unequal_df1_path(self):
-        """Exercises R-B8: legacy=FALSE,robust=TRUE - df_prior=df2_shrunk."""
+        """Exercises R-B8: legacy=FALSE,robust=TRUE with no FDR outliers.
+
+        The inflated variances lower the fitted df2 enough that no gene is
+        flagged, so fitFDistUnequalDF1 returns the non-robust fit and
+        df_prior is scalar df2. The df2.shrunk branches are forced by
+        TestFitFDistUnequalDF1BranchParity in test_r_parity.py.
+        """
         n = 80
         rng = np.random.default_rng(7)
         sample_var = 0.5 * rng.chisquare(5, size=n) / 5

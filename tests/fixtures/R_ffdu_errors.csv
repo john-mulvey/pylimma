@@ -1,0 +1,8 @@
+"case","r_error"
+"df1_length","x and df1 are different lengths"
+"df1_na","NA df1 values"
+"covariate_length","x and covariate are different lengths"
+"covariate_na","prior.weights contain NA values"
+"prior_weights_length","x and covariate are different lengths"
+"prior_weights_na","prior.weights contain NA values"
+"prior_weights_negative","prior.weights are negative"
