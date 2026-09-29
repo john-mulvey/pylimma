@@ -2793,10 +2793,8 @@ class TestVoomInterfaceParams:
 class TestVoomaByGroupDispatch:
     """Polymorphic dispatch tests for vooma_by_group.
 
-    Pre-fix, vooma_by_group silently returned a plain dict regardless
-    of input class - AnnData input was never mutated. Fix: route the
-    output through put_eawp so AnnData -> write layers + uns + return
-    None; EList -> EList; ndarray / dict -> dict (unchanged).
+    Output follows the input class via put_eawp: AnnData -> layers + uns
+    written, returns None; EList -> EList; ndarray / dict -> dict.
     """
 
     def _data(self):
@@ -4094,11 +4092,10 @@ class TestNormalisationBatchBranchCoverage:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding1InterceptStripRParity:
-    """Finding 1: lm_fit does not populate fit['coef_names'], so top_table
-    cannot identify the '(Intercept)' column to strip when coef=None.
-    R's topTable emits 'Removing intercept from test coefficients' and
-    returns a single-contrast table."""
+class TestInterceptStripRParity:
+    """top_table(coef=None) on a design with an '(Intercept)' column drops the
+    intercept, as R's topTable does ('Removing intercept from test
+    coefficients'), and returns the single-contrast table."""
 
     def test_top_table_strips_intercept_on_named_design(self):
         from .helpers import run_r_comparison
@@ -4152,9 +4149,9 @@ class TestFinding1InterceptStripRParity:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding2ContrastsFitNamedCoefRParity:
-    """Finding 2: contrasts_fit(fit, coefficients='name') fails because
-    fit['coef_names'] is never populated (cascade from finding 1)."""
+class TestContrastsFitNamedCoefRParity:
+    """contrasts_fit(fit, coefficients='name') selects coefficients by name,
+    as R's contrasts.fit does."""
 
     def test_contrasts_fit_accepts_string_coefficient_name(self):
         rng = np.random.default_rng(0)
@@ -4169,20 +4166,17 @@ class TestFinding2ContrastsFitNamedCoefRParity:
         )
         fit = lm_fit(X, design=design_df)
         # R: contrasts.fit(fit, coefficients="groupB") succeeds.
-        # Pre-fix pylimma raises ValueError("Cannot use coefficient name...")
-        # because fit['coef_names'] is never populated by lm_fit.
         f2 = contrasts_fit(fit, coefficients=["groupB"])
         assert "groupB" in f2.get("contrast_names", []), (
             f"contrast_names does not include 'groupB': {f2.get('contrast_names')}"
         )
 
 
-class TestFinding3LfcBoundaryRParity:
-    """Finding 3: top_table lfc filter uses strict '>' where R uses '>='.
-    A gene with |logFC| exactly equal to the lfc threshold is kept by R
-    but dropped by pylimma. This test controls the coefficients directly
-    via a hand-built fit to avoid floating-point-path divergence between
-    R's QR and numpy's QR at the boundary."""
+class TestLfcBoundaryRParity:
+    """top_table's lfc filter keeps a gene whose |logFC| equals lfc exactly
+    (R uses '>='). The fit is hand-built so the boundary value is exact on
+    both sides, avoiding floating-point differences between R's and
+    NumPy's QR at the boundary."""
 
     def test_boundary_gene_kept_with_exact_lfc(self):
         # Hand-build a fit with one coefficient = exactly 1.0 and the
@@ -4206,7 +4200,7 @@ class TestFinding3LfcBoundaryRParity:
         }
         fit = e_bayes(fit)
         tt = top_table(fit, coef=1, lfc=1.0, number=n_genes, sort_by="none")
-        # Post-fix: boundary gene (idx 1, coef == 1.0 exactly) is kept.
+        # The boundary gene (idx 1, coef == 1.0 exactly) is kept.
         # logFC column should include 1.0 exactly.
         returned_lfc = set(round(float(x), 8) for x in tt["log_fc"].values)
         assert 1.0 in returned_lfc, (
@@ -4214,16 +4208,15 @@ class TestFinding3LfcBoundaryRParity:
         )
 
 
-class TestFinding4DecideTestsLfcBoundaryRParity:
-    """Finding 4: decide_tests MArrayLM path uses '<' where R uses '>'
-    for the lfc cut. A gene with |coef| == lfc exactly should be zeroed
-    by R's MArrayLM dispatch (decidetests.R:165: `* (abs(coef) > lfc)`).
-    Uses a hand-crafted fit to avoid QR floating-point divergence."""
+class TestDecideTestsLfcBoundaryRParity:
+    """decide_tests on a fit zeroes a gene whose |coef| equals lfc exactly, as
+    R's MArrayLM method does (decidetests.R:165: `* (abs(coef) > lfc)`).
+    Uses a hand-built fit so the boundary value is exact."""
 
     def test_decide_tests_marraylm_lfc_boundary_zeroed(self):
         # Hand-built fit with coef-1 values: [2.0, 1.0, 0.5, 1.5]. The
         # boundary gene (idx 1, exact 1.0) should be zeroed with lfc=1.0
-        # under R's MArrayLM convention (post-fix pylimma).
+        # under R's MArrayLM convention.
         n_genes = 4
         coefs_col1 = np.array([2.0, 1.0, 0.5, 1.5])
         fit = {
@@ -4247,9 +4240,9 @@ class TestFinding4DecideTestsLfcBoundaryRParity:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding5WsvaWeightsRParity:
-    """Finding 5: wsva silently drops weights/block/correlation from
-    **kwargs. R's wsva forwards them into .lmEffects for a weighted fit."""
+class TestWsvaWeightsRParity:
+    """wsva forwards weights / block / correlation into the effects fit, as
+    R's wsva passes them to .lmEffects."""
 
     def test_wsva_weights_change_output(self):
         from pylimma import wsva
@@ -4289,10 +4282,10 @@ class TestFinding5WsvaWeightsRParity:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding6VoomFamilyElistRParity:
-    """Finding 6: voom/vooma/voom_with_quality_weights/vooma_lm_fit have
-    different R behaviours on EList input. Per-function probes to
-    confirm the divergence table in the plan."""
+class TestVoomFamilyElistRParity:
+    """EList input to voom / vooma / voom_with_quality_weights / vooma_lm_fit:
+    which EList slots each function uses, and the warnings pylimma emits
+    where it deliberately differs from R (see known differences)."""
 
     def _make_elist(self):
         rng = np.random.default_rng(0)
@@ -4331,7 +4324,7 @@ class TestFinding6VoomFamilyElistRParity:
         )
 
     def test_voom_emits_elist_design_and_weights_warnings(self):
-        """Post-fix: voom(el) emits two warnings when EList has weights+design."""
+        """voom(el) emits two warnings when the EList has both weights and design."""
         import warnings as _w
 
         from pylimma import voom
@@ -4347,7 +4340,7 @@ class TestFinding6VoomFamilyElistRParity:
         assert weights_warned, f"voom did not warn about EList weights; msgs={msgs}"
 
     def test_voom_no_warning_when_caller_passes_kwargs(self):
-        """Post-fix: voom(el, design=D, weights=W) suppresses the EList warnings."""
+        """voom(el, design=D, weights=W) suppresses the EList warnings."""
         import warnings as _w
 
         from pylimma import voom
@@ -4362,7 +4355,7 @@ class TestFinding6VoomFamilyElistRParity:
         )
 
     def test_voom_no_warning_on_ndarray(self):
-        """Post-fix: voom(ndarray) emits no EList warnings."""
+        """voom(ndarray) emits no EList warnings."""
         import warnings as _w
 
         from pylimma import voom
@@ -4377,7 +4370,7 @@ class TestFinding6VoomFamilyElistRParity:
         )
 
     def test_voom_with_quality_weights_warns_on_elist_design_only(self):
-        """Post-fix: voom_with_quality_weights(el) warns for design only
+        """voom_with_quality_weights(el) warns for design only
         (not weights)."""
         import warnings as _w
 
@@ -4398,10 +4391,9 @@ class TestFinding6VoomFamilyElistRParity:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding7LmFitElistGenesRParity:
-    """Finding 7: lm_fit drops EList['genes'] slot; fit['genes'] is None
-    even when EList was built with a genes DataFrame. R's lmFit keeps
-    it (fit$genes <- y$probes)."""
+class TestLmFitElistGenesRParity:
+    """lm_fit carries EList['genes'] into fit['genes'], as R's lmFit does
+    (fit$genes <- y$probes)."""
 
     def test_elist_genes_propagate_to_fit(self):
         rng = np.random.default_rng(0)
@@ -4425,10 +4417,9 @@ class TestFinding7LmFitElistGenesRParity:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding8PlotRldfMathRParity:
-    """Finding 8: plot_rldf uses simplified discriminant math; R's
-    plotRLDF uses regularised within-covariance + Cholesky-backsolve.
-    Compare training coords and singular values."""
+class TestPlotRldfMathRParity:
+    """plot_rldf training coordinates and singular values match R's plotRLDF
+    (regularised within-group covariance with a Cholesky back-solve)."""
 
     def test_training_and_singular_values_match_r(self):
         from pylimma import plot_rldf
@@ -4490,8 +4481,8 @@ class TestFinding8PlotRldfMathRParity:
 # -----------------------------------------------------------------------------
 
 
-class TestFinding9FitMethodSlotRParity:
-    """Finding 9: R's lmFit sets fit$method. pylimma's lm_fit does not."""
+class TestFitMethodSlotRParity:
+    """lm_fit sets fit['method'], as R's lmFit sets fit$method."""
 
     def test_fit_method_populated(self):
         rng = np.random.default_rng(0)
@@ -4502,8 +4493,8 @@ class TestFinding9FitMethodSlotRParity:
         assert fit["method"] == "ls", f"fit['method'] should be 'ls', got {fit.get('method')!r}"
 
 
-class TestFinding10FitProportionSlotRParity:
-    """Finding 10: R's eBayes sets fit$proportion. pylimma's e_bayes does not."""
+class TestFitProportionSlotRParity:
+    """e_bayes sets fit['proportion'], as R's eBayes sets fit$proportion."""
 
     def test_fit_proportion_populated(self):
         rng = np.random.default_rng(0)
@@ -4520,9 +4511,9 @@ class TestFinding10FitProportionSlotRParity:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding14ContrastsFitEmptyShapeRParity:
-    """Finding 14: contrasts_fit empty-contrasts path leaves cov_coefficients
-    at (p, p) shape. R subsets it to (0, 0) via fit[,0]."""
+class TestContrastsFitEmptyShapeRParity:
+    """contrasts_fit with an empty contrast matrix subsets cov_coefficients to
+    (0, 0), as R's fit[, 0] does."""
 
     def test_empty_contrasts_shapes_consistent(self):
         rng = np.random.default_rng(0)
@@ -4540,9 +4531,9 @@ class TestFinding14ContrastsFitEmptyShapeRParity:
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding15ContrastsAllZeroRParity:
-    """Finding 15: R's contrasts.fit strips coefficient rows that are zero
-    in every contrast column before the orthog check. pylimma does not."""
+class TestContrastsAllZeroRParity:
+    """contrasts_fit drops coefficients that are zero in every contrast column
+    before the orthogonality check, as R's contrasts.fit does."""
 
     def test_contrasts_all_zero_pruning(self):
         from .helpers import run_r_comparison
@@ -4582,23 +4573,22 @@ class TestFinding15ContrastsAllZeroRParity:
         )
 
 
-class TestFinding17LmFitRobustKwargsRParity:
-    """Finding 17: R's lmFit forwards ... to MASS::rlm (e.g. maxit=50).
-    pylimma's lm_fit has no **kwargs so passing maxit= is a TypeError."""
+class TestLmFitRobustKwargsRParity:
+    """lm_fit(method='robust') forwards extra keyword arguments (e.g. maxit)
+    to the robust fit, as R's lmFit forwards ... to MASS::rlm."""
 
     def test_lm_fit_robust_accepts_rlm_kwargs(self):
         rng = np.random.default_rng(0)
         X = rng.standard_normal((20, 6))
         design = np.column_stack([np.ones(6), [0] * 3 + [1] * 3])
-        # Pre-fix: this raises TypeError("unexpected keyword argument 'maxit'")
         fit = lm_fit(X, design, method="robust", maxit=50)
-        # Post-fix: no crash, fit has expected slots
+        # maxit is accepted and the fit has the expected slots
         assert fit["coefficients"].shape == (20, 2)
 
 
-class TestFinding19CoefficientsIntDocRParity:
-    """Finding 19: contrasts_fit(coefficients=int) is 0-based; R is 1-based.
-    The docstring should flag this. Doc-only verification."""
+class TestCoefficientsIntDocRParity:
+    """contrasts_fit's docstring states that integer coefficients are 0-based
+    (R's are 1-based). Checks documentation only."""
 
     def test_docstring_flags_zero_based(self):
         from pylimma.contrasts import contrasts_fit as cf
@@ -4617,10 +4607,10 @@ class TestFinding19CoefficientsIntDocRParity:
 # -----------------------------------------------------------------------------
 
 
-class TestFinding11ClassifyTestsFRankDeficientRParity:
-    """Finding 11: classify_tests_f crashes on fits where cov_coefficients
-    has NaN diagonals (rank-deficient design). R's cov.coefficients has
-    shape (rank, rank) with no NaN padding."""
+class TestClassifyTestsFRankDeficientRParity:
+    """classify_tests_f handles rank-deficient fits, whose cov_coefficients
+    has NaN diagonals for non-estimable coefficients (R's cov.coefficients
+    is (rank, rank) with no NaN padding)."""
 
     def test_classify_tests_f_no_crash_on_rank_deficient(self):
         import warnings as _w
@@ -4650,14 +4640,13 @@ class TestFinding11ClassifyTestsFRankDeficientRParity:
                 result = classify_tests_f(fit, p_value=0.05)
             except np.linalg.LinAlgError:
                 pytest.fail("classify_tests_f raised LinAlgError on NaN cov")
-            # Post-fix: returns finite classification results
+            # Returns classification results
             assert result is not None
 
 
-class TestFinding12TmixtureStableSortRParity:
-    """Finding 12: _tmixture_vector uses unstable argsort + [::-1] reverse.
-    R's order(..., decreasing=TRUE) is stable; reverse means tie-order
-    diverges."""
+class TestTmixtureStableSortRParity:
+    """The t-mixture estimate in e_bayes breaks ties in the same order as R's
+    stable order(..., decreasing=TRUE)."""
 
     def test_stable_descending_sort_on_ties(self):
         # Proxy test: any place in ebayes.py that sorts tstat should
@@ -4672,9 +4661,9 @@ class TestFinding12TmixtureStableSortRParity:
         assert bad not in text, f"ebayes.py still uses unstable sort pattern '{bad}'"
 
 
-class TestFinding13VarPriorShapeMismatchRParity:
-    """Finding 13: var_prior fallback '1/s2_prior' broadcasts incorrectly
-    when trend=True (s2_prior is per-gene). R recycles scalar."""
+class TestVarPriorShapeMismatchRParity:
+    """e_bayes with trend=True (genewise s2_prior) handles the var_prior
+    fallback '1/s2_prior' without a shape error; R recycles a scalar."""
 
     def test_var_prior_nan_fallback_does_not_crash_with_trend(self):
         rng = np.random.default_rng(0)
@@ -4690,9 +4679,9 @@ class TestFinding13VarPriorShapeMismatchRParity:
                 pytest.fail(f"var_prior fallback shape mismatch: {e}")
 
 
-class TestFinding16AverepsElistRParity:
-    """Finding 16: avereps(EList) crashes. Should average the E matrix
-    across replicate rows, using EList['genes']['ID'] or index as ID."""
+class TestAverepsElistRParity:
+    """avereps on an EList averages E across replicate rows, using
+    EList['genes']['ID'] or the index as ID."""
 
     def test_avereps_on_elist_does_not_crash(self):
         from pylimma import avereps
@@ -4701,8 +4690,7 @@ class TestFinding16AverepsElistRParity:
         W = np.array([[1.0, 1], [0.5, 2], [1, 1], [1, 1]])
         genes = pd.DataFrame({"ID": ["A", "A", "B", "B"]})
         el = EList({"E": X, "weights": W, "genes": genes})
-        # Pre-fix: crashes in np.asarray(dict).
-        # Post-fix: returns an EList-like with 2 rows (A, B).
+        # Returns an EList-like with 2 rows (A, B).
         out = avereps(el)
         # Accept EList, dict, ndarray, or DataFrame shapes
         if hasattr(out, "get") and callable(out.get):
@@ -4712,9 +4700,9 @@ class TestFinding16AverepsElistRParity:
         assert arr.shape[0] == 2, f"expected 2 averaged rows, got shape {arr.shape}"
 
 
-class TestFinding18LmSeriesSignatureRParity:
-    """Finding 18: R's lm.series accepts ndups/spacing; pylimma's doesn't.
-    Either remove lm_series from __all__ or add these kwargs."""
+class TestLmSeriesSignatureRParity:
+    """lm_series is either kept out of __all__ or accepts R's ndups / spacing
+    arguments (R's lm.series takes both)."""
 
     def test_lm_series_either_hidden_or_accepts_ndups(self):
         import pylimma
@@ -4733,9 +4721,9 @@ class TestFinding18LmSeriesSignatureRParity:
                 pytest.fail(f"lm_series is public but rejects R's ndups/spacing: {e}")
 
 
-class TestFinding20VoomaByGroupPlotRParity:
-    """Finding 20: vooma_by_group(plot=True) silently a no-op.
-    Post-fix: either plot is produced or a warning is emitted."""
+class TestVoomaByGroupPlotRParity:
+    """vooma_by_group(plot=True) either draws the plot or warns; it is never
+    silently a no-op."""
 
     def test_plot_true_emits_warning_or_draws(self):
         import warnings as _w
@@ -4748,9 +4736,8 @@ class TestFinding20VoomaByGroupPlotRParity:
         with _w.catch_warnings(record=True) as caught:
             _w.simplefilter("always")
             vooma_by_group(X, group=group, plot=True)
-        # Post-fix: we get either (a) a warning about plot=True not
-        # implemented, or (b) plot was actually drawn (check via mpl gca).
-        # Pre-fix: neither happens.
+        # Expect either (a) a warning that plot=True is not implemented, or
+        # (b) a plot actually drawn (check via mpl gca).
         msgs = [str(w.message) for w in caught]
         plot_mentioned = any("plot" in m.lower() for m in msgs)
         # Check matplotlib figure existence
