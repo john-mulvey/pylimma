@@ -20,7 +20,7 @@ import pandas as pd
 from scipy import stats
 
 from .classes import _resolve_fit_input
-from .utils import p_adjust
+from .utils import _match_arg, p_adjust
 
 if TYPE_CHECKING:
     pass
@@ -246,6 +246,14 @@ def top_table(
                 "Treat p-values can only be displayed for single coefficients. "
                 "Specify a single coef or use e_bayes() instead of treat()."
             )
+        # R: coef <- unique(coef); fit <- fit[,coef] when fewer than all
+        # columns are selected, which regenerates F from those columns.
+        coef_idx = list(dict.fromkeys(coef_idx))
+        if len(coef_idx) < n_coefs:
+            fit = _subset_fit_columns(fit, coef_idx)
+            coef_idx = list(range(len(coef_idx)))
+        else:
+            coef_idx = list(range(n_coefs))
         if confint:
             import warnings
 
@@ -282,6 +290,46 @@ def top_table(
         )
 
 
+def _subset_fit_columns(fit: dict, idx: list[int]) -> dict:
+    """R's ``fit[, j]`` (``[.MArrayLM``) for the slots topTable reads.
+
+    Column-indexed slots are subset and, as in R, F and F.p.value are
+    regenerated from the selected coefficients.
+    """
+    from scipy import stats as _stats
+
+    from .decide_tests import classify_tests_f
+
+    sub = dict(fit)
+    for slot in ("coefficients", "stdev_unscaled", "t", "p_value", "lods"):
+        value = fit.get(slot)
+        if value is not None:
+            sub[slot] = value.iloc[:, idx] if isinstance(value, pd.DataFrame) else np.asarray(value)[:, idx]
+    cov = fit.get("cov_coefficients")
+    if cov is not None:
+        cov = np.asarray(cov, dtype=np.float64)
+        if np.isnan(np.diag(cov)[idx]).any():
+            raise ValueError("Subsetting to non-estimable coefficients is not allowed.")
+        sub["cov_coefficients"] = cov[np.ix_(idx, idx)]
+    for slot in ("coef_names", "contrast_names"):
+        names = fit.get(slot)
+        if names is not None:
+            sub[slot] = [list(names)[i] for i in idx]
+    if fit.get("F") is not None:
+        f_stat, df1, df2 = classify_tests_f(sub, fstat_only=True)
+        df2 = np.asarray(df2, dtype=np.float64)
+        sub["F"] = f_stat
+        if np.ravel(df2)[0] > 1e6:
+            sub["F_p_value"] = _stats.chi2.sf(df1 * f_stat, df1)
+        else:
+            sub["F_p_value"] = _stats.f.sf(f_stat, df1, df2)
+    return sub
+
+
+_SORT_CHOICES = ("logFC", "M", "A", "Amean", "AveExpr", "P", "p", "T", "t", "B", "none")
+_SORT_ALIASES = {"log_fc": "logFC", "ave_expr": "AveExpr", "b": "B"}
+
+
 def _top_table_t(
     fit: dict,
     coef: int,
@@ -296,6 +344,12 @@ def _top_table_t(
     _genelist_explicit: bool = False,
 ) -> pd.DataFrame:
     """Top table for single coefficient (t-statistics)."""
+    # R .topTableT: match.arg on sort.by / resort.by (resort.by has no "none").
+    # pylimma's snake_case column names are accepted as aliases.
+    sort_by = _match_arg(_SORT_ALIASES.get(sort_by, sort_by), _SORT_CHOICES, "sort.by")
+    if resort_by is not None:
+        resort_by = _match_arg(_SORT_ALIASES.get(resort_by, resort_by), _SORT_CHOICES[:-1], "resort.by")
+
     coefficients = fit["coefficients"]
     n_genes = coefficients.shape[0]
 

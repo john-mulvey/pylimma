@@ -20,7 +20,7 @@ import numpy as np
 from scipy import stats
 
 from .classes import _is_anndata, _resolve_fit_input
-from .utils import p_adjust
+from .utils import _match_arg, p_adjust
 
 if TYPE_CHECKING:
     pass
@@ -195,16 +195,6 @@ def classify_tests_f(
 
 _DECIDE_METHODS = ("separate", "global", "hierarchical", "nestedF")
 _ADJUST_METHODS = ("none", "bonferroni", "holm", "BH", "fdr", "BY")
-
-
-def _match_arg(value: str, choices: tuple[str, ...], name: str) -> str:
-    """R's ``match.arg``: exact match, otherwise a unique partial match."""
-    if value in choices:
-        return value
-    matches = [c for c in choices if c.startswith(value)]
-    if len(matches) == 1:
-        return matches[0]
-    raise ValueError(f"'{name}' should be one of " + ", ".join(f'"{c}"' for c in choices))
 
 
 def _cutoff_multiplier(adjust_method: str, n: int, n_selected: int) -> float:

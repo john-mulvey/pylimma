@@ -5722,3 +5722,66 @@ class TestDecideTestsBranchParity:
         }[case]
         with pytest.raises(ValueError):
             call()
+
+
+# =============================================================================
+# topTable: coefficient selection by name and sort.by / resort.by matching
+# =============================================================================
+
+_TT_COLUMNS = {
+    "logFC": "log_fc", "AveExpr": "ave_expr", "t": "t", "P.Value": "p_value",
+    "adj.P.Val": "adj_p_value", "B": "b", "F": "F",
+}
+
+
+class TestTopTableArgumentParity:
+    """coef by name (single, F-test, contrast) and match.arg on sort.by / resort.by."""
+
+    DESIGN = pd.DataFrame(
+        {"Intercept": 1.0, "B": np.repeat([0.0, 1.0, 0.0], 4), "C": np.repeat([0.0, 0.0, 1.0], 4)}
+    )
+
+    @classmethod
+    def _fit(cls, contrasts=False):
+        design = cls.DESIGN.rename(columns={"Intercept": "(Intercept)"}) if contrasts == "intercept" else cls.DESIGN
+        fit = lm_fit(load_r_csv_no_index("tt_expr").set_index("id"), design)
+        if contrasts is True:
+            fit = contrasts_fit(fit, make_contrasts(CvsB="C - B", levels=cls.DESIGN))
+        return e_bayes(fit)
+
+    @pytest.mark.parametrize(
+        "case, contrasts, kwargs",
+        [
+            ("coef_name", False, dict(coef="B", number=np.inf, sort_by="none")),
+            ("coef_names_f", False, dict(coef=["B", "C"], number=15)),
+            ("default_drops_intercept", "intercept", dict(number=15)),
+            ("contrast_name", True, dict(coef="CvsB", number=15)),
+            ("sort_partial", False, dict(coef="B", number=15, sort_by="Ave")),
+            ("sort_alias_M", False, dict(coef="B", number=15, sort_by="M")),
+            ("resort_logfc", False, dict(coef="B", number=15, resort_by="logFC")),
+            ("resort_partial", False, dict(coef="B", number=15, resort_by="Am")),
+        ],
+    )
+    def test_matches_r(self, case, contrasts, kwargs):
+        r = load_r_csv_no_index(f"tt_{case}")
+        tab = top_table(self._fit(contrasts), **kwargs)
+        assert list(tab.index) == list(r["id"])
+        for r_col in r.columns.drop("id"):
+            py_col = "B" if (r_col == "B" and "F" in r.columns) else _TT_COLUMNS.get(r_col, r_col)
+            if r_col in ("P.Value", "adj.P.Val"):
+                _assert_log10_pvalues_close(r[r_col], tab[py_col])
+            else:
+                np.testing.assert_allclose(tab[py_col], r[r_col], rtol=1e-6, atol=1e-12)
+
+    @pytest.mark.parametrize(
+        "case, kwargs",
+        [
+            ("sort_by_invalid", dict(sort_by="pvalue")),
+            ("resort_by_none", dict(resort_by="none")),
+            ("resort_by_invalid", dict(resort_by="adj")),
+        ],
+    )
+    def test_errors_match_r(self, case, kwargs):
+        assert isinstance(load_r_csv_no_index("tt_errors").set_index("case")["r_error"][case], str)
+        with pytest.raises(ValueError):
+            top_table(self._fit(), coef="B", **kwargs)

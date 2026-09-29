@@ -707,6 +707,16 @@ def weighted_lowess(
     return {"fitted": fitted, "residuals": y - fitted, "weights": robustness, "delta": delta}
 
 
+def _match_arg(value: str, choices: tuple[str, ...], name: str) -> str:
+    """R's ``match.arg``: exact match, otherwise a unique partial match."""
+    if value in choices:
+        return value
+    matches = [c for c in choices if c.startswith(value)]
+    if len(matches) == 1:
+        return matches[0]
+    raise ValueError(f"'{name}' should be one of " + ", ".join(f'"{c}"' for c in choices))
+
+
 def p_adjust(p: np.ndarray, method: str = "BH") -> np.ndarray:
     """
     Adjust p-values for multiple testing.

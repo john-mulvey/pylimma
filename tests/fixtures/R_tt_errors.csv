@@ -1,0 +1,4 @@
+"case","r_error"
+"sort_by_invalid","'arg' should be one of “logFC”, “M”, “A”, “Amean”, “AveExpr”, “P”, “p”, “T”, “t”, “B”, “none”"
+"resort_by_none","'arg' should be one of “logFC”, “M”, “A”, “Amean”, “AveExpr”, “P”, “p”, “T”, “t”, “B”"
+"resort_by_invalid","'arg' should be one of “logFC”, “M”, “A”, “Amean”, “AveExpr”, “P”, “p”, “T”, “t”, “B”"

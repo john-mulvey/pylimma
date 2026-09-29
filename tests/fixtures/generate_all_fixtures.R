@@ -3325,3 +3325,52 @@ stopifnot(!anyNA(.dt_errors$r_error))
 write.csv(.dt_errors, "R_dt_errors.csv", row.names = FALSE)
 
 cat("  decideTests branch fixtures complete.\n")
+
+# =============================================================================
+# topTable: coefficient selection by name and sort.by / resort.by matching
+# =============================================================================
+cat("\nGenerating topTable argument-matching fixtures...\n")
+
+set.seed(20261004)
+
+.tt_design <- cbind(Intercept = 1, B = rep(c(0, 1, 0), each = 4), C = rep(c(0, 0, 1), each = 4))
+.tt_expr <- matrix(rnorm(100 * 12), 100, 12, dimnames = list(sprintf("g%03d", 1:100), NULL))
+.tt_expr[1:10, 5:8] <- .tt_expr[1:10, 5:8] + 2
+.tt_expr[5:20, 9:12] <- .tt_expr[5:20, 9:12] - 1.5
+write.csv(data.frame(id = rownames(.tt_expr), .tt_expr, check.names = FALSE), "R_tt_expr.csv", row.names = FALSE)
+.tt_fit <- eBayes(lmFit(.tt_expr, .tt_design))
+.tt_cfit <- eBayes(contrasts.fit(lmFit(.tt_expr, .tt_design),
+                                 makeContrasts(CvsB = C - B, levels = .tt_design)))
+
+.tt_write <- function(case, tab) {
+  write.csv(data.frame(id = rownames(tab), tab, check.names = FALSE),
+            sprintf("R_tt_%s.csv", case), row.names = FALSE)
+}
+.tt_write("coef_name", topTable(.tt_fit, coef = "B", number = Inf, sort.by = "none"))
+.tt_write("coef_names_f", topTable(.tt_fit, coef = c("B", "C"), number = 15))
+.tt_write("contrast_name", topTable(.tt_cfit, coef = "CvsB", number = 15))
+# Default coef with an "(Intercept)" column: R drops it and subsets the fit,
+# which regenerates F from the remaining coefficients
+.tt_design_int <- .tt_design
+colnames(.tt_design_int)[1] <- "(Intercept)"
+.tt_fit_int <- eBayes(lmFit(.tt_expr, .tt_design_int))
+stopifnot(!isTRUE(all.equal(topTable(.tt_fit_int, number = Inf, sort.by = "none")$F, .tt_fit_int$F)))
+.tt_write("default_drops_intercept", topTable(.tt_fit_int, number = 15))
+.tt_write("sort_partial", topTable(.tt_fit, coef = "B", number = 15, sort.by = "Ave"))
+.tt_write("sort_alias_M", topTable(.tt_fit, coef = "B", number = 15, sort.by = "M"))
+.tt_write("resort_logfc", topTable(.tt_fit, coef = "B", number = 15, resort.by = "logFC"))
+.tt_write("resort_partial", topTable(.tt_fit, coef = "B", number = 15, resort.by = "Am"))
+
+.tt_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.tt_errors <- data.frame(
+  case = c("sort_by_invalid", "resort_by_none", "resort_by_invalid"),
+  r_error = c(
+    .tt_err(topTable(.tt_fit, coef = "B", sort.by = "pvalue")),
+    .tt_err(topTable(.tt_fit, coef = "B", resort.by = "none")),
+    .tt_err(topTable(.tt_fit, coef = "B", resort.by = "adj"))
+  )
+)
+stopifnot(!anyNA(.tt_errors$r_error))
+write.csv(.tt_errors, "R_tt_errors.csv", row.names = FALSE)
+
+cat("  topTable argument-matching fixtures complete.\n")
