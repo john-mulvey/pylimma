@@ -5280,3 +5280,82 @@ class TestLoessFitBranchParity:
         )
         np.testing.assert_allclose(fit["fitted"], r["fitted"], rtol=1e-6)
         np.testing.assert_allclose(fit["residuals"], r["residuals"], rtol=1e-6, atol=1e-12)
+
+
+# =============================================================================
+# qr() / dqrdc2 pivoting and lm.series genewise branches
+# =============================================================================
+
+
+class TestDqrdc2PivotParity:
+    """Column pivoting and rank against R's qr() (LINPACK dqrdc2) and nonEstimable()."""
+
+    CASES = [
+        "scaled_covariate",
+        "wide",
+        "zero_column_first",
+        "collinear_middle",
+        "near_tol_dropped",
+        "near_tol_kept",
+        "all_zero",
+        "single_row",
+    ]
+
+    @staticmethod
+    def _matrix(case: str) -> np.ndarray:
+        long = load_r_csv_no_index("qr_inputs")
+        cells = long[long["case"] == case]
+        m = np.zeros((cells["row"].max(), cells["col"].max()))
+        m[cells["row"] - 1, cells["col"] - 1] = cells["value"]
+        return m
+
+    @pytest.mark.parametrize("case", CASES)
+    def test_matches_r(self, case):
+        from pylimma.lmfit import _dqrdc2_pivot, non_estimable
+
+        x = self._matrix(case)
+        r = load_r_csv_no_index("qr_outputs").set_index("case").loc[case]
+        if case == "scaled_covariate":
+            assert np.abs(x).max() > 1e8
+        if case in ("wide", "single_row"):
+            assert x.shape[0] < x.shape[1]
+        if case == "zero_column_first":
+            assert not x[:, 0].any()
+
+        pivot, rank = _dqrdc2_pivot(x)
+        assert rank == r["rank"]
+        assert list(pivot + 1) == [int(v) for v in r["pivot"].split(";")]
+        expected_ne = None if pd.isna(r["non_estimable"]) else r["non_estimable"].split(";")
+        assert non_estimable(x) == expected_ne
+
+
+class TestLmSeriesBranchParity:
+    """lmFit genewise fits through lm.fit / lm.wfit pivoting, fast and slow paths."""
+
+    @pytest.mark.parametrize("case", ["scaled_covariate", "saturated", "missing", "weighted"])
+    def test_matches_r(self, case):
+        expr = load_r_csv_no_index(f"lsq_{case}_expr").to_numpy(dtype=float)
+        design = load_r_csv_no_index(f"lsq_{case}_design").to_numpy(dtype=float)
+        weights = (
+            load_r_csv_no_index(f"lsq_{case}_weights").to_numpy(dtype=float) if case == "weighted" else None
+        )
+        r = load_r_csv_no_index(f"lsq_{case}")
+        if case == "missing":
+            n_obs = np.isfinite(expr).sum(axis=1)
+            assert (n_obs == 1).any() and (n_obs == 0).any() and (n_obs[n_obs > 0] < design.shape[1]).any()
+        if case == "saturated":
+            assert design.shape[0] == design.shape[1]
+
+        fit = lm_fit(expr, design, weights=weights)
+        for j in range(design.shape[1]):
+            np.testing.assert_allclose(fit["coefficients"][:, j], r[f"coef_{j + 1}"], rtol=1e-6, atol=1e-12)
+            np.testing.assert_allclose(fit["stdev_unscaled"][:, j], r[f"stdev_{j + 1}"], rtol=1e-6)
+        np.testing.assert_allclose(fit["sigma"], r["sigma"], rtol=1e-6)
+        np.testing.assert_array_equal(fit["df_residual"], r["df_residual"])
+
+    def test_rank_zero_gene_errors_like_r(self):
+        assert isinstance(load_r_csv_no_index("lsq_rank_zero_error")["r_error"].iloc[0], str)
+        expr = load_r_csv_no_index("lsq_rank_zero_expr").to_numpy(dtype=float)
+        design = load_r_csv_no_index("lsq_rank_zero_design").to_numpy(dtype=float)
+        with pytest.raises(ValueError):
+            lm_fit(expr, design)

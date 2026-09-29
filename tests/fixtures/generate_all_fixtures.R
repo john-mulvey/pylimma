@@ -2772,3 +2772,106 @@ stopifnot(all(.f$weights == 1))
 .lf_case("all_na", rep(NA_real_, 5), 1:5, rep(1, 5))
 
 cat("  weightedLowess / loessFit branch fixtures complete.\n")
+
+# =============================================================================
+# qr() / dqrdc2 column pivoting and lm.series genewise branches
+# =============================================================================
+cat("\nGenerating dqrdc2 / lm.series branch fixtures...\n")
+
+set.seed(20261001)
+
+# qr(): pivot, rank and nonEstimable for matrices that force each dqrdc2 path
+.qr_base <- cbind(1, rep(0:1, each = 4), rnorm(8))
+.qr_near <- function(eps) cbind(.qr_base[, 1:2], .qr_base[, 2] + eps * rnorm(8), rnorm(8))
+.qr_cases <- list(
+  # Large-scale covariate: tol is relative to each column's own norm
+  scaled_covariate = cbind(.qr_base[, 1:2], runif(8, 1.5e8, 2.5e8)),
+  # Fewer rows than columns
+  wide = matrix(rnorm(6), 2, 3),
+  # A zero column ahead of estimable columns is cycled to the end
+  zero_column_first = cbind(0, .qr_base),
+  # An earlier column collinear with an even earlier one
+  collinear_middle = cbind(.qr_base[, 1], 2 * .qr_base[, 1], .qr_base[, 2:3]),
+  # Near-collinear columns either side of tol = 1e-7 (also forces the
+  # reduced-norm recomputation branch)
+  near_tol_dropped = .qr_near(1e-9),
+  near_tol_kept = .qr_near(1e-5),
+  all_zero = matrix(0, 5, 3),
+  single_row = matrix(c(2, 0, 3), 1, 3)
+)
+.qr_long <- do.call(rbind, lapply(names(.qr_cases), function(nm) {
+  m <- .qr_cases[[nm]]
+  data.frame(case = nm, row = as.vector(row(m)), col = as.vector(col(m)), value = as.vector(m))
+}))
+write.csv(.qr_long, "R_qr_inputs.csv", row.names = FALSE)
+.qr_out <- do.call(rbind, lapply(names(.qr_cases), function(nm) {
+  q <- qr(.qr_cases[[nm]])
+  ne <- nonEstimable(.qr_cases[[nm]])
+  data.frame(case = nm, rank = q$rank, pivot = paste(q$pivot, collapse = ";"),
+             non_estimable = if (is.null(ne)) "" else paste(ne, collapse = ";"))
+}))
+stopifnot(.qr_out$rank[.qr_out$case == "near_tol_dropped"] == 3,
+          .qr_out$rank[.qr_out$case == "near_tol_kept"] == 4,
+          .qr_out$rank[.qr_out$case == "all_zero"] == 0)
+write.csv(.qr_out, "R_qr_outputs.csv", row.names = FALSE)
+
+# lmFit: genewise fits that exercise the same pivoting inside lm.fit/lm.wfit
+.lsq_write <- function(case, expr, design, fit, weights = NULL) {
+  write.csv(expr, sprintf("R_lsq_%s_expr.csv", case), row.names = FALSE)
+  write.csv(design, sprintf("R_lsq_%s_design.csv", case), row.names = FALSE)
+  if (!is.null(weights)) write.csv(weights, sprintf("R_lsq_%s_weights.csv", case), row.names = FALSE)
+  nb <- ncol(design)
+  out <- data.frame(sigma = fit$sigma, df_residual = fit$df.residual)
+  for (j in seq_len(nb)) {
+    out[[paste0("coef_", j)]] <- fit$coefficients[, j]
+    out[[paste0("stdev_", j)]] <- fit$stdev.unscaled[, j]
+  }
+  write.csv(out, sprintf("R_lsq_%s.csv", case), row.names = FALSE)
+}
+
+# Fast path: large-scale covariate
+.lsq_design_scaled <- unname(.qr_cases$scaled_covariate)
+.lsq_expr <- matrix(rnorm(20 * 8), 20, 8)
+.f <- lmFit(.lsq_expr, .lsq_design_scaled)
+stopifnot(!anyNA(.f$coefficients))
+.lsq_write("scaled_covariate", .lsq_expr, .lsq_design_scaled, .f)
+
+# Fast path: as many coefficients as samples -> df.residual = 0, sigma NA
+.lsq_design_sat <- cbind(1, c(0, 1, 0), c(0, 0, 1))
+.lsq_expr_sat <- matrix(rnorm(10 * 3), 10, 3)
+.f <- lmFit(.lsq_expr_sat, .lsq_design_sat)
+stopifnot(all(.f$df.residual == 0), all(is.na(.f$sigma)))
+.lsq_write("saturated", .lsq_expr_sat, .lsq_design_sat, .f)
+
+# Slow path: missing values giving n < p, a missing group and all-missing
+.lsq_design3 <- cbind(1, rep(c(0, 1, 0), each = 3), rep(c(0, 0, 1), each = 3))
+.lsq_expr3 <- matrix(rnorm(30 * 9), 30, 9)
+.lsq_expr3[runif(length(.lsq_expr3)) < 0.1] <- NA
+.lsq_expr3[1, ] <- c(1.2, rep(NA, 8))             # one observation
+.lsq_expr3[2, ] <- c(NA, NA, NA, 0.4, NA, NA, 1.1, NA, NA)  # two obs, one per non-baseline group
+.lsq_expr3[3, 4:6] <- NA                          # group 2 absent: zero column in subset
+.lsq_expr3[4, ] <- NA                             # nothing observed
+.f <- lmFit(.lsq_expr3, .lsq_design3)
+stopifnot(.f$df.residual[1] == 0, .f$df.residual[4] == 0, is.na(.f$coefficients[3, 2]))
+.lsq_write("missing", .lsq_expr3, .lsq_design3, .f)
+
+# Slow path with probe weights: zero/negative weights become missing
+.lsq_w <- matrix(runif(30 * 9, 0.2, 2), 30, 9)
+.lsq_w[1:3, 1:2] <- 0
+.lsq_w[5, 7:9] <- -1
+.f <- lmFit(.lsq_expr3, .lsq_design3, weights = .lsq_w)
+.lsq_write("weighted", .lsq_expr3, .lsq_design3, .f, weights = .lsq_w)
+
+# Slow path, rank 0: the only observed rows of the design are zero.
+# R's lm.series stops (chol2inv with size = 0); record the error.
+.lsq_design_r0 <- cbind(c(0, 0, 0, 0, 1, 2, 3, 4))
+.lsq_expr_r0 <- matrix(rnorm(5 * 8), 5, 8)
+.lsq_expr_r0[1, 5:8] <- NA
+write.csv(.lsq_expr_r0, "R_lsq_rank_zero_expr.csv", row.names = FALSE)
+write.csv(.lsq_design_r0, "R_lsq_rank_zero_design.csv", row.names = FALSE)
+.lsq_r0_error <- tryCatch({ lmFit(.lsq_expr_r0, .lsq_design_r0); NA_character_ },
+                          error = function(e) conditionMessage(e))
+stopifnot(!is.na(.lsq_r0_error))
+write.csv(data.frame(r_error = .lsq_r0_error), "R_lsq_rank_zero_error.csv", row.names = FALSE)
+
+cat("  dqrdc2 / lm.series branch fixtures complete.\n")

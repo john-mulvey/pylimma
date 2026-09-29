@@ -10,6 +10,11 @@
 # the R MASS package (which limma's mrlm calls per gene):
 #   MASS::rlm                  Copyright (C) Brian Ripley, Bill Venables;
 #                              GPL-2 | GPL-3
+#
+# _dqrdc2_pivot() additionally ports the column-pivoting logic of the
+# modified LINPACK QR in base R (which limma's lm.series reaches through
+# lm.fit / lm.wfit / qr):
+#   R src/appl/dqrdc2.f        Copyright (C) R Core Team; GPL-2 | GPL-3
 # Python port: Copyright (C) 2026 John Mulvey
 """
 Linear model fitting for pylimma.
@@ -35,17 +40,79 @@ if TYPE_CHECKING:
     pass
 
 
+def _dqrdc2_pivot(x: np.ndarray, tol: float = 1e-7) -> tuple[np.ndarray, int]:
+    """
+    Column pivoting and rank of R's LINPACK routine ``dqrdc2``.
+
+    Line-by-line port of the executable part of ``src/appl/dqrdc2.f`` in R.
+    Householder reduction proceeds column by column; before column ``l`` is
+    reduced, any column whose reduced norm has fallen below ``tol`` times its
+    own original norm is moved to the right-hand edge. The factorisation
+    itself is discarded - callers refactorise ``x[:, pivot]`` with LAPACK -
+    but it has to be carried out because it drives the reduced norms.
+
+    Returns
+    -------
+    pivot : ndarray of int
+        0-based column order (R's ``jpvt - 1``).
+    rank : int
+        R's ``k``.
+    """
+    x = np.array(x, dtype=np.float64)
+    n, p = x.shape
+    jpvt = np.arange(p)
+    qraux = np.zeros(p)
+    work1 = np.zeros(p)
+    work2 = np.zeros(p)
+    if n > 0:
+        qraux = np.sqrt(np.sum(x * x, axis=0))
+        work1 = qraux.copy()
+        work2 = qraux.copy()
+        work2[work2 == 0.0] = 1.0
+
+    k = p + 1
+    for l in range(min(n, p)):
+        # Cycle negligible columns to the right-hand edge (Fortran uses 1-based l).
+        while not (l + 1 >= k or qraux[l] >= work2[l] * tol):
+            x[:, l:] = np.roll(x[:, l:], -1, axis=1)
+            for arr in (jpvt, qraux, work1, work2):
+                arr[l:] = np.roll(arr[l:], -1)
+            k -= 1
+
+        if l + 1 == n:
+            continue
+        nrmxl = np.sqrt(np.sum(x[l:, l] ** 2))
+        if nrmxl == 0.0:
+            continue
+        if x[l, l] != 0.0:
+            nrmxl = np.copysign(nrmxl, x[l, l])
+        x[l:, l] *= 1.0 / nrmxl
+        x[l, l] = 1.0 + x[l, l]
+        for j in range(l + 1, p):
+            t = -np.dot(x[l:, l], x[l:, j]) / x[l, l]
+            x[l:, j] += t * x[l:, l]
+            if qraux[j] != 0.0:
+                tt = max(1.0 - (abs(x[l, j]) / qraux[j]) ** 2, 0.0)
+                if abs(tt) >= 1e-6:
+                    qraux[j] = qraux[j] * np.sqrt(tt)
+                else:
+                    qraux[j] = np.sqrt(np.sum(x[l + 1 :, j] ** 2))
+                    work1[j] = qraux[j]
+        qraux[l] = x[l, l]
+        x[l, l] = -nrmxl
+
+    return jpvt, min(k - 1, n)
+
+
 def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
     """
     QR decomposition matching R's ``qr(x, LAPACK=FALSE)`` semantics.
 
-    Unlike ``scipy.linalg.qr(pivoting=True)``, which uses LAPACK column-norm
-    pivoting and can reorder columns by magnitude at every step, R's
-    Linpack-based ``qr`` keeps columns in the order supplied and only
-    swaps a column to the end of the active set when its residual norm
-    drops below ``tol`` -- i.e. when it is found collinear with the
-    preceding columns. This makes the "later of two collinear columns is
-    the redundant one" rule deterministic and reproducible.
+    The column order and rank come from :func:`_dqrdc2_pivot`, a port of R's
+    LINPACK ``dqrdc2``: columns keep their supplied order, and a column is
+    moved to the end only when its reduced norm falls below ``tol`` times its
+    own original norm. The numerical factorisation of the reordered matrix
+    is then done by LAPACK.
 
     Parameters
     ----------
@@ -57,44 +124,17 @@ def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
     Returns
     -------
     q, r : ndarray
-        QR factorisation of ``x[:, pivot]`` in economy mode
-        (``q`` is ``(n, p)``, ``r`` is ``(p, p)``).
+        Full-mode QR factorisation of ``x[:, pivot]`` (``q`` is ``(n, n)``,
+        ``r`` is ``(n, p)``).
     pivot : ndarray of int
-        Permutation of column indices. ``pivot[:rank]`` are the
-        original indices of estimable columns in their original order;
-        ``pivot[rank:]`` are the original indices of columns flagged
-        as collinear with an earlier column.
+        Permutation of column indices. ``pivot[:rank]`` are the original
+        indices of estimable columns in their original order;
+        ``pivot[rank:]`` are the columns R flags as non-estimable.
     rank : int
         Number of estimable columns.
     """
     x = np.asarray(x, dtype=np.float64)
-    n, p = x.shape
-    if p == 0:
-        return (np.eye(n), np.zeros((n, 0)), np.zeros(0, dtype=int), 0)
-
-    # Plain (non-pivoted) economy-mode QR on the original column order
-    # so that redundant columns leave |R[i, i]| at zero in their
-    # original slot. Scipy's economic QR returns the n x p R, which
-    # is all we need for the rank check.
-    _, r_probe = linalg.qr(x, mode="economic")
-    diag_abs = np.abs(np.diag(r_probe))
-    scale = diag_abs.max() if diag_abs.size else 0.0
-    threshold = max(tol * scale, tol)
-    estimable = diag_abs > threshold
-
-    if estimable.all():
-        pivot = np.arange(p, dtype=int)
-        # Full-mode QR so q is n x n and q.T @ y includes the
-        # (n - p) residual rows used by downstream sigma computation.
-        q, r = linalg.qr(x, mode="full")
-        return q, r, pivot, p
-
-    est_idx = np.where(estimable)[0]
-    nonest_idx = np.where(~estimable)[0]
-    pivot = np.concatenate([est_idx, nonest_idx]).astype(int)
-    rank = int(est_idx.size)
-    # Redo QR on the reordered matrix so the top-left rank x rank
-    # block of R is non-singular. Full mode ensures q is n x n.
+    pivot, rank = _dqrdc2_pivot(x, tol)
     q, r = linalg.qr(x[:, pivot], mode="full")
     return q, r, pivot, rank
 
@@ -380,7 +420,11 @@ def _lm_series_slow(
             q, r, pivot, rank = _qr_r_style(X)
 
             if rank == 0:
-                continue
+                # R's lm.series stops here: chol2inv(size = 0) is an error.
+                raise ValueError(
+                    f"design has rank 0 over the observed samples of gene {i} "
+                    "(R lmFit: 'size' argument must be a positive integer)"
+                )
 
             qty = q.T @ y_obs
             coef = linalg.solve_triangular(r[:rank, :rank], qty[:rank])
@@ -405,7 +449,11 @@ def _lm_series_slow(
             q, r, pivot, rank = _qr_r_style(X_w)
 
             if rank == 0:
-                continue
+                # R's lm.series stops here: chol2inv(size = 0) is an error.
+                raise ValueError(
+                    f"design has rank 0 over the observed samples of gene {i} "
+                    "(R lmFit: 'size' argument must be a positive integer)"
+                )
 
             qty = q.T @ y_w
             coef = linalg.solve_triangular(r[:rank, :rank], qty[:rank])
