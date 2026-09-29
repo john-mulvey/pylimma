@@ -49,7 +49,7 @@ from scipy import linalg, stats
 
 from .classes import get_eawp
 from .lmfit import non_estimable
-from .squeeze_var import fit_f_dist, squeeze_var
+from .squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_robustly, squeeze_var
 from .utils import (
     _zscore_t_bailey,
     p_adjust,
@@ -308,23 +308,6 @@ def _lm_effects(
 # ---------------------------------------------------------------------------
 
 _SQRT2 = np.sqrt(2.0)
-
-
-def _squeeze_var_with_prior(
-    var: np.ndarray,
-    df: float,
-    var_prior,
-    df_prior,
-) -> np.ndarray:
-    """Port of R limma's ``.squeezeVar``: posterior variance given prior."""
-    var = np.asarray(var, dtype=np.float64)
-    df_prior_arr = np.atleast_1d(df_prior).astype(np.float64)
-    var_prior_arr = np.atleast_1d(var_prior).astype(np.float64)
-    # (df.prior*var.prior + df*var) / (df.prior + df)
-    num = df_prior_arr * var_prior_arr + df * var
-    denom = df_prior_arr + df
-    # Broadcast scalar priors if needed.
-    return num / denom
 
 
 def _roast_effects(
@@ -623,7 +606,7 @@ def _prep_roast_inputs(
     else:
         var_prior_out = var_prior
         df_prior_out = df_prior
-        var_post = _squeeze_var_with_prior(s2, df_residual, var_prior, df_prior)
+        var_post = _squeeze_var_core(s2, np.float64(df_residual), var_prior, df_prior)
 
     return Effects, ngenes, df_residual, var_prior_out, df_prior_out, var_post
 
@@ -915,42 +898,123 @@ def mroast(
 # ---------------------------------------------------------------------------
 
 
+_FRY_EXTRA_ARGS = (
+    "array_weights",
+    "weights",
+    "block",
+    "correlation",
+    "trend_var",
+    "robust",
+    "winsor_tail_p",
+)
+
+
+def _partial_match_kwargs(kwargs: dict, possible: tuple[str, ...]) -> dict:
+    """R's ``pmatch(names(Dots), PossibleArgs)``: exact, then unique prefix.
+
+    Unmatched names are dropped, as R's NA-named list entries are never read.
+    """
+    matched = {}
+    for key, value in kwargs.items():
+        if key in possible:
+            matched[key] = value
+            continue
+        candidates = [name for name in possible if name.startswith(key)]
+        if len(candidates) == 1:
+            matched[candidates[0]] = value
+    return matched
+
+
+def _is_character(values: np.ndarray) -> bool:
+    return values.dtype.kind in ("U", "S", "O")
+
+
+def _normalise_index(index, ngenes: int) -> dict:
+    """R's index handling at the top of ``.fryEffects``."""
+    if index is None:
+        return {"set1": np.arange(ngenes)}
+    if isinstance(index, pd.DataFrame) or not isinstance(index, (dict, list)):
+        index = {"set1": index}
+    elif isinstance(index, list) and not (
+        index and all(hasattr(s, "__len__") and not isinstance(s, str) for s in index)
+    ):
+        # A flat list is a single set (R: !is.list(index)).
+        index = {"set1": index}
+    nsets = len(index)
+    if nsets == 0:
+        raise ValueError("index is empty")
+    if isinstance(index, list):
+        width = 1 + int(np.floor(np.log10(nsets)))
+        index = {f"set{str(i + 1).zfill(width)}": s for i, s in enumerate(index)}
+    return index
+
+
 def _fry_effects(
     effects: np.ndarray,
-    index: dict,
-    geneid,
-    gene_weights,
-    sort,
+    index,
+    geneid=None,
+    gene_weights=None,
+    sort="directional",
 ) -> pd.DataFrame:
+    """Port of R limma's ``.fryEffects``."""
     G = effects.shape[0]
-    neffects = effects.shape[1]
-    df_residual = neffects - 1
+    df_residual = effects.shape[1] - 1
 
+    index = _normalise_index(index, G)
     names = list(index.keys())
     nsets = len(names)
-    if len(set(names)) != len(names):
+    if len(set(names)) != nsets:
         raise ValueError("Gene sets don't have unique names")
+    geneid_arr = None if geneid is None else np.asarray(geneid).astype(str)
 
     NGenes = np.zeros(nsets, dtype=np.int64)
     PValue_Mixed = np.zeros(nsets)
     t_stat = np.zeros(nsets)
 
     for i, nm in enumerate(names):
-        iset = _resolve_set_index(index[nm], G)
-        EffectsSet = effects[iset, :].copy()
-        if gene_weights is not None:
-            iw = gene_weights[iset]
-            EffectsSet = iw[:, np.newaxis] * EffectsSet
+        iset = index[nm]
+        if isinstance(iset, pd.DataFrame):
+            if iset.shape[1] > 1 and pd.api.types.is_numeric_dtype(iset.iloc[:, 1]):
+                iw = iset.iloc[:, 1].to_numpy(dtype=np.float64)
+                ids = np.asarray(iset.iloc[:, 0])
+                if isinstance(iset.iloc[:, 0].dtype, pd.CategoricalDtype):
+                    ids = ids.astype(str)
+                if _is_character(ids):
+                    ids = ids.astype(str)
+                    if len(set(ids)) != len(ids):
+                        raise ValueError(f"Duplicate gene ids in set {i + 1}")
+                    position = {gid: k for k, gid in enumerate(ids)}
+                    matches = [(g, position[gid]) for g, gid in enumerate(geneid_arr) if gid in position]
+                    inset = np.array([g for g, _ in matches], dtype=np.int64)
+                    iw = iw[[k for _, k in matches]]
+                    EffectsSet = effects[inset, :]
+                else:
+                    EffectsSet = effects[ids.astype(np.int64), :]
+                EffectsSet = iw[:, np.newaxis] * EffectsSet
+            else:
+                raise ValueError(f"index {i + 1} is a data.frame but doesn't contain gene weights")
+        else:
+            members = np.atleast_1d(np.asarray(iset))
+            if isinstance(iset, pd.Categorical) or _is_character(members):
+                keep = set(members.astype(str))
+                members = (
+                    np.zeros(0, dtype=np.int64)
+                    if geneid_arr is None
+                    else np.flatnonzero([gid in keep for gid in geneid_arr])
+                )
+            else:
+                members = _resolve_set_index(members, G)
+            EffectsSet = effects[members, :]
+            if gene_weights is not None:
+                EffectsSet = gene_weights[members][:, np.newaxis] * EffectsSet
+
         MeanEffectsSet = np.mean(EffectsSet, axis=0)
-        denom = np.sqrt(np.mean(MeanEffectsSet[1:] ** 2))
-        t_stat[i] = MeanEffectsSet[0] / denom if denom > 0 else np.nan
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t_stat[i] = MeanEffectsSet[0] / np.sqrt(np.mean(MeanEffectsSet[1:] ** 2))
         NGenes[i] = EffectsSet.shape[0]
 
         if NGenes[i] > 1:
-            # SVD of EffectsSet; we need the singular values only.
-            # R: SVD <- svd(EffectsSet, nu=0); A <- SVD$d^2
-            sv = np.linalg.svd(EffectsSet, compute_uv=False)
-            A = sv**2
+            A = np.linalg.svd(EffectsSet, compute_uv=False) ** 2
             d1 = A.size
             d = d1 - 1
             beta_mean = 1.0 / d1
@@ -962,38 +1026,23 @@ def _fry_effects(
             Frb_var = float(A @ COV @ A) / (A[0] - A[-1]) ** 2
             alphaplusbeta = Frb_mean * (1.0 - Frb_mean) / Frb_var - 1.0
             alpha = alphaplusbeta * Frb_mean
-            beta_param = alphaplusbeta - alpha
-            PValue_Mixed[i] = stats.beta.sf(Fobs, alpha, beta_param)
+            PValue_Mixed[i] = stats.beta.sf(Fobs, alpha, alphaplusbeta - alpha)
 
     Direction = np.where(t_stat < 0, "Down", "Up")
     PValue = 2.0 * stats.t.cdf(-np.abs(t_stat), df=df_residual)
     singleton = NGenes == 1
     PValue_Mixed[singleton] = PValue[singleton]
 
+    columns = {"n_genes": NGenes, "direction": Direction, "p_value": PValue}
     if nsets > 1:
-        tab = pd.DataFrame(
-            {
-                "n_genes": NGenes,
-                "direction": Direction,
-                "p_value": PValue,
-                "fdr": p_adjust(PValue, method="BH"),
-                "p_value_mixed": PValue_Mixed,
-                "fdr_mixed": p_adjust(PValue_Mixed, method="BH"),
-            },
-            index=names,
-        )
+        columns["fdr"] = p_adjust(PValue, method="BH")
+        columns["p_value_mixed"] = PValue_Mixed
+        columns["fdr_mixed"] = p_adjust(PValue_Mixed, method="BH")
     else:
-        tab = pd.DataFrame(
-            {
-                "n_genes": NGenes,
-                "direction": Direction,
-                "p_value": PValue,
-                "p_value_mixed": PValue_Mixed,
-            },
-            index=names,
-        )
+        columns["p_value_mixed"] = PValue_Mixed
+    tab = pd.DataFrame(columns, index=names)
 
-    if isinstance(sort, bool):
+    if isinstance(sort, (bool, np.bool_)):
         sort = "directional" if sort else "none"
     if sort not in ("directional", "mixed", "none"):
         raise ValueError(f"sort '{sort}' not recognized. Must be 'directional', 'mixed' or 'none'.")
@@ -1015,105 +1064,117 @@ def fry(
     gene_weights: np.ndarray | None = None,
     standardize: str = "posterior.sd",
     sort="directional",
-    **lmfit_kwargs,
+    **kwargs,
 ) -> pd.DataFrame:
     """
     Fast closed-form limit of ``roast`` (``nrot -> Inf`` with ``df.prior=Inf``).
 
     Port of R limma's ``fry.default``.
+
+    Parameters
+    ----------
+    y : ndarray, DataFrame, EList or AnnData
+        Expression data (genes x samples).
+    index : dict, list, array_like or DataFrame, optional
+        Gene sets. Each set is 0-based integer positions, gene ids matched
+        against ``geneid``, or a DataFrame whose first column is ids or
+        positions and whose second (numeric) column is gene weights.
+        Unnamed lists of sets are named ``set1``, ``set2``, ... (zero-padded
+        as in R). None tests all genes as one set.
+    design, contrast :
+        Design matrix and contrast (last column by default).
+    geneid : str or array_like, optional
+        Gene ids for matching character sets: a column name of the gene
+        annotation, or a vector of length nrow(y). Default: the row names
+        of ``y``.
+    gene_weights : array_like, optional
+        Weights for each gene, applied to non-DataFrame sets.
+    standardize : {"posterior.sd", "residual.sd", "p2", "none"}
+    sort : {"directional", "mixed", "none"} or bool
+    **kwargs
+        R's ``...`` arguments, partially matched as in R: ``array_weights``,
+        ``weights``, ``block``, ``correlation``, ``trend_var``, ``robust``,
+        ``winsor_tail_p``.
     """
+    ea = get_eawp(y)
+    ngenes = ea["exprs"].shape[0]
     if gene_weights is not None:
-        gw = np.asarray(gene_weights, dtype=np.float64)
-        ea = get_eawp(y)
-        if gw.size != ea["exprs"].shape[0]:
+        gene_weights = np.asarray(gene_weights)
+        if gene_weights.size != ngenes:
             raise ValueError("length of gene.weights should equal nrow(y)")
-    else:
-        gw = None
+        if not np.issubdtype(gene_weights.dtype, np.number):
+            raise ValueError("gene.weights should be numeric")
+        gene_weights = gene_weights.astype(np.float64)
+
+    extra = _partial_match_kwargs(kwargs, _FRY_EXTRA_ARGS)
+    trend = bool(extra.get("trend_var", False))
+    robust = bool(extra.get("robust", False))
+    winsor_tail_p = extra.get("winsor_tail_p", (0.05, 0.1))
+    if extra.get("block") is not None and extra.get("correlation") is None:
+        raise ValueError("Intra-block correlation must be specified")
+
+    covariate = np.mean(np.asarray(ea["exprs"], dtype=np.float64), axis=1) if trend else None
+
+    Effects = _lm_effects(
+        y,
+        design=design,
+        contrast=contrast,
+        array_weights=extra.get("array_weights"),
+        weights=extra.get("weights"),
+        block=extra.get("block"),
+        correlation=extra.get("correlation"),
+    )
 
     if standardize not in ("none", "residual.sd", "posterior.sd", "p2"):
         raise ValueError(
             f"standardize '{standardize}' not recognized. "
             "Must be 'none', 'residual.sd', 'posterior.sd' or 'p2'."
         )
-
-    covariate = None
-    if lmfit_kwargs.get("trend", False):
-        covariate = np.mean(np.asarray(get_eawp(y)["exprs"]), axis=1)
-
-    Effects = _lm_effects(
-        y,
-        design=design,
-        contrast=contrast,
-        array_weights=lmfit_kwargs.get("array_weights"),
-        weights=lmfit_kwargs.get("weights"),
-        block=lmfit_kwargs.get("block"),
-        correlation=lmfit_kwargs.get("correlation"),
-    )
-    G = Effects.shape[0]
-    df_residual = Effects.shape[1] - 1
-
     if standardize != "none":
-        # Gauss-Legendre 128 nodes on [0,1]; Eu2max in R uses "uniform" dist.
+        # gauss.quad.prob(128, "uniform"): Gauss-Legendre nodes on [0, 1]
+        df_residual = Effects.shape[1] - 1
         gq_nodes, gq_wts = np.polynomial.legendre.leggauss(128)
         gq_nodes = (gq_nodes + 1) / 2.0
         gq_wts = gq_wts / 2.0
         Eu2max = float(
-            np.sum(
-                (df_residual + 1) * gq_nodes**df_residual * stats.chi2.ppf(gq_nodes, df=1) * gq_wts
-            )
+            np.sum((df_residual + 1) * gq_nodes**df_residual * stats.chi2.ppf(gq_nodes, df=1) * gq_wts)
         )
         u2max = np.max(Effects**2, axis=1)
         s2_robust = (np.sum(Effects**2, axis=1) - u2max) / (df_residual + 1 - Eu2max)
 
         if standardize == "p2":
-            sv = squeeze_var(
+            s2_robust = squeeze_var(
                 s2_robust,
                 df=0.92 * df_residual,
                 covariate=covariate,
-                robust=lmfit_kwargs.get("robust", False),
-                winsor_tail_p=lmfit_kwargs.get("winsor_tail_p", (0.05, 0.1)),
-            )
-            s2_robust = sv["var_post"]
+                robust=robust,
+                winsor_tail_p=winsor_tail_p,
+            )["var_post"]
         elif standardize == "posterior.sd":
             s2 = np.mean(Effects[:, 1:] ** 2, axis=1)
-            if lmfit_kwargs.get("robust", False):
-                # fitFDistRobustly path - use squeeze_var with robust=True and
-                # lift out the prior var / df it estimates.
-                sv = squeeze_var(
-                    s2,
-                    df=df_residual,
-                    covariate=covariate,
-                    robust=True,
-                    winsor_tail_p=lmfit_kwargs.get("winsor_tail_p", (0.05, 0.1)),
-                )
-                df_prior = sv["df_prior"]
-                var_prior = sv["var_prior"]
+            if robust:
+                prior = fit_f_dist_robustly(s2, df1=df_residual, covariate=covariate, winsor_tail_p=winsor_tail_p)
+                df_prior = prior["df2_shrunk"]
             else:
-                fit = fit_f_dist(s2, df1=df_residual, covariate=covariate)
-                df_prior = fit["df2"]
-                var_prior = fit["scale"]
-            s2_robust = _squeeze_var_with_prior(
-                s2_robust, df=0.92 * df_residual, var_prior=var_prior, df_prior=df_prior
+                prior = fit_f_dist(s2, df1=df_residual, covariate=covariate)
+                df_prior = prior["df2"]
+            s2_robust = _squeeze_var_core(
+                s2_robust, df=np.float64(0.92 * df_residual), var_prior=prior["scale"], df_prior=df_prior
             )
-        # "residual.sd": use s2_robust as-is
 
         Effects = Effects / np.sqrt(s2_robust)[:, np.newaxis]
 
-    # Normalise index
-    if index is None:
-        index = {"set1": np.arange(G, dtype=np.int64)}
-    elif isinstance(index, dict):
-        pass
-    elif (
-        isinstance(index, list)
-        and len(index)
-        and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
-    ):
-        index = {f"set{i + 1}": v for i, v in enumerate(index)}
+    probes = ea.get("probes")
+    if geneid is None:
+        geneid = None if probes is None else np.asarray(probes.index).astype(str)
     else:
-        index = {"set1": index}
+        geneid = np.atleast_1d(np.asarray(geneid)).astype(str)
+        if geneid.size == 1:
+            geneid = np.asarray(probes[geneid[0]]).astype(str)
+        elif geneid.size != ngenes:
+            raise ValueError("geneid vector should be of length nrow(y)")
 
-    return _fry_effects(Effects, index, geneid=geneid, gene_weights=gw, sort=sort)
+    return _fry_effects(Effects, index, geneid=geneid, gene_weights=gene_weights, sort=sort)
 
 
 # ---------------------------------------------------------------------------

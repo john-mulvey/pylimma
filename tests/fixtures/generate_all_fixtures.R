@@ -3033,3 +3033,143 @@ for (.trend in c(FALSE, TRUE)) {
 }
 
 cat("  fitFDistUnequalDF1 branch fixtures complete.\n")
+
+# =============================================================================
+# fry / .fryEffects: branch-forcing fixtures
+# =============================================================================
+cat("\nGenerating fry branch fixtures...\n")
+
+set.seed(20261002)
+
+.fry_n <- 200
+.fry_ids <- sprintf("gene%03d", seq_len(.fry_n))
+.fry_expr <- matrix(rnorm(.fry_n * 8), .fry_n, 8, dimnames = list(.fry_ids, NULL))
+.fry_expr[1:15, 5:8] <- .fry_expr[1:15, 5:8] + 1
+.fry_expr[30:45, 5:8] <- .fry_expr[30:45, 5:8] - 0.7
+.fry_expr[100:105, ] <- .fry_expr[100:105, ] * 4          # high-variance genes
+.fry_design <- cbind(1, rep(0:1, each = 4))
+.fry_symbols <- sprintf("SYM%03d", seq_len(.fry_n))
+write.csv(data.frame(id = .fry_ids, symbol = .fry_symbols, .fry_expr, check.names = FALSE),
+          "R_fry_expr.csv", row.names = FALSE)
+
+# Equal residual variances for every gene (sign flips of one vector with
+# values permuted within groups), so fitFDist gives df2 = Inf
+.fry_base <- rnorm(8)
+.fry_expr_null <- t(sapply(seq_len(.fry_n), function(g)
+  sample(c(-1, 1), 1) * c(sample(.fry_base[1:4]), sample(.fry_base[5:8]))))
+dimnames(.fry_expr_null) <- list(.fry_ids, NULL)
+write.csv(data.frame(id = .fry_ids, .fry_expr_null, check.names = FALSE),
+          "R_fry_expr_null.csv", row.names = FALSE)
+
+.fry_sets <- list(up = 1:15, down = 30:45, mixed = c(1:5, 30:35), noise = 150:170)
+
+# Gene sets in long form: case, set, member (1-based index or gene id), weight
+.fry_set_rows <- list()
+.fry_add_sets <- function(case, index) {
+  rows <- lapply(seq_along(index), function(i) {
+    s <- index[[i]]
+    nm <- if (is.null(names(index))) NA_character_ else names(index)[i]
+    if (is.data.frame(s)) {
+      data.frame(case = case, set_number = i, set = nm, member = as.character(s[, 1]), weight = s[, 2])
+    } else {
+      data.frame(case = case, set_number = i, set = nm, member = as.character(s), weight = NA_real_)
+    }
+  })
+  .fry_set_rows[[case]] <<- do.call(rbind, rows)
+}
+.fry_tab_write <- function(case, tab) {
+  write.csv(data.frame(set = rownames(tab), tab, check.names = FALSE),
+            sprintf("R_fry_%s.csv", case), row.names = FALSE)
+}
+.fry_case <- function(case, index, y = .fry_expr, ...) {
+  if (!is.null(index)) .fry_add_sets(case, index)
+  tab <- fry(y, index = index, design = .fry_design, ...)
+  .fry_tab_write(case, tab)
+  invisible(tab)
+}
+
+# standardize options
+.fry_case("std_none", .fry_sets, standardize = "none", sort = "none")
+.fry_case("std_residual", .fry_sets, standardize = "residual.sd", sort = "none")
+.fry_case("std_p2", .fry_sets, standardize = "p2", sort = "none")
+.fry_case("std_posterior", .fry_sets, standardize = "posterior.sd", sort = "none")
+
+# posterior.sd when the prior df is infinite
+.fry_eff_null <- limma:::.lmEffects(.fry_expr_null, .fry_design)
+stopifnot(is.infinite(fitFDist(rowMeans(.fry_eff_null[, -1]^2), df1 = ncol(.fry_eff_null) - 1)$df2))
+.fry_case("posterior_inf", .fry_sets, y = .fry_expr_null, sort = "none")
+
+# robust hyperparameters: df2.shrunk is genewise
+.fry_eff <- limma:::.lmEffects(.fry_expr, .fry_design)
+.fry_rob <- fitFDistRobustly(rowMeans(.fry_eff[, -1]^2), df1 = ncol(.fry_eff) - 1)
+stopifnot(length(unique(.fry_rob$df2.shrunk)) > 1)
+.fry_case("posterior_robust", .fry_sets, robust = TRUE, sort = "none")
+.fry_case("p2_robust", .fry_sets, standardize = "p2", robust = TRUE, sort = "none")
+
+# trend.var: covariate = rowMeans(y)
+.fry_case("trend", .fry_sets, trend.var = TRUE, sort = "none")
+
+# NGenes == 1 set, and a single set (no FDR columns)
+.fry_case("singleton", list(single = 7L, up = 1:15), sort = "none")
+.fry_case("one_set", list(up = 1:15), sort = "none")
+
+# index = NULL, and many unnamed sets (zero-padded default names)
+.fry_case("index_null", NULL, sort = "none")
+.fry_unnamed <- lapply(0:11, function(k) (k * 15 + 1):(k * 15 + 12))
+.fry_case("unnamed_many", .fry_unnamed, sort = "none")
+
+# Character ids, weighted data.frame sets (integer and character), gene.weights
+.fry_case("character_ids", list(up = .fry_ids[1:15], down = .fry_ids[30:45]), sort = "none")
+.fry_case("df_weights_int", list(w = data.frame(i = 1:15, w = seq(0.5, 2, length.out = 15)),
+                                  plain = 30:45), sort = "none")
+.fry_case("df_weights_chr", list(w = data.frame(i = .fry_ids[c(3, 1, 2, 30:35)], w = c(2, 1, 1, rep(-1, 6)))),
+          sort = "none")
+.fry_gene_w <- seq(0.5, 1.5, length.out = .fry_n)
+write.csv(data.frame(gene_weights = .fry_gene_w), "R_fry_input_gene_weights.csv", row.names = FALSE)
+.fry_case("gene_weights", .fry_sets, gene.weights = .fry_gene_w, sort = "none")
+
+# geneid as an annotation column and as a vector
+.fry_el <- new("EList", list(E = .fry_expr, genes = data.frame(Symbol = .fry_symbols, row.names = .fry_ids)))
+.fry_case("geneid_column", list(up = .fry_symbols[1:15], down = .fry_symbols[30:45]),
+          y = .fry_el, geneid = "Symbol", sort = "none")
+.fry_case("geneid_vector", list(up = .fry_symbols[1:15], down = .fry_symbols[30:45]),
+          geneid = .fry_symbols, sort = "none")
+
+# sort options
+.fry_case("sort_directional", .fry_sets, sort = "directional")
+.fry_case("sort_mixed", .fry_sets, sort = "mixed")
+.fry_case("sort_true", .fry_sets, sort = TRUE)
+.fry_case("sort_false", .fry_sets, sort = FALSE)
+
+# ... arguments: array weights, observation weights, block, contrast vector
+.fry_aw <- c(1, 0.5, 2, 1, 1.5, 1, 0.8, 1.2)
+.fry_obs_w <- matrix(runif(.fry_n * 8, 0.3, 2), .fry_n, 8)
+write.csv(data.frame(array_weights = .fry_aw), "R_fry_input_array_weights.csv", row.names = FALSE)
+write.csv(.fry_obs_w, "R_fry_input_obs_weights.csv", row.names = FALSE)
+.fry_case("array_weights", .fry_sets, array.weights = .fry_aw, sort = "none")
+.fry_case("obs_weights", .fry_sets, weights = .fry_obs_w, sort = "none")
+.fry_case("block", .fry_sets, block = rep(1:4, 2), correlation = 0.3, sort = "none")
+.fry_case("contrast_vector", .fry_sets, contrast = c(-1, 1), sort = "none")
+
+write.csv(do.call(rbind, .fry_set_rows), "R_fry_sets.csv", row.names = FALSE)
+
+# Errors raised by fry.default / .fryEffects
+.fry_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.fry_errors <- data.frame(
+  case = c("gene_weights_length", "block_without_correlation", "index_empty",
+           "duplicate_set_names", "duplicate_ids_in_df_set", "df_set_without_weights",
+           "geneid_length"),
+  r_error = c(
+    .fry_err(fry(.fry_expr, .fry_sets, .fry_design, gene.weights = 1:3)),
+    .fry_err(fry(.fry_expr, .fry_sets, .fry_design, block = rep(1:4, 2))),
+    .fry_err(fry(.fry_expr, list(), .fry_design)),
+    .fry_err(fry(.fry_expr, list(a = 1:5, a = 6:10), .fry_design)),
+    .fry_err(fry(.fry_expr, list(w = data.frame(i = .fry_ids[c(1, 1)], w = c(1, 2))), .fry_design)),
+    .fry_err(fry(.fry_expr, list(w = data.frame(i = 1:5)), .fry_design)),
+    .fry_err(fry(.fry_expr, .fry_sets, .fry_design, geneid = .fry_symbols[1:10]))
+  )
+)
+stopifnot(!anyNA(.fry_errors$r_error))
+write.csv(.fry_errors, "R_fry_errors.csv", row.names = FALSE)
+
+cat("  fry branch fixtures complete.\n")

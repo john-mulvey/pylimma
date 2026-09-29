@@ -5474,3 +5474,152 @@ class TestFitFDistUnequalDF1BranchParity:
         np.testing.assert_allclose(np.broadcast_to(fit["df_prior"], len(r)), r["df_prior"], rtol=1e-6)
         np.testing.assert_allclose(np.broadcast_to(fit["s2_prior"], len(r)), r["s2_prior"], rtol=1e-6)
         np.testing.assert_allclose(fit["df_total"], r["df_total"], rtol=1e-6)
+
+
+# =============================================================================
+# fry / .fryEffects: branch-forcing parity
+# =============================================================================
+
+
+def _fry_expr(name: str = "fry_expr") -> pd.DataFrame:
+    frame = load_r_csv_no_index(name).set_index("id")
+    return frame.drop(columns=[c for c in ("symbol",) if c in frame.columns])
+
+
+def _fry_sets(case: str):
+    """Rebuild the gene sets R used for ``case`` (1-based indices -> 0-based)."""
+    rows = load_r_csv_no_index("fry_sets")
+    rows = rows[rows["case"] == case]
+
+    def members(values: pd.Series):
+        numeric = pd.to_numeric(values, errors="coerce")
+        return (numeric.astype(int) - 1).tolist() if numeric.notna().all() else values.astype(str).tolist()
+
+    sets = []
+    for (_, name), block in rows.groupby([rows["set_number"], rows["set"].fillna("")], sort=False):
+        if block["weight"].notna().any():
+            ids = members(block["member"])
+            sets.append((name, pd.DataFrame({"id": ids, "weight": block["weight"].to_numpy()})))
+        else:
+            sets.append((name, members(block["member"])))
+    if rows["set"].isna().all():
+        return [s for _, s in sets]
+    return dict(sets)
+
+
+class TestFryBranchParity:
+    """Each fixture forces a distinct branch of R's fry.default / .fryEffects."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+
+    @classmethod
+    def _case_call(cls, case: str):
+        expr = _fry_expr()
+        kwargs = {"sort": "none"}
+        if case.startswith("std_"):
+            kwargs["standardize"] = {
+                "std_none": "none", "std_residual": "residual.sd",
+                "std_p2": "p2", "std_posterior": "posterior.sd",
+            }[case]
+        elif case == "posterior_inf":
+            expr = _fry_expr("fry_expr_null")
+        elif case == "posterior_robust":
+            kwargs["robust"] = True
+        elif case == "p2_robust":
+            kwargs.update(standardize="p2", robust=True)
+        elif case == "trend":
+            kwargs["trend_var"] = True
+        elif case == "gene_weights":
+            kwargs["gene_weights"] = load_r_csv_no_index("fry_input_gene_weights")["gene_weights"].to_numpy()
+        elif case == "geneid_column":
+            symbols = load_r_csv_no_index("fry_expr").set_index("id")["symbol"]
+            expr = EList({"E": expr.to_numpy(), "genes": pd.DataFrame({"Symbol": symbols})})
+            kwargs["geneid"] = "Symbol"
+        elif case == "geneid_vector":
+            kwargs["geneid"] = load_r_csv_no_index("fry_expr")["symbol"].to_numpy()
+        elif case.startswith("sort_"):
+            kwargs["sort"] = {
+                "sort_directional": "directional", "sort_mixed": "mixed",
+                "sort_true": True, "sort_false": False,
+            }[case]
+        elif case == "array_weights":
+            kwargs["array_weights"] = load_r_csv_no_index("fry_input_array_weights")["array_weights"].to_numpy()
+        elif case == "obs_weights":
+            kwargs["weights"] = load_r_csv_no_index("fry_input_obs_weights").to_numpy(dtype=float)
+        elif case == "block":
+            kwargs.update(block=np.tile(np.arange(1, 5), 2), correlation=0.3)
+        elif case == "contrast_vector":
+            kwargs["contrast"] = np.array([-1.0, 1.0])
+        index = None if case == "index_null" else _fry_sets(case)
+        return expr, index, kwargs
+
+    @staticmethod
+    def _assert_branch_taken(case: str, r: pd.DataFrame) -> None:
+        if case == "posterior_inf":
+            null = _fry_expr("fry_expr_null").to_numpy()
+            within = np.concatenate([null[:, :4] - null[:, :4].mean(1, keepdims=True),
+                                     null[:, 4:] - null[:, 4:].mean(1, keepdims=True)], axis=1)
+            ss = np.sum(within**2, axis=1)
+            assert np.allclose(ss, ss[0])  # equal residual variances -> df2 = Inf
+        if case == "singleton":
+            assert (r["NGenes"] == 1).any()
+        if case == "one_set":
+            assert "FDR" not in r.columns
+        if case == "unnamed_many":
+            assert list(r["set"]) == [f"set{i:02d}" for i in range(1, 13)]
+
+    CASES = [
+        "std_none", "std_residual", "std_p2", "std_posterior", "posterior_inf",
+        "posterior_robust", "p2_robust", "trend", "singleton", "one_set",
+        "index_null", "unnamed_many", "character_ids", "df_weights_int",
+        "df_weights_chr", "gene_weights", "geneid_column", "geneid_vector",
+        "sort_directional", "sort_mixed", "sort_true", "sort_false",
+        "array_weights", "obs_weights", "block", "contrast_vector",
+    ]
+
+    @pytest.mark.parametrize("case", CASES)
+    def test_matches_r(self, case):
+        from pylimma import fry
+
+        r = load_r_csv_no_index(f"fry_{case}")
+        self._assert_branch_taken(case, r)
+        expr, index, kwargs = self._case_call(case)
+        tab = fry(expr, index, self.DESIGN, **kwargs)
+
+        assert list(tab.index) == list(r["set"])
+        np.testing.assert_array_equal(tab["n_genes"], r["NGenes"])
+        np.testing.assert_array_equal(tab["direction"], r["Direction"])
+        _assert_log10_pvalues_close(r["PValue"], tab["p_value"])
+        _assert_log10_pvalues_close(r["PValue.Mixed"], tab["p_value_mixed"])
+        assert ("fdr" in tab.columns) == ("FDR" in r.columns)
+        if "FDR" in r.columns:
+            _assert_log10_pvalues_close(r["FDR"], tab["fdr"])
+            _assert_log10_pvalues_close(r["FDR.Mixed"], tab["fdr_mixed"])
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "gene_weights_length", "block_without_correlation", "index_empty",
+            "duplicate_set_names", "duplicate_ids_in_df_set", "df_set_without_weights",
+            "geneid_length",
+        ],
+    )
+    def test_errors_match_r(self, case):
+        from pylimma import fry
+
+        assert isinstance(load_r_csv_no_index("fry_errors").set_index("case")["r_error"][case], str)
+        expr = _fry_expr()
+        sets = {"up": list(range(15)), "down": list(range(29, 45))}
+        call = {
+            "gene_weights_length": lambda: fry(expr, sets, self.DESIGN, gene_weights=[1.0, 2.0, 3.0]),
+            "block_without_correlation": lambda: fry(expr, sets, self.DESIGN, block=np.tile(np.arange(4), 2)),
+            "index_empty": lambda: fry(expr, {}, self.DESIGN),
+            "duplicate_set_names": lambda: fry(expr, [("a", [0]), ("a", [1])], self.DESIGN),
+            "duplicate_ids_in_df_set": lambda: fry(
+                expr, {"w": pd.DataFrame({"id": ["gene001", "gene001"], "w": [1.0, 2.0]})}, self.DESIGN
+            ),
+            "df_set_without_weights": lambda: fry(expr, {"w": pd.DataFrame({"id": [0, 1, 2]})}, self.DESIGN),
+            "geneid_length": lambda: fry(expr, sets, self.DESIGN, geneid=[f"SYM{i}" for i in range(10)]),
+        }[case]
+        with pytest.raises(ValueError):
+            call()
