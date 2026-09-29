@@ -3374,3 +3374,41 @@ stopifnot(!anyNA(.tt_errors$r_error))
 write.csv(.tt_errors, "R_tt_errors.csv", row.names = FALSE)
 
 cat("  topTable argument-matching fixtures complete.\n")
+
+# =============================================================================
+# roast / mroast with user-supplied var.prior and df.prior
+# Deterministic outputs only (active proportions); p-values depend on the RNG.
+# =============================================================================
+cat("\nGenerating roast user-prior fixtures...\n")
+
+set.seed(20261005)
+
+.ro_n <- 120
+.ro_expr <- matrix(rnorm(.ro_n * 8), .ro_n, 8)
+.ro_expr[1:12, 5:8] <- .ro_expr[1:12, 5:8] + 1.2
+.ro_expr[30:40, 5:8] <- .ro_expr[30:40, 5:8] - 1
+.ro_design <- cbind(1, rep(0:1, each = 4))
+write.csv(.ro_expr, "R_ro_expr.csv", row.names = FALSE)
+
+.ro_var_prior <- runif(.ro_n, 0.5, 1.5)
+.ro_df_prior <- ifelse(seq_len(.ro_n) %% 3 == 0, Inf, 4)
+write.csv(data.frame(var_prior = .ro_var_prior, df_prior = .ro_df_prior), "R_ro_priors.csv", row.names = FALSE)
+
+.ro_single <- function(case, var_prior, df_prior) {
+  r <- roast(.ro_expr, index = 1:20, design = .ro_design, var.prior = var_prior, df.prior = df_prior, nrot = 99)
+  write.csv(data.frame(direction = rownames(r$p.value), active_prop = r$p.value$Active.Prop),
+            sprintf("R_ro_%s.csv", case), row.names = FALSE)
+  invisible(r)
+}
+.r <- .ro_single("roast_inf", 1, Inf)
+stopifnot(any(.r$p.value$Active.Prop > 0))
+.ro_single("roast_finite", 1, 4)
+
+.ro_sets <- list(a = 1:20, b = 25:45, c = 60:90)
+.ro_m <- mroast(.ro_expr, .ro_sets, .ro_design, var.prior = .ro_var_prior, df.prior = .ro_df_prior,
+                nrot = 99, sort = "none")
+stopifnot(any(.ro_m$PropUp > 0), any(.ro_m$PropDown > 0))
+write.csv(data.frame(set = rownames(.ro_m), NGenes = .ro_m$NGenes, PropDown = .ro_m$PropDown, PropUp = .ro_m$PropUp),
+          "R_ro_mroast_vector_priors.csv", row.names = FALSE)
+
+cat("  roast user-prior fixtures complete.\n")

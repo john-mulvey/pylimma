@@ -5785,3 +5785,41 @@ class TestTopTableArgumentParity:
         assert isinstance(load_r_csv_no_index("tt_errors").set_index("case")["r_error"][case], str)
         with pytest.raises(ValueError):
             top_table(self._fit(), coef="B", **kwargs)
+
+
+# =============================================================================
+# roast / mroast with user-supplied var.prior and df.prior (deterministic parts)
+# =============================================================================
+
+
+class TestRoastUserPriorParity:
+    """Active proportions depend on var.post from .squeezeVar with the user's priors."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+
+    @pytest.mark.parametrize("case, df_prior", [("roast_inf", np.inf), ("roast_finite", 4.0)])
+    def test_roast_matches_r(self, case, df_prior):
+        from pylimma import roast
+
+        r = load_r_csv_no_index(f"ro_{case}")
+        assert (r["active_prop"] > 0).any()
+        expr = load_r_csv_no_index("ro_expr").to_numpy(dtype=float)
+        out = roast(expr, list(range(20)), self.DESIGN, var_prior=1.0, df_prior=df_prior,
+                    nrot=99, rng=np.random.default_rng(1))
+        np.testing.assert_allclose(out["p_value"].loc[r["direction"], "active_prop"], r["active_prop"], rtol=1e-12)
+
+    def test_mroast_vector_priors_matches_r(self):
+        from pylimma import mroast
+
+        r = load_r_csv_no_index("ro_mroast_vector_priors")
+        priors = load_r_csv_no_index("ro_priors")
+        df_prior = priors["df_prior"].to_numpy(dtype=float)
+        assert np.isinf(df_prior).any() and np.isfinite(df_prior).any()  # mixed .squeezeVar branch
+        expr = load_r_csv_no_index("ro_expr").to_numpy(dtype=float)
+        sets = {"a": list(range(0, 20)), "b": list(range(24, 45)), "c": list(range(59, 90))}
+        out = mroast(expr, sets, self.DESIGN, var_prior=priors["var_prior"].to_numpy(), df_prior=df_prior,
+                     nrot=99, rng=np.random.default_rng(1), sort="none")
+        assert list(out.index) == list(r["set"])
+        np.testing.assert_array_equal(out["n_genes"], r["NGenes"])
+        np.testing.assert_allclose(out["prop_down"], r["PropDown"], rtol=1e-12)
+        np.testing.assert_allclose(out["prop_up"], r["PropUp"], rtol=1e-12)
