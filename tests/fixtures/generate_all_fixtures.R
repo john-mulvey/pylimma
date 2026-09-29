@@ -3173,3 +3173,137 @@ stopifnot(!anyNA(.fry_errors$r_error))
 write.csv(.fry_errors, "R_fry_errors.csv", row.names = FALSE)
 
 cat("  fry branch fixtures complete.\n")
+
+# =============================================================================
+# decideTests (MArrayLM and default methods): branch-forcing fixtures
+# =============================================================================
+cat("\nGenerating decideTests branch fixtures...\n")
+
+set.seed(20261003)
+
+.dt_design <- cbind(1, rep(c(0, 1, 0), each = 4), rep(c(0, 0, 1), each = 4))
+.dt_n <- 300
+.dt_expr <- matrix(rnorm(.dt_n * 12), .dt_n, 12)
+.dt_expr[1:30, 5:8] <- .dt_expr[1:30, 5:8] + 1.5
+.dt_expr[20:50, 9:12] <- .dt_expr[20:50, 9:12] - 1.2
+# Genes whose group-2 and group-3 samples are identical: tied |t| for coefs 2, 3
+.dt_expr[51:55, 9:12] <- .dt_expr[51:55, 5:8] <- .dt_expr[51:55, 5:8] + 3
+.dt_expr_na <- .dt_expr
+.dt_expr_na[runif(length(.dt_expr_na)) < 0.1] <- NA
+.dt_expr_na[56, 5:8] <- NA                          # coefficient 2 not estimable
+write.csv(.dt_expr, "R_dt_expr.csv", row.names = FALSE)
+write.csv(.dt_expr_na, "R_dt_expr_na.csv", row.names = FALSE)
+
+# Equal residual variances -> df.prior = Inf, so eBayes caps df.total while
+# .classifyTestsP / classifyTestsF use df.residual + df.prior uncapped
+.dt_base <- rnorm(12)
+.dt_expr_inf <- t(sapply(seq_len(.dt_n), function(g)
+  c(sample(.dt_base[1:4]), sample(.dt_base[5:8]), sample(.dt_base[9:12]))))
+.dt_expr_inf[1:20, 5:8] <- .dt_expr_inf[1:20, 5:8] + 2
+write.csv(.dt_expr_inf, "R_dt_expr_inf.csv", row.names = FALSE)
+
+.dt_fit <- eBayes(lmFit(.dt_expr, .dt_design))
+.dt_fit_na <- eBayes(lmFit(.dt_expr_na, .dt_design))
+.dt_fit_inf <- eBayes(lmFit(.dt_expr_inf, .dt_design))
+stopifnot(anyNA(.dt_fit_na$p.value), anyNA(.dt_fit_na$F.p.value),
+          is.infinite(.dt_fit_inf$df.prior),
+          any(.dt_fit$t[51:55, 2] == .dt_fit$t[51:55, 3]))
+
+.dt_rows <- list()
+.dt_record <- function(case, data, method, adjust, p_value = 0.05, lfc = 0, fn = decideTests, ...) {
+  res <- unclass(fn(get(sprintf(".dt_%s", data)), method = method, adjust.method = adjust,
+                    p.value = p_value, lfc = lfc, ...))
+  write.csv(res, sprintf("R_dt_%s.csv", case), row.names = FALSE)
+  .dt_rows[[case]] <<- data.frame(case = case, data = data, method = method, adjust = adjust,
+                                  p_value = p_value, lfc = lfc)
+}
+
+# MArrayLM: separate / global with every adjust method, NA p-values, lfc
+for (.adj in c("BH", "fdr", "none", "bonferroni", "holm", "BY")) {
+  .dt_record(sprintf("fit_separate_%s", .adj), "fit_na", "separate", .adj)
+}
+.dt_record("fit_global_BH", "fit_na", "global", "BH")
+.dt_record("fit_global_holm", "fit_na", "global", "holm")
+.dt_record("fit_separate_lfc", "fit_na", "separate", "BH", lfc = 0.5)
+# Partial matching of method / adjust.method
+.dt_record("fit_partial_args", "fit_na", "sep", "bonf")
+
+# MArrayLM: hierarchical and nestedF with every adjust method
+for (.adj in c("BH", "none", "bonferroni", "holm", "BY")) {
+  .dt_record(sprintf("fit_hierarchical_%s", .adj), "fit", "hierarchical", .adj)
+  .dt_record(sprintf("fit_nestedF_%s", .adj), "fit", "nestedF", .adj)
+}
+.dt_record("fit_hierarchical_lfc", "fit", "hierarchical", "BH", lfc = 0.5)
+# Uncapped df in .classifyTestsP / classifyTestsF
+.dt_record("fit_inf_hierarchical", "fit_inf", "hierarchical", "BH")
+.dt_record("fit_inf_nestedF", "fit_inf", "nestedF", "BH")
+
+# Few genes, so the pooled df is small: capping df.total at it changes the
+# hierarchical decision, which R makes with the uncapped df
+set.seed(7)
+.dt_base_small <- rnorm(12)
+.dt_expr_inf_small <- t(sapply(1:4, function(g)
+  c(sample(.dt_base_small[1:4]), sample(.dt_base_small[5:8]), sample(.dt_base_small[9:12]))))
+.dt_expr_inf_small[1, 5:8] <- .dt_expr_inf_small[1, 5:8] + 2.9
+write.csv(.dt_expr_inf_small, "R_dt_expr_inf_small.csv", row.names = FALSE)
+.dt_fit_inf_small <- eBayes(lmFit(.dt_expr_inf_small, .dt_design))
+.dt_capped <- .dt_fit_inf_small
+.dt_capped$df.prior <- .dt_fit_inf_small$df.total - .dt_fit_inf_small$df.residual
+stopifnot(is.infinite(.dt_fit_inf_small$df.prior),
+          !identical(unclass(decideTests(.dt_fit_inf_small, method = "hierarchical"))[],
+                     unclass(decideTests(.dt_capped, method = "hierarchical"))[]))
+.dt_record("fit_inf_small_hierarchical", "fit_inf_small", "hierarchical", "BH")
+
+# Automatic eBayes when p.value is absent
+.dt_lmfit <- lmFit(.dt_expr, .dt_design)
+.dt_record("fit_auto_ebayes", "lmfit", "separate", "BH")
+
+# Default method: a matrix of p-values, with coefficients / tstat / none.
+# (decideTests.default stops on NA p-values; see the error cases.)
+.dt_p <- .dt_fit$p.value
+.dt_coef <- .dt_fit$coefficients
+.dt_tstat <- .dt_fit$t
+.dt_gw <- .dt_fit$F.p.value
+write.csv(.dt_p, "R_dt_input_p.csv", row.names = FALSE)
+write.csv(.dt_coef, "R_dt_input_coef.csv", row.names = FALSE)
+write.csv(.dt_tstat, "R_dt_input_tstat.csv", row.names = FALSE)
+write.csv(data.frame(genewise = .dt_gw), "R_dt_input_genewise.csv", row.names = FALSE)
+
+.dt_default <- function(case, method, adjust, ...) {
+  res <- unclass(decideTests(.dt_p, method = method, adjust.method = adjust, ...))
+  attributes(res) <- list(dim = dim(res))
+  write.csv(res, sprintf("R_dt_%s.csv", case), row.names = FALSE)
+}
+.dt_default("p_separate_nocoef", "separate", "BH")
+.dt_default("p_separate_coef_lfc", "separate", "BH", coefficients = .dt_coef, lfc = 0.5)
+.dt_default("p_global_tstat", "global", "holm", tstat = .dt_tstat)
+for (.adj in c("BH", "none", "bonferroni", "holm", "BY")) {
+  .dt_default(sprintf("p_hierarchical_%s", .adj), "hierarchical", .adj, coefficients = .dt_coef)
+}
+.dt_default("p_hierarchical_nocoef", "hierarchical", "BH")
+# Supplied genewise.p.value: R only defines ngenes when it computes Simes
+# p-values itself, so every adjust.method except "none" errors (see errors)
+.dt_default("p_hierarchical_genewise_none", "hierarchical", "none", genewise.p.value = .dt_gw)
+
+write.csv(do.call(rbind, .dt_rows), "R_dt_cases.csv", row.names = FALSE)
+
+# Errors
+.dt_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.dt_errors <- data.frame(
+  case = c("fit_hierarchical_na", "fit_nestedF_na", "fit_bad_method", "p_nestedF", "p_out_of_range",
+           "p_coef_dims", "p_with_na", "p_hierarchical_genewise_bh"),
+  r_error = c(
+    .dt_err(decideTests(.dt_fit_na, method = "hierarchical")),
+    .dt_err(decideTests(.dt_fit_na, method = "nestedF")),
+    .dt_err(decideTests(.dt_fit, method = "bogus")),
+    .dt_err(decideTests(.dt_p, method = "nestedF")),
+    .dt_err(decideTests(.dt_p * 2, method = "separate")),
+    .dt_err(decideTests(.dt_p, coefficients = .dt_coef[, 1:2])),
+    .dt_err(decideTests(.dt_fit_na$p.value)),
+    .dt_err(decideTests(.dt_p, method = "hierarchical", genewise.p.value = .dt_gw))
+  )
+)
+stopifnot(!anyNA(.dt_errors$r_error))
+write.csv(.dt_errors, "R_dt_errors.csv", row.names = FALSE)
+
+cat("  decideTests branch fixtures complete.\n")

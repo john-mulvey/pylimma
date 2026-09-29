@@ -5623,3 +5623,94 @@ class TestFryBranchParity:
         }[case]
         with pytest.raises(ValueError):
             call()
+
+
+# =============================================================================
+# decideTests (MArrayLM and default methods): branch-forcing parity
+# =============================================================================
+
+
+class TestDecideTestsBranchParity:
+    """Each fixture forces a distinct branch of R's decideTests methods."""
+
+    DESIGN = np.column_stack(
+        [np.ones(12), np.repeat([0.0, 1.0, 0.0], 4), np.repeat([0.0, 0.0, 1.0], 4)]
+    )
+
+    @classmethod
+    def _fit(cls, data: str):
+        expr = {
+            "fit": "dt_expr", "fit_na": "dt_expr_na", "fit_inf": "dt_expr_inf",
+            "fit_inf_small": "dt_expr_inf_small", "lmfit": "dt_expr",
+        }[data]
+        fit = lm_fit(load_r_csv_no_index(expr).to_numpy(dtype=float), cls.DESIGN)
+        return fit if data == "lmfit" else e_bayes(fit)
+
+    FIT_CASES = load_r_csv_no_index("dt_cases")["case"].tolist() if (FIXTURES_DIR / "R_dt_cases.csv").exists() else []
+
+    @pytest.mark.parametrize("case", FIT_CASES)
+    def test_fit_matches_r(self, case):
+        spec = load_r_csv_no_index("dt_cases").set_index("case").loc[case]
+        fit = self._fit(spec["data"])
+        if spec["data"] == "fit_na":
+            assert np.isnan(fit["p_value"]).any()
+        if spec["data"] in ("fit_inf", "fit_inf_small"):
+            assert np.all(np.isinf(fit["df_prior"]))
+        if spec["method"] == "nestedF" and spec["data"] == "fit":
+            assert np.any(fit["t"][50:55, 1] == fit["t"][50:55, 2])  # tied |t|
+        results = decide_tests(
+            fit, method=spec["method"], adjust_method=spec["adjust"],
+            p_value=float(spec["p_value"]), lfc=float(spec["lfc"]),
+        )
+        np.testing.assert_array_equal(results, load_r_csv_no_index(f"dt_{case}").to_numpy(dtype=float))
+
+    @pytest.mark.parametrize(
+        "case, method, adjust, extra",
+        [
+            ("p_separate_nocoef", "separate", "BH", {}),
+            ("p_separate_coef_lfc", "separate", "BH", {"coefficients": "coef", "lfc": 0.5}),
+            ("p_global_tstat", "global", "holm", {"tstat": "tstat"}),
+            ("p_hierarchical_BH", "hierarchical", "BH", {"coefficients": "coef"}),
+            ("p_hierarchical_none", "hierarchical", "none", {"coefficients": "coef"}),
+            ("p_hierarchical_bonferroni", "hierarchical", "bonferroni", {"coefficients": "coef"}),
+            ("p_hierarchical_holm", "hierarchical", "holm", {"coefficients": "coef"}),
+            ("p_hierarchical_BY", "hierarchical", "BY", {"coefficients": "coef"}),
+            ("p_hierarchical_nocoef", "hierarchical", "BH", {}),
+            ("p_hierarchical_genewise_none", "hierarchical", "none", {"genewise_p_value": "genewise"}),
+        ],
+    )
+    def test_pvalue_matrix_matches_r(self, case, method, adjust, extra):
+        inputs = {
+            "coef": lambda: load_r_csv_no_index("dt_input_coef").to_numpy(dtype=float),
+            "tstat": lambda: load_r_csv_no_index("dt_input_tstat").to_numpy(dtype=float),
+            "genewise": lambda: load_r_csv_no_index("dt_input_genewise")["genewise"].to_numpy(),
+        }
+        kwargs = {k: (inputs[v]() if isinstance(v, str) else v) for k, v in extra.items()}
+        p = load_r_csv_no_index("dt_input_p").to_numpy(dtype=float)
+        results = decide_tests(p, method=method, adjust_method=adjust, **kwargs)
+        np.testing.assert_array_equal(results, load_r_csv_no_index(f"dt_{case}").to_numpy(dtype=float))
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "fit_hierarchical_na", "fit_nestedF_na", "fit_bad_method", "p_nestedF",
+            "p_out_of_range", "p_coef_dims", "p_with_na", "p_hierarchical_genewise_bh",
+        ],
+    )
+    def test_errors_match_r(self, case):
+        assert isinstance(load_r_csv_no_index("dt_errors").set_index("case")["r_error"][case], str)
+        p = load_r_csv_no_index("dt_input_p").to_numpy(dtype=float)
+        coef = load_r_csv_no_index("dt_input_coef").to_numpy(dtype=float)
+        genewise = load_r_csv_no_index("dt_input_genewise")["genewise"].to_numpy()
+        call = {
+            "fit_hierarchical_na": lambda: decide_tests(self._fit("fit_na"), method="hierarchical"),
+            "fit_nestedF_na": lambda: decide_tests(self._fit("fit_na"), method="nestedF"),
+            "fit_bad_method": lambda: decide_tests(self._fit("fit"), method="bogus"),
+            "p_nestedF": lambda: decide_tests(p, method="nestedF"),
+            "p_out_of_range": lambda: decide_tests(p * 2),
+            "p_coef_dims": lambda: decide_tests(p, coefficients=coef[:, :2]),
+            "p_with_na": lambda: decide_tests(self._fit("fit_na")["p_value"]),
+            "p_hierarchical_genewise_bh": lambda: decide_tests(p, method="hierarchical", genewise_p_value=genewise),
+        }[case]
+        with pytest.raises(ValueError):
+            call()
