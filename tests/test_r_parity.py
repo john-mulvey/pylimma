@@ -4086,157 +4086,94 @@ class TestNormalisationBatchBranchCoverage:
 # =============================================================================
 
 
+def _assert_top_table_matches(tab: pd.DataFrame, r: pd.DataFrame, check_ids: bool = True) -> None:
+    """Compare a single-coefficient top_table with R's topTable, column by column."""
+    if check_ids:
+        assert list(tab.index) == list(r["id"])
+    for r_col in ("logFC", "AveExpr", "t", "B"):
+        if r_col in r.columns:
+            np.testing.assert_allclose(tab[_TT_COLUMNS[r_col]], r[r_col], rtol=1e-6, atol=1e-12)
+    for r_col in ("P.Value", "adj.P.Val"):
+        _assert_log10_pvalues_close(r[r_col], tab[_TT_COLUMNS[r_col]])
+
+
+def _assert_contrast_slots_match(fit: dict, prefix: str) -> None:
+    """Compare coefficients, stdev_unscaled and cov_coefficients with R's contrasts.fit."""
+    for r_slot, py_slot in (("coefficients", "coefficients"), ("stdev_unscaled", "stdev_unscaled"),
+                            ("cov_coefficients", "cov_coefficients")):
+        r = load_r_csv_no_index(f"{prefix}_{r_slot}").to_numpy(dtype=float)
+        np.testing.assert_allclose(np.asarray(fit[py_slot], dtype=float), r, rtol=1e-6, atol=1e-12)
+
+
 # -----------------------------------------------------------------------------
 # Coefficient names, filter boundaries, weights, EList handling and plot_rldf
 # -----------------------------------------------------------------------------
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 class TestTopTableInterceptStripRParity:
     """top_table(coef=None) on a design with an '(Intercept)' column drops the
     intercept, as R's topTable does ('Removing intercept from test
     coefficients'), and returns the single-contrast table."""
 
-    def test_top_table_strips_intercept_on_named_design(self):
-        from .helpers import run_r_comparison
-
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, 8))
-        design_df = pd.DataFrame(
-            {
-                "(Intercept)": 1.0,
-                "groupB": [0] * 4 + [1] * 4,
-            }
-        )
-        fit = lm_fit(X, design=design_df)
-        fit = e_bayes(fit)
-        tt_py = top_table(fit, number=5)
-        py_cols = list(tt_py.columns)
-
-        # R reference: topTable(fit, coef=NULL) on same inputs strips
-        # intercept. Pass design as DataFrame so column names survive the
-        # CSV round-trip; inside R we rename back to (Intercept)/groupB.
-        r_code = """
-        library(limma)
-        X <- as.matrix(read.csv('{tmpdir}/X.csv', row.names=1))
-        design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
-        colnames(design) <- c("(Intercept)", "groupB")
-        fit <- lmFit(X, design)
-        fit <- eBayes(fit)
-        tt <- topTable(fit, number=5)
-        # Emit number of logFC-style columns so we can assert R stripped
-        # to a 1-contrast table (column "logFC"), not kept as F-table.
-        has_logFC <- matrix(as.integer("logFC" %in% colnames(tt)), 1, 1)
-        has_F <- matrix(as.integer("F" %in% colnames(tt)), 1, 1)
-        """
-        r_results = run_r_comparison(
-            py_data={"X": X, "design": design_df.values},
-            r_code_template=r_code,
-            output_vars=["has_logFC", "has_F"],
-        )
-        r_has_logFC = bool(int(r_results["has_logFC"].ravel()[0]))
-        r_has_F = bool(int(r_results["has_F"].ravel()[0]))
-        # R: logFC=True, F=False (intercept stripped, single-contrast table)
-        assert r_has_logFC and not r_has_F, (
-            f"R sanity: expected logFC-only table; got logFC={r_has_logFC} F={r_has_F}"
-        )
-        # Pylimma currently keeps intercept -> two coef columns + F stat
-        py_has_F = "F" in py_cols
-        # The divergence to expose: pylimma has F-column where R doesn't
-        assert py_has_F == r_has_F, (
-            f"pylimma F-column presence disagrees with R: py={py_has_F} R={r_has_F}; py_cols={py_cols}"
-        )
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id")
+        design = pd.DataFrame({"(Intercept)": 1.0, "groupB": np.repeat([0.0, 1.0], 4)})
+        with pytest.warns(UserWarning, match="Removing intercept"):
+            tab = top_table(e_bayes(lm_fit(X, design)), number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("ie_intercept_strip")
+        assert "F" not in tab.columns
+        _assert_top_table_matches(tab, r)
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 class TestContrastsFitNamedCoefRParity:
     """contrasts_fit(fit, coefficients='name') selects coefficients by name,
-    as R's contrasts.fit does."""
+    as R's contrasts.fit does; every contrast slot matches R."""
 
-    def test_contrasts_fit_accepts_string_coefficient_name(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((20, 8))
-        # Cell-means design (no intercept) gives two full-rank columns
-        # that we can reference by name.
-        design_df = pd.DataFrame(
-            {
-                "groupA": [1] * 4 + [0] * 4,
-                "groupB": [0] * 4 + [1] * 4,
-            }
-        )
-        fit = lm_fit(X, design=design_df)
-        # R: contrasts.fit(fit, coefficients="groupB") succeeds.
-        f2 = contrasts_fit(fit, coefficients=["groupB"])
-        assert "groupB" in f2.get("contrast_names", []), (
-            f"contrast_names does not include 'groupB': {f2.get('contrast_names')}"
-        )
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id")
+        design = pd.DataFrame({"groupA": np.repeat([1.0, 0.0], 4), "groupB": np.repeat([0.0, 1.0], 4)})
+        fit = contrasts_fit(lm_fit(X, design), coefficients=["groupB"])
+        assert fit["contrast_names"] == ["groupB"]
+        _assert_contrast_slots_match(fit, "ie_contrasts_by_name")
 
 
 class TestTopTableLfcBoundaryRParity:
     """top_table's lfc filter keeps a gene whose |logFC| equals lfc exactly
-    (R uses '>='). The fit is hand-built so the boundary value is exact on
-    both sides, avoiding floating-point differences between R's and
-    NumPy's QR at the boundary."""
+    (R uses '>='). The fit is hand-built in both R and Python so the
+    boundary value is exact."""
 
-    def test_boundary_gene_kept_with_exact_lfc(self):
-        # Hand-build a fit with one coefficient = exactly 1.0 and the
-        # other coefficients clearly >1.0 and <1.0. R's topTable with
-        # lfc=1.0 keeps |coef| >= 1.0 (toptable.R:234), so the boundary
-        # gene at index 1 should appear in the output.
-        n_genes = 4
-        coefs_col1 = np.array([2.0, 1.0, 0.5, 1.5])  # boundary at idx 1
+    def test_matches_r(self):
         fit = {
-            "coefficients": np.column_stack([np.zeros(n_genes), coefs_col1]),
-            "stdev_unscaled": np.ones((n_genes, 2)) * 0.1,
-            "sigma": np.full(n_genes, 0.1),
-            "df_residual": np.full(n_genes, 10),
+            "coefficients": np.column_stack([np.zeros(4), [2.0, 1.0, 0.5, 1.5]]),
+            "stdev_unscaled": np.full((4, 2), 0.1),
+            "sigma": np.full(4, 0.1),
+            "df_residual": np.full(4, 10.0),
             "cov_coefficients": np.eye(2) * 0.01,
-            "rank": 2,
-            "pivot": np.array([0, 1]),
-            "Amean": np.zeros(n_genes),
-            "design": np.eye(2),
-            "genes": None,
-            "method": "ls",
+            "Amean": np.zeros(4),
         }
-        fit = e_bayes(fit)
-        tt = top_table(fit, coef=1, lfc=1.0, number=n_genes, sort_by="none")
-        # The boundary gene (idx 1, coef == 1.0 exactly) is kept.
-        # logFC column should include 1.0 exactly.
-        returned_lfc = set(round(float(x), 8) for x in tt["log_fc"].values)
-        assert 1.0 in returned_lfc, (
-            f"boundary gene (coef=1.0 exact) missing from top_table; got {returned_lfc}"
-        )
+        tab = top_table(e_bayes(fit), coef=1, lfc=1.0, number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("ie_lfc_boundary_toptable")
+        assert 1.0 in r["logFC"].to_numpy()  # the boundary gene is kept by R
+        _assert_top_table_matches(tab, r, check_ids=False)
 
 
 class TestDecideTestsLfcBoundaryRParity:
     """decide_tests on a fit zeroes a gene whose |coef| equals lfc exactly, as
     R's MArrayLM method does (decidetests.R:165: `* (abs(coef) > lfc)`).
-    Uses a hand-built fit so the boundary value is exact."""
+    The fit is hand-built in both R and Python so the boundary is exact."""
 
-    def test_decide_tests_marraylm_lfc_boundary_zeroed(self):
-        # Hand-built fit with coef-1 values: [2.0, 1.0, 0.5, 1.5]. The
-        # boundary gene (idx 1, exact 1.0) should be zeroed with lfc=1.0
-        # under R's MArrayLM convention.
-        n_genes = 4
-        coefs_col1 = np.array([2.0, 1.0, 0.5, 1.5])
+    def test_matches_r(self):
         fit = {
-            "coefficients": np.column_stack([np.zeros(n_genes), coefs_col1]),
-            "stdev_unscaled": np.ones((n_genes, 2)) * 0.1,
-            "sigma": np.full(n_genes, 0.1),
-            "df_residual": np.full(n_genes, 10),
+            "coefficients": np.column_stack([np.zeros(4), [2.0, 1.0, 0.5, 1.5]]),
+            "stdev_unscaled": np.full((4, 2), 0.1),
+            "sigma": np.full(4, 0.1),
+            "df_residual": np.full(4, 10.0),
             "cov_coefficients": np.eye(2) * 0.01,
-            "rank": 2,
-            "pivot": np.array([0, 1]),
-            "Amean": np.zeros(n_genes),
-            "design": np.eye(2),
-            "method": "ls",
+            "Amean": np.zeros(4),
         }
-        fit = e_bayes(fit)
-        res = decide_tests(fit, lfc=1.0)
-        # Boundary gene at row 1 (coef == 1.0 exactly) must be zeroed.
-        assert res[1, 1] == 0, (
-            f"boundary gene not zeroed: res[1, 1]={res[1, 1]} (R's MArrayLM path would give 0)"
-        )
+        r = load_r_csv_no_index("ie_lfc_boundary_decidetests").to_numpy(dtype=float)
+        assert r[1, 1] == 0  # boundary gene zeroed by R
+        np.testing.assert_array_equal(decide_tests(e_bayes(fit), lfc=1.0), r)
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
@@ -4294,34 +4231,37 @@ class TestVoomFamilyElistRParity:
         D = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])
         return EList({"E": X, "weights": W, "design": D}), X, W, D
 
-    def test_voom_diverges_on_elist_weights(self):
-        """Pylimma's voom pulls EList['weights']; R's voom does not."""
+    def test_voom_uses_elist_weights_like_r_explicit_weights(self):
+        """voom(el) uses EList['weights'] (a documented divergence: R drops the
+        slot), so it must equal R's voom with those weights passed explicitly."""
+        import warnings as _w
+
         from pylimma import voom
 
-        el, X, W, D = self._make_elist()
-        v_el_py = voom(el, design=D)
-        v_arr_py = voom(X, design=D)
-        # If pylimma is pulling weights, outputs will differ:
-        assert not np.allclose(v_el_py["weights"], v_arr_py["weights"]), (
-            "voom: EList and ndarray paths match - divergence not reproduced"
+        counts = load_r_csv_no_index("ie_counts").to_numpy(dtype=float)
+        weights = load_r_csv_no_index("ie_elist_weights").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]]).astype(float)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            v = voom(EList({"E": counts, "weights": weights}), design=design)
+        np.testing.assert_allclose(v["E"], load_r_csv_no_index("ie_voom_explicit_weights_E").to_numpy(dtype=float),
+                                   rtol=1e-6)
+        np.testing.assert_allclose(
+            v["weights"], load_r_csv_no_index("ie_voom_explicit_weights_weights").to_numpy(dtype=float), rtol=1e-6
         )
 
-    def test_vooma_matches_ndarray(self):
-        """Pylimma vooma should match R: uses y$design but not y$weights.
-        So EList and ndarray should produce identical weights."""
+    def test_vooma_elist_matches_r(self):
+        """vooma(el) uses EList['design'] and ignores EList['weights'], as R's
+        vooma does (the fixture checks R gives the same weights as the
+        matrix call)."""
         from pylimma import vooma
 
-        el, X, W, D = self._make_elist()
-        # log-transform so vooma's range is reasonable
-        Y = np.log2(X + 1)
-        el_log = EList({"E": Y, "weights": W, "design": D})
-        v_el = vooma(el_log, design=D)
-        v_arr = vooma(Y, design=D)
-        w_el = v_el["weights"] if isinstance(v_el, dict) else v_el.get("weights")
-        w_arr = v_arr["weights"] if isinstance(v_arr, dict) else v_arr.get("weights")
-        assert np.allclose(w_el, w_arr, rtol=1e-10), (
-            "vooma: EList and ndarray outputs should match (R parity)"
-        )
+        counts = load_r_csv_no_index("ie_counts").to_numpy(dtype=float)
+        weights = load_r_csv_no_index("ie_elist_weights").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]]).astype(float)
+        v = vooma(EList({"E": np.log2(counts + 1), "weights": weights, "design": design}))
+        w = v["weights"] if isinstance(v, dict) else v.get("weights")
+        np.testing.assert_allclose(w, load_r_csv_no_index("ie_vooma_elist_weights").to_numpy(dtype=float), rtol=1e-6)
 
     def test_voom_emits_elist_design_and_weights_warnings(self):
         """voom(el) emits two warnings when the EList has both weights and design."""
@@ -4390,90 +4330,41 @@ class TestVoomFamilyElistRParity:
         )
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 class TestLmFitElistGenesRParity:
     """lm_fit carries EList['genes'] into fit['genes'], as R's lmFit does
-    (fit$genes <- y$probes)."""
+    (fit$genes <- y$probes), so the annotation reaches top_table."""
 
-    def test_elist_genes_propagate_to_fit(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((50, 6))
-        genes_df = pd.DataFrame(
-            {
-                "ID": [f"ENSG{i:05d}" for i in range(50)],
-                "symbol": [f"SYM{i}" for i in range(50)],
-            }
-        )
-        el = EList({"E": X, "genes": genes_df})
-        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])
-        fit = lm_fit(el, design=design)
-        g = fit.get("genes")
-        assert g is not None, "fit['genes'] is None; EList genes slot dropped"
-        # genes should be a DataFrame with 'symbol' column
-        if isinstance(g, pd.DataFrame):
-            assert "symbol" in g.columns, f"genes columns: {list(g.columns)}"
-        else:
-            pytest.fail(f"expected DataFrame, got {type(g).__name__}")
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id").to_numpy()
+        genes = pd.DataFrame({"ID": [f"ENSG{i:05d}" for i in range(1, 31)],
+                              "symbol": [f"SYM{i}" for i in range(1, 31)]})
+        design = pd.DataFrame({"(Intercept)": 1.0, "groupB": np.repeat([0.0, 1.0], 4)})
+        fit = e_bayes(lm_fit(EList({"E": X, "genes": genes}), design))
+        tab = top_table(fit, coef=1, number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("ie_elist_genes_toptable")
+        assert list(tab["ID"]) == list(r["ID"]) and list(tab["symbol"]) == list(r["symbol"])
+        _assert_top_table_matches(tab, r, check_ids=False)
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 class TestPlotRldfMathRParity:
-    """plot_rldf training coordinates and singular values match R's plotRLDF
-    (regularised within-group covariance with a Cholesky back-solve)."""
+    """plot_rldf training scores and singular values match R's plotRLDF
+    (regularised within-group covariance with a Cholesky back-solve). Each
+    discriminant is defined only up to sign, so scores are compared under a
+    canonical sign (the fixture is written the same way)."""
 
-    def test_training_and_singular_values_match_r(self):
+    def test_matches_r(self):
         from pylimma import plot_rldf
 
-        from .helpers import run_r_comparison
-
-        # Three-group design so we get 2 discriminant functions
-        # (p-1 = 3-1 = 2), matching show_dimensions=(0, 1).
-        rng = np.random.default_rng(0)
-        y = rng.standard_normal((200, 12))
+        y = load_r_csv_no_index("ie_rldf_y").to_numpy(dtype=float)
         design = np.column_stack(
-            [
-                np.ones(12),
-                [0] * 4 + [1] * 4 + [0] * 4,
-                [0] * 4 + [0] * 4 + [1] * 4,
-            ]
+            [np.ones(12), np.repeat([0.0, 1.0, 0.0], 4), np.repeat([0.0, 0.0, 1.0], 4)]
         )
         out = plot_rldf(y, design, plot=False)
-
-        r_code = """
-        library(limma)
-        y <- as.matrix(read.csv('{tmpdir}/y.csv', row.names=1))
-        design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
-        prl <- plotRLDF(y, design, plot=FALSE)
-        training_out <- prl$training
-        sv_out <- matrix(prl$singular.values, ncol=1)
-        """
-        r_results = run_r_comparison(
-            py_data={"y": y, "design": design},
-            r_code_template=r_code,
-            output_vars=["training_out", "sv_out"],
-        )
-        r_sv = np.asarray(r_results["sv_out"], dtype=float).ravel()
-
-        # Pull training / singular values from pylimma return
-        # Pylimma current keys: training_scores, top_probes, singular_values
-        py_training = out.get("training_scores") if isinstance(out, dict) else None
-        py_sv = out.get("singular_values") if isinstance(out, dict) else None
-        if py_training is None or py_sv is None:
-            pytest.fail(
-                f"plot_rldf does not return expected keys; "
-                f"got: {list(out.keys()) if isinstance(out, dict) else type(out)}"
-            )
-        # Compare singular values (sign-invariant)
-        r_sv_sorted = np.sort(np.abs(r_sv))[::-1]
-        py_sv_sorted = np.sort(np.abs(np.asarray(py_sv).ravel()))[::-1]
-        # Truncate to shorter to avoid shape issues
-        k = min(len(r_sv_sorted), len(py_sv_sorted))
-        res_sv = compare_arrays(r_sv_sorted[:k], py_sv_sorted[:k], rtol=1e-6)
-        assert res_sv["match"], (
-            f"plot_rldf singular values diverge from R: "
-            f"max_rel={res_sv['max_rel_diff']:.2e}; "
-            f"R={r_sv_sorted[:k].tolist()}; py={py_sv_sorted[:k].tolist()}"
-        )
+        r_training = load_r_csv_no_index("ie_rldf_training").to_numpy(dtype=float)
+        r_sv = load_r_csv_no_index("ie_rldf_singular_values")["d"].to_numpy()
+        np.testing.assert_allclose(np.asarray(out["singular_values"]).ravel(), r_sv, rtol=1e-6)
+        py_training = np.asarray(out["training_scores"], dtype=float)[:, : r_training.shape[1]]
+        np.testing.assert_allclose(canonical_column_signs(py_training), r_training, rtol=1e-6, atol=1e-9)
 
 
 # -----------------------------------------------------------------------------
@@ -4482,124 +4373,89 @@ class TestPlotRldfMathRParity:
 
 
 class TestLmFitMethodSlotRParity:
-    """lm_fit sets fit['method'], as R's lmFit sets fit$method."""
+    """lm_fit sets fit['method'] to the value R's lmFit stores in fit$method."""
 
-    def test_fit_method_populated(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((20, 6))
-        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])
-        fit = lm_fit(X, design, method="ls")
-        assert "method" in fit, "fit['method'] missing; R writes fit$method at lmfit.R:86"
-        assert fit["method"] == "ls", f"fit['method'] should be 'ls', got {fit.get('method')!r}"
+    @pytest.mark.parametrize("method", ["ls", "robust"])
+    def test_matches_r(self, method):
+        import warnings as _w
+
+        X = load_r_csv_no_index("ie_X").set_index("id").to_numpy()
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(X, design, method=method)
+        assert fit["method"] == load_r_csv_no_index("ie_fit_slots")[f"method_{method}"].iloc[0]
 
 
 class TestEBayesProportionSlotRParity:
-    """e_bayes sets fit['proportion'], as R's eBayes sets fit$proportion."""
+    """e_bayes sets fit['proportion'] to the value R's eBayes stores in
+    fit$proportion."""
 
-    def test_fit_proportion_populated(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, 8))
-        design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4])
-        fit = lm_fit(X, design)
-        fit = e_bayes(fit, proportion=0.05)
-        assert "proportion" in fit, (
-            "fit['proportion'] missing; R writes fit$proportion at ebayes.R:15"
-        )
-        assert fit["proportion"] == 0.05, (
-            f"fit['proportion'] should be 0.05, got {fit.get('proportion')!r}"
-        )
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id").to_numpy()
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        fit = e_bayes(lm_fit(X, design), proportion=0.05)
+        assert fit["proportion"] == load_r_csv_no_index("ie_fit_slots")["proportion"].iloc[0]
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 class TestContrastsFitEmptyShapeRParity:
-    """contrasts_fit with an empty contrast matrix subsets cov_coefficients to
-    (0, 0), as R's fit[, 0] does."""
+    """contrasts_fit with an empty contrast matrix gives every slot the same
+    dimensions as R's contrasts.fit (cov.coefficients becomes 0 x 0)."""
 
-    def test_empty_contrasts_shapes_consistent(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, 8))
-        design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4, [0, 1, 0, 1] * 2])
-        fit = lm_fit(X, design)
-        f2 = contrasts_fit(fit, contrasts=np.zeros((3, 0)))
-        n_contrasts = f2["coefficients"].shape[1]
-        cov_cols = (
-            f2["cov_coefficients"].shape[1] if f2.get("cov_coefficients") is not None else None
-        )
-        assert cov_cols == n_contrasts, (
-            f"cov_coefficients cols ({cov_cols}) != n_contrasts ({n_contrasts}); shapes inconsistent"
-        )
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id").to_numpy()
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4), np.tile([0.0, 1.0], 4)])
+        fit = contrasts_fit(lm_fit(X, design), contrasts=np.zeros((3, 0)))
+        r = load_r_csv_no_index("ie_contrasts_empty_dims").set_index("slot")
+        for r_slot, py_slot in (("coefficients", "coefficients"), ("stdev.unscaled", "stdev_unscaled"),
+                                ("cov.coefficients", "cov_coefficients"), ("contrasts", "contrasts")):
+            assert np.shape(fit[py_slot]) == (r.loc[r_slot, "nrow"], r.loc[r_slot, "ncol"]), py_slot
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
 class TestContrastsAllZeroRParity:
     """contrasts_fit drops coefficients that are zero in every contrast column
-    before the orthogonality check, as R's contrasts.fit does."""
+    before the orthogonality check, as R's contrasts.fit does; every contrast
+    slot matches R."""
 
-    def test_contrasts_all_zero_pruning(self):
-        from .helpers import run_r_comparison
-
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((40, 10))
-        # Design with 3 coefs; build a contrast that only references coef 2
-        # (coef 0 and 1 are "AllZero" in the contrast).
-        design = np.column_stack([np.ones(10), [0] * 5 + [1] * 5, [0, 1] * 5])
-        fit = lm_fit(X, design)
-        fit = e_bayes(fit)
-        contrasts = np.array([[0.0], [0.0], [1.0]])
-        f2 = contrasts_fit(fit, contrasts=contrasts)
-
-        r_code = """
-        library(limma)
-        X <- as.matrix(read.csv('{tmpdir}/X.csv', row.names=1))
-        design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
-        fit <- lmFit(X, design)
-        fit <- eBayes(fit)
-        contr <- matrix(c(0, 0, 1), ncol=1)
-        f2 <- contrasts.fit(fit, contrasts=contr)
-        coef_r <- as.matrix(f2$coefficients)
-        stdev_r <- as.matrix(f2$stdev.unscaled)
-        """
-        r_results = run_r_comparison(
-            py_data={"X": X, "design": design},
-            r_code_template=r_code,
-            output_vars=["coef_r", "stdev_r"],
-        )
-        # Both should match to rtol=1e-6 AFTER R's AllZero reduction
-        res = compare_arrays(
-            r_results["coef_r"].reshape(f2["coefficients"].shape), f2["coefficients"], rtol=1e-6
-        )
-        assert res["match"], (
-            f"contrasts_fit ContrastsAllZero divergence: max_rel={res['max_rel_diff']:.2e}"
-        )
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X10").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(10), np.repeat([0.0, 1.0], 5), np.tile([0.0, 1.0], 5)])
+        fit = contrasts_fit(e_bayes(lm_fit(X, design)), contrasts=np.array([[0.0], [0.0], [1.0]]))
+        _assert_contrast_slots_match(fit, "ie_contrasts_all_zero")
 
 
 class TestLmFitRobustKwargsRParity:
-    """lm_fit(method='robust') forwards extra keyword arguments (e.g. maxit)
-    to the robust fit, as R's lmFit forwards ... to MASS::rlm."""
+    """lm_fit(method='robust') forwards extra keyword arguments to the robust
+    fit, as R's lmFit forwards ... to MASS::rlm. The fixture data are chosen
+    so that maxit=2 gives a different fit from the default in R."""
 
-    def test_lm_fit_robust_accepts_rlm_kwargs(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((20, 6))
-        design = np.column_stack([np.ones(6), [0] * 3 + [1] * 3])
-        fit = lm_fit(X, design, method="robust", maxit=50)
-        # maxit is accepted and the fit has the expected slots
-        assert fit["coefficients"].shape == (20, 2)
+    def test_maxit_matches_r(self):
+        import warnings as _w
+
+        X = load_r_csv_no_index("ie_robust_X").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(X, design, method="robust", maxit=2)
+        np.testing.assert_allclose(
+            fit["coefficients"], load_r_csv_no_index("ie_robust_maxit2_coefficients").to_numpy(dtype=float), rtol=1e-6
+        )
+        np.testing.assert_allclose(
+            fit["stdev_unscaled"], load_r_csv_no_index("ie_robust_maxit2_stdev_unscaled").to_numpy(dtype=float),
+            rtol=1e-6,
+        )
+        np.testing.assert_allclose(fit["sigma"], load_r_csv_no_index("ie_robust_maxit2_sigma")["sigma"], rtol=1e-6)
 
 
 class TestContrastsFitCoefficientsIntDocRParity:
-    """contrasts_fit's docstring states that integer coefficients are 0-based
-    (R's are 1-based). Checks documentation only."""
+    """contrasts_fit(coefficients=int) is 0-based: coefficients=[1] selects the
+    same coefficient as R's coefficients=2 (the fixture checks R's name and
+    index selections agree)."""
 
-    def test_docstring_flags_zero_based(self):
-        from pylimma.contrasts import contrasts_fit as cf
-
-        doc = cf.__doc__ or ""
-        assert (
-            "0-based" in doc
-            or "zero-based" in doc.lower()
-            or "R uses 1-based" in doc
-            or "R is 1-based" in doc
-        ), "contrasts_fit docstring does not warn R users about 0-based indices"
+    def test_zero_based_index_matches_r_one_based(self):
+        X = load_r_csv_no_index("ie_X").set_index("id")
+        design = pd.DataFrame({"groupA": np.repeat([1.0, 0.0], 4), "groupB": np.repeat([0.0, 1.0], 4)})
+        _assert_contrast_slots_match(contrasts_fit(lm_fit(X, design), coefficients=[1]), "ie_contrasts_by_name")
 
 
 # -----------------------------------------------------------------------------
@@ -4646,58 +4502,70 @@ class TestClassifyTestsFRankDeficientRParity:
 
 class TestEBayesTmixtureStableSortRParity:
     """The t-mixture estimate in e_bayes breaks ties in the same order as R's
-    stable order(..., decreasing=TRUE)."""
+    stable order(..., decreasing=TRUE). The fixture has three tied moderated
+    t-statistics with different stdev.unscaled, where R's var.prior depends
+    on the tie order."""
 
-    def test_stable_descending_sort_on_ties(self):
-        # Proxy test: any place in ebayes.py that sorts tstat should
-        # use kind='stable'. Grep the relevant line and assert.
-        from pathlib import Path as _P
-
-        src = _P(__file__).parent.parent / "pylimma" / "ebayes.py"
-        text = src.read_text()
-        # Look for np.argsort(tstat)[::-1] pattern; should be replaced
-        # with np.argsort(-tstat, kind="stable")
-        bad = "np.argsort(tstat)[::-1]"
-        assert bad not in text, f"ebayes.py still uses unstable sort pattern '{bad}'"
+    def test_matches_r(self):
+        inputs = load_r_csv_no_index("ie_tmixture_ties_input")
+        n = len(inputs)
+        fit = {
+            "coefficients": inputs[["coefficient"]].to_numpy(),
+            "stdev_unscaled": inputs[["stdev_unscaled"]].to_numpy(),
+            "sigma": inputs["sigma"].to_numpy(),
+            "df_residual": np.full(n, 6.0),
+            "Amean": np.zeros(n),
+        }
+        eb = e_bayes(fit, proportion=0.01)
+        r = load_r_csv_no_index("ie_tmixture_ties_ebayes")
+        np.testing.assert_allclose(np.ravel(eb["var_prior"]), r["var_prior"].iloc[:1], rtol=1e-6)
+        np.testing.assert_allclose(eb["t"][:, 0], r["t"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["p_value"], eb["p_value"][:, 0])
+        np.testing.assert_allclose(eb["lods"][:, 0], r["lods"], rtol=1e-6)
 
 
 class TestEBayesVarPriorShapeMismatchRParity:
-    """e_bayes with trend=True (genewise s2_prior) handles the var_prior
-    fallback '1/s2_prior' without a shape error; R recycles a scalar."""
+    """e_bayes(trend=True) when the t-mixture estimate is NA (a non-estimable
+    coefficient) uses R's fallback var.prior = 1/s2.prior, recycling the
+    genewise s2_prior as R does, and every moderated statistic matches R."""
 
-    def test_var_prior_nan_fallback_does_not_crash_with_trend(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((50, 8))
-        design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4])
-        fit = lm_fit(X, design)
-        # proportion=1e-10 makes _tmixture_vector's ntarget<1 branch fire,
-        # returning NaN. With trend=True, s2_prior is per-gene.
-        try:
-            e_bayes(fit, trend=True, proportion=1e-10)
-        except ValueError as e:
-            if "broadcast" in str(e) or "shape" in str(e):
-                pytest.fail(f"var_prior fallback shape mismatch: {e}")
+    def test_matches_r(self):
+        import warnings as _w
+
+        X = load_r_csv_no_index("ie_rankdef_X").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]]).astype(float)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            eb = e_bayes(lm_fit(X, design), trend=True)
+        np.testing.assert_allclose(
+            np.ravel(eb["var_prior"]), load_r_csv_no_index("ie_var_prior_fallback_var_prior")["var_prior"], rtol=1e-6
+        )
+        r = load_r_csv_no_index("ie_var_prior_fallback")
+        np.testing.assert_allclose(eb["s2_prior"], r["s2_prior"], rtol=1e-6)
+        np.testing.assert_allclose(eb["t"][:, 1], r["t"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["p_value"], eb["p_value"][:, 1])
+        np.testing.assert_allclose(eb["lods"][:, 1], r["lods"], rtol=1e-6)
 
 
 class TestAverepsElistRParity:
-    """avereps on an EList averages E across replicate rows, using
-    EList['genes']['ID'] or the index as ID."""
+    """avereps on an EList averages E and weights across replicate rows by
+    genes['ID'], as R's avereps.EList does."""
 
-    def test_avereps_on_elist_does_not_crash(self):
+    def test_matches_r(self):
         from pylimma import avereps
 
-        X = np.array([[1.0, 2], [3, 4], [5, 6], [7, 8]])
-        W = np.array([[1.0, 1], [0.5, 2], [1, 1], [1, 1]])
-        genes = pd.DataFrame({"ID": ["A", "A", "B", "B"]})
-        el = EList({"E": X, "weights": W, "genes": genes})
-        # Returns an EList-like with 2 rows (A, B).
+        el = EList({
+            "E": np.array([[1.0, 2], [3, 4], [5, 6], [7, 8]]),
+            "weights": np.array([[1.0, 1], [0.5, 2], [1, 1], [1, 1]]),
+            "genes": pd.DataFrame({"ID": ["A", "A", "B", "B"]}),
+        })
         out = avereps(el)
-        # Accept EList, dict, ndarray, or DataFrame shapes
-        if hasattr(out, "get") and callable(out.get):
-            arr = np.asarray(out.get("E", out) if "E" in out else out)
-        else:
-            arr = np.asarray(out)
-        assert arr.shape[0] == 2, f"expected 2 averaged rows, got shape {arr.shape}"
+        for slot in ("E", "weights"):
+            r = load_r_csv_no_index(f"ie_avereps_elist_{slot}").set_index("id")
+            py = out[slot]
+            py = py if isinstance(py, pd.DataFrame) else pd.DataFrame(np.asarray(py), index=r.index)
+            assert list(py.index) == list(r.index)
+            np.testing.assert_allclose(np.asarray(py, dtype=float), r.to_numpy(dtype=float), rtol=1e-12)
 
 
 class TestLmSeriesSignatureRParity:

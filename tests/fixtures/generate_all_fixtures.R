@@ -3467,3 +3467,168 @@ stopifnot(!anyNA(.io_errors$r_error))
 write.csv(.io_errors, "R_io_errors.csv", row.names = FALSE)
 
 cat("  input-dispatch fixtures complete.\n")
+
+# =============================================================================
+# Interface, fit-slot and edge-case fixtures (full-output references for the
+# tests in "Interface, fit-slot and edge-case parity")
+# =============================================================================
+cat("\nGenerating interface, fit-slot and edge-case fixtures...\n")
+
+set.seed(20261007)
+
+.ie_csv <- function(name, x, ids = NULL) {
+  out <- if (is.null(ids)) as.data.frame(x) else data.frame(id = ids, x, check.names = FALSE)
+  write.csv(out, sprintf("R_ie_%s.csv", name), row.names = FALSE)
+}
+.ie_table <- function(name, tab) .ie_csv(name, tab, ids = rownames(tab))
+.ie_canonical <- function(m) apply(as.matrix(m), 2, function(v) {
+  s <- sign(v[which.max(abs(v))])
+  if (s == 0) v else v * s
+})
+
+# Shared two-group data (30 genes x 8 samples) and designs
+.ie_X <- matrix(rnorm(30 * 8), 30, 8, dimnames = list(sprintf("g%02d", 1:30), NULL))
+.ie_X[1:5, 5:8] <- .ie_X[1:5, 5:8] + 2
+.ie_csv("X", .ie_X, ids = rownames(.ie_X))
+.ie_design_int <- cbind("(Intercept)" = 1, groupB = rep(0:1, each = 4))
+.ie_design_cm <- cbind(groupA = rep(1:0, each = 4), groupB = rep(0:1, each = 4))
+
+# topTable(coef=NULL) drops the "(Intercept)" column
+.ie_table("intercept_strip", topTable(eBayes(lmFit(.ie_X, .ie_design_int)), number = Inf, sort.by = "none"))
+
+# contrasts.fit selecting a coefficient by name, and by 1-based index
+.ie_fit_cm <- lmFit(.ie_X, .ie_design_cm)
+.ie_cf_name <- contrasts.fit(.ie_fit_cm, coefficients = "groupB")
+.ie_cf_int <- contrasts.fit(.ie_fit_cm, coefficients = 2)
+stopifnot(identical(.ie_cf_name$coefficients, .ie_cf_int$coefficients))
+for (.nm in c("coefficients", "stdev.unscaled", "cov.coefficients")) {
+  .ie_csv(sprintf("contrasts_by_name_%s", gsub(".", "_", .nm, fixed = TRUE)), .ie_cf_name[[.nm]])
+}
+
+# Hand-built fit with |coef| exactly at the lfc boundary for topTable / decideTests
+.ie_hb <- new("MArrayLM", list(
+  coefficients = cbind(0, c(2, 1, 0.5, 1.5)), stdev.unscaled = matrix(0.1, 4, 2),
+  sigma = rep(0.1, 4), df.residual = rep(10, 4), cov.coefficients = diag(2) * 0.01, Amean = rep(0, 4)))
+.ie_hb <- eBayes(.ie_hb)
+.ie_hb_tt <- topTable(.ie_hb, coef = 2, lfc = 1, number = Inf, sort.by = "none")
+stopifnot(1 %in% .ie_hb_tt$logFC)
+.ie_table("lfc_boundary_toptable", .ie_hb_tt)
+.ie_hb_dt <- unclass(decideTests(.ie_hb, lfc = 1))
+stopifnot(.ie_hb_dt[2, 2] == 0)
+attributes(.ie_hb_dt) <- list(dim = dim(.ie_hb_dt))
+.ie_csv("lfc_boundary_decidetests", .ie_hb_dt)
+
+# EList input to voom (R drops the EList slots; weights passed explicitly)
+# and to vooma (R uses y$design, ignores y$weights)
+.ie_counts <- matrix(rpois(50 * 6, 20) + 1, 50, 6)
+.ie_w <- matrix(runif(50 * 6, 0.5, 2), 50, 6)
+.ie_d6 <- cbind(1, c(0, 0, 0, 1, 1, 1))
+.ie_csv("counts", .ie_counts)
+.ie_csv("elist_weights", .ie_w)
+.ie_voom_w <- voom(.ie_counts, .ie_d6, weights = .ie_w)
+.ie_csv("voom_explicit_weights_E", .ie_voom_w$E)
+.ie_csv("voom_explicit_weights_weights", .ie_voom_w$weights)
+.ie_logc <- log2(.ie_counts + 1)
+.ie_vooma <- vooma(new("EList", list(E = .ie_logc, weights = .ie_w, design = .ie_d6)))
+stopifnot(isTRUE(all.equal(.ie_vooma$weights, vooma(.ie_logc, .ie_d6)$weights)))
+.ie_csv("vooma_elist_weights", .ie_vooma$weights)
+
+# lmFit on an EList carries genes through to topTable
+.ie_genes <- data.frame(ID = sprintf("ENSG%05d", 1:30), symbol = sprintf("SYM%d", 1:30))
+.ie_el <- new("EList", list(E = unname(.ie_X), genes = .ie_genes))
+.ie_table("elist_genes_toptable",
+          topTable(eBayes(lmFit(.ie_el, .ie_design_int)), coef = 2, number = Inf, sort.by = "none"))
+
+# plotRLDF: training scores (canonical sign per dimension) and singular values
+.ie_y3 <- matrix(rnorm(200 * 12), 200, 12)
+.ie_d3 <- cbind(1, rep(c(0, 1, 0), each = 4), rep(c(0, 0, 1), each = 4))
+.ie_csv("rldf_y", .ie_y3)
+.ie_rldf <- plotRLDF(.ie_y3, .ie_d3, plot = FALSE)
+.ie_csv("rldf_training", .ie_canonical(.ie_rldf$training))
+.ie_csv("rldf_singular_values", data.frame(d = .ie_rldf$singular.values))
+
+# Fit slots set by lmFit / eBayes
+.ie_csv("fit_slots", data.frame(
+  method_ls = lmFit(.ie_X, .ie_design_int, method = "ls")$method,
+  method_robust = suppressWarnings(lmFit(.ie_X, .ie_design_int, method = "robust"))$method,
+  proportion = eBayes(lmFit(.ie_X, .ie_design_int), proportion = 0.05)$proportion))
+
+# contrasts.fit with an empty contrast matrix: every slot's dimensions
+.ie_d3b <- cbind(1, rep(0:1, each = 4), rep(0:1, 4))
+.ie_fit3 <- lmFit(.ie_X, .ie_d3b)
+.ie_cf_empty <- contrasts.fit(.ie_fit3, contrasts = matrix(0, 3, 0))
+.ie_csv("contrasts_empty_dims", do.call(rbind, lapply(
+  c("coefficients", "stdev.unscaled", "cov.coefficients", "contrasts"),
+  function(nm) data.frame(slot = nm, nrow = NROW(.ie_cf_empty[[nm]]), ncol = NCOL(.ie_cf_empty[[nm]])))))
+
+# contrasts.fit with coefficients that are zero in every contrast column
+.ie_X10 <- matrix(rnorm(40 * 10), 40, 10)
+.ie_d10 <- cbind(1, rep(0:1, each = 5), rep(0:1, 5))
+.ie_csv("X10", .ie_X10)
+.ie_cf_zero <- contrasts.fit(eBayes(lmFit(.ie_X10, .ie_d10)), contrasts = matrix(c(0, 0, 1), ncol = 1))
+for (.nm in c("coefficients", "stdev.unscaled", "cov.coefficients")) {
+  .ie_csv(sprintf("contrasts_all_zero_%s", gsub(".", "_", .nm, fixed = TRUE)), .ie_cf_zero[[.nm]])
+}
+
+# lmFit(method="robust") forwards ... to MASS::rlm: maxit = 2 changes the fit
+.ie_Xr <- matrix(rnorm(20 * 6), 20, 6)
+.ie_Xr[cbind(1:20, sample(1:6, 20, replace = TRUE))] <- .ie_Xr[cbind(1:20, sample(1:6, 20, replace = TRUE))] + 8
+.ie_d6r <- cbind(1, rep(0:1, each = 3))
+.ie_csv("robust_X", .ie_Xr)
+.ie_rob2 <- suppressWarnings(lmFit(.ie_Xr, .ie_d6r, method = "robust", maxit = 2))
+.ie_rob_default <- suppressWarnings(lmFit(.ie_Xr, .ie_d6r, method = "robust"))
+stopifnot(!isTRUE(all.equal(.ie_rob2$coefficients, .ie_rob_default$coefficients)))
+.ie_csv("robust_maxit2_coefficients", .ie_rob2$coefficients)
+.ie_csv("robust_maxit2_stdev_unscaled", .ie_rob2$stdev.unscaled)
+.ie_csv("robust_maxit2_sigma", data.frame(sigma = .ie_rob2$sigma))
+
+# classifyTestsF on a rank-deficient fit (duplicated design column)
+.ie_Xd <- matrix(rnorm(30 * 6), 30, 6)
+.ie_Xd[1:6, 4:6] <- .ie_Xd[1:6, 4:6] + 3
+.ie_dd <- cbind(1, c(0, 0, 0, 1, 1, 1), c(0, 0, 0, 1, 1, 1))
+.ie_csv("rankdef_X", .ie_Xd)
+.ie_rd <- suppressMessages(eBayes(lmFit(.ie_Xd, .ie_dd)))
+.ie_ctf <- unclass(classifyTestsF(.ie_rd, p.value = 0.05))
+attributes(.ie_ctf) <- list(dim = dim(.ie_ctf))
+.ie_csv("rankdef_classifytestsf", .ie_ctf)
+
+# eBayes t-mixture with tied moderated t but different stdev.unscaled: the
+# tie order changes var.prior (R's order() is stable)
+.ie_ng <- 400
+.ie_se <- rep(0.5, .ie_ng)
+.ie_sig <- sqrt(rchisq(.ie_ng, 6) / 6)
+.ie_coef <- rnorm(.ie_ng) * .ie_se * .ie_sig
+.ie_tie <- 1:3
+.ie_se[.ie_tie] <- c(0.3, 1, 2)
+.ie_sig[.ie_tie] <- 1
+.ie_coef[.ie_tie] <- 6 * .ie_se[.ie_tie]
+.ie_hb2 <- function(ord) {
+  idx <- c(ord, setdiff(seq_len(.ie_ng), ord))
+  new("MArrayLM", list(coefficients = cbind(.ie_coef[idx]), stdev.unscaled = cbind(.ie_se[idx]),
+                       sigma = .ie_sig[idx], df.residual = rep(6, .ie_ng), Amean = rep(0, .ie_ng)))
+}
+.ie_eb_tie <- eBayes(.ie_hb2(.ie_tie), proportion = 0.01)
+stopifnot(length(unique(round(.ie_eb_tie$t[.ie_tie, 1], 10))) == 1,
+          !isTRUE(all.equal(.ie_eb_tie$var.prior, eBayes(.ie_hb2(rev(.ie_tie)), proportion = 0.01)$var.prior)))
+.ie_csv("tmixture_ties_input", data.frame(coefficient = .ie_coef, stdev_unscaled = .ie_se, sigma = .ie_sig))
+.ie_csv("tmixture_ties_ebayes", data.frame(var_prior = .ie_eb_tie$var.prior, t = .ie_eb_tie$t[, 1],
+                                           p_value = .ie_eb_tie$p.value[, 1], lods = .ie_eb_tie$lods[, 1]))
+
+# eBayes(trend=TRUE) where the t-mixture estimate is NA (a non-estimable
+# coefficient has all-NA t), so var.prior falls back to 1/s2.prior. Under
+# trend s2.prior is genewise and R recycles its first element into the NA slot.
+.ie_eb_fb <- suppressWarnings(eBayes(suppressMessages(lmFit(.ie_Xd, .ie_dd)), trend = TRUE))
+stopifnot(all(is.na(.ie_eb_fb$t[, 3])), isTRUE(all.equal(.ie_eb_fb$var.prior[3], 1 / .ie_eb_fb$s2.prior[1])))
+.ie_csv("var_prior_fallback_var_prior", data.frame(var_prior = .ie_eb_fb$var.prior))
+.ie_csv("var_prior_fallback", data.frame(t = .ie_eb_fb$t[, 2], p_value = .ie_eb_fb$p.value[, 2],
+                                         lods = .ie_eb_fb$lods[, 2], s2_prior = .ie_eb_fb$s2.prior))
+
+# avereps on an EList: E and weights averaged by genes$ID, genes de-duplicated
+.ie_el4 <- new("EList", list(E = matrix(c(1, 3, 5, 7, 2, 4, 6, 8), 4, 2),
+                             weights = matrix(c(1, 0.5, 1, 1, 1, 2, 1, 1), 4, 2),
+                             genes = data.frame(ID = c("A", "A", "B", "B"))))
+.ie_av <- avereps(.ie_el4)
+.ie_csv("avereps_elist_E", .ie_av$E, ids = rownames(.ie_av$E))
+.ie_csv("avereps_elist_weights", .ie_av$weights, ids = rownames(.ie_av$weights))
+
+cat("  interface, fit-slot and edge-case fixtures complete.\n")
