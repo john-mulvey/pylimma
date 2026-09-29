@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from .helpers import canonical_column_signs
+
 try:
     import matplotlib  # noqa: F401
 
@@ -224,16 +226,18 @@ def test_mds_coordinates_rparity(sel, top):
     E = pd.read_csv(FIXTURES / "R_phase5_E.csv", index_col=0).values
     expected = pd.read_csv(FIXTURES / f"R_plot_mds_{sel}_top{top}.csv")
     res = _mds_coordinates(E, top=top, gene_selection=sel)
-    # Sign convention: eigenvectors defined up to sign, so compare |coord|
+    # Each dimension is defined only up to sign (left to LAPACK by R and
+    # NumPy); the fixture is written with canonical signs, so canonicalise
+    # pylimma's output the same way and compare exactly.
     np.testing.assert_allclose(
-        np.abs(res["x"]),
-        np.abs(expected["dim1"].values),
+        canonical_column_signs(res["x"]),
+        expected["dim1"].values,
         rtol=1e-6,
         atol=1e-9,
     )
     np.testing.assert_allclose(
-        np.abs(res["y"]),
-        np.abs(expected["dim2"].values),
+        canonical_column_signs(res["y"]),
+        expected["dim2"].values,
         rtol=1e-6,
         atol=1e-9,
     )

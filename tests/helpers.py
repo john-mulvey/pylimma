@@ -231,6 +231,22 @@ def compare_pvalues(
     }
 
 
+def canonical_column_signs(x: np.ndarray) -> np.ndarray:
+    """Give each column a canonical sign: its largest-magnitude entry is positive.
+
+    For outputs defined only up to one sign per column (eigenvectors,
+    singular vectors), whose sign R and NumPy leave to LAPACK. Ties take the
+    first maximum, as R's ``which.max``; the fixture script applies the same
+    rule, so canonical values can be compared exactly. 1-D input is treated
+    as a single column.
+    """
+    arr = np.asarray(x, dtype=np.float64)
+    cols = arr.reshape(arr.shape[0], -1)
+    signs = np.sign(cols[np.argmax(np.abs(cols), axis=0), np.arange(cols.shape[1])])
+    signs[signs == 0] = 1.0
+    return (cols * signs).reshape(arr.shape)
+
+
 def compare_rankings(
     r_vals: np.ndarray,
     py_vals: np.ndarray,

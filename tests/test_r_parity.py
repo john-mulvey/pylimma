@@ -36,6 +36,7 @@ from pylimma.toptable import top_table
 
 from .helpers import (
     assert_close_to_reference,
+    canonical_column_signs,
     compare_arrays,
     compare_pvalues,
     limma_available,
@@ -4271,12 +4272,15 @@ class TestFinding5WsvaWeightsRParity:
             r_code_template=r_code,
             output_vars=["svr_mat"],
         )
-        # run_r_comparison flattens single-col output to 1-D; ravel both
-        # sides for a shape-insensitive comparison. Signs are ambiguous
-        # under SVD so compare absolute values.
-        r_sv = np.asarray(r_results["svr_mat"], dtype=float).ravel()
-        py_sv = np.asarray(sv_py_weighted, dtype=float).ravel()
-        res = compare_arrays(np.abs(r_sv), np.abs(py_sv), rtol=1e-6)
+        # run_r_comparison flattens single-col output to 1-D. Each
+        # surrogate variable is an SVD vector, defined only up to sign
+        # (left to LAPACK by R and NumPy), so canonicalise both sides'
+        # signs and compare exactly.
+        py_sv = np.asarray(sv_py_weighted, dtype=float)
+        r_sv = np.asarray(r_results["svr_mat"], dtype=float).reshape(py_sv.shape)
+        res = compare_arrays(
+            canonical_column_signs(r_sv).ravel(), canonical_column_signs(py_sv).ravel(), rtol=1e-6
+        )
         assert res["match"], f"wsva weights not honoured; max_rel={res['max_rel_diff']:.2e}"
 
 
@@ -5009,9 +5013,8 @@ class TestContrastAsCoefRParity:
         contr = make_contrasts(BvsA="B-A", levels=["A", "B"])
         res = contrast_as_coef(design, contr)
 
-        # Design columns may differ in absolute sign of the orthogonal-
-        # complement column (Q decomposition is unique only up to column
-        # signs); compare absolute values for the unnamed Q column.
+        # R builds the orthogonal-complement column with deterministic
+        # LINPACK qr(), so its sign is reproducible and compared exactly.
         py_design = res["design"]
         assert list(py_design.columns) == list(ref_design.columns), (
             f"column names differ: py={list(py_design.columns)}, r={list(ref_design.columns)}"
@@ -5019,15 +5022,7 @@ class TestContrastAsCoefRParity:
         for col in ref_design.columns:
             r_vals = ref_design[col].values
             py_vals = py_design[col].values
-            if col == "BvsA":
-                cmp = compare_arrays(r_vals, py_vals, rtol=1e-10, atol=1e-12)
-            else:
-                cmp = compare_arrays(
-                    np.abs(r_vals),
-                    np.abs(py_vals),
-                    rtol=1e-10,
-                    atol=1e-12,
-                )
+            cmp = compare_arrays(r_vals, py_vals, rtol=1e-10, atol=1e-12)
             assert cmp["match"], (
                 f"contrast_as_coef design column '{col}' differs: max_rel={cmp['max_rel_diff']:.3e}"
             )

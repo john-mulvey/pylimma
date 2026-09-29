@@ -2267,14 +2267,21 @@ pd_densities_long <- do.call(rbind, lapply(seq_along(pd_densities), function(i)
 write.csv(pd_densities_long, "R_plot_densities.csv", row.names = FALSE)
 
 # plotMDS: extract coordinates and variance-explained for both gene.selection
-# branches, with two different top values
+# branches, with two different top values. Eigenvector signs are left to
+# LAPACK by R (and differ between R installations), so each dimension is
+# written with a canonical sign: its largest-magnitude entry positive
+# (first maximum on ties). The Python test applies the same rule.
+.canonical_sign <- function(v) {
+  s <- sign(v[which.max(abs(v))])
+  if (s == 0) v else v * s
+}
 for (sel in c("pairwise", "common")) {
   for (top_k in c(100, 500)) {
     mds <- plotMDS(E_p5, plot = FALSE, top = top_k, gene.selection = sel)
     write.csv(data.frame(
       sample = colnames(E_p5),
-      dim1   = mds$x,
-      dim2   = mds$y,
+      dim1   = .canonical_sign(mds$x),
+      dim2   = .canonical_sign(mds$y),
       var_explained_1 = mds$var.explained[1],
       var_explained_2 = mds$var.explained[2]
     ), sprintf("R_plot_mds_%s_top%d.csv", sel, top_k), row.names = FALSE)
