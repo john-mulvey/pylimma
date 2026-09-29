@@ -3412,3 +3412,49 @@ write.csv(data.frame(set = rownames(.ro_m), NGenes = .ro_m$NGenes, PropDown = .r
           "R_ro_mroast_vector_priors.csv", row.names = FALSE)
 
 cat("  roast user-prior fixtures complete.\n")
+
+# =============================================================================
+# Input dispatch: one R pipeline that every supported Python input container
+# (ndarray, DataFrame incl. nullable dtypes, AnnData dense/sparse/h5ad, EList)
+# must reproduce
+# =============================================================================
+cat("\nGenerating input-dispatch fixtures...\n")
+
+set.seed(20261006)
+
+.io_n <- 80
+.io_ids <- sprintf("P%03d", seq_len(.io_n))
+.io_expr <- matrix(rnorm(.io_n * 8, 20, 1.5), .io_n, 8, dimnames = list(.io_ids, sprintf("s%d", 1:8)))
+.io_expr[1:10, 5:8] <- .io_expr[1:10, 5:8] + 2
+.io_expr[runif(length(.io_expr)) < 0.08] <- NA
+.io_group <- factor(rep(c("A", "B"), each = 4))
+.io_design <- model.matrix(~ .io_group)
+colnames(.io_design) <- c("(Intercept)", "groupB")
+write.csv(data.frame(id = .io_ids, symbol = sprintf("GENE%03d", seq_len(.io_n)), .io_expr, check.names = FALSE),
+          "R_io_expr.csv", row.names = FALSE)
+
+.io_write <- function(case, tab) {
+  write.csv(data.frame(id = rownames(tab), tab, check.names = FALSE), sprintf("R_io_%s.csv", case), row.names = FALSE)
+}
+.io_fit <- lmFit(.io_expr, .io_design)
+.io_write("pipeline", topTable(eBayes(.io_fit), coef = "groupB", number = Inf, sort.by = "none"))
+.io_write("contrasts_by_name",
+          topTable(eBayes(contrasts.fit(.io_fit, coefficients = "groupB")), number = Inf, sort.by = "none"))
+
+# data.frame whose first column is non-numeric: treated as gene IDs
+.io_df <- data.frame(symbol = sprintf("GENE%03d", seq_len(.io_n)), .io_expr, check.names = FALSE)
+.io_write("dataframe_id_column", topTable(eBayes(lmFit(.io_df, .io_design)), coef = "groupB",
+                                          number = Inf, sort.by = "none"))
+
+.io_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.io_errors <- data.frame(
+  case = c("id_column_not_first", "two_nonnumeric_columns"),
+  r_error = c(
+    .io_err(lmFit(data.frame(.io_expr, symbol = .io_ids, check.names = FALSE), .io_design)),
+    .io_err(lmFit(data.frame(a = .io_ids, b = .io_ids, .io_expr, check.names = FALSE), .io_design))
+  )
+)
+stopifnot(!anyNA(.io_errors$r_error))
+write.csv(.io_errors, "R_io_errors.csv", row.names = FALSE)
+
+cat("  input-dispatch fixtures complete.\n")

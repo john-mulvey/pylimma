@@ -1208,7 +1208,9 @@ def lm_fit(
         gene_names = list(adata.var_names) if adata.var_names is not None else None
     elif isinstance(data, pd.DataFrame):
         sample_data = None
-        gene_names = list(data.index)
+        # R: a leading non-numeric column becomes y$probes and so fit$genes;
+        # an all-numeric data.frame contributes only its row names.
+        gene_names = list(data.index) if data.shape[1] == expr.shape[1] else None
     else:
         sample_data = None
         gene_names = None

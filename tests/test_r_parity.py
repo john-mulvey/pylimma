@@ -5823,3 +5823,111 @@ class TestRoastUserPriorParity:
         np.testing.assert_array_equal(out["n_genes"], r["NGenes"])
         np.testing.assert_allclose(out["prop_down"], r["PropDown"], rtol=1e-12)
         np.testing.assert_allclose(out["prop_up"], r["PropUp"], rtol=1e-12)
+
+
+# =============================================================================
+# Input dispatch: every supported container reproduces one R pipeline
+# =============================================================================
+
+
+def _io_expr() -> pd.DataFrame:
+    return load_r_csv_no_index("io_expr").set_index("id").drop(columns="symbol")
+
+
+def _io_container(kind: str):
+    import anndata as ad
+    import scipy.sparse as sp
+
+    expr = _io_expr()
+    if kind == "ndarray":
+        return expr.to_numpy()
+    if kind == "dataframe":
+        return expr
+    if kind == "dataframe_nullable":
+        nullable = expr.astype("Float64")
+        assert nullable.isna().to_numpy().any()  # pd.NA, not NaN
+        return nullable
+    if kind == "elist":
+        return EList({"E": expr.to_numpy(), "genes": pd.DataFrame(index=expr.index)})
+    obs, var = pd.DataFrame(index=expr.columns), pd.DataFrame(index=expr.index)
+    X = expr.to_numpy().T.copy()
+    return ad.AnnData(X=sp.csr_matrix(X) if kind == "anndata_sparse" else X, obs=obs, var=var)
+
+
+class TestInputDispatchParity:
+    """lmFit -> eBayes -> topTable on the same data through every input container."""
+
+    DESIGN = pd.DataFrame({"(Intercept)": 1.0, "groupB": np.repeat([0.0, 1.0], 4)})
+
+    @staticmethod
+    def _assert_table_matches(tab: pd.DataFrame, r: pd.DataFrame, check_ids: bool = True) -> None:
+        if check_ids:
+            assert list(tab.index) == list(r["id"])
+        for r_col in ("logFC", "AveExpr", "t", "B"):
+            np.testing.assert_allclose(tab[_TT_COLUMNS[r_col]], r[r_col], rtol=1e-6, atol=1e-12)
+        for r_col in ("P.Value", "adj.P.Val"):
+            _assert_log10_pvalues_close(r[r_col], tab[_TT_COLUMNS[r_col]])
+
+    def _top_table(self, container):
+        fit = lm_fit(container, self.DESIGN)
+        if fit is None:  # AnnData: lm_fit / e_bayes write to container.uns
+            e_bayes(container)
+            return top_table(container, coef="groupB", number=np.inf, sort_by="none")
+        return top_table(e_bayes(fit), coef="groupB", number=np.inf, sort_by="none")
+
+    @pytest.mark.parametrize(
+        "kind", ["ndarray", "dataframe", "dataframe_nullable", "elist", "anndata_dense", "anndata_sparse"]
+    )
+    def test_container_matches_r(self, kind):
+        container = _io_container(kind)
+        tab = self._top_table(container)
+        self._assert_table_matches(tab, load_r_csv_no_index("io_pipeline"), check_ids=kind != "ndarray")
+
+    def test_anndata_h5ad_round_trip_matches_r(self, tmp_path):
+        import anndata as ad
+
+        adata = _io_container("anndata_dense")
+        lm_fit(adata, self.DESIGN)
+        path = tmp_path / "fit.h5ad"
+        adata.write_h5ad(path)
+        reloaded = ad.read_h5ad(path)
+        assert isinstance(reloaded.uns["pylimma"]["coef_names"], np.ndarray)  # the h5ad form
+
+        e_bayes(reloaded)
+        self._assert_table_matches(
+            top_table(reloaded, coef="groupB", number=np.inf, sort_by="none"),
+            load_r_csv_no_index("io_pipeline"),
+        )
+
+    def test_contrasts_by_name_after_h5ad_matches_r(self, tmp_path):
+        import anndata as ad
+
+        adata = _io_container("anndata_dense")
+        lm_fit(adata, self.DESIGN)
+        adata.write_h5ad(tmp_path / "fit.h5ad")
+        reloaded = ad.read_h5ad(tmp_path / "fit.h5ad")
+        contrasts_fit(reloaded, coefficients=["groupB"])
+        e_bayes(reloaded)
+        self._assert_table_matches(
+            top_table(reloaded, number=np.inf, sort_by="none"), load_r_csv_no_index("io_contrasts_by_name")
+        )
+
+    def test_dataframe_first_column_ids_matches_r(self):
+        frame = load_r_csv_no_index("io_expr").set_index("id")
+        tab = top_table(e_bayes(lm_fit(frame, self.DESIGN)), coef="groupB", number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("io_dataframe_id_column")
+        self._assert_table_matches(tab, r)
+        assert list(tab["symbol"]) == list(r["symbol"])
+
+    @pytest.mark.parametrize("case", ["id_column_not_first", "two_nonnumeric_columns"])
+    def test_dataframe_errors_match_r(self, case):
+        assert isinstance(load_r_csv_no_index("io_errors").set_index("case")["r_error"][case], str)
+        expr = _io_expr()
+        frame = {
+            "id_column_not_first": lambda: expr.assign(symbol=list(expr.index)),
+            "two_nonnumeric_columns": lambda: pd.concat(
+                [pd.DataFrame({"a": list(expr.index), "b": list(expr.index)}, index=expr.index), expr], axis=1
+            ),
+        }[case]()
+        with pytest.raises(TypeError):
+            lm_fit(frame, self.DESIGN)

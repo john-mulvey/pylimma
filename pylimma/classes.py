@@ -713,16 +713,23 @@ def get_eawp(
         )
 
     if isinstance(obj, pd.DataFrame):
-        numeric_cols = obj.dtypes.apply(lambda dt: np.issubdtype(dt, np.number))
+        # R lmFit: vapply(object, is.numeric); logical columns are not numeric.
+        # pandas' check also covers nullable extension dtypes (Float64, Int64).
+        numeric_cols = obj.dtypes.apply(
+            lambda dt: pd.api.types.is_numeric_dtype(dt) and not pd.api.types.is_bool_dtype(dt)
+        )
         if numeric_cols.all():
-            y["exprs"] = obj.values.astype(np.float64)
-        elif (~numeric_cols).sum() == 1 and len(obj.columns) > 1:
-            y["exprs"] = obj.iloc[:, 1:].values.astype(np.float64)
+            y["exprs"] = obj.to_numpy(dtype=np.float64, na_value=np.nan)
+        elif (~numeric_cols).sum() == 1 and not numeric_cols.iloc[0] and len(obj.columns) > 1:
+            # R: identical(sum(WhichNotNumeric), 1L) - the one non-numeric
+            # column must be the first; it becomes the gene IDs.
+            y["exprs"] = obj.iloc[:, 1:].to_numpy(dtype=np.float64, na_value=np.nan)
             y["probes"] = obj.iloc[:, [0]]
         else:
             raise TypeError(
-                "DataFrame input must be all-numeric or have exactly one "
-                "non-numeric column (treated as gene IDs)"
+                "Expression object should be numeric, instead it is a data.frame with "
+                f"{int((~numeric_cols).sum())} non-numeric columns (a single non-numeric "
+                "first column is treated as gene IDs)"
             )
         # Mirror R's getEAWP: if the input has non-default row names,
         # wrap them as a one-column probes DataFrame so gene names
@@ -896,5 +903,11 @@ def _resolve_fit_input(data, key: str):
             raise ValueError(
                 f"No fit results found in adata.uns[{key!r}]. Did you run lm_fit() first?"
             )
-        return data.uns[key], data, key
+        fit = data.uns[key]
+        # write_h5ad / read_h5ad turns list-valued slots into ndarrays;
+        # name lookups (.index, `or`) expect lists.
+        for slot in ("coef_names", "contrast_names"):
+            if isinstance(fit.get(slot), np.ndarray):
+                fit[slot] = fit[slot].astype(str).tolist()
+        return fit, data, key
     return data, None, None
