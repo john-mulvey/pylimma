@@ -3785,3 +3785,19 @@ stopifnot(!anyNA(.gls_errors$r_error))
 write.csv(.gls_errors, "R_gls_cor_errors.csv", row.names = FALSE)
 
 cat("  gls.series correlation fixtures complete.\n")
+
+# =============================================================================
+# gls.series forwards ... to duplicateCorrelation (trim) when the correlation
+# is estimated
+# =============================================================================
+cat("\nGenerating gls.series ... forwarding fixtures...\n")
+
+.glt_M <- as.matrix(read.csv("R_gls_cor_M.csv"))
+.glt_design <- cbind(1, rep(0:1, each = 4))
+.glt_block <- rep(1:4, 2)
+.glt_gls <- gls.series(.glt_M, .glt_design, block = .glt_block, trim = 0.3)
+stopifnot(!isTRUE(all.equal(.glt_gls$correlation, gls.series(.glt_M, .glt_design, block = .glt_block)$correlation)))
+write.csv(data.frame(.glt_gls$coefficients, .glt_gls$stdev.unscaled, sigma = .glt_gls$sigma,
+                     correlation = .glt_gls$correlation), "R_gls_trim_gls.csv", row.names = FALSE)
+
+cat("  gls.series ... forwarding fixtures complete.\n")

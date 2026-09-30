@@ -720,6 +720,7 @@ def gls_series(
     block: np.ndarray | None = None,
     correlation: float | None = None,
     weights: np.ndarray | None = None,
+    **kwargs,
 ) -> dict:
     """
     Fit linear model for each gene using generalized least squares.
@@ -742,10 +743,13 @@ def gls_series(
         Block indicator for correlated samples. If provided, ndups and
         spacing are ignored.
     correlation : float, optional
-        Intra-block correlation. If None, will need to be estimated
-        externally (e.g., via duplicate_correlation()).
+        Intra-block correlation. If None, it is estimated with
+        :func:`duplicate_correlation`, as R's gls.series does.
     weights : ndarray, optional
         Observation weights.
+    **kwargs
+        Passed to :func:`duplicate_correlation` when ``correlation`` is
+        None (R's ``...``), e.g. ``trim``.
 
     Returns
     -------
@@ -790,7 +794,7 @@ def gls_series(
     # Check correlation - auto-estimate if not provided (R parity)
     if correlation is None:
         dc_result = duplicate_correlation(
-            M, design=design, ndups=ndups, spacing=spacing, block=block, weights=weights
+            M, design=design, ndups=ndups, spacing=spacing, block=block, weights=weights, **kwargs
         )
         correlation = dc_result["consensus_correlation"]
     if abs(correlation) >= 1:
@@ -1084,7 +1088,7 @@ def lm_fit(
     key: str = "pylimma",
     layer: str | None = None,
     weights_layer: str | None = None,
-    **mrlm_kwargs,
+    **kwargs,
 ) -> dict | None:
     """
     Fit linear models to expression data.
@@ -1126,6 +1130,11 @@ def lm_fit(
         - "robust": robust regression using M-estimation
     key : str, default "pylimma"
         Key for storing results in adata.uns (AnnData input only).
+    **kwargs
+        R's ``...``: passed to :func:`mrlm` when ``method="robust"``
+        (e.g. ``maxit``), or to :func:`gls_series` for correlated samples
+        (e.g. ``trim`` when the correlation is estimated). Ignored for
+        ordinary least squares, as in R.
     layer : str, optional
         Layer to use for expression data (AnnData input only).
         If None, uses adata.X.
@@ -1277,7 +1286,7 @@ def lm_fit(
             ndups=ndups,
             spacing=spacing,
             weights=weights,
-            **mrlm_kwargs,
+            **kwargs,
         )
     elif ndups < 2 and block is None:
         # Simple OLS or WLS
@@ -1292,6 +1301,7 @@ def lm_fit(
             block=block,
             correlation=correlation,
             weights=weights,
+            **kwargs,
         )
 
     # R lmfit.R:77-81: warn when some genes have a mix of NA and non-NA

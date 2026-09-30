@@ -5967,3 +5967,21 @@ class TestGlsSeriesCorrelationRParity:
                   "block_length": dict(block=np.arange(1, 4), correlation=0.4)}[case]
         with pytest.raises(ValueError):
             gls_series(M, self.DESIGN, **kwargs)
+
+
+class TestGlsSeriesDotsForwardingRParity:
+    """gls_series forwards R's ... (here trim) to duplicate_correlation when
+    the correlation is estimated. The fixture checks trim = 0.3 changes R's
+    estimated correlation."""
+
+    def test_trim_matches_r(self):
+        from pylimma import gls_series
+
+        M = load_r_csv_no_index("gls_cor_M").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        fit = gls_series(M, design, block=np.tile(np.arange(1, 5), 2), trim=0.3)
+        r = load_r_csv_no_index("gls_trim_gls").to_numpy(dtype=float)
+        np.testing.assert_allclose(fit["correlation"], r[0, 5], rtol=1e-6)
+        np.testing.assert_allclose(fit["coefficients"], r[:, 0:2], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(fit["stdev_unscaled"], r[:, 2:4], rtol=1e-6)
+        np.testing.assert_allclose(fit["sigma"], r[:, 4], rtol=1e-6)
