@@ -236,12 +236,12 @@ class TestRigorousSqueezeVar:
         py = squeeze_var(sample_var, df=df)
         r = _r_squeeze_var(sample_var, df)
 
-        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-5)
+        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
         # df_prior could be scalar or array depending on robust mode - here it
         # is scalar from fitFDistUnequalDF1 default (robust=FALSE)
         py_dfp = _atleast_1d(py["df_prior"])
         r_dfp = _atleast_1d(r["df_prior"])
-        np.testing.assert_allclose(r_dfp, py_dfp, rtol=1e-5)
+        np.testing.assert_allclose(r_dfp, py_dfp, rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B5c: all df<=0 -> R: dfp=empty, min/max=Inf/-Inf, identical(...)=FALSE -> legacy=FALSE
@@ -333,12 +333,12 @@ class TestRigorousSqueezeVar:
         py = squeeze_var(sample_var, df=df, legacy=False, robust=False)
         r = _r_squeeze_var(sample_var, df, legacy=False, robust=False)
 
-        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-5)
+        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
         np.testing.assert_allclose(
-            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-5
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-6
         )
         np.testing.assert_allclose(
-            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-5
+            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-6
         )
 
     def test_non_legacy_robust_unequal_df1_path(self):
@@ -358,9 +358,9 @@ class TestRigorousSqueezeVar:
         py = squeeze_var(sample_var, df=df, legacy=False, robust=True)
         r = _r_squeeze_var(sample_var, df, legacy=False, robust=True)
 
-        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-5)
+        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
         np.testing.assert_allclose(
-            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-5
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-6
         )
 
     # ------------------------------------------------------------------
@@ -525,7 +525,7 @@ class TestRigorousSqueezeVar:
         # With span: legacy=FALSE - results should differ from above
         py_new = squeeze_var(sample_var, df=df, span=0.5)
         r_new = _r_squeeze_var(sample_var, df, span=0.5)
-        np.testing.assert_allclose(r_new["var_post"], py_new["var_post"], rtol=1e-5)
+        np.testing.assert_allclose(r_new["var_post"], py_new["var_post"], rtol=1e-6)
 
     # ------------------------------------------------------------------
     # Combined: legacy=False + covariate
@@ -541,7 +541,7 @@ class TestRigorousSqueezeVar:
         py = squeeze_var(sample_var, df=df, covariate=cov, legacy=False)
         r = _r_squeeze_var_with_cov(sample_var, df, cov, legacy=False)
 
-        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-4)
+        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
         py_vp = _atleast_1d(py["var_prior"])
         r_vp = _atleast_1d(r["var_prior"])
-        np.testing.assert_allclose(r_vp, py_vp, rtol=1e-4)
+        np.testing.assert_allclose(r_vp, py_vp, rtol=1e-6)

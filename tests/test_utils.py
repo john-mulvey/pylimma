@@ -26,7 +26,7 @@ class TestTrigammaInverse:
         """Test that scalar input returns scalar output."""
         result = trigamma_inverse(1.0)
         assert isinstance(result, float)
-        assert np.isclose(result, 1.42625512, rtol=1e-6)
+        assert np.isclose(result, 1.42625512, rtol=1e-6, atol=1e-12)
 
     def test_negative_input_warns(self):
         """Test that negative input produces NaN with warning."""
@@ -122,8 +122,8 @@ class TestQQT:
 
         expected_x = stats.norm.ppf((np.arange(1, 101) - 0.5) / 100)
         # Check that x values span similar range
-        assert np.isclose(np.min(result["x"]), np.min(expected_x), rtol=0.1)
-        assert np.isclose(np.max(result["x"]), np.max(expected_x), rtol=0.1)
+        assert np.isclose(np.min(result["x"]), np.min(expected_x), rtol=1e-6, atol=1e-12)
+        assert np.isclose(np.max(result["x"]), np.max(expected_x), rtol=1e-6, atol=1e-12)
 
     def test_nan_handling(self):
         """Test that NaN values are removed."""
@@ -175,7 +175,7 @@ class TestChooseLowessSpan:
         span = choose_lowess_span(n=10000, small_n=50, min_span=0.3)
         # With power=1/3, (50/10000)^(1/3) = 0.171, so span = 0.3 + 0.7*0.171 = 0.42
         expected = 0.3 + (1 - 0.3) * (50 / 10000) ** (1 / 3)
-        assert np.isclose(span, expected, rtol=1e-10)
+        assert np.isclose(span, expected, rtol=1e-10, atol=1e-12)
 
     def test_default_values(self):
         """Test default parameter values."""

@@ -279,8 +279,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5, covariate=cov)
         r = _r_fit_f_dist(x, df1=5, covariate=cov)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B7b (fitFDist.R:36-37): all infinite -> covariate <- sign(covariate)
@@ -300,8 +300,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5, covariate=cov)
         r = _r_fit_f_dist(x, df1=5, covariate=cov)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B8 + R-B10 (fitFDist.R:43, 47-54): notallok subsetting
@@ -416,7 +416,7 @@ class TestRigorousFitFDist:
         # Tolerance: spline basis differs slightly between scipy BSpline
         # and R's splines::ns(); 1e-5 is the documented level.
         np.testing.assert_allclose(
-            r_scale, py_scale, rtol=1e-5, err_msg="trend scale differs from R"
+            r_scale, py_scale, rtol=1e-6, err_msg="trend scale differs from R"
         )
         np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
@@ -453,7 +453,7 @@ class TestRigorousFitFDist:
 
         # All-positions check, including the non-ok positions
         np.testing.assert_allclose(
-            r_scale, py_scale, rtol=1e-5, err_msg="trend scale differs from R"
+            r_scale, py_scale, rtol=1e-6, err_msg="trend scale differs from R"
         )
         np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
@@ -557,7 +557,7 @@ class TestRigorousFitFDist:
 
         py_scale = _atleast_1d(py["scale"])
         r_scale = _atleast_1d(r["scale"])
-        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5)
+        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-6)
 
     # ------------------------------------------------------------------
     # Sanity: vector df1 with covariate (combined R-B14 & R-B15 path
@@ -575,5 +575,5 @@ class TestRigorousFitFDist:
 
         py_scale = _atleast_1d(py["scale"])
         r_scale = _atleast_1d(r["scale"])
-        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)

@@ -45,33 +45,33 @@ def _diffsplice_fit():
 
 def test_diffsplice_coefficients(_diffsplice_fit):
     expected = pd.read_csv(FIXTURES / "R_diffSplice_coefficients.csv", index_col=0).values
-    np.testing.assert_allclose(_diffsplice_fit["coefficients"], expected, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(_diffsplice_fit["coefficients"], expected, rtol=1e-6, atol=1e-12)
 
 
 def test_diffsplice_t(_diffsplice_fit):
     expected = pd.read_csv(FIXTURES / "R_diffSplice_t.csv", index_col=0).values
-    np.testing.assert_allclose(_diffsplice_fit["t"], expected, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(_diffsplice_fit["t"], expected, rtol=1e-6, atol=1e-12)
 
 
 def test_diffsplice_p(_diffsplice_fit):
     expected = pd.read_csv(FIXTURES / "R_diffSplice_p.csv", index_col=0).values
-    np.testing.assert_allclose(_diffsplice_fit["p_value"], expected, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(_diffsplice_fit["p_value"], expected, rtol=1e-6, atol=1e-12)
 
 
 def test_diffsplice_gene_F(_diffsplice_fit):
     expected = pd.read_csv(FIXTURES / "R_diffSplice_gene_F.csv", index_col=0).values
-    np.testing.assert_allclose(_diffsplice_fit["gene_F"], expected, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(_diffsplice_fit["gene_F"], expected, rtol=1e-6, atol=1e-12)
 
 
 def test_diffsplice_gene_F_p(_diffsplice_fit):
     expected = pd.read_csv(FIXTURES / "R_diffSplice_gene_F_p.csv", index_col=0).values
-    np.testing.assert_allclose(_diffsplice_fit["gene_F_p_value"], expected, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(_diffsplice_fit["gene_F_p_value"], expected, rtol=1e-6, atol=1e-12)
 
 
 def test_diffsplice_gene_simes(_diffsplice_fit):
     expected = pd.read_csv(FIXTURES / "R_diffSplice_gene_simes_p.csv", index_col=0).values
     np.testing.assert_allclose(
-        _diffsplice_fit["gene_simes_p_value"], expected, rtol=1e-6, atol=1e-9
+        _diffsplice_fit["gene_simes_p_value"], expected, rtol=1e-6, atol=1e-12
     )
 
 
@@ -105,7 +105,7 @@ def _diffsplice_fit_legacy():
 )
 def test_diffsplice_legacy_rparity(_diffsplice_fit_legacy, key, file):
     expected = pd.read_csv(FIXTURES / file, index_col=0).values
-    np.testing.assert_allclose(_diffsplice_fit_legacy[key], expected, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(_diffsplice_fit_legacy[key], expected, rtol=1e-6, atol=1e-12)
 
 
 def test_diffsplice_anndata_matches_ndarray():
@@ -181,7 +181,7 @@ def test_top_splice_rparity(_diffsplice_fit, test, sort_by, file):
                 result[col].values,
                 expected[col].values,
                 rtol=1e-6,
-                atol=1e-9,
+                atol=1e-12,
                 err_msg=f"column {col} ({test}, {sort_by})",
             )
 
@@ -217,7 +217,7 @@ def test_plot_splice_substrate(_diffsplice_fit):
         np.asarray(_diffsplice_fit["p_value"])[exons, 1],
         expected["p"].values,
         rtol=1e-6,
-        atol=1e-9,
+        atol=1e-12,
     )
 
     ax = plot_splice(_diffsplice_fit, coef=1)

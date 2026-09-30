@@ -118,7 +118,7 @@ def test_volcano_plot_substrate():
         -np.log10(np.asarray(fit["p_value"])[:, 0]),
         expected["neg_log10_p"].values,
         rtol=1e-6,
-        atol=1e-9,
+        atol=1e-12,
     )
     np.testing.assert_allclose(
         np.asarray(fit["lods"])[:, 0],
@@ -173,7 +173,7 @@ def test_plot_sa_trend_substrate():
 
     np.testing.assert_allclose(fit["Amean"], expected["Amean"].values, rtol=1e-6)
     np.testing.assert_allclose(np.sqrt(fit["sigma"]), expected["sqrt_sigma"].values, rtol=1e-6)
-    np.testing.assert_allclose(fit["s2_prior"], expected["s2_prior"].values, rtol=1e-5)
+    np.testing.assert_allclose(fit["s2_prior"], expected["s2_prior"].values, rtol=1e-6)
 
     ax = plot_sa(fit)
     assert ax is not None
@@ -202,8 +202,8 @@ def test_plot_densities_curves():
     py_y = py_line.get_ydata()
     assert len(py_x) == 512
     # Grid spacing should match R's density(n=512)
-    np.testing.assert_allclose(py_x, r_s1["x"].values, rtol=1e-6, atol=1e-9)
-    np.testing.assert_allclose(py_y, r_s1["y"].values, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(py_x, r_s1["x"].values, rtol=1e-6, atol=1e-12)
+    np.testing.assert_allclose(py_y, r_s1["y"].values, rtol=1e-6, atol=1e-12)
 
 
 # ----------------------------------------------------------------------------
@@ -233,13 +233,13 @@ def test_mds_coordinates_rparity(sel, top):
         canonical_column_signs(res["x"]),
         expected["dim1"].values,
         rtol=1e-6,
-        atol=1e-9,
+        atol=1e-12,
     )
     np.testing.assert_allclose(
         canonical_column_signs(res["y"]),
         expected["dim2"].values,
         rtol=1e-6,
-        atol=1e-9,
+        atol=1e-12,
     )
     np.testing.assert_allclose(
         res["var_explained"][0],
@@ -351,7 +351,7 @@ def test_barcode_plot_worm_substrate():
     # Verify the tricube + normalisation pipeline against R
     ave = idx_sorted.sum() / len(idx_sorted)
     worm = tricube_moving_average(idx_sorted.astype(np.float64), span=0.45) / ave
-    np.testing.assert_allclose(worm, expected_worm, rtol=1e-6, atol=1e-9)
+    np.testing.assert_allclose(worm, expected_worm, rtol=1e-6, atol=1e-12)
 
     # Smoke test of the full plotting function on an ad-hoc input
     np.random.seed(5)

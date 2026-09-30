@@ -1706,7 +1706,9 @@ class TestVoomRParity:
         consensus = dupcor["consensus_correlation"]
 
         # Consensus correlation should match R
-        assert np.isclose(consensus, r_consensus["consensus_correlation"].values[0], rtol=1e-6)
+        assert np.isclose(
+            consensus, r_consensus["consensus_correlation"].values[0], rtol=1e-6, atol=1e-12
+        )
 
         v_block = voom(voom_data["counts"], voom_data["design"], block=block, correlation=consensus)
 
@@ -1729,8 +1731,8 @@ class TestVoomRParity:
         v_prior = voom(voom_data["counts"], voom_data["design"], offset_prior=r_offset_prior.values)
 
         # E and weights should be identical
-        assert np.allclose(v_offset["E"], v_prior["E"], rtol=1e-14)
-        assert np.allclose(v_offset["weights"], v_prior["weights"], rtol=1e-14)
+        assert np.allclose(v_offset["E"], v_prior["E"], rtol=1e-14, atol=1e-12)
+        assert np.allclose(v_offset["weights"], v_prior["weights"], rtol=1e-14, atol=1e-12)
 
 
 class TestArrayWeightsRParity:
@@ -1883,7 +1885,7 @@ class TestVoomaRParity:
         expr = np.log2(voom_data["counts"] + 1)
         va = vooma(expr, voom_data["design"], legacy_span=True)
 
-        assert np.isclose(va["span"], r_span["span"].values[0], rtol=1e-10), (
+        assert np.isclose(va["span"], r_span["span"].values[0], rtol=1e-10, atol=1e-12), (
             f"vooma legacy span differs: Py={va['span']}, R={r_span['span'].values[0]}"
         )
 
@@ -1936,6 +1938,7 @@ class TestDuplicateCorrelationRParity:
             dc["consensus_correlation"],
             r_consensus["consensus_correlation"].values[0],
             rtol=1e-6,
+            atol=1e-12,
         ), (
             f"consensus_correlation differs: Python={dc['consensus_correlation']:.6f}, R={r_consensus['consensus_correlation'].values[0]:.6f}"
         )
@@ -1972,7 +1975,10 @@ class TestDuplicateCorrelationRParity:
 
         # Verify consensus matches R
         assert np.isclose(
-            dc["consensus_correlation"], r_consensus["consensus_correlation"].values[0], rtol=1e-6
+            dc["consensus_correlation"],
+            r_consensus["consensus_correlation"].values[0],
+            rtol=1e-6,
+            atol=1e-12,
         ), "Consensus differs from R"
 
 
@@ -2208,7 +2214,7 @@ class TestVoomaLmFitBranchCoverage:
         expr = np.log2(voom_data["counts"] + 1)
         fit = vooma_lm_fit(expr, voom_data["design"], legacy_span=True)
 
-        assert np.isclose(fit["span"], r_span["span"].values[0], rtol=1e-10), (
+        assert np.isclose(fit["span"], r_span["span"].values[0], rtol=1e-10, atol=1e-12), (
             f"voomaLmFit legacy span differs: Py={fit['span']}, R={r_span['span'].values[0]}"
         )
         result_c = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-8)
@@ -2466,7 +2472,7 @@ class TestVoomaLmFitPredictorRParity:
         expr = np.log2(voom_data["counts"] + 1)
         fit = vooma_lm_fit(expr, voom_data["design"], predictor=predictor)
 
-        assert np.isclose(fit["span"], r_span["span"].values[0], rtol=1e-10)
+        assert np.isclose(fit["span"], r_span["span"].values[0], rtol=1e-10, atol=1e-12)
         result_c = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-8)
         assert result_c["match"], (
             f"voomaLmFit predictor coef differ: max_rel={result_c['max_rel_diff']:.2e}"
@@ -3027,7 +3033,9 @@ class TestSqueezeVarAsymWinsorRParity:
         # Global var_prior: R stores a single number; Python returns a scalar
         r_vp = float(r_glob["var_prior"].iloc[0])
         py_vp = float(np.atleast_1d(sv["var_prior"])[0])
-        assert np.isclose(r_vp, py_vp, rtol=1e-6), f"var_prior differs: R={r_vp}, Py={py_vp}"
+        assert np.isclose(r_vp, py_vp, rtol=1e-6, atol=1e-12), (
+            f"var_prior differs: R={r_vp}, Py={py_vp}"
+        )
 
 
 class TestLmFitNonEstimableRParity:
@@ -3256,7 +3264,7 @@ class TestEBayesStdevCoefLimRParity:
         # var_prior is per-coefficient; coef index 1 must match
         r_vp = float(r_out["var_prior"].iloc[0])
         py_vp = float(np.atleast_1d(eb["var_prior"])[1])
-        assert np.isclose(r_vp, py_vp, rtol=1e-8), (
+        assert np.isclose(r_vp, py_vp, rtol=1e-8, atol=1e-12), (
             f"eBayes stdev_coef_lim var_prior differs: R={r_vp}, Py={py_vp}"
         )
 
@@ -3534,17 +3542,17 @@ class TestLmFitRobustNdupsRParity:
                 spacing=1,
             )
 
-        result = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-4)
+        result = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-6)
         assert result["match"], (
             f"lm_fit(robust, ndups=2) coef differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
-        result = compare_arrays(r_stdev.values, fit["stdev_unscaled"], rtol=1e-4)
+        result = compare_arrays(r_stdev.values, fit["stdev_unscaled"], rtol=1e-6)
         assert result["match"], (
             f"lm_fit(robust, ndups=2) stdev differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
-        result = compare_arrays(r_stats["sigma"].values, fit["sigma"], rtol=1e-4)
+        result = compare_arrays(r_stats["sigma"].values, fit["sigma"], rtol=1e-6)
         assert result["match"], (
             f"lm_fit(robust, ndups=2) sigma differs: max_rel={result['max_rel_diff']:.2e}"
         )
@@ -4364,7 +4372,9 @@ class TestPlotRldfMathRParity:
         r_sv = load_r_csv_no_index("ie_rldf_singular_values")["d"].to_numpy()
         np.testing.assert_allclose(np.asarray(out["singular_values"]).ravel(), r_sv, rtol=1e-6)
         py_training = np.asarray(out["training_scores"], dtype=float)[:, : r_training.shape[1]]
-        np.testing.assert_allclose(canonical_column_signs(py_training), r_training, rtol=1e-6, atol=1e-9)
+        np.testing.assert_allclose(
+            canonical_column_signs(py_training), r_training, rtol=1e-6, atol=1e-12
+        )
 
 
 # -----------------------------------------------------------------------------
@@ -4929,7 +4939,7 @@ class TestNormalizeVSNRParity:
         hx = _vsn_trsf(x, r_par)
         hoffset = float(np.log2(2.0 * _scaling_factor_transform(np.mean(r_b))))
         py_at_r = hx / np.log(2.0) - hoffset
-        cmp = compare_arrays(ref, py_at_r, rtol=1e-6, atol=1e-7)
+        cmp = compare_arrays(ref, py_at_r, rtol=1e-6, atol=1e-12)
         assert cmp["match"], (
             f"transform at R params differs: "
             f"max_rel={cmp['max_rel_diff']:.3e} max_abs={cmp['max_abs_diff']:.3e}"

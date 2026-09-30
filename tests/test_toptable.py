@@ -36,9 +36,9 @@ class TestTopTable:
 
         # Compare statistics for top gene
         gene1 = ref["gene"].iloc[0]
-        np.testing.assert_allclose(result.loc[gene1, "log_fc"], ref["log_fc"].iloc[0], rtol=1e-5)
-        np.testing.assert_allclose(result.loc[gene1, "t"], ref["t"].iloc[0], rtol=1e-5)
-        np.testing.assert_allclose(result.loc[gene1, "b"], ref["b"].iloc[0], rtol=1e-5)
+        np.testing.assert_allclose(result.loc[gene1, "log_fc"], ref["log_fc"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(result.loc[gene1, "t"], ref["t"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(result.loc[gene1, "b"], ref["b"].iloc[0], rtol=1e-6)
 
         assert "adj_p_value" in result.columns
 
@@ -335,9 +335,9 @@ class TestTopTable:
         assert list(result["ID"]) == list(ref["ID"])
 
         # Statistics should match R
-        np.testing.assert_allclose(result["log_fc"].values, ref["logFC"].values, rtol=1e-5)
-        np.testing.assert_allclose(result["t"].values, ref["t"].values, rtol=1e-5)
-        np.testing.assert_allclose(result["p_value"].values, ref["P.Value"].values, rtol=1e-5)
+        np.testing.assert_allclose(result["log_fc"].values, ref["logFC"].values, rtol=1e-6)
+        np.testing.assert_allclose(result["t"].values, ref["t"].values, rtol=1e-6)
+        np.testing.assert_allclose(result["p_value"].values, ref["P.Value"].values, rtol=1e-6)
 
     def test_duplicated_rownames_with_existing_id_column(self):
         """Test that ID0 is used when genelist already has an ID column."""

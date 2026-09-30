@@ -97,7 +97,7 @@ def _assert_full_slot_parity(
     # df_prior (scalar in R when not robust)
     r_dfprior = float(np.atleast_1d(r_out["df_prior"]).ravel()[0])
     py_dfprior = float(np.atleast_1d(eb["df_prior"]).ravel()[0])
-    assert np.isclose(r_dfprior, py_dfprior, rtol=rtol), (
+    assert np.isclose(r_dfprior, py_dfprior, rtol=rtol, atol=1e-12), (
         f"df_prior differs: R={r_dfprior}, Py={py_dfprior}"
     )
 
@@ -110,7 +110,9 @@ def _assert_full_slot_parity(
     # treat_lfc (scalar)
     r_tlfc = float(np.atleast_1d(r_out["treat_lfc"]).ravel()[0])
     py_tlfc = float(np.atleast_1d(eb["treat_lfc"]).ravel()[0])
-    assert np.isclose(r_tlfc, py_tlfc, rtol=rtol), f"treat_lfc differs: R={r_tlfc}, Py={py_tlfc}"
+    assert np.isclose(r_tlfc, py_tlfc, rtol=rtol, atol=1e-12), (
+        f"treat_lfc differs: R={r_tlfc}, Py={py_tlfc}"
+    )
 
 
 # ----------------------------------------------------------------------
@@ -440,7 +442,7 @@ class TestRigorousTreat:
         # df_prior loose: upstream squeeze_var divergence
         r_dfprior = float(np.atleast_1d(r_out["df_prior"]).ravel()[0])
         py_dfprior = float(np.atleast_1d(eb["df_prior"]).ravel()[0])
-        assert np.isclose(r_dfprior, py_dfprior, rtol=1e-4), (
+        assert np.isclose(r_dfprior, py_dfprior, rtol=1e-6, atol=1e-12), (
             f"df_prior differs: R={r_dfprior}, Py={py_dfprior}"
         )
 

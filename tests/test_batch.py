@@ -32,7 +32,7 @@ def test_wsva_unweighted_rparity():
         b = expected[:, j]
         if np.dot(a, b) < 0:
             a = -a
-        np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-9)
+        np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-12)
 
 
 def test_wsva_weighted_rparity():
@@ -48,4 +48,4 @@ def test_wsva_weighted_rparity():
         b = expected[:, j]
         if np.dot(a, b) < 0:
             a = -a
-        np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-9)
+        np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-12)

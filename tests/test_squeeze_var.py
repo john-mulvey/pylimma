@@ -22,8 +22,8 @@ class TestFitFDist:
         sample_var = var_input["sample_var"].values
         result = fit_f_dist(sample_var, df1=5)
 
-        np.testing.assert_allclose(result["scale"], ref["fit_scale"].iloc[0], rtol=1e-5)
-        np.testing.assert_allclose(result["df2"], ref["fit_df2"].iloc[0], rtol=1e-5)
+        np.testing.assert_allclose(result["scale"], ref["fit_scale"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(result["df2"], ref["fit_df2"].iloc[0], rtol=1e-6)
 
     def test_empty_input(self):
         """Test that empty input returns NaN."""
@@ -101,9 +101,9 @@ class TestSqueezeVar:
         sample_var = var_input["sample_var"].values
         result = squeeze_var(sample_var, df=5)
 
-        np.testing.assert_allclose(result["var_prior"], ref["var_prior"].iloc[0], rtol=1e-5)
-        np.testing.assert_allclose(result["df_prior"], ref["df_prior"].iloc[0], rtol=1e-5)
-        np.testing.assert_allclose(result["var_post"], ref["var_post"].values, rtol=1e-5)
+        np.testing.assert_allclose(result["var_prior"], ref["var_prior"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(result["df_prior"], ref["df_prior"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(result["var_post"], ref["var_post"].values, rtol=1e-6)
 
     def test_empty_input(self):
         """Test that empty input raises ValueError."""

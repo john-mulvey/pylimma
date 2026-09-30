@@ -592,7 +592,7 @@ class TestRigorousEBayes:
             output_vars=["v0"],
         )
         r_v0 = float(np.asarray(r_results["v0"]).ravel()[0])
-        assert np.isclose(py_v0, r_v0, rtol=1e-6), (
+        assert np.isclose(py_v0, r_v0, rtol=1e-6, atol=1e-12), (
             f"v0 with v0_lim clipping differs: R={r_v0:.6e}, Py={py_v0:.6e}"
         )
 
@@ -634,7 +634,7 @@ class TestRigorousEBayes:
             output_vars=["v0"],
         )
         r_v0 = float(np.asarray(r_results["v0"]).ravel()[0])
-        assert np.isclose(py_v0, r_v0, rtol=1e-6), (
+        assert np.isclose(py_v0, r_v0, rtol=1e-6, atol=1e-12), (
             f"tmixture NA removal differs: R={r_v0:.6e}, Py={py_v0:.6e}"
         )
 
