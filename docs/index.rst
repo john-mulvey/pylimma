@@ -66,7 +66,13 @@ Contents
 Citation
 --------
 
-Please cite the original limma papers when using pylimma:
+When using pylimma, please cite pylimma itself:
+
+- Mulvey, J. F. (2026). pylimma: a faithful, AnnData-native Python port
+  of R limma for differential expression analysis. *bioRxiv*.
+  https://doi.org/10.64898/2026.07.06.736732
+
+and the original limma papers for the statistical methods:
 
 - Smyth, G. K. (2004). Linear models and empirical Bayes methods for
   assessing differential expression in microarray experiments.
@@ -79,9 +85,6 @@ Please cite the original limma papers when using pylimma:
 - Law, C. W., Chen, Y., Shi, W., and Smyth, G. K. (2014). voom:
   precision weights unlock linear model analysis tools for RNA-seq
   read counts. *Genome Biology* 15, R29.
-
-A pylimma preprint / Zenodo DOI will be listed here once published.
-Until then, cite the GitHub repository and the version tag.
 
 Indices
 -------
