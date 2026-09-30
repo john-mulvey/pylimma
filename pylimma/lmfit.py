@@ -1018,6 +1018,37 @@ def gls_series(
     }
 
 
+def _fit_genes(data, eawp: dict):
+    """Value for fit["genes"] given lm_fit's input and its get_eawp dict.
+
+    R's lmFit does fit$genes <- y$probes (lmfit.R:84). AnnData and
+    all-numeric DataFrame inputs carry only row names, which pylimma
+    stores as a bare list (var_names / index); a DataFrame with a leading
+    non-numeric ID column and EList input keep the probes DataFrame.
+    """
+    if _is_anndata(data):
+        return list(data.var_names)
+    if isinstance(data, pd.DataFrame) and data.shape[1] == eawp["exprs"].shape[1]:
+        return list(data.index)
+    return eawp.get("probes")
+
+
+def _numeric_design(design) -> np.ndarray:
+    """Design matrix as float64, for functions that take a matrix only.
+
+    Formula strings are a pylimma convenience limited to lm_fit and the
+    voom family (via _parse_design); elsewhere they would otherwise fail
+    with numpy's unhelpful "could not convert string to float".
+    """
+    if isinstance(design, str):
+        raise ValueError(
+            f"design={design!r}: formula strings are only supported by lm_fit, "
+            "voom, voom_with_quality_weights, vooma and vooma_lm_fit. Build the "
+            "design matrix first, e.g. patsy.dmatrix(formula, adata.obs)."
+        )
+    return np.asarray(design, dtype=np.float64)
+
+
 def _parse_design(
     design,
     data: pd.DataFrame | None = None,
@@ -1135,6 +1166,9 @@ def lm_fit(
         Observation weights. Can be:
         - 1D array of length n_samples (array weights)
         - 2D array of shape (n_genes, n_samples) (gene-specific weights)
+        Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``);
+        weights stored as an AnnData layer are read with ``weights_layer=``.
     method : str, default "ls"
         Fitting method. Options:
         - "ls": least squares (default)
@@ -1164,6 +1198,14 @@ def lm_fit(
 
     Notes
     -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
+
     The function dispatches to different fitting algorithms based on parameters:
 
     - If method="robust", uses mrlm() for robust M-estimation
@@ -1219,21 +1261,8 @@ def lm_fit(
     if spacing is None:
         spacing = _printer_attr(data, "spacing", 1)
 
-    # Extract metadata needed downstream (gene names and sample data). get_eawp
-    # gives us probes/targets as DataFrames but lm_fit historically extracted
-    # gene_names from DataFrame.index and sample_data from adata.obs - preserve
-    # both conventions here.
-    if is_anndata:
-        sample_data = adata.obs
-        gene_names = list(adata.var_names) if adata.var_names is not None else None
-    elif isinstance(data, pd.DataFrame):
-        sample_data = None
-        # R: a leading non-numeric column becomes y$probes and so fit$genes;
-        # an all-numeric data.frame contributes only its row names.
-        gene_names = list(data.index) if data.shape[1] == expr.shape[1] else None
-    else:
-        sample_data = None
-        gene_names = None
+    # Sample metadata for formula parsing.
+    sample_data = adata.obs if is_anndata else None
 
     if expr.ndim != 2:
         raise ValueError("Expression data must be 2-dimensional")
@@ -1338,18 +1367,7 @@ def lm_fit(
         )
     fit["Amean"] = amean
     fit["design"] = design
-    # R's lmFit does fit$genes <- y$probes (lmfit.R:84). pylimma's
-    # AnnData/DataFrame branches pre-compute gene_names from var_names
-    # / index respectively and those callers expect a bare list here.
-    # For EList / ndarray input we have no such pre-computation, so
-    # fall back to the probes DataFrame captured by get_eawp's EList
-    # branch (classes.py:748-758 populates y["probes"] from
-    # EList["genes"]). Without this, EList callers get fit["genes"] =
-    # None and lose their gene annotations through the pipeline.
-    if gene_names is not None:
-        fit["genes"] = gene_names
-    else:
-        fit["genes"] = eawp.get("probes")
+    fit["genes"] = _fit_genes(data, eawp)
     # Coefficient names from the design matrix. R's lm.series stores them
     # as colnames(fit$coefficients) (lmfit.R:125); pylimma stores
     # coefficients as a bare ndarray so we keep the names in a sidecar
@@ -1364,17 +1382,20 @@ def lm_fit(
     # R's lmFit records the fitting method (lmfit.R:86); plotExons and
     # other diagnostics rely on it.
     fit["method"] = method
-    # Propagate sample metadata (y$targets on an EList, adata.obs on an
-    # AnnData). R's lmFit does the same via fit$targets <- y$targets.
-    # Downstream diagnostic plots (plotSA / plotMDS) expect it.
-    if eawp.get("targets") is not None:
-        fit["targets"] = eawp["targets"]
+    # Propagate sample metadata: R's lmFit does fit$targets <- y$targets.
+    # Copy so later edits to the EList do not reach into the stored fit
+    # (R's copy-on-modify). Skipped for AnnData: the fit is stored next
+    # to adata.obs, so a second copy in adata.uns[key] would only
+    # duplicate it in memory and in the h5ad file.
+    if not is_anndata and eawp.get("targets") is not None:
+        targets = eawp["targets"]
+        fit["targets"] = targets.copy() if hasattr(targets, "copy") else targets
 
     if is_anndata:
         # Store as plain dict so adata.write_h5ad() works. anndata's
         # IO registry dispatches on exact type, not isinstance, so the
         # MArrayLM subclass trips `IORegistryError`. Users can rewrap
-        # via pylimma.MArrayLM(adata.uns[key]) if they need the
+        # via pylimma.get_fit(adata, key) if they need the
         # class's method API back.
         adata.uns[key] = dict(fit)
         return None

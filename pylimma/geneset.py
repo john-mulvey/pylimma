@@ -47,8 +47,8 @@ import numpy as np
 import pandas as pd
 from scipy import linalg, stats
 
-from .classes import get_eawp
-from .lmfit import non_estimable
+from .classes import _elist_from_layer, _shape_error, get_eawp
+from .lmfit import _numeric_design, non_estimable
 from .squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_robustly, squeeze_var
 from .utils import (
     _zscore_t_bailey,
@@ -153,7 +153,7 @@ def _lm_effects(
         design = ea.get("design")
     if design is None:
         raise ValueError("design matrix not specified")
-    design = np.asarray(design, dtype=np.float64)
+    design = _numeric_design(design)
     if design.ndim == 1:
         design = design.reshape(-1, 1)
     if design.shape[0] != n:
@@ -228,7 +228,7 @@ def _lm_effects(
     if weights is not None:
         w_mat = np.asarray(weights, dtype=np.float64)
         if w_mat.shape != (ngenes, n):
-            raise ValueError("weights must have same dimensions as y")
+            raise _shape_error("weights", w_mat.shape, (ngenes, n), "weights must have same dimensions as y")
         if np.any(w_mat <= 0) or np.any(np.isnan(w_mat)):
             raise ValueError("weights must be positive")
     else:
@@ -637,6 +637,9 @@ def roast(
     approx_zscore: bool = True,
     legacy: bool = False,
     rng=None,
+    *,
+    layer: str | None = None,
+    weights_layer: str | None = None,
     **lmfit_kwargs,
 ):
     """
@@ -676,12 +679,21 @@ def roast(
     rng : int, numpy.random.Generator, or None
         Random-number stream. Deterministic outputs match R; Monte-Carlo
         p-values use this stream.
+    layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to use in place of
+        ``adata.X`` (e.g. ``"voom_E"``). As in :func:`lm_fit`, a layer ending
+        in ``"_E"`` also picks up its ``{stem}_weights`` layer and the design
+        stored in ``adata.uns[stem]``.
+    weights_layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to read as
+        observation weights, overriding the ``"_E"`` companion convention.
 
     Returns
     -------
     dict
         ``{"p_value": DataFrame(Active.Prop, P.Value), "ngenes_in_set": int}``.
     """
+    y = _elist_from_layer(y, layer, weights_layer)
     # If index is a list of sets, dispatch to mroast
     if isinstance(index, dict) or (
         isinstance(index, list)
@@ -768,6 +780,9 @@ def mroast(
     midp: bool = True,
     sort: str = "directional",
     rng=None,
+    *,
+    layer: str | None = None,
+    weights_layer: str | None = None,
     **lmfit_kwargs,
 ) -> pd.DataFrame:
     """
@@ -778,7 +793,19 @@ def mroast(
 
     The ``sort`` argument accepts ``True``/``False`` (aliased to
     ``"directional"`` / ``"none"``) as well as the R strings.
+
+    Parameters
+    ----------
+    layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to use in place of
+        ``adata.X`` (e.g. ``"voom_E"``). As in :func:`lm_fit`, a layer ending
+        in ``"_E"`` also picks up its ``{stem}_weights`` layer and the design
+        stored in ``adata.uns[stem]``.
+    weights_layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to read as
+        observation weights, overriding the ``"_E"`` companion convention.
     """
+    y = _elist_from_layer(y, layer, weights_layer)
     rng_state = _resolve_rng(rng)
 
     covariate = None
@@ -1064,6 +1091,9 @@ def fry(
     gene_weights: np.ndarray | None = None,
     standardize: str = "posterior.sd",
     sort="directional",
+    *,
+    layer: str | None = None,
+    weights_layer: str | None = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
@@ -1095,7 +1125,16 @@ def fry(
         R's ``...`` arguments, partially matched as in R: ``array_weights``,
         ``weights``, ``block``, ``correlation``, ``trend_var``, ``robust``,
         ``winsor_tail_p``.
+    layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to use in place of
+        ``adata.X`` (e.g. ``"voom_E"``). As in :func:`lm_fit`, a layer ending
+        in ``"_E"`` also picks up its ``{stem}_weights`` layer and the design
+        stored in ``adata.uns[stem]``.
+    weights_layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to read as
+        observation weights, overriding the ``"_E"`` companion convention.
     """
+    y = _elist_from_layer(y, layer, weights_layer)
     ea = get_eawp(y)
     ngenes = ea["exprs"].shape[0]
     if gene_weights is not None:
@@ -1190,7 +1229,7 @@ def inter_gene_correlation(y: np.ndarray, design: np.ndarray) -> dict:
     ``{"vif": ..., "correlation": ...}``.
     """
     y = np.asarray(y, dtype=np.float64)
-    design = np.asarray(design, dtype=np.float64)
+    design = _numeric_design(design)
     m = y.shape[0]
     Q, R = linalg.qr(design, mode="full")
     rank = int(np.sum(np.abs(np.diag(R)) > 1e-10))
@@ -1220,13 +1259,28 @@ def camera(
     trend_var: bool = False,
     sort: bool = True,
     directional: bool = True,
+    *,
+    layer: str | None = None,
+    weights_layer: str | None = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
     Competitive gene-set test with inter-gene correlation.
 
     Port of R limma's ``camera.default``.
+
+    Parameters
+    ----------
+    layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to use in place of
+        ``adata.X`` (e.g. ``"voom_E"``). As in :func:`lm_fit`, a layer ending
+        in ``"_E"`` also picks up its ``{stem}_weights`` layer and the design
+        stored in ``adata.uns[stem]``.
+    weights_layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to read as
+        observation weights, overriding the ``"_E"`` companion convention.
     """
+    y = _elist_from_layer(y, layer, weights_layer)
     if kwargs:
         warnings.warn(f"Extra arguments disregarded: {list(kwargs.keys())}")
 
@@ -1256,7 +1310,7 @@ def camera(
         design = ea.get("design")
     if design is None:
         raise ValueError("design matrix not specified")
-    design = np.asarray(design, dtype=np.float64)
+    design = _numeric_design(design)
     if design.shape[0] != n:
         raise ValueError("row dimension of design matrix must match column dimension of data")
     p = design.shape[1]
@@ -1299,7 +1353,7 @@ def camera(
             else:
                 weights = w_arr
             if weights.shape != y_use.shape:
-                raise ValueError("weights not conformal with y")
+                raise _shape_error("weights", weights.shape, y_use.shape, "weights not conformal with y")
 
     # Reform design so contrast is the last column.
     if contrast is None:
@@ -1644,13 +1698,22 @@ def romer(
     nrot: int = 9999,
     shrink_resid: bool = True,
     rng=None,
+    *,
+    layer: str | None = None,
     **kwargs,
 ) -> pd.DataFrame:
     """
     Rotation mean-rank gene-set enrichment analysis.
 
     Port of R limma's ``romer.default``.
+
+    Parameters
+    ----------
+    layer : str, optional
+        AnnData only. Name of an ``adata.layers`` entry to use in place of
+        ``adata.X`` (e.g. ``"voom_E"``).
     """
+    y = _elist_from_layer(y, layer)
     if kwargs:
         warnings.warn(f"Extra arguments disregarded: {list(kwargs.keys())}")
 
@@ -1680,7 +1743,7 @@ def romer(
 
     if design is None:
         raise ValueError("design matrix not specified")
-    design = np.asarray(design, dtype=np.float64)
+    design = _numeric_design(design)
     if design.shape[0] != n:
         raise ValueError("row dimension of design matrix must match column dimension of data")
     ne = non_estimable(design)

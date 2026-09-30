@@ -46,6 +46,24 @@ import pandas as pd
 # ----------------------------------------------------------------------------
 
 
+def _shape_error(name: str, actual, expected, message: str) -> ValueError:
+    """Shape-mismatch error for a genes x samples matrix argument.
+
+    pylimma follows limma's genes x samples orientation for explicit
+    matrix arguments, the transpose of AnnData's samples x genes. When the
+    argument is exactly the transpose of what was expected, say so.
+    A square matrix (as many genes as samples) cannot be detected.
+    """
+    actual, expected = tuple(actual), tuple(expected)
+    if len(actual) == 2 and actual != expected and actual == expected[::-1]:
+        message = (
+            f"{message}. {name} has shape {actual} but pylimma expects genes x samples "
+            f"{expected}; it looks transposed (AnnData stores samples x genes). "
+            f"Pass {name}.T."
+        )
+    return ValueError(message)
+
+
 def as_matrix_weights(
     weights,
     dim: tuple[int, int] | None = None,
@@ -118,7 +136,7 @@ def as_matrix_weights(
         return arr.copy()
 
     if min(dw) != 1:
-        raise ValueError("weights is of unexpected shape")
+        raise _shape_error("weights", dw, target, "weights is of unexpected shape")
 
     # Row matrix of array weights: (1, N) with N == target[1] > 1.
     if dw[1] > 1 and dw[1] == target[1]:
@@ -831,6 +849,30 @@ def _eawp_from_elist_like(obj) -> dict:
     }
 
 
+def _elist_from_layer(y, layer: str | None = None, weights_layer: str | None = None):
+    """Resolve an AnnData layer selection into an EList at a function's entry.
+
+    For functions whose internals call ``get_eawp(y)`` more than once
+    (the gene-set tests), resolving ``layer`` / ``weights_layer`` once up
+    front lets those internals stay unchanged. When both are None the
+    input is returned untouched; otherwise the result carries the same
+    exprs / weights / probes / targets / design that ``get_eawp`` reads,
+    so the voom companion-weights and design pickup behave as for an
+    EList produced by voom in R.
+    """
+    if layer is None and weights_layer is None:
+        return y
+    eawp = get_eawp(y, layer=layer, weights_layer=weights_layer)
+    slots = {
+        "E": eawp["exprs"],
+        "weights": eawp["weights"],
+        "genes": eawp["probes"],
+        "targets": eawp["targets"],
+        "design": eawp["design"],
+    }
+    return EList({k: v for k, v in slots.items() if v is not None})
+
+
 # ----------------------------------------------------------------------------
 # Polymorphic output dispatcher
 # ----------------------------------------------------------------------------
@@ -966,11 +1008,78 @@ def _resolve_fit_input(data, key: str):
             raise ValueError(
                 f"No fit results found in adata.uns[{key!r}]. Did you run lm_fit() first?"
             )
-        fit = data.uns[key]
-        # write_h5ad / read_h5ad turns list-valued slots into ndarrays;
-        # name lookups (.index, `or`) expect lists.
-        for slot in ("coef_names", "contrast_names"):
-            if isinstance(fit.get(slot), np.ndarray):
-                fit[slot] = fit[slot].astype(str).tolist()
-        return fit, data, key
-    return data, None, None
+        return _with_list_names(data.uns[key]), data, key
+    return _with_list_names(data), None, None
+
+
+VAR_MISMATCH_MESSAGE = (
+    "adata.var does not match the genes in the stored fit (genes were subset, "
+    "reordered or renamed after fitting), so its annotation cannot be used. "
+    "Pass the identifiers as a vector, or re-run lm_fit on this object."
+)
+
+
+def _var_matches_fit(fit, adata) -> bool:
+    """True when adata.var describes the fit's rows, in order.
+
+    anndata copies adata.uns unchanged when genes are subset or reordered,
+    so a stored fit can outlive the var axis it was computed on. lm_fit
+    records var_names as fit["genes"]; adata.var is only used alongside
+    the fit when those names still match exactly.
+    """
+    genes = fit.get("genes")
+    if genes is None:
+        return False
+    names = genes.index if isinstance(genes, pd.DataFrame) else genes
+    return [str(g) for g in names] == [str(g) for g in adata.var_names]
+
+
+def _with_list_names(fit):
+    """Undo h5ad's list -> ndarray conversion of the name slots.
+
+    write_h5ad / read_h5ad turns list-valued slots into ndarrays, and name
+    lookups (.index, `or`) expect lists. Applied to every fit input, not
+    only AnnData, so a fit taken out of a reloaded adata.uns by hand also
+    works. Returns a shallow copy when a slot needs converting, so the
+    caller's object is left untouched.
+    """
+    if not isinstance(fit, dict):
+        return fit
+    stale = [s for s in ("coef_names", "contrast_names") if isinstance(fit.get(s), np.ndarray)]
+    if not stale:
+        return fit
+    fit = type(fit)(fit)
+    for slot in stale:
+        fit[slot] = fit[slot].astype(str).tolist()
+    return fit
+
+
+def get_fit(adata, key: str = "pylimma") -> MArrayLM:
+    """Extract a fit stored in ``adata.uns[key]`` as a standalone MArrayLM.
+
+    pylimma stores AnnData fits as plain dicts (for h5ad compatibility).
+    This helper returns an independent :class:`MArrayLM` with the name
+    slots restored to lists (h5ad stores them as arrays).
+
+    The fit has no ``targets`` slot: ``adata.obs`` may have been subset,
+    reordered or edited since the fit was made, so it cannot be
+    guaranteed to describe the fitted samples. Read ``adata.obs``
+    directly if you need the sample metadata.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Object holding a fit from :func:`lm_fit` / :func:`e_bayes` /
+        :func:`contrasts_fit` / :func:`treat`.
+    key : str, default "pylimma"
+        The ``adata.uns`` entry holding the fit.
+
+    Returns
+    -------
+    MArrayLM
+        A deep copy: editing it does not change ``adata.uns[key]``.
+    """
+    if not _is_anndata(adata):
+        raise TypeError(f"get_fit expects an AnnData object; got {type(adata).__name__}")
+    fit, _, _ = _resolve_fit_input(adata, key)
+    return MArrayLM(deepcopy(dict(fit)))

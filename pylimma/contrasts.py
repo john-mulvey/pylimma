@@ -317,6 +317,14 @@ def contrasts_fit(
 
     Notes
     -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
+
     Exactly one of `contrasts` or `coefficients` must be provided.
 
     With `coefficients`, the result is ``fit[:, coefficients]``, as in R:

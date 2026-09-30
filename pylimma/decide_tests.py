@@ -254,6 +254,15 @@ def decide_tests(
 
     Notes
     -----
+    **AnnData views.** When the fit has not been moderated yet, the
+    e_bayes fit that decide_tests computes is written into the AnnData.
+    If it is a view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
+
     Deliberate divergence from R (intended rather than literal
     behaviour): for a p-value matrix with ``method="hierarchical"``, R
     limma 3.66.0's ``decideTests.default`` fails with "object 'ngenes'

@@ -509,3 +509,463 @@ def test_put_eawp_anndata_uns_only_payload_when_weights_layered():
     assert "E" not in adata.uns["meta"]
     assert "design" in adata.uns["meta"]
     assert "lib_size" in adata.uns["meta"]
+
+
+# -----------------------------------------------------------------------------
+# Part 5: AnnData regressions (2026-09-30 audit)
+#
+# Each test compares the AnnData route with the equivalent ndarray / EList
+# route, which the R-parity suite already validates.
+# -----------------------------------------------------------------------------
+
+
+def _de_adata():
+    """Log-expression AnnData with a strong group effect in the first 15
+    genes, gene symbols in var and a two-level group in obs."""
+    ad = pytest.importorskip("anndata")
+    rng = np.random.default_rng(7)
+    n_genes, n_samples = 60, 8
+    group = np.repeat(["A", "B"], 4)
+    expr = rng.normal(8, 1, (n_genes, n_samples))
+    expr[:15, group == "B"] += 3
+    obs = pd.DataFrame({"group": pd.Categorical(group)}, index=[f"s{i}" for i in range(n_samples)])
+    var = pd.DataFrame(
+        {"symbol": [f"SYM{i}" for i in range(n_genes)]}, index=[f"g{i}" for i in range(n_genes)]
+    )
+    return ad.AnnData(X=expr.T.copy(), obs=obs, var=var)
+
+
+def _h5ad_roundtrip(adata, tmp_path):
+    import anndata as ad
+
+    path = tmp_path / "adata.h5ad"
+    adata.write_h5ad(path)
+    return ad.read_h5ad(path)
+
+
+def _gene_pathway(ids):
+    return pd.DataFrame({"gene": list(ids[:20]) + list(ids[30:40]), "term": ["T1"] * 20 + ["T2"] * 10})
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_enrichment_anndata_fit_matches_named_fit(fn_name, tmp_path):
+    """goana / kegga on an AnnData fit (default key, and after h5ad) must
+    match the same fit supplied as an MArrayLM with row names."""
+    import pylimma
+
+    fn = getattr(pylimma, fn_name)
+    adata = _de_adata()
+    pylimma.lm_fit(adata, "~ group")
+    pylimma.e_bayes(adata)
+    reference = fn(MArrayLM(adata.uns["pylimma"]), gene_pathway=_gene_pathway(adata.var_names))
+    assert (reference["up"] > 0).any()
+
+    pd.testing.assert_frame_equal(fn(adata, gene_pathway=_gene_pathway(adata.var_names)), reference)
+    reloaded = _h5ad_roundtrip(adata, tmp_path)
+    pd.testing.assert_frame_equal(fn(reloaded, gene_pathway=_gene_pathway(adata.var_names)), reference)
+
+
+def test_goana_anndata_geneid_column_reads_adata_var():
+    import pylimma
+
+    adata = _de_adata()
+    pylimma.lm_fit(adata, "~ group")
+    pylimma.e_bayes(adata)
+    symbols = adata.var["symbol"].to_numpy()
+    gp = _gene_pathway(symbols)
+    pd.testing.assert_frame_equal(
+        pylimma.goana(adata, gene_pathway=gp, geneid="symbol"),
+        pylimma.goana(adata, gene_pathway=gp, geneid=symbols),
+    )
+
+
+def test_goana_fit_without_row_names_raises_like_r():
+    """R: geneid = rownames(de) is character(0) when absent, so goana
+    stops with 'geneid of incorrect length' rather than inventing ids."""
+    import pylimma
+
+    adata = _de_adata()
+    fit = pylimma.e_bayes(pylimma.lm_fit(adata.X.T, np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])))
+    with pytest.raises(ValueError, match="geneid of incorrect length"):
+        pylimma.goana(fit, gene_pathway=_gene_pathway(adata.var_names))
+
+
+def _voomed_adata_and_elist():
+    """AnnData after voom(design=formula) plus the equivalent EList built
+    from voom on the bare count matrix."""
+    ad = pytest.importorskip("anndata")
+    from pylimma import voom
+
+    counts, design = _test_counts()
+    obs = pd.DataFrame({"group": pd.Categorical(np.repeat(["A", "B"], 4))}, index=[f"s{i}" for i in range(8)])
+    var = pd.DataFrame(index=[f"g{i}" for i in range(counts.shape[0])])
+    adata = ad.AnnData(X=counts.T.copy(), obs=obs, var=var)
+    voom(adata, design="~ group")
+    v = voom(counts, design)
+    elist = EList({"E": v["E"], "weights": v["weights"], "design": design, "genes": var})
+    return adata, elist, design
+
+
+@pytest.mark.parametrize(
+    "fn_name, kwargs",
+    [
+        ("camera", {}),
+        ("fry", {}),
+        ("roast", {"rng": 11, "nrot": 199}),
+        ("mroast", {"rng": 11, "nrot": 199}),
+        ("romer", {"rng": 11, "nrot": 199}),
+    ],
+)
+def test_geneset_layer_matches_voom_elist(fn_name, kwargs):
+    """layer='voom_E' must feed the voom expression, weights and design,
+    exactly as an EList from voom does."""
+    import pylimma
+
+    fn = getattr(pylimma, fn_name)
+    adata, elist, design = _voomed_adata_and_elist()
+    index = {"set1": np.arange(10), "set2": np.arange(40, 60)}
+    if fn_name == "roast":
+        index = np.arange(10)
+    # R's romer does as.matrix(y), so it never picks up y$design.
+    design_kwargs = {"design": design} if fn_name == "romer" else {}
+    from_adata = fn(adata, index, layer="voom_E", **design_kwargs, **kwargs)
+    from_elist = fn(elist, index, design=design, **kwargs)
+    if isinstance(from_elist, pd.DataFrame):
+        pd.testing.assert_frame_equal(from_adata, from_elist)
+    else:
+        pd.testing.assert_frame_equal(from_adata["p_value"], from_elist["p_value"])
+
+
+def test_camera_weights_layer_is_used():
+    import pylimma
+
+    adata, elist, design = _voomed_adata_and_elist()
+    adata.layers["custom_w"] = adata.layers["voom_weights"]
+    del adata.layers["voom_weights"]
+    index = {"set1": np.arange(10)}
+    pd.testing.assert_frame_equal(
+        pylimma.camera(adata, index, design, layer="voom_E", weights_layer="custom_w"),
+        pylimma.camera(elist, index, design),
+    )
+
+
+def test_wsva_layer_matches_matrix():
+    import pylimma
+
+    adata, elist, design = _voomed_adata_and_elist()
+    np.testing.assert_array_equal(
+        pylimma.wsva(adata, design, n_sv=2, layer="voom_E"),
+        pylimma.wsva(elist["E"], design, n_sv=2),
+    )
+
+
+@pytest.mark.parametrize("fn_name", ["camera", "wsva"])
+def test_geneset_layer_rejected_for_non_anndata(fn_name):
+    import pylimma
+
+    _, elist, design = _voomed_adata_and_elist()
+    args = (elist["E"], {"set1": np.arange(10)}, design) if fn_name == "camera" else (elist["E"], design)
+    with pytest.raises(TypeError, match="only supported for AnnData"):
+        getattr(pylimma, fn_name)(*args, layer="voom_E")
+
+
+@pytest.mark.parametrize("voom_fn", ["voom", "voom_with_quality_weights", "vooma"])
+def test_voom_formula_design_names_reach_lm_fit(voom_fn, tmp_path):
+    """voom(design=formula) -> lm_fit(layer=...) must keep the patsy column
+    names (R keeps colnames(v$design)), including across an h5ad save."""
+    import pylimma
+
+    adata = _voomed_adata_and_elist()[0]
+    if voom_fn == "vooma":
+        adata.X = adata.layers["voom_E"].copy()
+    getattr(pylimma, voom_fn)(adata, design="~ group")
+    layer = "vooma_E" if voom_fn == "vooma" else "voom_E"
+    for obj in (adata, _h5ad_roundtrip(adata, tmp_path)):
+        pylimma.lm_fit(obj, layer=layer)
+        assert obj.uns["pylimma"]["coef_names"] == ["Intercept", "group[T.B]"]
+        pylimma.e_bayes(obj)
+        pd.testing.assert_frame_equal(
+            pylimma.top_table(obj, coef="group[T.B]", number=np.inf, sort_by="none"),
+            pylimma.top_table(obj, coef=1, number=np.inf, sort_by="none"),
+        )
+
+
+def test_vooma_lm_fit_keeps_gene_and_coef_names():
+    """vooma_lm_fit must label genes and coefficients as lm_fit does
+    (R's final lmFit runs on the EList)."""
+    import pylimma
+
+    adata = _de_adata()
+    pylimma.vooma_lm_fit(adata, design="~ group")
+    fit = adata.uns["pylimma"]
+    assert fit["genes"] == list(adata.var_names)
+    assert fit["coef_names"] == ["Intercept", "group[T.B]"]
+
+    matrix_fit = pylimma.vooma_lm_fit(adata.X.T, design=np.asarray(fit["design"]))
+    np.testing.assert_array_equal(fit["coefficients"], matrix_fit["coefficients"])
+
+    frame = pd.DataFrame(adata.X.T, index=adata.var_names, columns=adata.obs_names)
+    assert pylimma.vooma_lm_fit(frame, design=np.asarray(fit["design"]))["genes"] == list(adata.var_names)
+
+
+def test_top_table_f_accepts_anndata():
+    import pylimma
+
+    adata = _de_adata()
+    adata.obs["batch"] = list("xyxyxyxy")
+    pylimma.lm_fit(adata, "~ group + batch")
+    pylimma.e_bayes(adata)
+    with pytest.warns(DeprecationWarning):
+        from_adata = pylimma.top_table_f(adata, number=10)
+    with pytest.warns(DeprecationWarning):
+        from_fit = pylimma.top_table_f(adata.uns["pylimma"], number=10)
+    pd.testing.assert_frame_equal(from_adata, from_fit)
+
+
+def test_lm_fit_anndata_does_not_duplicate_obs_as_targets():
+    """For AnnData the fit sits next to adata.obs, so lm_fit must not store
+    a second copy as fit['targets'] (it would be duplicated in memory and
+    written again to the h5ad file)."""
+    import pylimma
+
+    adata = _de_adata()
+    pylimma.lm_fit(adata, "~ group")
+    assert "targets" not in adata.uns["pylimma"]
+
+
+def test_get_fit_matches_matrix_fit_before_and_after_h5ad(tmp_path):
+    """get_fit must return the same fit as the matrix route, with names as
+    lists and no targets slot, also after an h5ad reload."""
+    import pylimma
+
+    adata = _de_adata()
+    pylimma.lm_fit(adata, "~ group")
+    pylimma.e_bayes(adata)
+    frame = pd.DataFrame(adata.X.T, index=adata.var_names, columns=adata.obs_names)
+    reference = pylimma.e_bayes(pylimma.lm_fit(frame, adata.uns["pylimma"]["design"]))
+    for obj in (adata, _h5ad_roundtrip(adata, tmp_path)):
+        fit = pylimma.get_fit(obj)
+        assert isinstance(fit, MArrayLM)
+        assert fit["coef_names"] == ["Intercept", "group[T.B]"]
+        # adata.obs may have changed since the fit, so it is not attached.
+        assert "targets" not in fit
+        pd.testing.assert_frame_equal(
+            pylimma.top_table(fit, coef="group[T.B]", number=np.inf, sort_by="none"),
+            pylimma.top_table(reference, coef=1, number=np.inf, sort_by="none"),
+        )
+
+
+def test_get_fit_returns_independent_copy():
+    import pylimma
+
+    adata = _de_adata()
+    pylimma.lm_fit(adata, "~ group")
+    fit = pylimma.get_fit(adata)
+    fit["coefficients"][0, 0] = np.nan
+    assert not np.isnan(adata.uns["pylimma"]["coefficients"][0, 0])
+
+
+def test_get_fit_rejects_non_anndata():
+    import pylimma
+
+    with pytest.raises(TypeError, match="expects an AnnData"):
+        pylimma.get_fit({"coefficients": np.zeros((2, 1))})
+
+
+@pytest.mark.parametrize("wrap", [MArrayLM, dict])
+def test_fit_taken_from_reloaded_uns_by_hand_supports_name_lookup(wrap, tmp_path):
+    """Fits taken out of a reloaded adata.uns by hand (h5ad stores the name
+    slots as arrays) must still accept coefficient names, without the
+    caller's object being modified."""
+    import pylimma
+
+    adata = _de_adata()
+    pylimma.lm_fit(adata, "~ group")
+    pylimma.e_bayes(adata)
+    expected = pylimma.top_table(adata, coef="group[T.B]", number=np.inf, sort_by="none")
+    fit = wrap(_h5ad_roundtrip(adata, tmp_path).uns["pylimma"])
+    pd.testing.assert_frame_equal(
+        pylimma.top_table(fit, coef="group[T.B]", number=np.inf, sort_by="none"), expected
+    )
+    assert isinstance(fit["coef_names"], np.ndarray)
+
+
+@pytest.mark.parametrize("change", ["subset", "reorder", "rename"])
+def test_goana_geneid_column_refuses_var_changed_after_fit(change):
+    """adata.uns is copied unchanged when genes are subset / reordered, so
+    a string geneid must not read an adata.var that no longer describes
+    the fitted genes; a vector geneid aligned to the fit still works."""
+    import pylimma
+
+    adata = _de_adata()
+    pylimma.lm_fit(adata, "~ group")
+    pylimma.e_bayes(adata)
+    symbols = adata.var["symbol"].to_numpy()
+    gp = _gene_pathway(symbols)
+    expected = pylimma.goana(adata, gene_pathway=gp, geneid="symbol")
+
+    if change == "subset":
+        changed = adata[:, 5:].copy()
+    elif change == "reorder":
+        changed = adata[:, ::-1].copy()
+    else:
+        changed = adata.copy()
+        changed.var_names = [f"renamed{i}" for i in range(changed.n_vars)]
+    with pytest.raises(ValueError, match="does not match the genes in the stored fit"):
+        pylimma.goana(changed, gene_pathway=gp, geneid="symbol")
+    pd.testing.assert_frame_equal(pylimma.goana(changed, gene_pathway=gp, geneid=symbols), expected)
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda pl, a: pl.vooma_by_group(a, group=a.obs["group"].to_numpy(), design="~ group"),
+        lambda pl, a: pl.remove_batch_effect(a, batch=np.tile(["x", "y"], 4), design="~ group"),
+        lambda pl, a: pl.wsva(a, "~ group"),
+        lambda pl, a: pl.camera(a, {"s": np.arange(10)}, "~ group"),
+        lambda pl, a: pl.roast(a, np.arange(10), "~ group", nrot=9),
+        lambda pl, a: pl.mroast(a, {"s": np.arange(10)}, "~ group", nrot=9),
+        lambda pl, a: pl.fry(a, {"s": np.arange(10)}, "~ group"),
+        lambda pl, a: pl.romer(a, {"s": np.arange(10)}, "~ group", nrot=9),
+        lambda pl, a: pl.inter_gene_correlation(a.X.T, "~ group"),
+    ],
+    ids=["vooma_by_group", "remove_batch_effect", "wsva", "camera", "roast", "mroast", "fry", "romer", "inter_gene_correlation"],
+)
+def test_matrix_only_functions_reject_formula_with_clear_error(call):
+    """Formula strings are limited to lm_fit and the voom family; the
+    matrix-only functions must say so rather than fail inside numpy."""
+    import pylimma
+
+    with pytest.raises(ValueError, match="formula strings are only supported by lm_fit"):
+        call(pylimma, _de_adata())
+
+
+def _transposed_arg_adata():
+    """AnnData (8 samples x 60 genes) whose X is usable as counts, plus a
+    positive matrix in AnnData orientation (samples x genes)."""
+    adata = _de_adata()
+    adata.X = np.round(2 ** adata.X)
+    samples_by_genes = np.random.default_rng(9).uniform(0.5, 2.0, adata.shape)
+    return adata, samples_by_genes
+
+
+@pytest.mark.parametrize(
+    "name, call",
+    [
+        ("weights", lambda pl, a, m: pl.lm_fit(a, "~ group", weights=m)),
+        ("offset", lambda pl, a, m: pl.voom(a, design="~ group", offset=m)),
+        ("offset_prior", lambda pl, a, m: pl.voom(a, design="~ group", offset_prior=m)),
+        ("predictor", lambda pl, a, m: pl.vooma(a, design="~ group", predictor=m)),
+        ("predictor", lambda pl, a, m: pl.vooma_lm_fit(a, design="~ group", predictor=m)),
+        ("weights", lambda pl, a, m: pl.vooma_lm_fit(a, design="~ group", prior_weights=m)),
+        ("background", lambda pl, a, m: pl.background_correct(a, background=m, method="subtract")),
+        ("weights", lambda pl, a, m: pl.array_weights(a, design=np.ones((8, 1)), weights=m)),
+        ("weights", lambda pl, a, m: pl.duplicate_correlation(a, np.ones((8, 1)), ndups=1, block=np.repeat([0, 1, 2, 3], 2), weights=m)),
+        ("weights", lambda pl, a, m: pl.camera(a, {"s": np.arange(10)}, np.ones((8, 1)), weights=m)),
+    ],
+    ids=["lm_fit", "voom-offset", "voom-offset_prior", "vooma", "vooma_lm_fit-predictor",
+         "vooma_lm_fit-prior_weights", "background_correct", "array_weights", "duplicate_correlation", "camera"],
+)
+def test_matrix_argument_in_anndata_orientation_gets_transpose_hint(name, call):
+    """Explicit matrix arguments are genes x samples (limma orientation);
+    one supplied in AnnData orientation must get an error that says so."""
+    import pylimma
+
+    adata, samples_by_genes = _transposed_arg_adata()
+    with pytest.raises(ValueError, match=rf"{name} has shape \(8, 60\) .* looks transposed"):
+        call(pylimma, adata, samples_by_genes)
+
+
+def test_matrix_argument_wrong_shape_without_transpose_has_no_hint():
+    import pylimma
+
+    adata, _ = _transposed_arg_adata()
+    with pytest.raises(ValueError, match="weights is of unexpected shape$"):
+        pylimma.lm_fit(adata, "~ group", weights=np.ones((59, 8)))
+
+
+def _rich_adata():
+    """AnnData with every slot populated: two layers (one sparse), obsm /
+    varm / obsp / varp and a stored fit in uns."""
+    import scipy.sparse as sp
+
+    import pylimma
+
+    adata = _de_adata()
+    rng = np.random.default_rng(11)
+    adata.layers["counts"] = sp.csr_matrix(np.round(2 ** adata.X))
+    adata.layers["w"] = rng.uniform(0.5, 2.0, adata.shape)
+    adata.obsm["X_pca"] = rng.normal(size=(adata.n_obs, 2))
+    adata.varm["loadings"] = rng.normal(size=(adata.n_vars, 2))
+    adata.obsp["dist"] = rng.uniform(size=(adata.n_obs, adata.n_obs))
+    adata.varp["cor"] = rng.uniform(size=(adata.n_vars, adata.n_vars))
+    pylimma.lm_fit(adata, "~ group")
+    return adata
+
+
+def _dense(matrix):
+    return matrix.toarray() if hasattr(matrix, "toarray") else np.asarray(matrix)
+
+
+def _assert_same_adata(actual, expected):
+    np.testing.assert_array_equal(actual.X, expected.X)
+    assert list(actual.layers) == list(expected.layers)
+    for name in expected.layers:
+        np.testing.assert_array_equal(_dense(actual.layers[name]), _dense(expected.layers[name]))
+    pd.testing.assert_frame_equal(actual.obs, expected.obs)
+    pd.testing.assert_frame_equal(actual.var, expected.var)
+
+
+def test_avereps_anndata_mirrors_elist_method():
+    """R's avereps.EList averages every matrix, keeps the first occurrence
+    of each ID's annotation and leaves the sample axis and other slots
+    alone; the input must not be modified."""
+    import pylimma
+
+    adata = _rich_adata()
+    before = adata.copy()
+    ID = np.array(["z", "a", "z", "m"] * (adata.n_vars // 4))
+    out = pylimma.avereps(adata, ID=ID)
+
+    _assert_same_adata(adata, before)
+    first = np.sort(np.unique(ID, return_index=True)[1])
+    assert list(out.var_names) == ["z", "a", "m"]
+    np.testing.assert_array_equal(out.X.T, pylimma.avereps(adata.X.T, ID=ID))
+    np.testing.assert_array_equal(out.layers["counts"].T, pylimma.avereps(adata.layers["counts"].toarray().T, ID=ID))
+    np.testing.assert_array_equal(out.layers["w"].T, pylimma.avereps(adata.layers["w"].T, ID=ID))
+    assert list(out.var["symbol"]) == list(adata.var["symbol"].iloc[first])
+    np.testing.assert_array_equal(out.varm["loadings"], adata.varm["loadings"][first])
+    np.testing.assert_array_equal(out.varp["cor"], adata.varp["cor"][np.ix_(first, first)])
+    pd.testing.assert_frame_equal(out.obs, adata.obs)
+    np.testing.assert_array_equal(out.obsm["X_pca"], adata.obsm["X_pca"])
+    np.testing.assert_array_equal(_dense(out.obsp["dist"]), adata.obsp["dist"])
+    # uns carried as is (R's y <- x): the stored fit still describes the
+    # original probes.
+    assert out.uns["pylimma"]["genes"] == list(adata.var_names)
+    np.testing.assert_array_equal(out.uns["pylimma"]["coefficients"], adata.uns["pylimma"]["coefficients"])
+
+
+@pytest.mark.parametrize("weighted", [False, True])
+def test_aver_arrays_anndata_mirrors_elist_method(weighted):
+    """R's avearrays.EList averages every matrix with the same weights,
+    keeps the first occurrence of each id's sample annotation and leaves
+    the gene axis and other slots alone; the input must not be modified."""
+    import pylimma
+
+    adata = _rich_adata()
+    before = adata.copy()
+    ids = ["z", "a", "z", "a", "m", "m", "b", "b"]
+    weights = adata.layers["w"].T if weighted else None
+    out = pylimma.aver_arrays(adata, id=ids, weights=weights)
+
+    _assert_same_adata(adata, before)
+    first = np.array([0, 1, 4, 6])
+    assert list(out.obs_names) == ["z", "a", "m", "b"]
+    for name, matrix in (("X", adata.X), ("counts", adata.layers["counts"].toarray()), ("w", adata.layers["w"])):
+        averaged = out.X if name == "X" else out.layers[name]
+        np.testing.assert_array_equal(averaged.T, pylimma.aver_arrays(matrix.T, id=ids, weights=weights))
+    assert list(out.obs["group"]) == list(adata.obs["group"].iloc[first])
+    np.testing.assert_array_equal(out.obsm["X_pca"], adata.obsm["X_pca"][first])
+    pd.testing.assert_frame_equal(out.var, adata.var)
+    np.testing.assert_array_equal(out.varm["loadings"], adata.varm["loadings"])
+    assert out.uns["pylimma"]["genes"] == list(adata.var_names)

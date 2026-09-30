@@ -546,6 +546,7 @@ def top_table_f(
     *,
     coef_idx: list[int] | None = None,
     resort_by: str | None = None,
+    key: str = "pylimma",
     _genelist_explicit: bool | None = None,
 ) -> pd.DataFrame:
     """
@@ -557,8 +558,9 @@ def top_table_f(
 
     Parameters
     ----------
-    fit : dict
-        Fit object from :func:`e_bayes` containing F-statistics.
+    fit : AnnData, MArrayLM, or dict
+        Fit object from :func:`e_bayes` containing F-statistics. For
+        AnnData input the fit is read from ``adata.uns[key]``.
     number : int, default 10
         Maximum number of genes to return.
     genelist : DataFrame, list, or array, optional
@@ -588,12 +590,15 @@ def top_table_f(
     resort_by : str, optional (keyword-only)
         pylimma extension: secondary sort column applied after
         ``sort_by`` + truncation.
+    key : str, default "pylimma" (keyword-only)
+        Key for fit results in adata.uns (AnnData input only).
 
     Returns
     -------
     DataFrame
         Table of top genes ranked by F-statistic.
     """
+    fit, _adata, _adata_key = _resolve_fit_input(fit, key)
     # R topTableF.R:7 emits a deprecation message on every call. Mirror
     # it with DeprecationWarning so downstream tooling (pytest's
     # warning capture, IDE linters) sees an equivalent signal.

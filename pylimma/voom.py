@@ -22,12 +22,50 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
+import pandas as pd
 from scipy import interpolate, linalg
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
-from .classes import EList, _is_anndata, get_eawp, put_eawp
-from .lmfit import _parse_design, lm_fit
+from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
+from .lmfit import _fit_genes, _numeric_design, _parse_design, lm_fit
 from .utils import choose_lowess_span
+
+
+def _named_design(design: np.ndarray, names: list[str] | None):
+    """Output form of a parsed design: a DataFrame when column names are
+    known (R keeps colnames(design) on v$design, so lm_fit(v) recovers
+    coefficient names), otherwise the bare matrix."""
+    if names is None:
+        return design
+    return pd.DataFrame(design, columns=names)
+
+
+def _validate_predictor(predictor, y: np.ndarray) -> np.ndarray:
+    """Check vooma's precision predictor against y (genes x samples) and
+    expand it to a full matrix, matching R's shape and NA handling."""
+    n_genes, n_samples = y.shape
+    predictor = np.asarray(predictor, dtype=np.float64)
+    if predictor.ndim == 1:
+        if predictor.shape[0] != n_genes:
+            raise ValueError("predictor is of wrong dimension")
+        predictor = np.broadcast_to(predictor[:, np.newaxis], (n_genes, n_samples)).copy()
+    elif predictor.ndim == 2:
+        if predictor.shape[0] != n_genes:
+            raise _shape_error("predictor", predictor.shape, y.shape, "predictor is of wrong dimension")
+        if predictor.shape[1] == 1:
+            predictor = np.broadcast_to(predictor, (n_genes, n_samples)).copy()
+        elif predictor.shape[1] != n_samples:
+            raise ValueError("predictor is of wrong dimension")
+    else:
+        raise ValueError("predictor is of wrong dimension")
+    if np.any(np.isnan(predictor)):
+        y_has_na = np.any(np.isnan(y))
+        if y_has_na:
+            if np.any(np.isnan(predictor[~np.isnan(y)])):
+                raise ValueError("All observed y values must have non-NA predictors")
+        else:
+            raise ValueError("All observed y values must have non-NA predictors")
+    return predictor
 
 
 def _draw_voom_trend(
@@ -138,10 +176,14 @@ def voom(
     offset : ndarray, optional
         Offset matrix, shape (n_genes, n_samples). If provided without
         offset_prior, offset_prior is computed as offset - rowMeans(offset).
+        Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``).
     offset_prior : ndarray, optional
         Pre-centered offset matrix, shape (n_genes, n_samples). Applied as:
         lib_size_matrix = exp(log(lib_size_matrix) + offset_prior).
         Takes precedence over offset if both are provided.
+        Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``).
     normalize_method : str, default "none"
         Normalization method. Currently only "none" is supported.
     block : ndarray, optional
@@ -149,7 +191,8 @@ def voom(
     correlation : float, optional
         Intra-block correlation (required if block is specified).
     weights : ndarray, optional
-        Prior weights for samples or observations.
+        Prior weights for samples or observations. Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``).
     span : float, default 0.5
         LOWESS span for trend fitting (used if adaptive_span=False).
     adaptive_span : bool, default True
@@ -179,6 +222,14 @@ def voom(
 
     Notes
     -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
+
     The voom method [1]_ transforms count data to log2-CPM, then estimates
     the mean-variance trend from the residual standard deviations of a
     preliminary linear model fit. The trend is used to compute precision
@@ -235,7 +286,7 @@ def voom(
     # input is AnnData), ndarray / DataFrame / patsy DesignMatrix, or
     # None (intercept-only). Matches lm_fit's dispatch.
     sample_data = original_input.obs if _is_anndata(original_input) else None
-    design, _ = _parse_design(design, data=sample_data, n_samples=n_samples)
+    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
 
     # Check lib_size
     if lib_size is None:
@@ -248,7 +299,7 @@ def voom(
     if offset is not None:
         offset = np.asarray(offset, dtype=np.float64)
         if offset.shape != counts.shape:
-            raise ValueError("counts and offset must have equal dimensions.")
+            raise _shape_error("offset", offset.shape, counts.shape, "counts and offset must have equal dimensions")
         if offset_prior is None:
             offset_prior = offset - np.mean(offset, axis=1, keepdims=True)
         else:
@@ -258,7 +309,9 @@ def voom(
     if offset_prior is not None:
         offset_prior = np.asarray(offset_prior, dtype=np.float64)
         if offset_prior.shape != counts.shape:
-            raise ValueError("counts and offset_prior must have equal dimensions.")
+            raise _shape_error(
+                "offset_prior", offset_prior.shape, counts.shape, "counts and offset_prior must have equal dimensions"
+            )
         lib_size_matrix = np.exp(np.log(lib_size_matrix) + offset_prior)
 
     # Choose span based on number of genes
@@ -288,7 +341,7 @@ def voom(
             {
                 "E": y,
                 "weights": np.ones_like(y),
-                "design": design,
+                "design": _named_design(design, design_names),
                 "lib_size": lib_size,
                 "targets": {"lib_size": lib_size},
             },
@@ -360,7 +413,7 @@ def voom(
     out = {
         "E": y,
         "weights": w,
-        "design": design,
+        "design": _named_design(design, design_names),
         "lib_size": lib_size,
     }
 
@@ -469,6 +522,14 @@ def voom_with_quality_weights(
 
     Notes
     -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
+
     The R `col` argument (bar colour for the array-weight plot) is not
     exposed; matplotlib defaults are used when ``plot=True``.
 
@@ -508,7 +569,7 @@ def voom_with_quality_weights(
     # otherwise the inner calls lose the adata.obs context needed by patsy.
     sample_data = original_input.obs if _is_anndata(original_input) else None
     n_samples = counts_arr.shape[1]
-    design, _ = _parse_design(design, data=sample_data, n_samples=n_samples)
+    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
 
     # Initial voom without array weights
     v = voom(
@@ -561,6 +622,7 @@ def voom_with_quality_weights(
     # v$weights <- t(aw * t(v$weights))
     v["weights"] = v["weights"] * aw[np.newaxis, :]
     v["sample_weights"] = aw
+    v["design"] = _named_design(design, design_names)
 
     if plot:
         _draw_array_weights_bar(aw, col=col)
@@ -610,7 +672,8 @@ def vooma(
         Precision predictor, shape (n_genes,) or (n_genes, n_samples). When
         given, the variance trend is fitted against a linear combination of
         average log-expression and the row-mean predictor, and sample-specific
-        weights are derived from the predictor.
+        weights are derived from the predictor. Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``).
     span : float, optional
         LOWESS span. If None, chosen adaptively.
     legacy_span : bool, default False
@@ -635,6 +698,16 @@ def vooma(
             Trend data (only if save_plot=True).
         voom_line : dict, optional
             LOWESS fit (only if save_plot=True).
+
+    Notes
+    -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
     """
     # Polymorphic input dispatch (R: vooma.EList and .default branches).
     original_input = y
@@ -646,7 +719,7 @@ def vooma(
 
     # Parse design (formula strings via patsy + adata.obs when AnnData).
     sample_data = original_input.obs if _is_anndata(original_input) else None
-    design, _ = _parse_design(design, data=sample_data, n_samples=n_samples)
+    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
 
     # Compute row means
     A = np.nanmean(y, axis=1)
@@ -655,27 +728,7 @@ def vooma(
 
     # Validate predictor (matches R's shape + NA handling)
     if predictor is not None:
-        predictor = np.asarray(predictor, dtype=np.float64)
-        if predictor.ndim == 1:
-            if predictor.shape[0] != n_genes:
-                raise ValueError("predictor is of wrong dimension")
-            predictor = np.broadcast_to(predictor[:, np.newaxis], (n_genes, n_samples)).copy()
-        elif predictor.ndim == 2:
-            if predictor.shape[0] != n_genes:
-                raise ValueError("predictor is of wrong dimension")
-            if predictor.shape[1] == 1:
-                predictor = np.broadcast_to(predictor, (n_genes, n_samples)).copy()
-            elif predictor.shape[1] != n_samples:
-                raise ValueError("predictor is of wrong dimension")
-        else:
-            raise ValueError("predictor is of wrong dimension")
-        if np.any(np.isnan(predictor)):
-            y_has_na = np.any(np.isnan(y))
-            if y_has_na:
-                if np.any(np.isnan(predictor[~np.isnan(y)])):
-                    raise ValueError("All observed y values must have non-NA predictors")
-            else:
-                raise ValueError("All observed y values must have non-NA predictors")
+        predictor = _validate_predictor(predictor, y)
 
     # Fit linear model
     if block is None:
@@ -780,7 +833,7 @@ def vooma(
     out = {
         "E": y,
         "weights": w,
-        "design": design,
+        "design": _named_design(design, design_names),
         "span": span,
     }
 
@@ -854,6 +907,8 @@ def vooma_lm_fit(
         Design matrix. If None, uses an intercept-only model.
     prior_weights : ndarray, optional
         Prior observation weights. Cannot be combined with sample_weights.
+        Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``).
     block : ndarray, optional
         Block factor for correlated samples.
     sample_weights : bool, default False
@@ -900,6 +955,14 @@ def vooma_lm_fit(
 
     Notes
     -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
+
     This function combines vooma() and lm_fit() with optional iterative
     refinement of sample weights and intra-block correlation.
     """
@@ -932,31 +995,11 @@ def vooma_lm_fit(
 
     # Validate predictor (mirrors vooma())
     if predictor is not None:
-        predictor = np.asarray(predictor, dtype=np.float64)
-        if predictor.ndim == 1:
-            if predictor.shape[0] != n_genes:
-                raise ValueError("predictor is of wrong dimension")
-            predictor = np.broadcast_to(predictor[:, np.newaxis], (n_genes, n_samples)).copy()
-        elif predictor.ndim == 2:
-            if predictor.shape[0] != n_genes:
-                raise ValueError("predictor is of wrong dimension")
-            if predictor.shape[1] == 1:
-                predictor = np.broadcast_to(predictor, (n_genes, n_samples)).copy()
-            elif predictor.shape[1] != n_samples:
-                raise ValueError("predictor is of wrong dimension")
-        else:
-            raise ValueError("predictor is of wrong dimension")
-        if np.any(np.isnan(predictor)):
-            y_has_na = np.any(np.isnan(y))
-            if y_has_na:
-                if np.any(np.isnan(predictor[~np.isnan(y)])):
-                    raise ValueError("All observed y values must have non-NA predictors")
-            else:
-                raise ValueError("All observed y values must have non-NA predictors")
+        predictor = _validate_predictor(predictor, y)
 
     # Parse design (formula strings via patsy + adata.obs when AnnData).
     sample_data = original_input.obs if _is_anndata(original_input) else None
-    design, _ = _parse_design(design, data=sample_data, n_samples=n_samples)
+    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
 
     # Check for conflicting weight specifications
     use_sample_weights = sample_weights or var_design is not None or var_group is not None
@@ -1126,6 +1169,11 @@ def vooma_lm_fit(
 
     # Final fit
     fit = lm_fit(y, design, block=block, correlation=correlation, weights=weights)
+    # R's final lmFit runs on the EList, so fit$genes and colnames(design)
+    # carry through (voomaLmFit.R:197-201); y here is a bare matrix.
+    fit["genes"] = _fit_genes(original_input, eawp)
+    if design_names is not None:
+        fit["coef_names"] = design_names
 
     # Add span to output
     fit["span"] = span
@@ -1236,6 +1284,16 @@ def vooma_by_group(
 
     The default ``uns_key="vooma"`` means ``lm_fit(adata, layer="vooma_E")``
     picks up the design via the usual :func:`get_eawp` fallback.
+
+    Notes
+    -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
     """
     import pandas as pd
 
@@ -1271,7 +1329,7 @@ def vooma_by_group(
         design = np.zeros((narrays, ngroups))
         for j, lev in enumerate(levels):
             design[group_arr == lev, j] = 1.0
-    design = np.asarray(design, dtype=np.float64)
+    design = _numeric_design(design)
 
     weights = np.empty_like(E)
     for lev in levels:

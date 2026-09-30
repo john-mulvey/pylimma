@@ -222,3 +222,31 @@ def test_plot_splice_substrate(_diffsplice_fit):
 
     ax = plot_splice(_diffsplice_fit, coef=1)
     assert ax is not None
+
+
+def test_diffsplice_anndata_refuses_var_changed_after_fit():
+    """adata.uns is copied unchanged when exons are reordered, so
+    column-name identifiers must not read the reordered adata.var; vector
+    identifiers aligned to the fit still work, without var annotation."""
+    import anndata as ad
+
+    from pylimma import diff_splice, lm_fit
+
+    y = pd.read_csv(FIXTURES / "R_diffSplice_input_y.csv", index_col=0).values
+    design = pd.read_csv(FIXTURES / "R_diffSplice_input_design.csv").values
+    geneid = np.repeat([f"gene{i + 1}" for i in range(20)], 5)
+    exonid = np.array([f"exon{i + 1}" for i in range(y.shape[0])])
+
+    adata = ad.AnnData(X=y.T.copy())
+    adata.var["GeneID"] = geneid
+    adata.var["ExonID"] = exonid
+    lm_fit(adata, design=design)
+    expected = diff_splice(adata, geneid="GeneID", exonid="ExonID", verbose=False)
+
+    reordered = adata[:, ::-1].copy()
+    with pytest.raises(ValueError, match="does not match the genes in the stored fit"):
+        diff_splice(reordered, geneid="GeneID", exonid="ExonID", verbose=False)
+    with pytest.warns(UserWarning, match="annotation columns are not carried"):
+        from_vectors = diff_splice(reordered, geneid=geneid, exonid=exonid, verbose=False)
+    for slot in ("coefficients", "t", "p_value", "gene_F", "gene_F_p_value"):
+        np.testing.assert_array_equal(np.asarray(from_vectors[slot]), np.asarray(expected[slot]))

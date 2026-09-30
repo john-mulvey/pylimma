@@ -67,7 +67,13 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .classes import MArrayLM, _is_anndata, _resolve_fit_input
+from .classes import (
+    VAR_MISMATCH_MESSAGE,
+    MArrayLM,
+    _is_anndata,
+    _resolve_fit_input,
+    _var_matches_fit,
+)
 from .utils import p_adjust, tricube_moving_average
 
 # ---------------------------------------------------------------------------
@@ -124,7 +130,12 @@ def goana(
         raises ``NotImplementedError`` for any truthy / numeric /
         character value.
     **kwargs
-        ``coef`` and ``geneid`` for the MArrayLM branch.
+        ``coef``, ``geneid`` and ``key`` for the MArrayLM branch. ``key``
+        (default ``"pylimma"``) names the ``adata.uns`` entry holding the
+        fit when ``de`` is an AnnData. For AnnData input a string
+        ``geneid`` is looked up in ``adata.var``, provided ``var_names``
+        still match the genes that were fitted (otherwise a ValueError is
+        raised; pass ``geneid`` as a vector instead).
     """
     if _is_dispatch_marraylm(de):
         return _goana_marraylm(
@@ -223,7 +234,9 @@ def _is_dispatch_marraylm(de) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _select_de_from_fit(fit, geneid, coef, fdr) -> tuple[list[str], list[str], list[str]]:
+def _select_de_from_fit(
+    fit, geneid, coef, fdr, adata=None
+) -> tuple[list[str], list[str], list[str]]:
     """Return (universe, up_ids, down_ids) from an MArrayLM-shaped fit.
 
     Mirrors lines 13-77 of goana.R / kegga.R: validate the fit, resolve
@@ -265,21 +278,35 @@ def _select_de_from_fit(fit, geneid, coef, fdr) -> tuple[list[str], list[str], l
             raise ValueError(f"coef index {coef_idx} out of range")
 
     # Resolve geneid: either a length-ngenes vector or a single column name
-    # in fit['genes'].
+    # in fit['genes']. R's default is geneid = rownames(de); pylimma keeps
+    # row names in fit['genes'] as a list (ndarray after an h5ad round
+    # trip) or as the index of a genes DataFrame.
+    genes = fit.get("genes")
     if geneid is None:
-        genes = fit.get("genes")
-        if genes is not None and hasattr(genes, "index"):
-            universe = [str(v) for v in genes.index]
+        if isinstance(genes, pd.DataFrame):
+            rownames = genes.index
+        elif genes is not None and np.ndim(genes) == 1:
+            rownames = genes
         else:
-            universe = [str(i) for i in range(ngenes)]
+            rownames = []
+        universe = [str(v) for v in rownames]
+        if len(universe) != ngenes:
+            # R: as.character(rownames(de)) has length 0 when absent.
+            raise ValueError("geneid of incorrect length")
     elif isinstance(geneid, str) or (
         hasattr(geneid, "__len__")
         and len(geneid) == 1
         and not isinstance(geneid, (np.ndarray, pd.Series))
     ):
         col = geneid if isinstance(geneid, str) else geneid[0]
-        genes = fit.get("genes")
-        if genes is None or col not in getattr(genes, "columns", []):
+        if adata is not None:
+            # AnnData: fit['genes'] only carries var_names, so column-name
+            # lookups go to adata.var - but only while it still describes
+            # the fitted genes.
+            if not _var_matches_fit(fit, adata):
+                raise ValueError(VAR_MISMATCH_MESSAGE)
+            genes = adata.var
+        if not isinstance(genes, pd.DataFrame) or col not in genes.columns:
             raise ValueError(f"Column {col} not found in de$genes")
         universe = [str(v) for v in genes[col].values]
     else:
@@ -328,7 +355,7 @@ def _goana_marraylm(
     de, *, gene_pathway, universe, species, prior_prob, covariate, plot, fdr, trend, **kwargs
 ):
     """Port of goana.MArrayLM (goana.R:3-86)."""
-    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "fit"))
+    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
 
     if "universe" in kwargs:
         raise ValueError("goana.MArrayLM defines its own universe")
@@ -347,7 +374,9 @@ def _goana_marraylm(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
 
-    fit_universe, up, dn = _select_de_from_fit(fit, geneid, coef, fdr)
+    fit_universe, up, dn = _select_de_from_fit(
+        fit, geneid, coef, fdr, adata=_adata
+    )
 
     if not up and not dn:
         warnings.warn("No DE genes")
@@ -380,7 +409,7 @@ def _kegga_marraylm(
     **kwargs,
 ):
     """Port of kegga.MArrayLM (kegga.R:3-86)."""
-    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "fit"))
+    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
 
     if "universe" in kwargs:
         raise ValueError("kegga.MArrayLM defines its own universe")
@@ -397,7 +426,9 @@ def _kegga_marraylm(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
 
-    fit_universe, up, dn = _select_de_from_fit(fit, geneid, coef, fdr)
+    fit_universe, up, dn = _select_de_from_fit(
+        fit, geneid, coef, fdr, adata=_adata
+    )
 
     if not up and not dn:
         warnings.warn("No DE genes")

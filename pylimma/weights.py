@@ -25,7 +25,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import linalg
 
-from .classes import get_eawp
+from .classes import _shape_error, get_eawp
 
 
 def _contr_sum(n: int) -> np.ndarray:
@@ -545,6 +545,9 @@ def array_weights(
         or defaults to intercept-only.
     weights : ndarray, optional
         Prior observation weights. If None, taken from object.
+        Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``);
+        weights stored as an AnnData layer are read with ``weights_layer=``.
     var_design : ndarray, optional
         Design matrix for the variance model. Columns should sum to zero.
     var_group : ndarray, optional
@@ -616,7 +619,7 @@ def array_weights(
     if weights is not None:
         weights = np.asarray(weights, dtype=np.float64)
         if weights.shape != E.shape:
-            raise ValueError("weights must have same shape as expression matrix")
+            raise _shape_error("weights", weights.shape, E.shape, "weights must have same shape as expression matrix")
         if np.any(np.isnan(weights)):
             raise ValueError("NA weights not allowed")
         if np.any(weights < 0):

@@ -1050,35 +1050,6 @@ class TestAnnDataVoomLmFitWeightsBridge:
         assert isinstance(pfc, np.ndarray)
         assert pfc.shape == (40,)
 
-    def test_fit_targets_populated_from_adata_obs(self):
-        """lm_fit must propagate adata.obs into fit['targets'],
-        mirroring R's ``fit$targets <- y$targets``.
-        """
-        import anndata as ad
-
-        import pylimma
-
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((8, 40)).astype(np.float32) + 10
-        obs = pd.DataFrame(
-            {
-                "group": pd.Categorical(["A"] * 4 + ["B"] * 4),
-                "donor": [1, 2, 3, 4, 1, 2, 3, 4],
-            }
-        )
-        obs.index = [f"s{i}" for i in range(8)]
-        adata = ad.AnnData(X=X, obs=obs)
-
-        design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4])
-        pylimma.lm_fit(adata, design=design)
-
-        fit = adata.uns["pylimma"]
-        assert "targets" in fit
-        targets = fit["targets"]
-        # pandas DataFrame with the same rows as the obs we passed
-        assert list(targets.columns) == ["group", "donor"]
-        assert len(targets) == 8
-
     def test_fit_targets_populated_from_elist(self):
         """lm_fit on an EList with a targets slot must carry it through
         to fit['targets']."""
@@ -1093,6 +1064,10 @@ class TestAnnDataVoomLmFitWeightsBridge:
         fit = pylimma.lm_fit(el)
         assert "targets" in fit
         assert list(fit["targets"]["sample_id"]) == [f"s{i}" for i in range(6)]
+        # A copy, not an alias: later edits to the EList's targets must
+        # not reach into the fit (R's copy-on-modify).
+        targets["added_later"] = 1.0
+        assert "added_later" not in fit["targets"].columns
 
     def test_get_eawp_captures_var_index_without_columns(self):
         """get_eawp must populate y['probes'] as a DataFrame whose

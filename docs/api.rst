@@ -164,4 +164,5 @@ Data classes and dispatchers
    pylimma.EList
    pylimma.MArrayLM
    pylimma.get_eawp
+   pylimma.get_fit
    pylimma.put_eawp
