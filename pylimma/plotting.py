@@ -1744,8 +1744,6 @@ def plot_rldf(
     ``predicting`` is also populated. Backwards-compatible aliases
     ``training_scores``, ``top_probes`` and ``test_scores`` are kept.
     """
-    import matplotlib.pyplot as plt
-
     from .squeeze_var import squeeze_var
 
     y = np.asarray(y, dtype=np.float64)
@@ -1876,6 +1874,8 @@ def plot_rldf(
         result["test_scores"] = d_z[:, list(show_dimensions)]
 
     if plot:
+        import matplotlib.pyplot as plt
+
         if ax is None:
             _fig, ax = plt.subplots()
         d1 = show_dimensions[0]
