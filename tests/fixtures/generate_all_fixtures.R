@@ -3924,3 +3924,33 @@ stopifnot(!is.na(.tn_err))
 write.csv(data.frame(r_error = .tn_err), "R_tn_allna_error.csv", row.names = FALSE)
 
 cat("  eBayes trend + missing-value fixtures complete.\n")
+
+# =============================================================================
+# fitFDist spline trend predicted at excluded points: predict.ns() is linear
+# beyond the boundary knots
+# =============================================================================
+cat("\nGenerating fitFDist out-of-range prediction fixtures...\n")
+
+set.seed(20261013)
+
+.ffo_write <- function(case, x, covariate) {
+  ok <- is.finite(x)
+  # Precondition: some excluded points lie outside the range of the fitted
+  # covariate on each side, so predict.ns extrapolates
+  stopifnot(any(covariate[!ok] < min(covariate[ok])), any(covariate[!ok] > max(covariate[ok])))
+  fit <- fitFDist(x, df1 = 4, covariate = covariate)
+  write.csv(data.frame(x = x, covariate = covariate, scale = fit$scale, df2 = fit$df2, nok = sum(ok)),
+            sprintf("R_fit_f_dist_outside_%s.csv", case), row.names = FALSE)
+}
+.ffo_cov <- sort(runif(60, 2, 10))
+# Prior-variance spread between points makes df2 finite
+.ffo_x <- exp(0.3 * .ffo_cov + rnorm(60, sd = 0.7)) * rchisq(60, df = 4) / 4
+.ffo_x[c(1:3, 30, 45, 58:60)] <- NA
+.ffo_write("splinedf4", .ffo_x, .ffo_cov)
+stopifnot(is.finite(read.csv("R_fit_f_dist_outside_splinedf4.csv")$df2[1]))
+# Five usable points give splinedf = 2, a basis with no interior knots
+.ffo_cov2 <- c(1, 3, 4, 5, 6, 7, 9)
+.ffo_x2 <- c(NA, rchisq(5, df = 4) / 4, NA)
+.ffo_write("splinedf2", .ffo_x2, .ffo_cov2)
+
+cat("  fitFDist out-of-range prediction fixtures complete.\n")

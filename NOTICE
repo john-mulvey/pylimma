@@ -50,8 +50,9 @@ for R. All are GPL-compatible with pylimma's GPL-3.0-or-later licence.
     Used in:    pylimma/squeeze_var.py _natural_spline_basis() - matches R's
                 splines::ns() output (B-spline implementation re-derived
                 from de Boor / Wood textbook treatment, not ported from R
-                splines C source).
-    Licence:    GPL-2 (part of R)
+                splines C source); the linear extrapolation beyond the
+                boundary knots is ported from ns()'s R code.
+    Licence:    GPL (>= 2) (part of R; see R's doc/COPYRIGHTS)
     Copyright:  R Core Team; original splines code by Douglas M. Bates and
                 William N. Venables.
 

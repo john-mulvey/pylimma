@@ -466,11 +466,9 @@ class TestRigorousFitFDist:
     def test_spline_trend_notallok_at_boundary(self):
         """Exercises R-B16 with non-ok entries at the covariate boundary.
 
-        The boundary knot determination differs if the basis is rebuilt
-        from a smaller covariate range. R's predict() uses ORIGINAL knots
-        from the fit; pylimma's _natural_spline_basis(covariate_notok, ...)
-        builds NEW knots from covariate_notok's range. Whether this hits
-        is data-dependent; this test stresses the case.
+        The not-ok points lie outside the fitted covariate range, so R's
+        predict(ns, newx) evaluates the basis with the fit's knots and
+        extrapolates linearly beyond the boundary knots.
         """
         rng = np.random.default_rng(110)
         n = 80
@@ -488,7 +486,7 @@ class TestRigorousFitFDist:
 
         py_scale = _atleast_1d(py["scale"])
         r_scale = _atleast_1d(r["scale"])
-        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5)
+        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B20 (fitFDist.R:106-108): evar > 0 -> df2 = 2 * trigammaInverse(evar)

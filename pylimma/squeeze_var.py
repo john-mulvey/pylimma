@@ -8,6 +8,12 @@
 #                                                      Belinda Phipson
 #   fitFDistUnequalDF1.R       Copyright (C) 2024-2025 Gordon Smyth,
 #                                                      Lizhong Chen
+#
+# _natural_spline_basis() additionally ports the linear extrapolation beyond
+# the boundary knots from base R's splines package (which limma's fitFDist
+# calls via splines::ns and predict):
+#   splines::ns  Copyright (C) R Core Team, Douglas M. Bates, William N.
+#                Venables; GPL (>= 2)
 # Python port: Copyright (C) 2026 John Mulvey
 """
 Empirical Bayes variance shrinkage for pylimma.
@@ -211,24 +217,27 @@ def _natural_spline_basis(
     # Number of B-spline basis functions
     n_basis = len(knots) - 4
 
-    # Create B-spline basis matrix
-    basis = np.zeros((n, n_basis))
-    for i in range(n_basis):
-        c = np.zeros(n_basis)
-        c[i] = 1.0
-        spline = BSpline(knots, c, k=3, extrapolate=True)
-        basis[:, i] = spline(x)
+    def spline_design(points, deriv=0):
+        # R's splineDesign(knots, points, ord = 4, derivs = deriv)
+        design = np.zeros((len(points), n_basis))
+        for i in range(n_basis):
+            c = np.zeros(n_basis)
+            c[i] = 1.0
+            spline = BSpline(knots, c, k=3)
+            design[:, i] = (spline.derivative(deriv) if deriv else spline)(points)
+        return design
+
+    # Create B-spline basis matrix. Beyond the boundary knots R's ns() is
+    # linear, extrapolating from the basis value and slope at the knot.
+    basis = spline_design(x)
+    for pivot, outside in ((boundary[0], x < boundary[0]), (boundary[1], x > boundary[1])):
+        if outside.any():
+            tt = np.vstack([spline_design([pivot]), spline_design([pivot], deriv=1)])
+            basis[outside] = np.column_stack([np.ones(outside.sum()), x[outside] - pivot]) @ tt
 
     # Compute constraint matrix: second derivatives at boundary knots
     # For natural splines, second derivative must be 0 at boundaries
-    const = np.zeros((2, n_basis))
-    for i in range(n_basis):
-        c = np.zeros(n_basis)
-        c[i] = 1.0
-        spline = BSpline(knots, c, k=3)
-        spline_d2 = spline.derivative(2)
-        const[0, i] = spline_d2(boundary[0])
-        const[1, i] = spline_d2(boundary[1])
+    const = spline_design(np.asarray(boundary, dtype=np.float64), deriv=2)
 
     # Remove intercept column before applying constraint if needed
     # (matching R's order of operations)

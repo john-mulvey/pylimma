@@ -31,7 +31,7 @@ from pylimma.normalize import (
     normexp_fit,
     normexp_signal,
 )
-from pylimma.squeeze_var import fit_f_dist_unequal_df1, squeeze_var
+from pylimma.squeeze_var import fit_f_dist, fit_f_dist_unequal_df1, squeeze_var
 from pylimma.toptable import top_table
 
 from .helpers import (
@@ -5194,6 +5194,30 @@ class TestLmSeriesBranchParity:
         design = load_r_csv_no_index("lsq_rank_zero_design").to_numpy(dtype=float)
         with pytest.raises(ValueError):
             lm_fit(expr, design)
+
+
+# =============================================================================
+# fitFDist: spline trend predicted at excluded points
+# =============================================================================
+
+
+class TestFitFDistOutOfRangePredictionParity:
+    """Excluded points whose covariate lies beyond the fitted range.
+
+    R predicts the trend there with ``predict(ns, newx)``, which is linear
+    beyond the boundary knots. The fixtures assert that such points exist on
+    both sides; ``splinedf2`` has no interior knots.
+    """
+
+    @pytest.mark.parametrize("case", ["splinedf4", "splinedf2"])
+    def test_scale_and_df2(self, case):
+        r = load_r_csv_no_index(f"fit_f_dist_outside_{case}")
+        ok = np.isfinite(r["x"].values)
+        cov = r["covariate"].values
+        assert cov[~ok].min() < cov[ok].min() and cov[~ok].max() > cov[ok].max()
+        py = fit_f_dist(r["x"].values, df1=4, covariate=cov)
+        np.testing.assert_allclose(py["scale"], r["scale"].values, rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
 
 
 # =============================================================================
