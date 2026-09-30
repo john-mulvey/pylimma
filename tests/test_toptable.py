@@ -14,6 +14,13 @@ from pylimma.toptable import top_table
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
 
+def _assert_toptable_matches(result, ref):
+    """Row order and every column of an R topTable written with snake_case names."""
+    assert list(result.index) == list(ref["gene"])
+    for col in ["log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b"]:
+        np.testing.assert_allclose(result[col].values, ref[col].values, rtol=1e-6, err_msg=col)
+
+
 class TestTopTable:
     """Tests for top_table function."""
 
@@ -29,18 +36,11 @@ class TestTopTable:
         fit = e_bayes(fit)
         result = top_table(fit, coef=1, number=20, sort_by="B")
 
-        # Compare top genes - should match exactly
-        ref_top10 = list(ref["gene"].head(10))
-        result_top10 = list(result.index[:10])
-        assert ref_top10 == result_top10
+        _assert_toptable_matches(result, ref)
 
-        # Compare statistics for top gene
-        gene1 = ref["gene"].iloc[0]
-        np.testing.assert_allclose(result.loc[gene1, "log_fc"], ref["log_fc"].iloc[0], rtol=1e-6)
-        np.testing.assert_allclose(result.loc[gene1, "t"], ref["t"].iloc[0], rtol=1e-6)
-        np.testing.assert_allclose(result.loc[gene1, "b"], ref["b"].iloc[0], rtol=1e-6)
-
-        assert "adj_p_value" in result.columns
+        # number=Inf, sort_by="none": every gene in input order
+        ref_all = pd.read_csv(FIXTURES_DIR / "toptable_all.csv")
+        _assert_toptable_matches(top_table(fit, coef=1, number=np.inf, sort_by="none"), ref_all)
 
     def test_number_parameter(self):
         """Test that number parameter limits output rows."""

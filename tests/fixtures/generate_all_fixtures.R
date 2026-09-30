@@ -3954,3 +3954,361 @@ stopifnot(is.finite(read.csv("R_fit_f_dist_outside_splinedf4.csv")$df2[1]))
 .ffo_write("splinedf2", .ffo_x2, .ffo_cov2)
 
 cat("  fitFDist out-of-range prediction fixtures complete.\n")
+
+# =============================================================================
+# lmFit on a two-group design (lmfit_*.csv)
+# =============================================================================
+cat("\nGenerating lmfit fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data
+  n_genes <- 50
+  n_samples <- 8
+
+  # Expression matrix (genes x samples)
+  expr <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(expr) <- paste0("gene", 1:n_genes)
+  colnames(expr) <- paste0("sample", 1:n_samples)
+
+  # Two-group design
+  group <- factor(rep(c("A", "B"), each = 4))
+  design <- model.matrix(~ group)
+
+  # Fit linear model
+  fit <- lmFit(expr, design)
+
+  # Save inputs
+  write.csv(expr, "lmfit_expr.csv", row.names = TRUE)
+  write.csv(design, "lmfit_design.csv", row.names = FALSE)
+
+  # Save outputs
+  write.csv(fit$coefficients, "lmfit_coefficients.csv", row.names = TRUE)
+  write.csv(fit$stdev.unscaled, "lmfit_stdev_unscaled.csv", row.names = TRUE)
+  write.csv(data.frame(sigma = fit$sigma, df_residual = fit$df.residual, Amean = fit$Amean),
+            "lmfit_stats.csv", row.names = TRUE)
+  write.csv(fit$cov.coefficients, "lmfit_cov_coef.csv", row.names = TRUE)
+})
+
+cat("  lmfit fixtures complete.\n")
+
+# =============================================================================
+# contrasts.fit on a three-group cell-means design (contrasts_*.csv)
+# =============================================================================
+cat("\nGenerating contrasts fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data
+  n_genes <- 30
+  n_samples <- 12
+
+  # Expression matrix (genes x samples)
+  expr <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(expr) <- paste0("gene", 1:n_genes)
+
+  # Three-group design
+  group <- factor(rep(c("A", "B", "C"), each = 4))
+  design <- model.matrix(~ 0 + group)
+  colnames(design) <- levels(group)
+
+  # Fit linear model
+  fit <- lmFit(expr, design)
+
+  # Create contrasts
+  contrast_matrix <- makeContrasts(
+    BvsA = B - A,
+    CvsA = C - A,
+    CvsB = C - B,
+    levels = design
+  )
+
+  # Apply contrasts
+  fit2 <- contrasts.fit(fit, contrast_matrix)
+
+  # Save inputs
+  write.csv(expr, "contrasts_expr.csv", row.names = TRUE)
+  write.csv(design, "contrasts_design.csv", row.names = FALSE)
+  write.csv(contrast_matrix, "contrast_matrix.csv", row.names = TRUE)
+
+  # Save original fit
+  write.csv(fit$coefficients, "contrasts_fit_coef.csv", row.names = TRUE)
+  write.csv(fit$stdev.unscaled, "contrasts_fit_stdev.csv", row.names = TRUE)
+
+  # Save contrast fit
+  write.csv(fit2$coefficients, "contrasts_fit2_coef.csv", row.names = TRUE)
+  write.csv(fit2$stdev.unscaled, "contrasts_fit2_stdev.csv", row.names = TRUE)
+  write.csv(fit2$cov.coefficients, "contrasts_fit2_cov.csv", row.names = TRUE)
+})
+
+cat("  contrasts fixtures complete.\n")
+
+# =============================================================================
+# eBayes on a two-group design (ebayes_*.csv)
+# =============================================================================
+cat("\nGenerating ebayes fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data
+  n_genes <- 50
+  n_samples <- 8
+
+  # Expression matrix with some true differences
+  expr <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(expr) <- paste0("gene", 1:n_genes)
+
+  # Add true effects to first 10 genes
+  expr[1:10, 5:8] <- expr[1:10, 5:8] + 2
+
+  # Two-group design
+  group <- factor(rep(c("A", "B"), each = 4))
+  design <- model.matrix(~ group)
+
+  # Fit and run eBayes
+  fit <- lmFit(expr, design)
+  fit <- eBayes(fit)
+
+  # Save outputs
+  write.csv(
+    data.frame(
+      t = fit$t[, 2],
+      p_value = fit$p.value[, 2],
+      lods = fit$lods[, 2],
+      s2_post = fit$s2.post,
+      df_total = fit$df.total
+    ),
+    "ebayes_stats.csv",
+    row.names = TRUE
+  )
+
+  write.csv(
+    data.frame(
+      s2_prior = fit$s2.prior,
+      df_prior = fit$df.prior,
+      F_stat = fit$F,
+      F_p_value = fit$F.p.value
+    ),
+    "ebayes_global.csv",
+    row.names = FALSE
+  )
+
+  # Also save the fit coefficients for reference
+  write.csv(fit$coefficients, "ebayes_coef.csv", row.names = TRUE)
+  write.csv(expr, "ebayes_expr.csv", row.names = TRUE)
+  write.csv(design, "ebayes_design.csv", row.names = FALSE)
+})
+
+cat("  ebayes fixtures complete.\n")
+
+# =============================================================================
+# topTable on the eBayes data (toptable_*.csv)
+# =============================================================================
+cat("\nGenerating toptable fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data
+  n_genes <- 50
+  n_samples <- 8
+
+  # Expression with true effects
+  expr <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(expr) <- paste0("gene", 1:n_genes)
+  expr[1:10, 5:8] <- expr[1:10, 5:8] + 2  # True DE genes
+
+  # Two-group design
+  group <- factor(rep(c("A", "B"), each = 4))
+  design <- model.matrix(~ group)
+
+  # Fit
+  fit <- lmFit(expr, design)
+  fit <- eBayes(fit)
+
+  # Get top table for coefficient 2 (groupB)
+  tt <- topTable(fit, coef = 2, number = 20, sort.by = "B")
+
+  # Rename columns to match our snake_case convention
+  names(tt) <- c("log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b")
+  tt$gene <- rownames(tt)
+  rownames(tt) <- NULL
+  tt <- tt[, c("gene", "log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b")]
+
+  write.csv(tt, "toptable_output.csv", row.names = FALSE)
+
+  # Also get all genes for verification
+  tt_all <- topTable(fit, coef = 2, number = Inf, sort.by = "none")
+  names(tt_all) <- c("log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b")
+  tt_all$gene <- rownames(tt_all)
+  rownames(tt_all) <- NULL
+  tt_all <- tt_all[, c("gene", "log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b")]
+  write.csv(tt_all, "toptable_all.csv", row.names = FALSE)
+})
+
+cat("  toptable fixtures complete.\n")
+
+# =============================================================================
+# fitFDist and squeezeVar on F-distributed variances
+# =============================================================================
+cat("\nGenerating squeeze_var fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data: sample variances from chi-squared
+  n_genes <- 100
+  df_residual <- 5
+  true_s0 <- 0.5
+  true_d0 <- 4
+
+  # Generate sample variances: s^2 ~ s0^2 * F(df, d0)
+  # which is equivalent to s^2 ~ s0^2 * (chi2(df)/df) / (chi2(d0)/d0)
+  sample_var <- true_s0 * rf(n_genes, df1 = df_residual, df2 = true_d0)
+
+  # Run fitFDist
+  fit <- fitFDist(sample_var, df1 = df_residual)
+
+  # Run squeezeVar
+  sv <- squeezeVar(sample_var, df = df_residual)
+
+  # Save test inputs and outputs
+  write.csv(
+    data.frame(sample_var = sample_var),
+    "squeeze_var_input.csv",
+    row.names = FALSE
+  )
+
+  write.csv(
+    data.frame(
+      fit_scale = fit$scale,
+      fit_df2 = fit$df2
+    ),
+    "fit_f_dist_output.csv",
+    row.names = FALSE
+  )
+
+  write.csv(
+    data.frame(
+      var_post = sv$var.post,
+      var_prior = sv$var.prior,
+      df_prior = sv$df.prior
+    ),
+    "squeeze_var_output.csv",
+    row.names = FALSE
+  )
+})
+
+cat("  squeeze_var fixtures complete.\n")
+
+# =============================================================================
+# EList and MArrayLM [i, j] subsetting (R_elist_*, R_marraylm_*)
+# =============================================================================
+cat("\nGenerating classes fixtures...\n")
+
+local({
+  set.seed(42)
+
+  n_genes <- 30
+  n_samples <- 8
+
+  E <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(E) <- paste0("gene", 1:n_genes)
+  colnames(E) <- paste0("sample", 1:n_samples)
+
+  weights <- matrix(runif(n_genes * n_samples, 0.5, 1.5), nrow = n_genes)
+  rownames(weights) <- rownames(E)
+  colnames(weights) <- colnames(E)
+
+  genes <- data.frame(
+    ID = rownames(E),
+    chromosome = sample(c("chr1", "chr2", "chr3"), n_genes, replace = TRUE),
+    row.names = rownames(E),
+    stringsAsFactors = FALSE
+  )
+
+  group <- factor(rep(c("A", "B"), each = 4))
+  targets <- data.frame(
+    SampleID = colnames(E),
+    Group = group,
+    row.names = colnames(E),
+    stringsAsFactors = FALSE
+  )
+
+  design <- model.matrix(~ group)
+  rownames(design) <- colnames(E)
+  colnames(design) <- c("Intercept", "groupB")
+
+  # -----------------------------------------------------------------------------
+  # EList subsetting
+  # -----------------------------------------------------------------------------
+
+  el <- new("EList", list(
+    E = E,
+    weights = weights,
+    genes = genes,
+    targets = targets,
+    design = design
+  ))
+
+  write_elist <- function(obj, tag) {
+    write.csv(obj$E, sprintf("R_elist_%s_E.csv", tag), row.names = TRUE)
+    write.csv(obj$weights, sprintf("R_elist_%s_weights.csv", tag), row.names = TRUE)
+    write.csv(obj$genes, sprintf("R_elist_%s_genes.csv", tag), row.names = TRUE)
+    write.csv(obj$targets, sprintf("R_elist_%s_targets.csv", tag), row.names = TRUE)
+    write.csv(obj$design, sprintf("R_elist_%s_design.csv", tag), row.names = TRUE)
+  }
+
+  # Full object
+  write_elist(el, "full")
+
+  # Row subset (first 10 genes)
+  write_elist(el[1:10, ], "rows")
+
+  # Column subset (first 4 samples)
+  write_elist(el[, 1:4], "cols")
+
+  # Row + column subset
+  write_elist(el[1:10, 1:4], "both")
+
+  # String-indexed rows
+  write_elist(el[c("gene3", "gene7", "gene15"), ], "rowstr")
+
+  # Boolean row mask
+  row_mask <- rep(FALSE, n_genes); row_mask[c(2, 4, 6, 8, 10)] <- TRUE
+  write_elist(el[row_mask, ], "rowbool")
+
+  # -----------------------------------------------------------------------------
+  # MArrayLM subsetting
+  # -----------------------------------------------------------------------------
+
+  fit <- lmFit(el, design)
+  fit <- eBayes(fit)
+
+  write_marraylm <- function(obj, tag) {
+    write.csv(obj$coefficients, sprintf("R_marraylm_%s_coefficients.csv", tag), row.names = TRUE)
+    write.csv(obj$stdev.unscaled, sprintf("R_marraylm_%s_stdev_unscaled.csv", tag), row.names = TRUE)
+    write.csv(obj$t, sprintf("R_marraylm_%s_t.csv", tag), row.names = TRUE)
+    write.csv(obj$p.value, sprintf("R_marraylm_%s_p_value.csv", tag), row.names = TRUE)
+    write.csv(obj$lods, sprintf("R_marraylm_%s_lods.csv", tag), row.names = TRUE)
+    write.csv(data.frame(
+      Amean = obj$Amean,
+      sigma = obj$sigma,
+      df_residual = obj$df.residual,
+      df_total = obj$df.total,
+      s2_post = obj$s2.post
+    ), sprintf("R_marraylm_%s_i_slots.csv", tag), row.names = TRUE)
+    write.csv(obj$genes, sprintf("R_marraylm_%s_genes.csv", tag), row.names = TRUE)
+  }
+
+  write_marraylm(fit, "full")
+  write_marraylm(fit[1:10, ], "rows")
+  write_marraylm(fit[, 2, drop = FALSE], "cols")
+  write_marraylm(fit[1:10, 2, drop = FALSE], "both")
+  write_marraylm(fit[c("gene3", "gene7", "gene15"), ], "rowstr")
+})
+
+cat("  classes fixtures complete.\n")

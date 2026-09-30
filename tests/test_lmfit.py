@@ -62,6 +62,8 @@ class TestLmSeries:
         np.testing.assert_allclose(
             result["df_residual"], ref_stats["df_residual"].values, rtol=1e-10
         )
+        ref_cov = pd.read_csv(FIXTURES_DIR / "lmfit_cov_coef.csv", index_col=0).values
+        np.testing.assert_allclose(result["cov_coefficients"], ref_cov, rtol=1e-10)
 
     def test_intercept_only(self):
         """Test fitting intercept-only model."""

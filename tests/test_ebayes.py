@@ -36,8 +36,17 @@ class TestEBayes:
         # Compare s2.post
         np.testing.assert_allclose(fit["s2_post"], ref_stats["s2_post"].values, rtol=1e-6)
 
-        # Compare hyperparameters
+        np.testing.assert_allclose(fit["lods"][:, 1], ref_stats["lods"].values, rtol=1e-6)
+        np.testing.assert_allclose(fit["df_total"], ref_stats["df_total"].values, rtol=1e-6)
+
+        # Compare hyperparameters and the F-test
         np.testing.assert_allclose(fit["s2_prior"], ref_global["s2_prior"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(fit["df_prior"], ref_global["df_prior"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(fit["F"], ref_global["F_stat"].values, rtol=1e-6)
+        np.testing.assert_allclose(fit["F_p_value"], ref_global["F_p_value"].values, rtol=1e-6)
+
+        ref_coef = pd.read_csv(FIXTURES_DIR / "ebayes_coef.csv", index_col=0).values
+        np.testing.assert_allclose(fit["coefficients"], ref_coef, rtol=1e-10)
 
     def test_moderated_t_smaller_than_ordinary(self):
         """Test that moderated t-stats have smaller variance than ordinary."""
