@@ -4312,3 +4312,52 @@ local({
 })
 
 cat("  classes fixtures complete.\n")
+
+# =============================================================================
+# fitFDist spline trend with interior knots on a boundary knot: ns() shoves
+# them inwards, or fails when every interior knot is on one boundary
+# =============================================================================
+cat("\nGenerating fitFDist knot-shoving fixtures...\n")
+
+set.seed(20261014)
+
+.fks_run <- function(x, covariate) {
+  shoved <- FALSE
+  fit <- withCallingHandlers(fitFDist(x, df1 = 4, covariate = covariate), warning = function(w) {
+    if (grepl("shoving 'interior' knots", conditionMessage(w))) {
+      shoved <<- TRUE
+      invokeRestart("muffleWarning")
+    }
+  })
+  # Precondition: ns() moved an interior knot
+  stopifnot(shoved)
+  fit
+}
+.fks_write <- function(case, x, covariate) {
+  fit <- .fks_run(x, covariate)
+  write.csv(data.frame(x = x, covariate = covariate, scale = fit$scale, df2 = fit$df2),
+            sprintf("R_fit_f_dist_shoved_%s.csv", case), row.names = FALSE)
+}
+.fks_x <- function(covariate) exp(0.1 * covariate + rnorm(length(covariate), sd = 0.5)) * rchisq(length(covariate), 4) / 4
+.fks_cov <- list(
+  left = c(rep(0, 20), runif(20, 1, 10)),
+  right = c(runif(20, 1, 10), rep(10, 20)),
+  both = c(rep(0, 15), runif(10, 1, 9), rep(10, 15))
+)
+for (.case in names(.fks_cov)) .fks_write(.case, .fks_x(.fks_cov[[.case]]), .fks_cov[[.case]])
+# Excluded points are predicted with the shoved knots
+.fks_x_na <- .fks_x(.fks_cov$left)
+.fks_x_na[c(3, 25, 33)] <- NA
+.fks_write("left_na", .fks_x_na, .fks_cov$left)
+
+# More than two thirds tied at the minimum: every interior knot is on the
+# left boundary, ns() stops and fitFDist reports a problem with the covariate
+.fks_cov_err <- c(rep(0, 30), runif(10, 1, 10))
+.fks_x_err <- .fks_x(.fks_cov_err)
+.fks_err <- tryCatch({ fitFDist(.fks_x_err, df1 = 4, covariate = .fks_cov_err); NA_character_ },
+                     error = function(e) conditionMessage(e))
+stopifnot(identical(.fks_err, "Problem with covariate"))
+write.csv(data.frame(x = .fks_x_err, covariate = .fks_cov_err), "R_fit_f_dist_shoved_error_input.csv",
+          row.names = FALSE)
+
+cat("  fitFDist knot-shoving fixtures complete.\n")

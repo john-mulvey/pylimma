@@ -5218,6 +5218,29 @@ class TestFitFDistOutOfRangePredictionParity:
         np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
 
 
+class TestFitFDistKnotShovingParity:
+    """Interior spline knots that coincide with a boundary knot.
+
+    With a third or more of the covariate tied at an extreme, a quantile knot
+    equals the boundary knot and R's ns() moves it inwards with a warning;
+    the fixtures assert R warned. When every interior knot is on one
+    boundary, ns() fails and fitFDist stops.
+    """
+
+    @pytest.mark.parametrize("case", ["left", "right", "both", "left_na"])
+    def test_scale_and_df2(self, case):
+        r = load_r_csv_no_index(f"fit_f_dist_shoved_{case}")
+        with pytest.warns(UserWarning, match="shoving 'interior' knots"):
+            py = fit_f_dist(r["x"].values, df1=4, covariate=r["covariate"].values)
+        np.testing.assert_allclose(py["scale"], r["scale"].values, rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
+
+    def test_all_knots_on_boundary_errors(self):
+        r = load_r_csv_no_index("fit_f_dist_shoved_error_input")
+        with pytest.raises(ValueError, match="Problem with covariate"):
+            fit_f_dist(r["x"].values, df1=4, covariate=r["covariate"].values)
+
+
 # =============================================================================
 # fitFDistUnequalDF1: branch-forcing parity
 # =============================================================================

@@ -9,8 +9,8 @@
 #   fitFDistUnequalDF1.R       Copyright (C) 2024-2025 Gordon Smyth,
 #                                                      Lizhong Chen
 #
-# _natural_spline_basis() additionally ports the linear extrapolation beyond
-# the boundary knots from base R's splines package (which limma's fitFDist
+# _natural_spline_basis() additionally ports the interior-knot shoving and the
+# linear extrapolation beyond the boundary knots from base R's splines package (which limma's fitFDist
 # calls via splines::ns and predict):
 #   splines::ns  Copyright (C) R Core Team, Douglas M. Bates, William N.
 #                Venables; GPL (>= 2)
@@ -205,6 +205,28 @@ def _natural_spline_basis(
     elif n_interior > 0:
         knot_probs = np.linspace(0, 1, n_interior + 2)[1:-1]
         interior_knots = np.quantile(x, knot_probs)
+        # R's ns(): quantile knots equal to a boundary knot are shoved inside
+        left_eq, right_eq = (
+            np.isin(k, boundary) for k in (interior_knots.min(), interior_knots.max())
+        )
+        if left_eq or right_eq:
+            if left_eq:
+                pivot = boundary[0]
+                on_pivot = interior_knots == pivot
+                if on_pivot.all():
+                    raise ValueError("all interior knots match left boundary knot")
+                interior_knots[on_pivot] += (
+                    interior_knots[interior_knots > pivot].min() - pivot
+                ) / 8
+            if right_eq:
+                pivot = boundary[1]
+                on_pivot = interior_knots == pivot
+                if on_pivot.all():
+                    raise ValueError("all interior knots match right boundary knot")
+                interior_knots[on_pivot] -= (
+                    pivot - interior_knots[interior_knots < pivot].max()
+                ) / 8
+            warnings.warn("shoving 'interior' knots matching boundary knots to inside")
     else:
         interior_knots = np.array([])
 
@@ -273,24 +295,27 @@ def _fit_spline_trend(e: np.ndarray, covariate: np.ndarray, splinedf: int) -> tu
     -------
     tuple
         (fitted_values, residual_variance, coefficients, design,
-        spline_knots). ``spline_knots`` is ``(boundary, interior)`` or
-        None when the linear fallback fired; callers can replay the
-        basis at new x via ``_natural_spline_basis(...,
-        boundary_knots=..., interior_knots=...)``.
+        spline_knots). ``spline_knots`` is ``(boundary, interior)``;
+        callers can replay the basis at new x via
+        ``_natural_spline_basis(..., boundary_knots=..., interior_knots=...)``.
+
+    Raises
+    ------
+    ValueError
+        "Problem with covariate" when R's ``ns()`` would fail.
     """
     n = len(e)
 
     # Create spline basis. Capture the knots so callers can re-evaluate
     # the basis at new covariate points (matching R's
     # `predict(design, newx=...)` in fitFDist.R:90-97).
-    spline_knots = None
     try:
         design, spline_knots = _natural_spline_basis(
             covariate, df=splinedf, intercept=True, return_knots=True
         )
-    except Exception:
-        # Fall back to simple linear fit
-        design = np.column_stack([np.ones(n), covariate])
+    except ValueError as err:
+        # fitFDist.R: design <- try(ns(...)); if error, stop("Problem with covariate")
+        raise ValueError("Problem with covariate") from err
 
     # Fit linear model
     q, r = linalg.qr(design, mode="economic")
@@ -468,22 +493,14 @@ def fit_f_dist(
         if notallok:
             emean_full = np.zeros(n)
             emean_full[ok] = emean
-            try:
-                if spline_knots is not None:
-                    design_notok = _natural_spline_basis(
-                        covariate_notok,
-                        df=splinedf,
-                        intercept=True,
-                        boundary_knots=spline_knots[0],
-                        interior_knots=spline_knots[1],
-                    )
-                else:
-                    # Linear fallback path: replay [1, x] design.
-                    design_notok = np.column_stack([np.ones(len(covariate_notok)), covariate_notok])
-                emean_full[~ok] = design_notok[:, : len(coef)] @ coef
-            except Exception:
-                # Fall back to nearest neighbor or mean
-                emean_full[~ok] = np.mean(emean)
+            design_notok = _natural_spline_basis(
+                covariate_notok,
+                df=splinedf,
+                intercept=True,
+                boundary_knots=spline_knots[0],
+                interior_knots=spline_knots[1],
+            )
+            emean_full[~ok] = design_notok[:, : len(coef)] @ coef
             emean = emean_full
 
     # Estimate scale and df2
@@ -1052,7 +1069,9 @@ def fit_f_dist_unequal_df1(
 
     # Refit with FDR as prior weights. R's Recall() does not forward span,
     # so the refit chooses its own span.
-    refit = fit_f_dist_unequal_df1(x=x, df1=df1, covariate=covariate, robust=False, prior_weights=fdr)
+    refit = fit_f_dist_unequal_df1(
+        x=x, df1=df1, covariate=covariate, robust=False, prior_weights=fdr
+    )
     s20 = refit["scale"]
     df2 = refit["df2"]
 
