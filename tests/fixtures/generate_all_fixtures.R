@@ -4474,3 +4474,33 @@ write.csv(.cfb_d_orth, "R_cfb_orth_design.csv", row.names = FALSE)
 .cfb_write("orth", contrasts.fit(.cfb_fit_orth, cbind(c(0, 1, 1), c(0, 1, -1))))
 
 cat("  contrasts.fit branch fixtures complete.\n")
+
+# =============================================================================
+# lmFit correlation: missing stops, an explicit NULL is estimated by
+# gls.series via duplicateCorrelation; voom passes correlation = NULL
+# =============================================================================
+cat("\nGenerating lmFit correlation = NULL fixtures...\n")
+
+set.seed(20261017)
+
+.lcn_counts <- matrix(rpois(200 * 8, 50), 200, 8)
+.lcn_counts[1:20, 5:8] <- .lcn_counts[1:20, 5:8] * 2
+.lcn_design <- cbind(1, rep(0:1, each = 4))
+.lcn_block <- rep(1:4, 2)
+.lcn_y <- log2(.lcn_counts + 1)
+write.csv(.lcn_counts, "R_lcn_counts.csv", row.names = FALSE)
+.lcn_err <- tryCatch({ lmFit(.lcn_y, .lcn_design, block = .lcn_block); NA_character_ },
+                     error = function(e) conditionMessage(e))
+stopifnot(identical(.lcn_err, "the correlation must be set, see duplicateCorrelation"))
+.lcn_write <- function(case, fit) {
+  stopifnot(fit$correlation != 0)
+  write.csv(data.frame(coefficients = fit$coefficients, stdev_unscaled = fit$stdev.unscaled,
+                       sigma = fit$sigma, correlation = fit$correlation),
+            sprintf("R_lcn_%s.csv", case), row.names = FALSE)
+}
+.lcn_write("block", lmFit(.lcn_y, .lcn_design, block = .lcn_block, correlation = NULL))
+.lcn_write("ndups", lmFit(.lcn_y, .lcn_design, ndups = 2, correlation = NULL))
+.lcn_v <- voom(.lcn_counts, .lcn_design, block = .lcn_block)
+write.csv(.lcn_v$weights, "R_lcn_voom_weights.csv", row.names = FALSE)
+
+cat("  lmFit correlation = NULL fixtures complete.\n")

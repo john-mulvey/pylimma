@@ -6299,3 +6299,44 @@ class TestContrastsFitBranchParity:
         design = load_r_csv_no_index("cfb_orth_design").to_numpy(dtype=float)
         cf = contrasts_fit(lm_fit(self._y(), design), np.array([[0.0, 0.0], [1.0, 1.0], [1.0, -1.0]]))
         self._assert_matches(cf, "orth")
+
+
+# =============================================================================
+# lm_fit correlation: omitted vs explicit None, as R's missing() vs NULL
+# =============================================================================
+
+
+class TestLmFitCorrelationNoneParity:
+    """R's lmFit stops when correlation is missing but passes an explicit NULL
+    to gls.series, which estimates it with duplicateCorrelation; voom passes
+    correlation = NULL. The fixtures assert R's error and a non-zero estimate."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    BLOCK = np.tile([1, 2, 3, 4], 2)
+
+    @staticmethod
+    def _y():
+        return np.log2(load_r_csv_no_index("lcn_counts").to_numpy(dtype=float) + 1)
+
+    def test_omitted_correlation_errors(self):
+        with pytest.raises(ValueError, match="the correlation must be set, see duplicateCorrelation"):
+            lm_fit(self._y(), self.DESIGN, block=self.BLOCK)
+
+    @pytest.mark.parametrize("case", ["block", "ndups"])
+    def test_none_estimates_correlation(self, case):
+        kwargs = {"block": self.BLOCK} if case == "block" else {"ndups": 2}
+        fit = lm_fit(self._y(), self.DESIGN, correlation=None, **kwargs)
+        r = load_r_csv_no_index(f"lcn_{case}")
+        np.testing.assert_allclose(fit["correlation"], r["correlation"].iloc[0], rtol=1e-6)
+        for slot in ("coefficients", "stdev_unscaled"):
+            cols = [f"{slot}.x1", f"{slot}.x2"]
+            np.testing.assert_allclose(fit[slot], r[cols].to_numpy(), rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(fit["sigma"], r["sigma"], rtol=1e-6)
+
+    def test_voom_block_without_correlation(self):
+        from pylimma import voom
+
+        counts = load_r_csv_no_index("lcn_counts").to_numpy(dtype=float)
+        v = voom(counts, self.DESIGN, block=self.BLOCK)
+        r = load_r_csv_no_index("lcn_voom_weights").to_numpy(dtype=float)
+        np.testing.assert_allclose(v["weights"], r, rtol=1e-6)

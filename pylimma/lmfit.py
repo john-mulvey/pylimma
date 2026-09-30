@@ -40,6 +40,16 @@ if TYPE_CHECKING:
     pass
 
 
+class _Missing:
+    """Default for arguments where R distinguishes missing() from NULL."""
+
+    def __repr__(self) -> str:
+        return "<missing>"
+
+
+_MISSING = _Missing()
+
+
 def _dqrdc2_pivot(x: np.ndarray, tol: float = 1e-7) -> tuple[np.ndarray, int]:
     """
     Column pivoting and rank of R's LINPACK routine ``dqrdc2``.
@@ -1082,7 +1092,7 @@ def lm_fit(
     ndups: int | None = None,
     spacing: int | None = None,
     block: np.ndarray | None = None,
-    correlation: float | None = None,
+    correlation: float | None = _MISSING,
     weights: np.ndarray | None = None,
     method: str = "ls",
     key: str = "pylimma",
@@ -1116,10 +1126,11 @@ def lm_fit(
     block : array_like, optional
         Block indicator for correlated samples. When provided, samples
         within the same block are assumed to be correlated.
-    correlation : float, optional
-        Intra-block or intra-duplicate correlation. Required when
-        ndups > 1 or block is provided. Use duplicate_correlation()
-        to estimate this value.
+    correlation : float or None, optional
+        Intra-block or intra-duplicate correlation, used when ndups > 1 or
+        block is provided. As in R, omitting it is then an error, while an
+        explicit ``None`` estimates it with duplicate_correlation() (via
+        gls_series).
     weights : ndarray, optional
         Observation weights. Can be:
         - 1D array of length n_samples (array weights)
@@ -1263,11 +1274,12 @@ def lm_fit(
     # Validate correlation requirement. mrlm (robust) does not use
     # correlation - duplicates are unwrapped and fit per-gene via M-estimation
     # - so correlation is only required for the GLS (ls) path.
-    if method == "ls" and (ndups >= 2 or block is not None) and correlation is None:
-        raise ValueError(
-            "correlation must be provided when ndups >= 2 or block is specified. "
-            "Use duplicate_correlation() to estimate it."
-        )
+    # R lmfit.R:72: `if(missing(correlation)) stop(...)`; an explicit NULL is
+    # passed to gls.series, which estimates it.
+    if method == "ls" and (ndups >= 2 or block is not None) and correlation is _MISSING:
+        raise ValueError("the correlation must be set, see duplicateCorrelation")
+    if correlation is _MISSING:
+        correlation = None
 
     # Dispatch to appropriate fitting function
     if method == "robust":

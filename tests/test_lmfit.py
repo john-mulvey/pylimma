@@ -158,7 +158,9 @@ class TestLmFitDispatch:
         design = np.ones((6, 1))
         block = np.array([0, 0, 1, 1, 2, 2])
 
-        with pytest.raises(ValueError, match="correlation must be provided"):
+        with pytest.raises(
+            ValueError, match="the correlation must be set, see duplicateCorrelation"
+        ):
             lm_fit(expr, design, block=block)
 
     def test_requires_correlation_with_ndups(self):
@@ -167,7 +169,9 @@ class TestLmFitDispatch:
         expr = np.random.randn(8, 3)
         design = np.ones((3, 1))
 
-        with pytest.raises(ValueError, match="correlation must be provided"):
+        with pytest.raises(
+            ValueError, match="the correlation must be set, see duplicateCorrelation"
+        ):
             lm_fit(expr, design, ndups=2)
 
 
