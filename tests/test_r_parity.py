@@ -6062,3 +6062,45 @@ class TestContrastsFitNACoefficientRParity:
         subset = fit[0:3, :]
         self._assert_matches(contrasts_fit(subset, contrasts=self.CONTRASTS["treatment"]), "subset")
         self._assert_matches(contrasts_fit(subset, coefficients=["B", "C"]), "subset_coefficients")
+
+
+# =============================================================================
+# trigammaInverse: every branch, including the extremes
+# =============================================================================
+
+
+class TestTrigammaInverseRParity:
+    """trigamma_inverse matches R's trigammaInverse on every branch: NA / NaN
+    pass through, negatives give NaN with a warning, x < 1e-6 uses 1/x,
+    x > 1e7 uses 1/sqrt(x), and the rest (including both boundaries) use
+    Newton iteration. Checked as one vector call and element by element,
+    since R's Newton stopping rule is taken over the whole vector."""
+
+    def test_vector_call_matches_r(self):
+        import warnings as _w
+
+        from pylimma import trigamma_inverse
+
+        r = load_r_csv_no_index("trigamma_inverse_extremes")
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            y = trigamma_inverse(r["x"].to_numpy(dtype=float))
+        np.testing.assert_allclose(y, r["vector_call"].to_numpy(dtype=float), rtol=1e-10)
+
+    def test_scalar_calls_match_r(self):
+        import warnings as _w
+
+        from pylimma import trigamma_inverse
+
+        r = load_r_csv_no_index("trigamma_inverse_extremes")
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            y = np.array([float(trigamma_inverse(v)) for v in r["x"].to_numpy(dtype=float)])
+        np.testing.assert_allclose(y, r["scalar_call"].to_numpy(dtype=float), rtol=1e-10)
+
+    def test_negative_warns_and_empty_returns_empty(self):
+        from pylimma import trigamma_inverse
+
+        with pytest.warns(RuntimeWarning, match="NaNs produced"):
+            assert np.isnan(trigamma_inverse(np.array([-1.0]))[0])
+        assert np.asarray(trigamma_inverse(np.array([]))).size == 0

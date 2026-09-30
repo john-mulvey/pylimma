@@ -3861,3 +3861,20 @@ write.csv(data.frame(r_error = .cn_sing_err), "R_cn_singular_error.csv", row.nam
 .cn_write("subset_coefficients", contrasts.fit(.cn_fit_tr[1:3, ], coefficients = c("B", "C")))
 
 cat("  contrasts.fit NA-coefficient and subset fixtures complete.\n")
+
+# =============================================================================
+# trigammaInverse: every branch, including the extremes
+# =============================================================================
+cat("\nGenerating trigammaInverse fixtures...\n")
+
+.ti_x <- c(NA, NaN, -1, 0, 1e-12, 9.99e-7, 1e-6, 1e-3, 0.1, 1, 10, 1e3, 1e6, 1e7, 1.0001e7, 1e12, Inf)
+.ti_vector <- suppressWarnings(trigammaInverse(.ti_x))
+.ti_scalar <- vapply(.ti_x, function(v) suppressWarnings(trigammaInverse(v)), numeric(1))
+stopifnot(identical(.ti_vector[4], Inf), .ti_vector[17] == 0, is.nan(.ti_vector[3]))
+.ti_warn <- tryCatch({ trigammaInverse(-1); NA_character_ }, warning = function(w) conditionMessage(w))
+stopifnot(identical(.ti_warn, "NaNs produced"), length(trigammaInverse(numeric(0))) == 0)
+write.csv(data.frame(x = .ti_x, vector_call = .ti_vector, scalar_call = .ti_scalar,
+                     is_nan = is.nan(.ti_vector)),
+          "R_trigamma_inverse_extremes.csv", row.names = FALSE)
+
+cat("  trigammaInverse fixtures complete.\n")
