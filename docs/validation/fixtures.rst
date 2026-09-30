@@ -79,7 +79,7 @@ generator script prints the versions it ran against in its first
 lines of output; running the Python parity tests does not require R
 or limma.
 
-Target versions for the v0.1.0 fixture set:
+Target versions for the fixture set:
 
 - R: 4.5.2
 - Bioconductor limma: 3.66.0
