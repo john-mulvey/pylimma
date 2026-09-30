@@ -380,10 +380,7 @@ class TestEBayesRParity:
 
         # df_prior (R returns Inf for this dataset)
         r_df_prior = r_global["df_prior"].values[0]
-        if np.isinf(r_df_prior):
-            assert fit["df_prior"] > 1e6 or np.isinf(fit["df_prior"]), "df_prior should be infinite"
-        else:
-            assert_close_to_reference(fit["df_prior"], r_df_prior, tol=0.1, name="df_prior")
+        np.testing.assert_allclose(fit["df_prior"], r_df_prior, rtol=1e-6)
 
     def test_basic_f_statistics(self, data1):
         """Test F-statistics match R."""
@@ -435,10 +432,7 @@ class TestEBayesRParity:
 
         # df_prior (R returns Inf for this dataset with trend)
         r_df_prior = r_global.iloc[0, 0]
-        if np.isinf(r_df_prior):
-            assert fit["df_prior"] > 1e6 or np.isinf(fit["df_prior"]), "df_prior should be infinite"
-        else:
-            assert_close_to_reference(fit["df_prior"], r_df_prior, tol=0.1, name="df_prior")
+        np.testing.assert_allclose(fit["df_prior"], r_df_prior, rtol=1e-6)
 
 
 # =============================================================================
@@ -670,10 +664,7 @@ class TestSqueezeVarRParity:
         sv = squeeze_var(fit["sigma"] ** 2, fit["df_residual"])
 
         r_df_prior = r_sv["df_prior"].values[0]
-        if np.isinf(r_df_prior):
-            assert sv["df_prior"] > 1e6 or np.isinf(sv["df_prior"]), "df_prior should be infinite"
-        else:
-            assert_close_to_reference(sv["df_prior"], r_df_prior, tol=0.1, name="df_prior")
+        np.testing.assert_allclose(sv["df_prior"], r_df_prior, rtol=1e-6)
 
     def test_trend_var_post(self, data1):
         """Test squeezeVar with covariate (trend) matches R."""
@@ -1231,10 +1222,7 @@ class TestTopTableEdgeCasesRParity:
         # Check that filtered genes have |logFC| >= 1
         assert np.all(np.abs(py_tt["log_fc"]) >= 1), "lfc filter not applied correctly"
 
-        # Number of results should be similar
-        assert abs(len(py_tt) - len(r_tt)) <= 2, (
-            f"lfc filter count differs: R={len(r_tt)}, Py={len(py_tt)}"
-        )
+        assert len(py_tt) == len(r_tt), f"lfc filter count differs: R={len(r_tt)}, Py={len(py_tt)}"
 
     def test_pvalue_filter(self, data1):
         """Test topTable with p.value filter matches R."""
@@ -3646,14 +3634,14 @@ class TestBackgroundCorrectRParity:
         got = background_correct(E, background=Eb, method="normexp", verbose=False)
         expected = load_r_csv_no_index("background_correct_normexp").values
         abs_diff = np.nanmax(np.abs(got - expected))
-        assert abs_diff < 0.1, f"max_abs_diff={abs_diff:.3e}"
+        assert abs_diff < 0.05, f"max_abs_diff={abs_diff:.3e}"
 
     def test_normexp_offset(self, matrices):
         E, _ = matrices
         got = background_correct(E, method="normexp", offset=50, verbose=False)
         expected = load_r_csv_no_index("background_correct_normexp_offset").values
         abs_diff = np.nanmax(np.abs(got - expected))
-        assert abs_diff < 0.1, f"max_abs_diff={abs_diff:.3e}"
+        assert abs_diff < 0.05, f"max_abs_diff={abs_diff:.3e}"
 
     def test_subtract_eb(self, matrices):
         E, Eb = matrices
