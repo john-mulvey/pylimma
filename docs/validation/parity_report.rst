@@ -37,20 +37,18 @@ layer (``get_eawp`` / ``put_eawp``) rather than numerical parity.
 Tolerances
 ----------
 
-Per-function-family tolerances are tabulated in
-:doc:`fixtures`. Summary: expression and design matrices match R at
-``rtol=1e-10``; voom / vooma precision weights and lm_fit /
-contrasts_fit statistics at ``rtol=1e-8``; p-values compared on the
-log10 scale with a max-diff tolerance of 1.0. Two known-divergence
-families (``normexp_fit(method="saddle")`` and rotation-based
-Monte-Carlo gene-set tests) use a looser tolerance documented in
-:doc:`known_differences`.
+Tolerances are tabulated in :doc:`fixtures`. Summary: deterministic
+statistics match R at ``rtol=1e-6`` or tighter, and p-values are
+compared on the log10 scale. Three known-divergence families
+(``normexp_fit(method="saddle")``, ``normalize_vsn`` and the
+rotation-based Monte-Carlo gene-set tests) use looser tolerances
+documented in :doc:`known_differences`.
 
 Known differences from R limma
 ------------------------------
 
-Four families of small, non-bug-for-bug divergences are documented in
-:doc:`known_differences`:
+Four families of small, non-bug-for-bug numerical divergences are
+documented in :doc:`known_differences`:
 
 - ``normexp_fit(method="saddle")`` drifts up to ~2e-4 from R because
   scipy's Nelder-Mead and R's ``nmmin`` share the algorithm but use
@@ -72,6 +70,14 @@ Four families of small, non-bug-for-bug divergences are documented in
   because LINPACK ``DQRDC2`` and LAPACK SVD produce different
   noise patterns. Real-world residuals are 6+ orders of magnitude
   above the trigger condition.
+
+The same page also documents three deliberate divergences: ``genas``
+applies the logFC / predFC re-centring that limma's code intends but
+does not perform; ``decide_tests(method="hierarchical")`` with a
+supplied ``genewise_p_value`` follows limma's intended behaviour where
+limma 3.66.0 errors; and ``voom`` / ``voom_with_quality_weights`` use
+an EList's design (and, for voom, weights) slots, with a warning, where
+R silently drops them.
 
 Publication figures
 -------------------

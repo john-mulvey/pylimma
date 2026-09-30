@@ -35,10 +35,10 @@ Where fixtures live
 
 - **CSV outputs**: ``pylimma/tests/fixtures/*.csv``, one or more per
   function.
-- **Generator**: ``pylimma/tests/fixtures/generate_all_fixtures.R``,
-  one top-level script that dispatches to per-module sub-scripts
-  (``generate_lmfit_fixtures.R``, ``generate_ebayes_fixtures.R``,
-  ``generate_squeeze_var_fixtures.R``, etc.).
+- **Generator**: ``pylimma/tests/fixtures/generate_all_fixtures.R``, a
+  single self-contained script (it sources only the vendored
+  ``affy_bg_parameters.R``). The older ``generate_*_fixtures.R`` scripts
+  in the same directory are standalone and are not run by it.
 - **Python parity tests**: ``pylimma/tests/test_r_parity.py`` and
   the per-module ``test_*.py`` files.
 
@@ -48,16 +48,29 @@ Tolerances
 ====================================================  ============================
 Output                                                Tolerance
 ====================================================  ============================
-Expression matrices, design matrices                  ``rtol=1e-10``
-Precision weights (voom, vooma)                       ``rtol=1e-8``
-Quality weights (arrayWeights, arrayWeightsQuick)     ``rtol=1e-8``
-Coefficients, t-statistics, sigma                     ``rtol=1e-8``
-P-values                                              log10 scale, max diff 1.0
+Deterministic statistics (see below)                  ``rtol=1e-6`` or tighter
+                                                      (many tests use ``1e-8`` to
+                                                      ``1e-12``)
+P-values                                              log10 scale: ``rtol=1e-6``
+                                                      in branch-forcing tests; older
+                                                      tests allow up to 2 orders of
+                                                      magnitude for very small values
 ``normexp_fit(method="saddle")`` parameters           ``rtol=1e-3`` (see
+                                                      :doc:`known_differences`)
+``normalize_vsn`` output                              ``rtol=5e-4`` (see
                                                       :doc:`known_differences`)
 Rotation-test Monte-Carlo p-values                    log10 scale, max diff 0.5
                                                       (see :doc:`known_differences`)
 ====================================================  ============================
+
+Deterministic statistics are coefficients, standard errors, t and F
+statistics, variances, weights and fitted hyperparameters.
+
+Outputs that are defined only up to one sign per column - MDS
+coordinates, wsva surrogate variables and plot_rldf discriminant
+scores, which R and NumPy both take from LAPACK - are compared after
+giving each column a canonical sign (its largest-magnitude entry
+positive). The fixture script and the tests apply the same rule.
 
 R and limma versions
 --------------------
@@ -69,8 +82,16 @@ or limma.
 
 Target versions for the v0.1.0 fixture set:
 
-- R: current release (run ``R.version.string`` to confirm)
+- R: 4.5.2
 - Bioconductor limma: 3.66.0
+- R packages used by the generator: limma, MASS and statmod. The one
+  function needed from affy (``bg.parameters``) is vendored in
+  ``affy_bg_parameters.R``, so affy itself is not required.
+
+Regenerating the fixtures on a different R build reproduces the
+committed values to about ``1e-11`` relative rather than bit for bit
+(floating-point differences between BLAS / LAPACK builds), well inside
+every test tolerance.
 
 Regenerating fixtures
 ---------------------
@@ -83,9 +104,9 @@ To regenerate:
 
 .. code-block:: bash
 
-   # In R:
+   # In R (MASS ships with R):
    install.packages("BiocManager")
-   BiocManager::install("limma")
+   BiocManager::install(c("limma", "statmod"))
 
    # In shell, from the pylimma repo root:
    cd pylimma/tests/fixtures

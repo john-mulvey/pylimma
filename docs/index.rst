@@ -6,8 +6,9 @@ Bioconductor package for differential expression analysis. It provides
 the full linear-modelling pipeline (``lm_fit``, ``contrasts_fit``,
 ``e_bayes``, ``top_table``), voom for RNA-seq, gene-set testing
 (camera, roast, fry, romer), normalisation, batch correction, and
-differential splicing - all validated to match R limma output within
-``rtol=1e-6`` on fixture parity tests.
+differential splicing - all validated against R limma 3.66.0 by
+fixture-based parity tests. The few remaining numerical differences are
+documented in :doc:`validation/known_differences`.
 
 pylimma accepts numpy arrays, pandas DataFrames, AnnData objects, or
 limma-style ``EList`` dict subclasses, with centralised polymorphic

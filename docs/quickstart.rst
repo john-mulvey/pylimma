@@ -26,7 +26,7 @@ Basic two-group comparison
 
 The output is a pandas DataFrame with the same columns as R limma's
 ``topTable`` - ``log_fc``, ``ave_expr``, ``t``, ``p_value``,
-``adj_p_value``, and ``B`` (log-odds) - matching R output within
+``adj_p_value``, and ``b`` (log-odds, R's ``B``) - matching R output within
 ``rtol=1e-6``.
 
 AnnData workflow
@@ -55,8 +55,8 @@ limma's ``EList``:
 
    from pylimma import EList, voom, lm_fit, e_bayes, top_table
 
-   el  = EList({"E": counts, "design": design})      # genes x samples
-   v   = voom(el)
+   el  = EList({"E": counts})                        # genes x samples
+   v   = voom(el, design)
    fit = lm_fit(v, design)
    fit = e_bayes(fit)
    results = top_table(fit, coef=1)
