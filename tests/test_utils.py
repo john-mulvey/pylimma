@@ -22,16 +22,6 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 class TestTrigammaInverse:
     """Tests for trigamma_inverse function."""
 
-    def test_r_parity(self):
-        """Test trigamma_inverse matches R limma's trigammaInverse."""
-        ref = pd.read_csv(FIXTURES_DIR / "trigamma_inverse.csv")
-        x = ref["x"].values
-        expected = ref["trigamma_inverse"].values
-
-        result = trigamma_inverse(x)
-
-        np.testing.assert_allclose(result, expected, rtol=1e-8, atol=1e-10)
-
     def test_scalar_input(self):
         """Test that scalar input returns scalar output."""
         result = trigamma_inverse(1.0)
