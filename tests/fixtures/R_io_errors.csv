@@ -1,0 +1,3 @@
+"case","r_error"
+"id_column_not_first","Expression object should be numeric, instead it is a data.frame with 1 non-numeric columns"
+"two_nonnumeric_columns","Expression object should be numeric, instead it is a data.frame with 2 non-numeric columns"

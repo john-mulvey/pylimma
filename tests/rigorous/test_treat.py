@@ -4,12 +4,11 @@ Rigorous per-branch parity tests for pylimma.ebayes.treat.
 Each test exercises a specific R branch of treat() in R limma's
 treat.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-29. They run a live R subprocess via helpers.run_r_comparison
-so any regression surfaces immediately. Tolerances are tight (rtol=1e-8
-for stats, log10_diff<=1.0 for p-values) and every output slot of the
-fit (t, p_value, s2_post, df_total, df_prior, s2_prior, treat_lfc,
-lods) is checked, not just the headline t/p values.
+These tests run a live R subprocess via helpers.run_r_comparison so any
+regression surfaces immediately. Tolerances are tight (rtol=1e-8 for
+stats, log10_diff<=1.0 for p-values) and every output slot of the fit
+(t, p_value, s2_post, df_total, df_prior, s2_prior, treat_lfc, lods) is
+checked, not just the headline t/p values.
 """
 
 from __future__ import annotations
@@ -84,8 +83,8 @@ def _assert_full_slot_parity(
     else:
         r_p_col = r_out["p_value"][:, coef_index]
     py_p_col = eb["p_value"][:, coef_index]
-    res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=0.5)
-    assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
+    res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=1e-6)
+    assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2e}"
 
     # s2_post (per-gene)
     res_s2post = compare_arrays(r_out["s2_post"], eb["s2_post"], rtol=rtol)
@@ -98,7 +97,7 @@ def _assert_full_slot_parity(
     # df_prior (scalar in R when not robust)
     r_dfprior = float(np.atleast_1d(r_out["df_prior"]).ravel()[0])
     py_dfprior = float(np.atleast_1d(eb["df_prior"]).ravel()[0])
-    assert np.isclose(r_dfprior, py_dfprior, rtol=rtol), (
+    assert np.isclose(r_dfprior, py_dfprior, rtol=rtol, atol=1e-12), (
         f"df_prior differs: R={r_dfprior}, Py={py_dfprior}"
     )
 
@@ -111,7 +110,9 @@ def _assert_full_slot_parity(
     # treat_lfc (scalar)
     r_tlfc = float(np.atleast_1d(r_out["treat_lfc"]).ravel()[0])
     py_tlfc = float(np.atleast_1d(eb["treat_lfc"]).ravel()[0])
-    assert np.isclose(r_tlfc, py_tlfc, rtol=rtol), f"treat_lfc differs: R={r_tlfc}, Py={py_tlfc}"
+    assert np.isclose(r_tlfc, py_tlfc, rtol=rtol, atol=1e-12), (
+        f"treat_lfc differs: R={r_tlfc}, Py={py_tlfc}"
+    )
 
 
 # ----------------------------------------------------------------------
@@ -433,15 +434,15 @@ class TestRigorousTreat:
 
         r_p_col = r_out["p_value"][:, 1]
         py_p_col = eb["p_value"][:, 1]
-        res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=0.5)
-        assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
+        res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=1e-6)
+        assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2e}"
         # s2_post tight
         res_s2post = compare_arrays(r_out["s2_post"], eb["s2_post"], rtol=1e-6)
         assert res_s2post["match"], f"s2_post differs: max_rel={res_s2post['max_rel_diff']:.2e}"
         # df_prior loose: upstream squeeze_var divergence
         r_dfprior = float(np.atleast_1d(r_out["df_prior"]).ravel()[0])
         py_dfprior = float(np.atleast_1d(eb["df_prior"]).ravel()[0])
-        assert np.isclose(r_dfprior, py_dfprior, rtol=1e-4), (
+        assert np.isclose(r_dfprior, py_dfprior, rtol=1e-6, atol=1e-12), (
             f"df_prior differs: R={r_dfprior}, Py={py_dfprior}"
         )
 
@@ -488,9 +489,9 @@ class TestRigorousTreat:
         res_t = compare_arrays(r_t, eb["t"], rtol=1e-8)
         assert res_t["match"], f"full t matrix differs: max_rel={res_t['max_rel_diff']:.2e}"
         # p-values can be deeply small; use log10
-        res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=0.5)
+        res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=1e-6)
         assert res_p["match"], (
-            f"full p_value matrix differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
+            f"full p_value matrix differs: max_log10_diff={res_p['max_log10_diff']:.2e}"
         )
 
     # ------------------------------------------------------------------
@@ -535,9 +536,9 @@ class TestRigorousTreat:
 
         res_t = compare_arrays(r_t, eb["t"], rtol=1e-8)
         assert res_t["match"], f"upshot t differs: max_rel={res_t['max_rel_diff']:.2e}"
-        res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=0.5)
+        res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=1e-6)
         assert res_p["match"], (
-            f"upshot p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
+            f"upshot p_value differs: max_log10_diff={res_p['max_log10_diff']:.2e}"
         )
 
     # ------------------------------------------------------------------
@@ -576,8 +577,8 @@ class TestRigorousTreat:
 
         py_p_col = eb["p_value"][:, 1]
         r_p_col = r_out["p_value"][:, 1] if r_out["p_value"].ndim > 1 else r_out["p_value"]
-        res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=0.5)
-        assert res_p["match"], f"trend+robust p: max_log10_diff={res_p['max_log10_diff']:.2f}"
+        res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=1e-6)
+        assert res_p["match"], f"trend+robust p: max_log10_diff={res_p['max_log10_diff']:.2e}"
 
         res_s2post = compare_arrays(r_out["s2_post"], eb["s2_post"], rtol=1e-6)
         assert res_s2post["match"], (

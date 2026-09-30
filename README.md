@@ -145,7 +145,10 @@ The Python implementation was written primarily by Claude Code (Opus 4.5-4.7), w
 
 pylimma is a port, not a new method: no statistical methodology is introduced here. If you use pylimma in published work, please include two distinct citations:
 
-1. **Software citation** - the pylimma implementation itself. <!-- Preprint citation to be added here once available: Mulvey, J. F. <title> (2026). bioRxiv. doi:<DOI> -->
+1. **Software citation** - the pylimma implementation itself:
+
+   Mulvey, J. F. (2026). pylimma: a faithful, AnnData-native Python port of R limma for differential expression analysis. *bioRxiv*. https://doi.org/10.64898/2026.07.06.736732
+
 2. **Methodology citation(s)** - the relevant original limma paper(s) listed under [limma](#limma) below, for the statistical methods underlying your analysis.
 
 ### limma

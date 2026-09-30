@@ -5,7 +5,7 @@ pylimma: Python port of R limma for differential expression analysis.
 from pylimma._version import __version__
 from pylimma.auroc import au_roc
 from pylimma.batch import remove_batch_effect, wsva
-from pylimma.classes import EList, MArrayLM, as_matrix_weights, get_eawp, put_eawp
+from pylimma.classes import EList, MArrayLM, as_matrix_weights, get_eawp, get_fit, put_eawp
 from pylimma.contrasts import (
     contrast_as_coef,
     contrasts_fit,
@@ -125,6 +125,7 @@ __all__ = [
     "MArrayLM",
     "as_matrix_weights",
     "get_eawp",
+    "get_fit",
     "put_eawp",
     # Core pipeline
     "lm_fit",

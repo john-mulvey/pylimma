@@ -4,12 +4,11 @@ Rigorous per-branch parity tests for pylimma.lmfit.lm_fit.
 Each test exercises a specific R branch of lmFit() in R limma's
 lmfit.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-23. They are intentionally tight (rtol=1e-8) and mostly run
-a live R subprocess via helpers.run_r_comparison so that any
-regression surfaces immediately. Tests that only assert a warning /
-error (not a numerical output) do not need live R because the
-trigger condition is documented in the R source.
+These tests are intentionally tight (rtol=1e-8) and mostly run a live R
+subprocess via helpers.run_r_comparison so that any regression surfaces
+immediately. Tests that only assert a warning / error (not a numerical
+output) do not need live R because the trigger condition is documented
+in the R source.
 """
 
 from __future__ import annotations
@@ -165,7 +164,7 @@ class TestRigorousLmFit:
     # N/A against R for EList: R's getEAWP (getEAWP at lmfit.R:438-453)
     # populates y$printer only for unclassed MAList-style lists, never
     # for EList. Since MAList / RGList wrappers are deliberately
-    # out-of-scope for pylimma (policy_data_class_wrappers), this
+    # out of scope for pylimma, this
     # branch has no reachable R pathway in pylimma-accepted inputs
     # and is documented rather than tested. (pylimma's _printer_attr
     # will happily read from an EList dict, which is a harmless

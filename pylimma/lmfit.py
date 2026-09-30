@@ -10,6 +10,11 @@
 # the R MASS package (which limma's mrlm calls per gene):
 #   MASS::rlm                  Copyright (C) Brian Ripley, Bill Venables;
 #                              GPL-2 | GPL-3
+#
+# _dqrdc2_pivot() additionally ports the column-pivoting logic of the
+# modified LINPACK QR in base R (which limma's lm.series reaches through
+# lm.fit / lm.wfit / qr):
+#   R src/appl/dqrdc2.f        Copyright (C) R Core Team; GPL-2 | GPL-3
 # Python port: Copyright (C) 2026 John Mulvey
 """
 Linear model fitting for pylimma.
@@ -35,17 +40,89 @@ if TYPE_CHECKING:
     pass
 
 
+class _Missing:
+    """Default for arguments where R distinguishes missing() from NULL."""
+
+    def __repr__(self) -> str:
+        return "<missing>"
+
+
+_MISSING = _Missing()
+
+
+def _dqrdc2_pivot(x: np.ndarray, tol: float = 1e-7) -> tuple[np.ndarray, int]:
+    """
+    Column pivoting and rank of R's LINPACK routine ``dqrdc2``.
+
+    Line-by-line port of the executable part of ``src/appl/dqrdc2.f`` in R.
+    Householder reduction proceeds column by column; before column ``l`` is
+    reduced, any column whose reduced norm has fallen below ``tol`` times its
+    own original norm is moved to the right-hand edge. The factorisation
+    itself is discarded - callers refactorise ``x[:, pivot]`` with LAPACK -
+    but it has to be carried out because it drives the reduced norms.
+
+    Returns
+    -------
+    pivot : ndarray of int
+        0-based column order (R's ``jpvt - 1``).
+    rank : int
+        R's ``k``.
+    """
+    x = np.array(x, dtype=np.float64)
+    n, p = x.shape
+    jpvt = np.arange(p)
+    qraux = np.zeros(p)
+    work1 = np.zeros(p)
+    work2 = np.zeros(p)
+    if n > 0:
+        qraux = np.sqrt(np.sum(x * x, axis=0))
+        work1 = qraux.copy()
+        work2 = qraux.copy()
+        work2[work2 == 0.0] = 1.0
+
+    k = p + 1
+    for l in range(min(n, p)):
+        # Cycle negligible columns to the right-hand edge (Fortran uses 1-based l).
+        while not (l + 1 >= k or qraux[l] >= work2[l] * tol):
+            x[:, l:] = np.roll(x[:, l:], -1, axis=1)
+            for arr in (jpvt, qraux, work1, work2):
+                arr[l:] = np.roll(arr[l:], -1)
+            k -= 1
+
+        if l + 1 == n:
+            continue
+        nrmxl = np.sqrt(np.sum(x[l:, l] ** 2))
+        if nrmxl == 0.0:
+            continue
+        if x[l, l] != 0.0:
+            nrmxl = np.copysign(nrmxl, x[l, l])
+        x[l:, l] *= 1.0 / nrmxl
+        x[l, l] = 1.0 + x[l, l]
+        for j in range(l + 1, p):
+            t = -np.dot(x[l:, l], x[l:, j]) / x[l, l]
+            x[l:, j] += t * x[l:, l]
+            if qraux[j] != 0.0:
+                tt = max(1.0 - (abs(x[l, j]) / qraux[j]) ** 2, 0.0)
+                if abs(tt) >= 1e-6:
+                    qraux[j] = qraux[j] * np.sqrt(tt)
+                else:
+                    qraux[j] = np.sqrt(np.sum(x[l + 1 :, j] ** 2))
+                    work1[j] = qraux[j]
+        qraux[l] = x[l, l]
+        x[l, l] = -nrmxl
+
+    return jpvt, min(k - 1, n)
+
+
 def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
     """
     QR decomposition matching R's ``qr(x, LAPACK=FALSE)`` semantics.
 
-    Unlike ``scipy.linalg.qr(pivoting=True)``, which uses LAPACK column-norm
-    pivoting and can reorder columns by magnitude at every step, R's
-    Linpack-based ``qr`` keeps columns in the order supplied and only
-    swaps a column to the end of the active set when its residual norm
-    drops below ``tol`` -- i.e. when it is found collinear with the
-    preceding columns. This makes the "later of two collinear columns is
-    the redundant one" rule deterministic and reproducible.
+    The column order and rank come from :func:`_dqrdc2_pivot`, a port of R's
+    LINPACK ``dqrdc2``: columns keep their supplied order, and a column is
+    moved to the end only when its reduced norm falls below ``tol`` times its
+    own original norm. The numerical factorisation of the reordered matrix
+    is then done by LAPACK.
 
     Parameters
     ----------
@@ -57,44 +134,17 @@ def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
     Returns
     -------
     q, r : ndarray
-        QR factorisation of ``x[:, pivot]`` in economy mode
-        (``q`` is ``(n, p)``, ``r`` is ``(p, p)``).
+        Full-mode QR factorisation of ``x[:, pivot]`` (``q`` is ``(n, n)``,
+        ``r`` is ``(n, p)``).
     pivot : ndarray of int
-        Permutation of column indices. ``pivot[:rank]`` are the
-        original indices of estimable columns in their original order;
-        ``pivot[rank:]`` are the original indices of columns flagged
-        as collinear with an earlier column.
+        Permutation of column indices. ``pivot[:rank]`` are the original
+        indices of estimable columns in their original order;
+        ``pivot[rank:]`` are the columns R flags as non-estimable.
     rank : int
         Number of estimable columns.
     """
     x = np.asarray(x, dtype=np.float64)
-    n, p = x.shape
-    if p == 0:
-        return (np.eye(n), np.zeros((n, 0)), np.zeros(0, dtype=int), 0)
-
-    # Plain (non-pivoted) economy-mode QR on the original column order
-    # so that redundant columns leave |R[i, i]| at zero in their
-    # original slot. Scipy's economic QR returns the n x p R, which
-    # is all we need for the rank check.
-    _, r_probe = linalg.qr(x, mode="economic")
-    diag_abs = np.abs(np.diag(r_probe))
-    scale = diag_abs.max() if diag_abs.size else 0.0
-    threshold = max(tol * scale, tol)
-    estimable = diag_abs > threshold
-
-    if estimable.all():
-        pivot = np.arange(p, dtype=int)
-        # Full-mode QR so q is n x n and q.T @ y includes the
-        # (n - p) residual rows used by downstream sigma computation.
-        q, r = linalg.qr(x, mode="full")
-        return q, r, pivot, p
-
-    est_idx = np.where(estimable)[0]
-    nonest_idx = np.where(~estimable)[0]
-    pivot = np.concatenate([est_idx, nonest_idx]).astype(int)
-    rank = int(est_idx.size)
-    # Redo QR on the reordered matrix so the top-left rank x rank
-    # block of R is non-singular. Full mode ensures q is n x n.
+    pivot, rank = _dqrdc2_pivot(x, tol)
     q, r = linalg.qr(x[:, pivot], mode="full")
     return q, r, pivot, rank
 
@@ -226,8 +276,8 @@ def lm_series(
 
     # Normalise weight shape via R limma's asMatrixWeights logic;
     # as_matrix_weights always returns a fresh copy, so the
-    # subsequent ``weights[weights <= 0] = np.nan`` is safe
-    # (see known_diff_weights_mutation.md).
+    # subsequent ``weights[weights <= 0] = np.nan`` is safe (R's
+    # copy-on-modify semantics leave the caller's weights unchanged).
     # Track whether the input was array-weights-shaped (length-N
     # vector or (1, N) row matrix) - mirrors R's `arrayweights`
     # attribute (weights.R:74,83). lmfit.R:135 uses the attribute -
@@ -380,7 +430,11 @@ def _lm_series_slow(
             q, r, pivot, rank = _qr_r_style(X)
 
             if rank == 0:
-                continue
+                # R's lm.series stops here: chol2inv(size = 0) is an error.
+                raise ValueError(
+                    f"design has rank 0 over the observed samples of gene {i} "
+                    "(R lmFit: 'size' argument must be a positive integer)"
+                )
 
             qty = q.T @ y_obs
             coef = linalg.solve_triangular(r[:rank, :rank], qty[:rank])
@@ -405,7 +459,11 @@ def _lm_series_slow(
             q, r, pivot, rank = _qr_r_style(X_w)
 
             if rank == 0:
-                continue
+                # R's lm.series stops here: chol2inv(size = 0) is an error.
+                raise ValueError(
+                    f"design has rank 0 over the observed samples of gene {i} "
+                    "(R lmFit: 'size' argument must be a positive integer)"
+                )
 
             qty = q.T @ y_w
             coef = linalg.solve_triangular(r[:rank, :rank], qty[:rank])
@@ -672,6 +730,7 @@ def gls_series(
     block: np.ndarray | None = None,
     correlation: float | None = None,
     weights: np.ndarray | None = None,
+    **kwargs,
 ) -> dict:
     """
     Fit linear model for each gene using generalized least squares.
@@ -694,10 +753,13 @@ def gls_series(
         Block indicator for correlated samples. If provided, ndups and
         spacing are ignored.
     correlation : float, optional
-        Intra-block correlation. If None, will need to be estimated
-        externally (e.g., via duplicate_correlation()).
+        Intra-block correlation. If None, it is estimated with
+        :func:`duplicate_correlation`, as R's gls.series does.
     weights : ndarray, optional
         Observation weights.
+    **kwargs
+        Passed to :func:`duplicate_correlation` when ``correlation`` is
+        None (R's ``...``), e.g. ``trim``.
 
     Returns
     -------
@@ -742,7 +804,7 @@ def gls_series(
     # Check correlation - auto-estimate if not provided (R parity)
     if correlation is None:
         dc_result = duplicate_correlation(
-            M, design=design, ndups=ndups, spacing=spacing, block=block, weights=weights
+            M, design=design, ndups=ndups, spacing=spacing, block=block, weights=weights, **kwargs
         )
         correlation = dc_result["consensus_correlation"]
     if abs(correlation) >= 1:
@@ -956,6 +1018,48 @@ def gls_series(
     }
 
 
+def _fit_genes(data, eawp: dict):
+    """Value for fit["genes"] given lm_fit's input and its get_eawp dict.
+
+    R's lmFit does fit$genes <- y$probes (lmfit.R:84). AnnData and
+    all-numeric DataFrame inputs carry only row names, which pylimma
+    stores as a bare list (var_names / index); a DataFrame with a leading
+    non-numeric ID column and EList input keep the probes DataFrame.
+    """
+    if _is_anndata(data):
+        return list(data.var_names)
+    if isinstance(data, pd.DataFrame) and data.shape[1] == eawp["exprs"].shape[1]:
+        return list(data.index)
+    return eawp.get("probes")
+
+
+def _design_names(design) -> list[str] | None:
+    """Column names carried by a design (R's colnames(design)): DataFrame
+    columns or patsy ``design_info.column_names``; None for a bare matrix."""
+    if isinstance(design, pd.DataFrame):
+        return [str(c) for c in design.columns]
+    column_names = getattr(getattr(design, "design_info", None), "column_names", None)
+    if column_names is not None:
+        return [str(c) for c in column_names]
+    return None
+
+
+def _numeric_design(design) -> np.ndarray:
+    """Design matrix as float64, for functions that take a matrix only.
+
+    Formula strings are a pylimma convenience limited to lm_fit and the
+    voom family (via _parse_design); elsewhere they would otherwise fail
+    with numpy's unhelpful "could not convert string to float".
+    """
+    if isinstance(design, str):
+        raise ValueError(
+            f"design={design!r}: formula strings are only supported by lm_fit, "
+            "voom, voom_with_quality_weights, vooma and vooma_lm_fit. Build the "
+            "design matrix first, e.g. patsy.dmatrix(formula, adata.obs)."
+        )
+    return np.asarray(design, dtype=np.float64)
+
+
 def _parse_design(
     design,
     data: pd.DataFrame | None = None,
@@ -1009,15 +1113,7 @@ def _parse_design(
             names = None
         return np.asarray(dm), names
 
-    if isinstance(design, pd.DataFrame):
-        names = [str(c) for c in design.columns]
-    else:
-        di = getattr(design, "design_info", None)
-        if di is not None:
-            cn = getattr(di, "column_names", None)
-            if cn is not None:
-                names = [str(c) for c in cn]
-
+    names = _design_names(design)
     arr = np.asarray(design, dtype=np.float64)
     if arr.ndim == 1:
         arr = arr.reshape(-1, 1)
@@ -1030,13 +1126,13 @@ def lm_fit(
     ndups: int | None = None,
     spacing: int | None = None,
     block: np.ndarray | None = None,
-    correlation: float | None = None,
+    correlation: float | None = _MISSING,
     weights: np.ndarray | None = None,
     method: str = "ls",
     key: str = "pylimma",
     layer: str | None = None,
     weights_layer: str | None = None,
-    **mrlm_kwargs,
+    **kwargs,
 ) -> dict | None:
     """
     Fit linear models to expression data.
@@ -1064,20 +1160,29 @@ def lm_fit(
     block : array_like, optional
         Block indicator for correlated samples. When provided, samples
         within the same block are assumed to be correlated.
-    correlation : float, optional
-        Intra-block or intra-duplicate correlation. Required when
-        ndups > 1 or block is provided. Use duplicate_correlation()
-        to estimate this value.
+    correlation : float or None, optional
+        Intra-block or intra-duplicate correlation, used when ndups > 1 or
+        block is provided. As in R, omitting it is then an error, while an
+        explicit ``None`` estimates it with duplicate_correlation() (via
+        gls_series).
     weights : ndarray, optional
         Observation weights. Can be:
         - 1D array of length n_samples (array weights)
         - 2D array of shape (n_genes, n_samples) (gene-specific weights)
+        Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``);
+        weights stored as an AnnData layer are read with ``weights_layer=``.
     method : str, default "ls"
         Fitting method. Options:
         - "ls": least squares (default)
         - "robust": robust regression using M-estimation
     key : str, default "pylimma"
         Key for storing results in adata.uns (AnnData input only).
+    **kwargs
+        R's ``...``: passed to :func:`mrlm` when ``method="robust"``
+        (e.g. ``maxit``), or to :func:`gls_series` for correlated samples
+        (e.g. ``trim`` when the correlation is estimated). Ignored for
+        ordinary least squares, as in R.
     layer : str, optional
         Layer to use for expression data (AnnData input only).
         If None, uses adata.X.
@@ -1096,6 +1201,14 @@ def lm_fit(
 
     Notes
     -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
+
     The function dispatches to different fitting algorithms based on parameters:
 
     - If method="robust", uses mrlm() for robust M-estimation
@@ -1151,19 +1264,8 @@ def lm_fit(
     if spacing is None:
         spacing = _printer_attr(data, "spacing", 1)
 
-    # Extract metadata needed downstream (gene names and sample data). get_eawp
-    # gives us probes/targets as DataFrames but lm_fit historically extracted
-    # gene_names from DataFrame.index and sample_data from adata.obs - preserve
-    # both conventions here.
-    if is_anndata:
-        sample_data = adata.obs
-        gene_names = list(adata.var_names) if adata.var_names is not None else None
-    elif isinstance(data, pd.DataFrame):
-        sample_data = None
-        gene_names = list(data.index)
-    else:
-        sample_data = None
-        gene_names = None
+    # Sample metadata for formula parsing.
+    sample_data = adata.obs if is_anndata else None
 
     if expr.ndim != 2:
         raise ValueError("Expression data must be 2-dimensional")
@@ -1204,11 +1306,12 @@ def lm_fit(
     # Validate correlation requirement. mrlm (robust) does not use
     # correlation - duplicates are unwrapped and fit per-gene via M-estimation
     # - so correlation is only required for the GLS (ls) path.
-    if method == "ls" and (ndups >= 2 or block is not None) and correlation is None:
-        raise ValueError(
-            "correlation must be provided when ndups >= 2 or block is specified. "
-            "Use duplicate_correlation() to estimate it."
-        )
+    # R lmfit.R:72: `if(missing(correlation)) stop(...)`; an explicit NULL is
+    # passed to gls.series, which estimates it.
+    if method == "ls" and (ndups >= 2 or block is not None) and correlation is _MISSING:
+        raise ValueError("the correlation must be set, see duplicateCorrelation")
+    if correlation is _MISSING:
+        correlation = None
 
     # Dispatch to appropriate fitting function
     if method == "robust":
@@ -1227,7 +1330,7 @@ def lm_fit(
             ndups=ndups,
             spacing=spacing,
             weights=weights,
-            **mrlm_kwargs,
+            **kwargs,
         )
     elif ndups < 2 and block is None:
         # Simple OLS or WLS
@@ -1242,6 +1345,7 @@ def lm_fit(
             block=block,
             correlation=correlation,
             weights=weights,
+            **kwargs,
         )
 
     # R lmfit.R:77-81: warn when some genes have a mix of NA and non-NA
@@ -1266,18 +1370,7 @@ def lm_fit(
         )
     fit["Amean"] = amean
     fit["design"] = design
-    # R's lmFit does fit$genes <- y$probes (lmfit.R:84). pylimma's
-    # AnnData/DataFrame branches pre-compute gene_names from var_names
-    # / index respectively and those callers expect a bare list here.
-    # For EList / ndarray input we have no such pre-computation, so
-    # fall back to the probes DataFrame captured by get_eawp's EList
-    # branch (classes.py:748-758 populates y["probes"] from
-    # EList["genes"]). Without this, EList callers get fit["genes"] =
-    # None and lose their gene annotations through the pipeline.
-    if gene_names is not None:
-        fit["genes"] = gene_names
-    else:
-        fit["genes"] = eawp.get("probes")
+    fit["genes"] = _fit_genes(data, eawp)
     # Coefficient names from the design matrix. R's lm.series stores them
     # as colnames(fit$coefficients) (lmfit.R:125); pylimma stores
     # coefficients as a bare ndarray so we keep the names in a sidecar
@@ -1292,17 +1385,20 @@ def lm_fit(
     # R's lmFit records the fitting method (lmfit.R:86); plotExons and
     # other diagnostics rely on it.
     fit["method"] = method
-    # Propagate sample metadata (y$targets on an EList, adata.obs on an
-    # AnnData). R's lmFit does the same via fit$targets <- y$targets.
-    # Downstream diagnostic plots (plotSA / plotMDS) expect it.
-    if eawp.get("targets") is not None:
-        fit["targets"] = eawp["targets"]
+    # Propagate sample metadata: R's lmFit does fit$targets <- y$targets.
+    # Copy so later edits to the EList do not reach into the stored fit
+    # (R's copy-on-modify). Skipped for AnnData: the fit is stored next
+    # to adata.obs, so a second copy in adata.uns[key] would only
+    # duplicate it in memory and in the h5ad file.
+    if not is_anndata and eawp.get("targets") is not None:
+        targets = eawp["targets"]
+        fit["targets"] = targets.copy() if hasattr(targets, "copy") else targets
 
     if is_anndata:
         # Store as plain dict so adata.write_h5ad() works. anndata's
         # IO registry dispatches on exact type, not isinstance, so the
         # MArrayLM subclass trips `IORegistryError`. Users can rewrap
-        # via pylimma.MArrayLM(adata.uns[key]) if they need the
+        # via pylimma.get_fit(adata, key) if they need the
         # class's method API back.
         adata.uns[key] = dict(fit)
         return None

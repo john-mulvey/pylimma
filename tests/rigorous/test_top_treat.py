@@ -4,12 +4,11 @@ Rigorous per-branch parity tests for pylimma.ebayes.top_treat.
 Each test exercises a specific R branch of topTreat in R limma's
 treat.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-29. They run a live R subprocess via helpers.run_r_comparison
-so any regression surfaces immediately. Tolerances are tight (rtol=1e-8
-for stats, log10_diff<=1.0 for p-values). Each test compares every
-output column the function exposes (log_fc, ave_expr, t, p_value,
-adj_p_value), not just the headline value.
+These tests run a live R subprocess via helpers.run_r_comparison so any
+regression surfaces immediately. Tolerances are tight (rtol=1e-8 for
+stats, log10_diff<=1.0 for p-values). Each test compares every output
+column the function exposes (log_fc, ave_expr, t, p_value, adj_p_value),
+not just the headline value.
 """
 
 from __future__ import annotations
@@ -123,9 +122,9 @@ def _assert_columns_match(py_df, r_df, *, rtol=1e-8):
         assert r_col in r_df.columns, f"Missing R column: {r_col}"
         assert py_col in py_df.columns, f"Missing Py column: {py_col}"
         if r_col in {"P.Value", "adj.P.Val"}:
-            res = compare_pvalues(r_df[r_col].values, py_df[py_col].values, max_log10_diff=1.0)
+            res = compare_pvalues(r_df[r_col].values, py_df[py_col].values, max_log10_diff=1e-6)
             assert res["match"], (
-                f"{r_col} vs {py_col} differs: max_log10_diff={res.get('max_log10_diff'):.3f}"
+                f"{r_col} vs {py_col} differs: max_log10_diff={res.get('max_log10_diff'):.3e}"
             )
         else:
             res = compare_arrays(r_df[r_col].values, py_df[py_col].values, rtol=rtol)

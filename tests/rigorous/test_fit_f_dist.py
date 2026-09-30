@@ -4,9 +4,9 @@ Rigorous per-branch parity tests for pylimma.squeeze_var.fit_f_dist.
 Each test exercises a specific R branch of fitFDist() in R limma's
 fitFDist.R.
 
-These tests were added by a rigorous single-function audit. They are
-intentionally tight (rtol=1e-8 where possible) and run a live R subprocess
-via helpers.run_r_comparison so any regression surfaces immediately.
+These tests are intentionally tight (rtol=1e-8 where possible) and run a live R
+subprocess via helpers.run_r_comparison so any regression surfaces
+immediately.
 """
 
 from __future__ import annotations
@@ -279,8 +279,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5, covariate=cov)
         r = _r_fit_f_dist(x, df1=5, covariate=cov)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B7b (fitFDist.R:36-37): all infinite -> covariate <- sign(covariate)
@@ -300,8 +300,8 @@ class TestRigorousFitFDist:
         py = fit_f_dist(x, df1=5, covariate=cov)
         r = _r_fit_f_dist(x, df1=5, covariate=cov)
 
-        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(_atleast_1d(r["scale"]), _atleast_1d(py["scale"]), rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B8 + R-B10 (fitFDist.R:43, 47-54): notallok subsetting
@@ -416,7 +416,7 @@ class TestRigorousFitFDist:
         # Tolerance: spline basis differs slightly between scipy BSpline
         # and R's splines::ns(); 1e-5 is the documented level.
         np.testing.assert_allclose(
-            r_scale, py_scale, rtol=1e-5, err_msg="trend scale differs from R"
+            r_scale, py_scale, rtol=1e-6, err_msg="trend scale differs from R"
         )
         np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
@@ -453,7 +453,7 @@ class TestRigorousFitFDist:
 
         # All-positions check, including the non-ok positions
         np.testing.assert_allclose(
-            r_scale, py_scale, rtol=1e-5, err_msg="trend scale differs from R"
+            r_scale, py_scale, rtol=1e-6, err_msg="trend scale differs from R"
         )
         np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)
 
@@ -466,11 +466,9 @@ class TestRigorousFitFDist:
     def test_spline_trend_notallok_at_boundary(self):
         """Exercises R-B16 with non-ok entries at the covariate boundary.
 
-        The boundary knot determination differs if the basis is rebuilt
-        from a smaller covariate range. R's predict() uses ORIGINAL knots
-        from the fit; pylimma's _natural_spline_basis(covariate_notok, ...)
-        builds NEW knots from covariate_notok's range. Whether this hits
-        is data-dependent; this test stresses the case.
+        The not-ok points lie outside the fitted covariate range, so R's
+        predict(ns, newx) evaluates the basis with the fit's knots and
+        extrapolates linearly beyond the boundary knots.
         """
         rng = np.random.default_rng(110)
         n = 80
@@ -488,7 +486,7 @@ class TestRigorousFitFDist:
 
         py_scale = _atleast_1d(py["scale"])
         r_scale = _atleast_1d(r["scale"])
-        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5)
+        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B20 (fitFDist.R:106-108): evar > 0 -> df2 = 2 * trigammaInverse(evar)
@@ -559,7 +557,7 @@ class TestRigorousFitFDist:
 
         py_scale = _atleast_1d(py["scale"])
         r_scale = _atleast_1d(r["scale"])
-        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5)
+        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-6)
 
     # ------------------------------------------------------------------
     # Sanity: vector df1 with covariate (combined R-B14 & R-B15 path
@@ -577,5 +575,5 @@ class TestRigorousFitFDist:
 
         py_scale = _atleast_1d(py["scale"])
         r_scale = _atleast_1d(r["scale"])
-        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-5)
-        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-5)
+        np.testing.assert_allclose(r_scale, py_scale, rtol=1e-6)
+        np.testing.assert_allclose(_atleast_1d(r["df2"]), _atleast_1d(py["df2"]), rtol=1e-6)

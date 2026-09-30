@@ -12,9 +12,8 @@
 # data/ are then the source of truth for every subsequent benchmark
 # run. Users do not need to re-run this.
 #
-# Usage:
-#   cd pylimma/data
-#   Rscript _setup_datasets.R
+# Usage (from the pylimma repository root):
+#   Rscript data/_setup_datasets.R
 # ------------------------------------------------------------------
 
 suppressPackageStartupMessages({

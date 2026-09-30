@@ -4,11 +4,10 @@ Rigorous per-branch parity tests for pylimma.contrasts.contrasts_fit.
 Each test exercises a specific R branch of contrasts.fit() in R
 limma's contrasts.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-29. They run a live R subprocess via helpers.run_r_comparison
-so any divergence surfaces immediately. Tests that only assert a
-warning / error (not a numerical output) document the trigger
-condition from R source and exercise pylimma's behaviour directly.
+These tests run a live R subprocess via helpers.run_r_comparison so any
+divergence surfaces immediately. Tests that only assert a warning /
+error (not a numerical output) document the trigger condition from R
+source and exercise pylimma's behaviour directly.
 """
 
 from __future__ import annotations
@@ -328,7 +327,7 @@ class TestRigorousContrastsFit:
 
     # ------------------------------------------------------------------
     # R-B14 (empty contrasts) - already partially covered by
-    # TestFinding14. We add a slot-by-slot R parity check here to lock
+    # TestContrastsFitEmptyShapeRParity. We add a slot-by-slot R parity check here to lock
     # in every slot the empty path produces.
     # ------------------------------------------------------------------
     def test_empty_contrasts_matches_r_slotwise(self):
@@ -395,7 +394,7 @@ class TestRigorousContrastsFit:
 
     # ------------------------------------------------------------------
     # R-B18: ContrastsAllZero pruning. Already covered by
-    # TestFinding15ContrastsAllZeroRParity for a simple 3-coef case.
+    # TestContrastsAllZeroRParity for a simple 3-coef case.
     # We add a multi-contrast test where two coefficients are all-zero
     # in every contrast column -- exercises the pruning in conjunction
     # with the orthog re-test.

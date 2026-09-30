@@ -2,8 +2,9 @@
 #
 # This module is a Python port of code from R limma. Original R copyrights:
 #   chooseLowessSpan.R         Copyright (C) 2020-2024 Gordon Smyth
-#   weightedLowess.R (loess_fit port)
+#   weightedLowess.R, src/weighted_lowess.c
 #                              Copyright (C) 2014-2020 Aaron Lun
+#   loessFit.R                 Copyright (C) 2003-2015 Gordon Smyth
 #   qqt.R (qqt)                Copyright (C) 2002      Gordon Smyth
 #   qqt.R (qqf)                Copyright (C) 2012      Belinda Phipson
 #   ebayes.R (trigamma_inverse helper)
@@ -45,6 +46,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats as _scipy_stats
 from scipy.special import digamma, polygamma
+from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 
 def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
@@ -72,6 +74,9 @@ def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
     - For very small x (< 1e-6), uses asymptotic approximation 1/x
     """
     x = np.asarray(x)
+    # R: if(!is.numeric(x)) stop(...); logical, character and complex are not numeric
+    if x.dtype.kind not in "iuf":
+        raise TypeError("Non-numeric argument to mathematical function")
     scalar_input = x.ndim == 0
     x = np.atleast_1d(x).astype(np.float64)
 
@@ -96,7 +101,8 @@ def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
 
     # Asymptotic approximations
     y[large_mask] = 1.0 / np.sqrt(x[large_mask])
-    y[small_mask] = 1.0 / x[small_mask]
+    with np.errstate(divide="ignore"):  # R's 1/0 is Inf without a warning
+        y[small_mask] = 1.0 / x[small_mask]
 
     # Newton iteration for normal range
     if np.any(normal_mask):
@@ -104,17 +110,22 @@ def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
         # Initial guess: 1/trigamma(y) is approximately y - 0.5 for moderate y
         y_iter = 0.5 + 1.0 / x_norm
 
-        for _ in range(50):
+        # R: repeat { iter <- iter+1; ...; if(converged) break;
+        #   if(iter > 50) { warning("Iteration limit exceeded"); break } }
+        iteration = 0
+        while True:
+            iteration += 1
             tri = polygamma(1, y_iter)  # trigamma
             psigamma2 = polygamma(2, y_iter)  # tetragamma
             dif = tri * (1.0 - tri / x_norm) / psigamma2
             y_iter = y_iter + dif
             if np.max(-dif / y_iter) < 1e-8:
                 break
-        else:
-            import warnings
+            if iteration > 50:
+                import warnings
 
-            warnings.warn("Iteration limit exceeded in trigamma_inverse")
+                warnings.warn("Iteration limit exceeded")
+                break
 
         y[normal_mask] = y_iter
 
@@ -343,144 +354,149 @@ def choose_lowess_span(
     return min(min_span + (1 - min_span) * (small_n / n) ** power, 1.0)
 
 
-def _find_span_window(
-    idx: int,
-    x_sorted: np.ndarray,
-    weights_sorted: np.ndarray,
-    span_weight: float,
-    n: int,
-) -> tuple:
+_LOWESS_THRESHOLD = 1e-7
+
+
+def _lowess_find_seeds(x: np.ndarray, delta: float) -> np.ndarray:
+    """Port of find_seeds() in limma's weighted_lowess.c.
+
+    Returns the indices of the anchor points: the first and last points plus
+    every point more than ``delta`` beyond the previous anchor.
     """
-    Find the span window for a given point using cumulative weights.
+    npts = len(x)
+    seeds = [0]
+    last_pt = 0
+    for pt in range(1, npts - 1):
+        if x[pt] - x[last_pt] > delta:
+            seeds.append(pt)
+            last_pt = pt
+    seeds.append(npts - 1)
+    return np.asarray(seeds, dtype=np.int64)
 
-    Extends left and right from idx until cumulative weight reaches span_weight.
-    Returns (left, right, max_dist) where max_dist is the maximum distance
-    to either boundary.
-    """
-    left = idx
-    right = idx
-    cur_weight = weights_sorted[idx]
-    max_dist = 0.0
 
-    at_start = left == 0
-    at_end = right == n - 1
-
-    while cur_weight < span_weight and (not at_start or not at_end):
-        if at_end:
-            # Can only extend left
-            left -= 1
-            cur_weight += weights_sorted[left]
-            if left == 0:
-                at_start = True
-            ldist = x_sorted[idx] - x_sorted[left]
-            max_dist = max(max_dist, ldist)
-        elif at_start:
-            # Can only extend right
-            right += 1
-            cur_weight += weights_sorted[right]
-            if right == n - 1:
-                at_end = True
-            rdist = x_sorted[right] - x_sorted[idx]
-            max_dist = max(max_dist, rdist)
-        else:
-            # Extend in direction of closer point
-            ldist = x_sorted[idx] - x_sorted[left - 1]
-            rdist = x_sorted[right + 1] - x_sorted[idx]
-            if ldist < rdist:
+def _lowess_find_limits(seeds, x, w, spanweight):
+    """Port of find_limits() in limma's weighted_lowess.c."""
+    npts = len(x)
+    starts = np.empty(len(seeds), dtype=np.int64)
+    ends = np.empty(len(seeds), dtype=np.int64)
+    dists = np.empty(len(seeds), dtype=np.float64)
+    for k, curpt in enumerate(seeds):
+        left = right = int(curpt)
+        curw = w[curpt]
+        at_end = curpt == npts - 1
+        at_start = curpt == 0
+        mdist = 0.0
+        while curw < spanweight and (not at_end or not at_start):
+            if at_end:
                 left -= 1
-                cur_weight += weights_sorted[left]
+                curw += w[left]
                 if left == 0:
                     at_start = True
-                max_dist = max(max_dist, ldist)
-            else:
+                mdist = max(mdist, x[curpt] - x[left])
+            elif at_start:
                 right += 1
-                cur_weight += weights_sorted[right]
-                if right == n - 1:
+                curw += w[right]
+                if right == npts - 1:
                     at_end = True
-                max_dist = max(max_dist, rdist)
+                mdist = max(mdist, x[right] - x[curpt])
+            else:
+                ldist = x[curpt] - x[left - 1]
+                rdist = x[right + 1] - x[curpt]
+                if ldist < rdist:
+                    left -= 1
+                    curw += w[left]
+                    if left == 0:
+                        at_start = True
+                    mdist = max(mdist, ldist)
+                else:
+                    right += 1
+                    curw += w[right]
+                    if right == npts - 1:
+                        at_end = True
+                    mdist = max(mdist, rdist)
+        # Extend the window to include ties at either end.
+        while left > 0 and x[left] == x[left - 1]:
+            left -= 1
+        while right < npts - 1 and x[right] == x[right + 1]:
+            right += 1
+        starts[k], ends[k], dists[k] = left, right, mdist
+    return starts, ends, dists
 
-    # Extend to include tied x values
-    while left > 0 and x_sorted[left] == x_sorted[left - 1]:
-        left -= 1
-    while right < n - 1 and x_sorted[right] == x_sorted[right + 1]:
-        right += 1
 
-    return left, right, max_dist
+def _lowess_fit_point(x, y, w, rw, curpt, left, right, dist):
+    """Port of lowess_fit() in limma's weighted_lowess.c."""
+    xs, ys = x[left : right + 1], y[left : right + 1]
+    if dist < _LOWESS_THRESHOLD:
+        work = w[left : right + 1] * rw[left : right + 1]
+        return np.sum(ys * work) / np.sum(work)
+    work = (1 - (np.abs(x[curpt] - xs) / dist) ** 3) ** 3 * w[left : right + 1] * rw[left : right + 1]
+    allweight = np.sum(work)
+    xmean = np.sum(work * xs) / allweight
+    ymean = np.sum(work * ys) / allweight
+    var = np.sum((xs - xmean) ** 2 * work)
+    if var < _LOWESS_THRESHOLD:
+        return ymean
+    slope = np.sum((xs - xmean) * (ys - ymean) * work) / var
+    return slope * x[curpt] + (ymean - slope * xmean)
 
 
-def _weighted_local_regression(
-    x_fit: float,
-    x_window: np.ndarray,
-    y_window: np.ndarray,
-    obs_weights: np.ndarray,
-    rob_weights: np.ndarray,
-    max_dist: float,
-) -> float:
+def _weighted_lowess_sorted(x, y, w, span, iterations, delta):
+    """Port of the C entry point weighted_lowess() in limma's weighted_lowess.c.
+
+    ``x`` must be sorted ascending (``y`` and ``w`` in the same order).
+    Returns (fitted, robustness_weights), both in sorted order.
     """
-    Fit weighted local linear regression at a single point.
+    npts = len(x)
+    if npts < 2:
+        raise ValueError("need at least two points")
+    if iterations <= 0:
+        raise ValueError("number of robustness iterations should be positive")
 
-    Combined weight = tricube(distance) * observation_weight * robustness_weight
-    """
-    threshold = 1e-7
+    totalweight = np.sum(w)
+    spanweight = totalweight * span
+    subrange = (x[npts - 1] - x[0]) / npts
+    seeds = _lowess_find_seeds(x, delta)
+    starts, ends, dists = _lowess_find_limits(seeds, x, w, spanweight)
 
-    # If max_dist is tiny, return weighted mean
-    if max_dist < threshold:
-        w = obs_weights * rob_weights
-        total_w = np.sum(w)
-        if total_w == 0:
-            return 0.0
-        return np.sum(y_window * w) / total_w
+    fitted = np.empty(npts, dtype=np.float64)
+    robustness = np.ones(npts, dtype=np.float64)
+    for _ in range(iterations):
+        fitted[0] = _lowess_fit_point(x, y, w, robustness, 0, starts[0], ends[0], dists[0])
+        last_pt = 0
+        for k in range(1, len(seeds)):
+            pt = seeds[k]
+            fitted[pt] = _lowess_fit_point(x, y, w, robustness, pt, starts[k], ends[k], dists[k])
+            if pt - last_pt > 1:
+                between = slice(last_pt + 1, pt)
+                current = x[pt] - x[last_pt]
+                if current > _LOWESS_THRESHOLD * subrange:
+                    slope = (fitted[pt] - fitted[last_pt]) / current
+                    fitted[between] = slope * x[between] + (fitted[pt] - slope * x[pt])
+                else:
+                    fitted[between] = 0.5 * (fitted[pt] + fitted[last_pt])
+            last_pt = pt
 
-    # Tricube kernel weights: (1 - |u|^3)^3
-    u = np.abs(x_window - x_fit) / max_dist
-    kernel_w = np.where(u < 1, (1 - u**3) ** 3, 0.0)
+        # Weighted median of the absolute residuals.
+        abs_resid = np.abs(y - fitted)
+        resid_scale = np.mean(abs_resid)
+        order = np.argsort(abs_resid, kind="stable")
+        sorted_resid = abs_resid[order]
+        cumulative = np.cumsum(w[order])
+        halfweight = totalweight / 2
+        cmad = 0.0
+        for pt in range(npts):
+            if cumulative[pt] == halfweight:
+                cmad = 3 * (sorted_resid[pt] + sorted_resid[pt + 1])
+                break
+            if cumulative[pt] > halfweight:
+                cmad = 6 * sorted_resid[pt]
+                break
 
-    # Combined weights
-    w = kernel_w * obs_weights * rob_weights
-    total_w = np.sum(w)
+        if cmad <= _LOWESS_THRESHOLD * resid_scale:
+            break
+        robustness = np.where(abs_resid < cmad, (1 - (abs_resid / cmad) ** 2) ** 2, 0.0)
 
-    if total_w == 0:
-        return 0.0
-
-    # Weighted means
-    x_mean = np.sum(w * x_window) / total_w
-    y_mean = np.sum(w * y_window) / total_w
-
-    # Weighted variance and covariance for local linear fit
-    x_centered = x_window - x_mean
-    var = np.sum(w * x_centered**2)
-    covar = np.sum(w * x_centered * (y_window - y_mean))
-
-    # If variance is tiny, return weighted mean
-    if var < threshold:
-        return y_mean
-
-    # Local linear fit: y = slope * x + intercept
-    slope = covar / var
-    return slope * x_fit + y_mean - slope * x_mean
-
-
-def _weighted_median_abs_deviation(
-    residuals: np.ndarray,
-    weights: np.ndarray,
-) -> float:
-    """Compute weighted median absolute deviation scaled by 6."""
-    order = np.argsort(np.abs(residuals))
-    sorted_resid = np.abs(residuals[order])
-    sorted_weights = weights[order]
-
-    total_weight = np.sum(sorted_weights)
-    half_weight = total_weight / 2.0
-    cumw = 0.0
-
-    for i in range(len(residuals)):
-        cumw += sorted_weights[i]
-        if cumw == half_weight and i < len(residuals) - 1:
-            return 3.0 * (sorted_resid[i] + sorted_resid[i + 1])
-        elif cumw > half_weight:
-            return 6.0 * sorted_resid[i]
-
-    return 6.0 * sorted_resid[-1]
+    return fitted, robustness
 
 
 def loess_fit(
@@ -491,13 +507,15 @@ def loess_fit(
     iterations: int = 4,
     min_weight: float = 1e-5,
     max_weight: float = 1e5,
+    equal_weights_as_null: bool = True,
+    method: str = "weightedLowess",
 ) -> dict:
     """
-    Weighted LOWESS fit for univariate x and y.
+    Fast lowess fit for univariate x and y allowing for weights.
 
-    Implements weighted local regression matching R limma's weightedLowess.
-    Observation weights affect both span window selection (which neighbours
-    to include) and the local regression fitting.
+    Port of R limma's ``loessFit``. Uses base R's ``lowess()`` algorithm when
+    ``weights`` is None (or all equal and ``equal_weights_as_null``), and
+    :func:`weighted_lowess` otherwise.
 
     Parameters
     ----------
@@ -506,122 +524,108 @@ def loess_fit(
     x : array_like
         Predictor values.
     weights : array_like, optional
-        Observation weights. Higher weights give more influence to points
-        and effectively make them "count more" when determining the span
-        neighbourhood.
+        Observation weights.
     span : float, default 0.3
         Smoothing parameter (fraction of total weight used for each fit).
     iterations : int, default 4
-        Number of robustifying iterations (1 = no robustness iterations).
-    min_weight : float, default 1e-5
-        Minimum weight value.
-    max_weight : float, default 1e5
-        Maximum weight value.
+        Number of fitting iterations (1 = no robustness iterations).
+    min_weight, max_weight : float
+        Bounds applied to the weights.
+    equal_weights_as_null : bool, default True
+        Treat weights that are all equal as if ``weights`` were None.
+    method : {"weightedLowess"}, default "weightedLowess"
+        Only R's default method is ported.
 
     Returns
     -------
     dict
         fitted : ndarray
-            Fitted values.
         residuals : ndarray
-            Residuals (y - fitted).
+
+    Notes
+    -----
+    R's ``method="locfit"`` and ``method="loess"`` delegate to the locfit
+    package and ``stats::loess``; they are not ported and raise
+    NotImplementedError.
     """
+    if method != "weightedLowess":
+        if method in ("locfit", "loess"):
+            raise NotImplementedError(f"loess_fit method={method!r} is not ported")
+        raise ValueError("method must be one of 'weightedLowess', 'locfit', 'loess'")
+
     y = np.asarray(y, dtype=np.float64)
     x = np.asarray(x, dtype=np.float64)
     n = len(y)
-
     if len(x) != n:
-        raise ValueError("x and y have different lengths")
-
-    # Initialize output
+        raise ValueError("y and x have different lengths")
     fitted = np.full(n, np.nan)
     residuals = np.full(n, np.nan)
 
-    # Find valid observations
     obs = np.isfinite(y) & np.isfinite(x)
-    if not np.any(obs):
-        return {"fitted": fitted, "residuals": residuals}
-
     x_obs = x[obs]
     y_obs = y[obs]
-    n_obs = int(np.sum(obs))
+    n_obs = len(y_obs)
+    if n_obs == 0:
+        return {"fitted": fitted, "residuals": residuals}
 
-    # Check span
     if span < 1 / n_obs:
         fitted[obs] = y_obs
         residuals[obs] = 0
         return {"fitted": fitted, "residuals": residuals}
 
-    # Handle weights
+    min_weight = max(min_weight, 0.0)
+
     if weights is not None:
         weights = np.asarray(weights, dtype=np.float64)
         if len(weights) != n:
             raise ValueError("y and weights have different lengths")
-        w_obs = weights[obs].copy()
-        w_obs = np.nan_to_num(w_obs, nan=0)
-        w_obs = np.clip(w_obs, min_weight, max_weight)
-    else:
-        w_obs = np.ones(n_obs, dtype=np.float64)
+        w_obs = np.nan_to_num(weights[obs], nan=0.0)
+        w_obs = np.minimum(np.maximum(w_obs, min_weight), max_weight)
+        if equal_weights_as_null and w_obs.max() - w_obs.min() < 1e-15:
+            weights = None
 
-    # Sort by x (stable sort to match R behaviour)
-    order = np.argsort(x_obs, kind="mergesort")
-    x_sorted = x_obs[order]
-    y_sorted = y_obs[order]
-    w_sorted = w_obs[order]
+    if weights is None:
+        # Base R lowess(x, y, f=span, iter=iterations-1), which defaults
+        # delta = 0.01 * diff(range(x)).
+        order = np.argsort(x_obs, kind="stable")
+        lowess_y = sm_lowess(
+            y_obs[order],
+            x_obs[order],
+            frac=span,
+            it=iterations - 1,
+            delta=0.01 * (x_obs.max() - x_obs.min()),
+            return_sorted=False,
+            is_sorted=True,
+        )
+        fitted_obs = np.empty(n_obs)
+        fitted_obs[order] = lowess_y
+        fitted[obs] = fitted_obs
+        residuals[obs] = y_obs - fitted_obs
+        return {"fitted": fitted, "residuals": residuals}
 
-    # Compute span weight threshold
-    total_weight = np.sum(w_sorted)
-    span_weight = total_weight * span
+    n_weighted_obs = n_obs if min_weight > 0 else int(np.sum(w_obs > 0))
+    if n_weighted_obs < 4 + 1 / span:
+        if n_weighted_obs == 1:
+            fitted_obs = np.full(n_obs, y_obs[w_obs > 0][0])
+        else:
+            # lm.wfit(cbind(1, x), y, w): the slope is aliased (NA in R) when
+            # the positively weighted x values are all equal.
+            positive = w_obs > 0
+            xw = x_obs[positive]
+            if np.all(xw == xw[0]):
+                fitted_obs = np.full(n_obs, np.sum(w_obs * y_obs) / np.sum(w_obs))
+            else:
+                design = np.column_stack([np.ones(n_obs), x_obs])
+                sqrt_w = np.sqrt(w_obs)
+                coef = np.linalg.lstsq(design * sqrt_w[:, None], y_obs * sqrt_w, rcond=None)[0]
+                fitted_obs = design @ coef
+        fitted[obs] = fitted_obs
+        residuals[obs] = y_obs - fitted_obs
+        return {"fitted": fitted, "residuals": residuals}
 
-    # Precompute span windows for all points
-    windows = [_find_span_window(i, x_sorted, w_sorted, span_weight, n_obs) for i in range(n_obs)]
-
-    # Initialize robustness weights
-    rob_weights = np.ones(n_obs, dtype=np.float64)
-    fitted_sorted = np.zeros(n_obs, dtype=np.float64)
-
-    # Iterative fitting with robustness weights
-    threshold = 1e-7
-    for _it in range(iterations):
-        # Fit at each point
-        for i in range(n_obs):
-            left, right, max_dist = windows[i]
-            fitted_sorted[i] = _weighted_local_regression(
-                x_sorted[i],
-                x_sorted[left : right + 1],
-                y_sorted[left : right + 1],
-                w_sorted[left : right + 1],
-                rob_weights[left : right + 1],
-                max_dist,
-            )
-
-        # Last iteration doesn't need robustness weight update
-        if _it == iterations - 1:
-            break
-
-        # Compute residuals and update robustness weights
-        resid = y_sorted - fitted_sorted
-        abs_resid = np.abs(resid)
-        resid_scale = np.mean(abs_resid)
-
-        # Weighted median absolute deviation
-        cmad = _weighted_median_abs_deviation(resid, w_sorted)
-
-        # Check convergence
-        if cmad <= threshold * resid_scale:
-            break
-
-        # Update robustness weights using bisquare kernel
-        u = abs_resid / cmad
-        rob_weights = np.where(u < 1, (1 - u**2) ** 2, 0.0)
-
-    # Map back to original order
-    inv_order = np.argsort(order)
-    fitted_obs = fitted_sorted[inv_order]
-
-    fitted[obs] = fitted_obs
-    residuals[obs] = y_obs - fitted_obs
-
+    fit = weighted_lowess(x_obs, y_obs, weights=w_obs, span=span, iterations=iterations, npts=200)
+    fitted[obs] = fit["fitted"]
+    residuals[obs] = fit["residuals"]
     return {"fitted": fitted, "residuals": residuals}
 
 
@@ -636,78 +640,90 @@ def weighted_lowess(
     output_style: str = "loess",
 ) -> dict:
     """
-    Weighted LOWESS smoother - R-compatible entry point.
+    Weighted lowess smoother.
 
-    Thin wrapper around :func:`loess_fit` that mirrors R limma's
-    ``weightedLowess(x, y, ...)`` argument order and parameter names.
-    Use this when porting R code that calls ``weightedLowess``
-    directly. New Python code should prefer :func:`loess_fit`.
+    Port of R limma's ``weightedLowess`` and its C routine
+    ``weighted_lowess.c``. Fits a degree-1 lowess curve at anchor points
+    spaced by ``delta`` and interpolates linearly between them. Prior weights
+    act as frequency weights in both the span calculation and the local
+    regression.
 
     Parameters
     ----------
     x, y : array_like
-        Predictor and response (R's argument order - note that
-        :func:`loess_fit` takes ``(y, x)``).
+        Covariate and response.
     weights : array_like, optional
-        Per-observation weights.
+        Non-negative prior weights. Default all 1.
     delta : float, optional
-        Clustering tolerance for the anchor-point-based smoother.
-        Ignored by the current implementation, which uses the
-        exact (non-clustered) weighted LOWESS algorithm. A warning is
-        emitted if supplied.
+        Anchor-point spacing. If None, chosen so that about ``npts`` anchors
+        span the covariate range.
     npts : int, default 200
-        Number of anchor points. Ignored by the current
-        implementation for the same reason as ``delta``. A warning is
-        emitted if the caller supplies a non-default value.
-    span, iterations :
-        See :func:`loess_fit`.
+        Target number of anchor points when ``delta`` is None.
+    span : float, default 0.3
+        Proportion of the total weight included in each local fit.
+    iterations : int, default 4
+        Number of fitting iterations (1 = no robustness iterations).
     output_style : {"loess", "lowess"}, default "loess"
-        - ``"loess"``: return ``{"fitted", "residuals", "weights",
-          "delta"}`` in the caller's original point order (matches
-          R's ``loess()`` / ``loessFit()`` output shape and
-          :func:`loess_fit`).
-        - ``"lowess"``: return ``{"x", "y", "delta"}`` with both
-          arrays sorted by ``x`` ascending (matches R's ``lowess()``
-          output shape).
+        ``"loess"``: ``{"fitted", "residuals", "weights", "delta"}`` in the
+        original point order. ``"lowess"``: ``{"x", "y", "delta"}`` sorted
+        by ``x``.
 
     Returns
     -------
     dict
-        Schema depends on ``output_style`` - see above.
+        Schema depends on ``output_style``.
     """
-    import warnings as _warnings
-
-    if delta is not None:
-        _warnings.warn(
-            "weighted_lowess: 'delta' is ignored by pylimma's exact weighted LOWESS implementation",
-            stacklevel=2,
-        )
-    if npts != 200:
-        _warnings.warn(
-            "weighted_lowess: 'npts' is ignored by pylimma's exact "
-            "weighted LOWESS implementation (no anchor-point "
-            "clustering is performed)",
-            stacklevel=2,
-        )
+    x = np.asarray(x, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64)
+    if len(y) != len(x):
+        raise ValueError("x and y should have same length")
+    if weights is None:
+        weights = np.ones(len(y))
+    else:
+        weights = np.asarray(weights, dtype=np.float64)
+        if len(weights) != len(y):
+            raise ValueError("weights should have same length as x and y")
+    iterations = int(iterations)
     output_style = output_style.lower()
     if output_style not in ("loess", "lowess"):
         raise ValueError(f"output_style must be 'loess' or 'lowess', got {output_style!r}")
 
-    fit = loess_fit(y, x, weights=weights, span=span, iterations=iterations)
-    if output_style == "loess":
-        fit["delta"] = delta
-        if weights is not None:
-            fit["weights"] = np.asarray(weights, dtype=np.float64)
-        return fit
+    order = np.argsort(x, kind="stable")
+    x_sorted = x[order]
+    if delta is None:
+        npts = int(npts + 0.5)
+        if npts < 1:
+            raise ValueError("number of points should be a positive integer")
+        if npts >= len(x):
+            delta = 0.0
+        else:
+            dx = np.sort(np.diff(x_sorted))
+            cumrange = np.cumsum(dx)
+            numclusters = np.arange(npts)
+            delta = np.min(cumrange[len(dx) - numclusters - 1] / (npts - numclusters))
+    delta = float(delta)
 
-    # "lowess" output: order-by-x, drop residuals, expose {x, y, delta}.
-    x_arr = np.asarray(x, dtype=np.float64)
-    order = np.argsort(x_arr, kind="stable")
-    return {
-        "x": x_arr[order],
-        "y": np.asarray(fit["fitted"], dtype=np.float64)[order],
-        "delta": delta,
-    }
+    fitted_sorted, robustness_sorted = _weighted_lowess_sorted(
+        x_sorted, y[order], weights[order], span, iterations, delta
+    )
+
+    if output_style == "lowess":
+        return {"x": x_sorted, "y": fitted_sorted, "delta": delta}
+    fitted = np.empty(len(x))
+    fitted[order] = fitted_sorted
+    robustness = np.empty(len(x))
+    robustness[order] = robustness_sorted
+    return {"fitted": fitted, "residuals": y - fitted, "weights": robustness, "delta": delta}
+
+
+def _match_arg(value: str, choices: tuple[str, ...], name: str) -> str:
+    """R's ``match.arg``: exact match, otherwise a unique partial match."""
+    if value in choices:
+        return value
+    matches = [c for c in choices if c.startswith(value)]
+    if len(matches) == 1:
+        return matches[0]
+    raise ValueError(f"'{name}' should be one of " + ", ".join(f'"{c}"' for c in choices))
 
 
 def p_adjust(p: np.ndarray, method: str = "BH") -> np.ndarray:

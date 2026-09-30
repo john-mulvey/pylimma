@@ -18,29 +18,27 @@ goana_trend              Per-gene DE-probability estimate from a covariate
                          (used internally for length / abundance bias
                          correction), port of R limma's ``goanaTrend``.
 
-Phase-1 scope
--------------
-This first-cut port focuses on the database-free path. Two cuts versus
-R limma:
+Scope
+-----
+The port covers the database-free path. Two differences from R limma:
 
-1. **Bioconductor database lookups dropped.** R limma's ``goana.default``
-   reaches into ``GO.db`` / ``org.<species>.eg.db``; ``kegga.default``
-   reaches into the live KEGG REST API. pylimma deliberately does not
-   wrap Bioconductor annotation databases (see
-   ``policy_data_class_wrappers``). Both ports require the caller to
-   supply a ``gene_pathway`` data frame mapping gene IDs to pathway IDs
-   (the universal interface, fully database-free). The
+1. **Bioconductor database lookups are not ported.** R limma's
+   ``goana.default`` reaches into ``GO.db`` / ``org.<species>.eg.db``;
+   ``kegga.default`` reaches into the live KEGG REST API. pylimma does
+   not wrap Bioconductor annotation databases. Both ports require the
+   caller to supply a ``gene_pathway`` data frame mapping gene IDs to
+   pathway IDs (the universal interface, fully database-free). The
    ``getGeneKEGGLinks`` and ``getKEGGPathwayNames`` helpers, which exist
    in R only to fetch from the KEGG REST API, are not ported.
 
-2. **BiasedUrn deferred.** R's ``trend=TRUE`` path performs Wallenius'
-   noncentral hypergeometric test via ``BiasedUrn::pWNCHypergeo`` /
-   ``dWNCHypergeo`` for length / abundance bias correction. BiasedUrn
-   is GPL-2-or-later (compatible) but a substantial side-quest and is
-   staged to a separate Phase 2. Phase 1 raises
-   ``NotImplementedError`` whenever ``trend`` is truthy or a covariate
-   is supplied to a ``*.default`` method - silently falling back to
-   plain hypergeometric would be wrong-but-plausible-looking.
+2. **The bias-corrected test is not yet ported.** R's ``trend=TRUE``
+   path performs Wallenius' noncentral hypergeometric test via
+   ``BiasedUrn::pWNCHypergeo`` / ``dWNCHypergeo`` for length /
+   abundance bias correction. pylimma raises ``NotImplementedError``
+   whenever ``trend`` is truthy or a covariate is supplied to a
+   ``*.default`` method, rather than silently falling back to the plain
+   hypergeometric test, which would give plausible-looking but wrong
+   results.
 
 The plain-hypergeometric branch (``trend=False``) ports verbatim and is
 numerically validated against R limma fixtures.
@@ -69,7 +67,13 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .classes import MArrayLM, _is_anndata, _resolve_fit_input
+from .classes import (
+    VAR_MISMATCH_MESSAGE,
+    MArrayLM,
+    _is_anndata,
+    _resolve_fit_input,
+    _var_matches_fit,
+)
 from .utils import p_adjust, tricube_moving_average
 
 # ---------------------------------------------------------------------------
@@ -94,7 +98,7 @@ def goana(
     Gene-ontology over-representation analysis.
 
     Port of R limma's ``goana`` (``goana.R``). See module docstring for
-    the gene_pathway format and the Phase-1 scope cuts.
+    the gene_pathway format and the scope notes.
 
     Parameters
     ----------
@@ -114,19 +118,24 @@ def goana(
         Per-gene null DE probability (R name: ``null.prob``).
     covariate : sequence of float, optional
         Covariate values aligned to the universe; if supplied,
-        ``trend`` becomes implicit and ``goana_trend`` is run.
-        Phase 1 raises ``NotImplementedError``.
+        ``trend`` becomes implicit and ``goana_trend`` is run. Not yet
+        supported: raises ``NotImplementedError``.
     plot : bool, default False
         Forwarded to ``goana_trend`` when applicable.
     fdr : float, default 0.05
         FDR threshold for selecting up/down DE genes from a fit object
         (R name: ``FDR``). Only used in the MArrayLM branch.
     trend : bool, numeric, or str, default False
-        Use length / abundance bias correction. Phase 1 raises
-        ``NotImplementedError`` for any truthy / numeric / character
-        value.
+        Use length / abundance bias correction. Not yet supported:
+        raises ``NotImplementedError`` for any truthy / numeric /
+        character value.
     **kwargs
-        ``coef`` and ``geneid`` for the MArrayLM branch.
+        ``coef``, ``geneid`` and ``key`` for the MArrayLM branch. ``key``
+        (default ``"pylimma"``) names the ``adata.uns`` entry holding the
+        fit when ``de`` is an AnnData. For AnnData input a string
+        ``geneid`` is looked up in ``adata.var``, provided ``var_names``
+        still match the genes that were fitted (otherwise a ValueError is
+        raised; pass ``geneid`` as a vector instead).
     """
     if _is_dispatch_marraylm(de):
         return _goana_marraylm(
@@ -171,7 +180,7 @@ def kegga(
     KEGG pathway over-representation analysis.
 
     Port of R limma's ``kegga`` (``kegga.R``). See module docstring for
-    the gene_pathway format and the Phase-1 scope cuts.
+    the gene_pathway format and the scope notes.
 
     All parameters except ``pathway_names`` have identical semantics to
     :func:`goana`; see that function's docstring for full descriptions.
@@ -225,7 +234,9 @@ def _is_dispatch_marraylm(de) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _select_de_from_fit(fit, geneid, coef, fdr) -> tuple[list[str], list[str], list[str]]:
+def _select_de_from_fit(
+    fit, geneid, coef, fdr, adata=None
+) -> tuple[list[str], list[str], list[str]]:
     """Return (universe, up_ids, down_ids) from an MArrayLM-shaped fit.
 
     Mirrors lines 13-77 of goana.R / kegga.R: validate the fit, resolve
@@ -267,21 +278,35 @@ def _select_de_from_fit(fit, geneid, coef, fdr) -> tuple[list[str], list[str], l
             raise ValueError(f"coef index {coef_idx} out of range")
 
     # Resolve geneid: either a length-ngenes vector or a single column name
-    # in fit['genes'].
+    # in fit['genes']. R's default is geneid = rownames(de); pylimma keeps
+    # row names in fit['genes'] as a list (ndarray after an h5ad round
+    # trip) or as the index of a genes DataFrame.
+    genes = fit.get("genes")
     if geneid is None:
-        genes = fit.get("genes")
-        if genes is not None and hasattr(genes, "index"):
-            universe = [str(v) for v in genes.index]
+        if isinstance(genes, pd.DataFrame):
+            rownames = genes.index
+        elif genes is not None and np.ndim(genes) == 1:
+            rownames = genes
         else:
-            universe = [str(i) for i in range(ngenes)]
+            rownames = []
+        universe = [str(v) for v in rownames]
+        if len(universe) != ngenes:
+            # R: as.character(rownames(de)) has length 0 when absent.
+            raise ValueError("geneid of incorrect length")
     elif isinstance(geneid, str) or (
         hasattr(geneid, "__len__")
         and len(geneid) == 1
         and not isinstance(geneid, (np.ndarray, pd.Series))
     ):
         col = geneid if isinstance(geneid, str) else geneid[0]
-        genes = fit.get("genes")
-        if genes is None or col not in getattr(genes, "columns", []):
+        if adata is not None:
+            # AnnData: fit['genes'] only carries var_names, so column-name
+            # lookups go to adata.var - but only while it still describes
+            # the fitted genes.
+            if not _var_matches_fit(fit, adata):
+                raise ValueError(VAR_MISMATCH_MESSAGE)
+            genes = adata.var
+        if not isinstance(genes, pd.DataFrame) or col not in genes.columns:
             raise ValueError(f"Column {col} not found in de$genes")
         universe = [str(v) for v in genes[col].values]
     else:
@@ -330,7 +355,7 @@ def _goana_marraylm(
     de, *, gene_pathway, universe, species, prior_prob, covariate, plot, fdr, trend, **kwargs
 ):
     """Port of goana.MArrayLM (goana.R:3-86)."""
-    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "fit"))
+    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
 
     if "universe" in kwargs:
         raise ValueError("goana.MArrayLM defines its own universe")
@@ -349,7 +374,9 @@ def _goana_marraylm(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
 
-    fit_universe, up, dn = _select_de_from_fit(fit, geneid, coef, fdr)
+    fit_universe, up, dn = _select_de_from_fit(
+        fit, geneid, coef, fdr, adata=_adata
+    )
 
     if not up and not dn:
         warnings.warn("No DE genes")
@@ -382,7 +409,7 @@ def _kegga_marraylm(
     **kwargs,
 ):
     """Port of kegga.MArrayLM (kegga.R:3-86)."""
-    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "fit"))
+    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
 
     if "universe" in kwargs:
         raise ValueError("kegga.MArrayLM defines its own universe")
@@ -399,7 +426,9 @@ def _kegga_marraylm(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
 
-    fit_universe, up, dn = _select_de_from_fit(fit, geneid, coef, fdr)
+    fit_universe, up, dn = _select_de_from_fit(
+        fit, geneid, coef, fdr, adata=_adata
+    )
 
     if not up and not dn:
         warnings.warn("No DE genes")
@@ -552,8 +581,8 @@ def _normalise_gene_pathway(gene_pathway, *, optional_extra_cols=False):
     """
     if gene_pathway is None:
         raise ValueError(
-            "gene_pathway is required; pylimma does not bundle GO.db / "
-            "KEGG REST lookups (see policy_data_class_wrappers)."
+            "gene_pathway is required; pylimma does not look up GO.db or the "
+            "KEGG REST API, so supply a gene-to-pathway mapping."
         )
     df = pd.DataFrame(gene_pathway).copy()
     if df.shape[1] < 2:

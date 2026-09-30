@@ -4,8 +4,7 @@ Rigorous per-branch parity tests for pylimma.squeeze_var.squeeze_var.
 Each test exercises a specific R branch of squeezeVar() / .squeezeVar()
 in R limma's squeezeVar.R.
 
-These tests were added by a rigorous single-function audit. They are
-intentionally tight (rtol=1e-8) and run a live R subprocess via
+These tests are intentionally tight (rtol=1e-8) and run a live R subprocess via
 helpers.run_r_comparison so any regression surfaces immediately.
 """
 
@@ -237,12 +236,12 @@ class TestRigorousSqueezeVar:
         py = squeeze_var(sample_var, df=df)
         r = _r_squeeze_var(sample_var, df)
 
-        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-5)
+        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
         # df_prior could be scalar or array depending on robust mode - here it
         # is scalar from fitFDistUnequalDF1 default (robust=FALSE)
         py_dfp = _atleast_1d(py["df_prior"])
         r_dfp = _atleast_1d(r["df_prior"])
-        np.testing.assert_allclose(r_dfp, py_dfp, rtol=1e-5)
+        np.testing.assert_allclose(r_dfp, py_dfp, rtol=1e-6)
 
     # ------------------------------------------------------------------
     # R-B5c: all df<=0 -> R: dfp=empty, min/max=Inf/-Inf, identical(...)=FALSE -> legacy=FALSE
@@ -334,16 +333,22 @@ class TestRigorousSqueezeVar:
         py = squeeze_var(sample_var, df=df, legacy=False, robust=False)
         r = _r_squeeze_var(sample_var, df, legacy=False, robust=False)
 
-        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-5)
+        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
         np.testing.assert_allclose(
-            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-5
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-6
         )
         np.testing.assert_allclose(
-            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-5
+            _atleast_1d(r["var_prior"]), _atleast_1d(py["var_prior"]), rtol=1e-6
         )
 
     def test_non_legacy_robust_unequal_df1_path(self):
-        """Exercises R-B8: legacy=FALSE,robust=TRUE - df_prior=df2_shrunk."""
+        """Exercises R-B8: legacy=FALSE,robust=TRUE with no FDR outliers.
+
+        The inflated variances lower the fitted df2 enough that no gene is
+        flagged, so fitFDistUnequalDF1 returns the non-robust fit and
+        df_prior is scalar df2. The df2.shrunk branches are forced by
+        TestFitFDistUnequalDF1BranchParity in test_r_parity.py.
+        """
         n = 80
         rng = np.random.default_rng(7)
         sample_var = 0.5 * rng.chisquare(5, size=n) / 5
@@ -353,9 +358,9 @@ class TestRigorousSqueezeVar:
         py = squeeze_var(sample_var, df=df, legacy=False, robust=True)
         r = _r_squeeze_var(sample_var, df, legacy=False, robust=True)
 
-        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-5)
+        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
         np.testing.assert_allclose(
-            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-5
+            _atleast_1d(r["df_prior"]), _atleast_1d(py["df_prior"]), rtol=1e-6
         )
 
     # ------------------------------------------------------------------
@@ -520,7 +525,7 @@ class TestRigorousSqueezeVar:
         # With span: legacy=FALSE - results should differ from above
         py_new = squeeze_var(sample_var, df=df, span=0.5)
         r_new = _r_squeeze_var(sample_var, df, span=0.5)
-        np.testing.assert_allclose(r_new["var_post"], py_new["var_post"], rtol=1e-5)
+        np.testing.assert_allclose(r_new["var_post"], py_new["var_post"], rtol=1e-6)
 
     # ------------------------------------------------------------------
     # Combined: legacy=False + covariate
@@ -536,7 +541,7 @@ class TestRigorousSqueezeVar:
         py = squeeze_var(sample_var, df=df, covariate=cov, legacy=False)
         r = _r_squeeze_var_with_cov(sample_var, df, cov, legacy=False)
 
-        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-4)
+        np.testing.assert_allclose(r["var_post"], py["var_post"], rtol=1e-6)
         py_vp = _atleast_1d(py["var_prior"])
         r_vp = _atleast_1d(r["var_prior"])
-        np.testing.assert_allclose(r_vp, py_vp, rtol=1e-4)
+        np.testing.assert_allclose(r_vp, py_vp, rtol=1e-6)

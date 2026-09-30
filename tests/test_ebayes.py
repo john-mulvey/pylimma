@@ -28,16 +28,25 @@ class TestEBayes:
         fit = e_bayes(fit)
 
         # Compare t-statistics (column 2 = groupB effect)
-        np.testing.assert_allclose(fit["t"][:, 1], ref_stats["t"].values, rtol=1e-5)
+        np.testing.assert_allclose(fit["t"][:, 1], ref_stats["t"].values, rtol=1e-6)
 
         # Compare p-values
-        np.testing.assert_allclose(fit["p_value"][:, 1], ref_stats["p_value"].values, rtol=1e-5)
+        np.testing.assert_allclose(fit["p_value"][:, 1], ref_stats["p_value"].values, rtol=1e-6)
 
         # Compare s2.post
-        np.testing.assert_allclose(fit["s2_post"], ref_stats["s2_post"].values, rtol=1e-5)
+        np.testing.assert_allclose(fit["s2_post"], ref_stats["s2_post"].values, rtol=1e-6)
 
-        # Compare hyperparameters
-        np.testing.assert_allclose(fit["s2_prior"], ref_global["s2_prior"].iloc[0], rtol=1e-5)
+        np.testing.assert_allclose(fit["lods"][:, 1], ref_stats["lods"].values, rtol=1e-6)
+        np.testing.assert_allclose(fit["df_total"], ref_stats["df_total"].values, rtol=1e-6)
+
+        # Compare hyperparameters and the F-test
+        np.testing.assert_allclose(fit["s2_prior"], ref_global["s2_prior"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(fit["df_prior"], ref_global["df_prior"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(fit["F"], ref_global["F_stat"].values, rtol=1e-6)
+        np.testing.assert_allclose(fit["F_p_value"], ref_global["F_p_value"].values, rtol=1e-6)
+
+        ref_coef = pd.read_csv(FIXTURES_DIR / "ebayes_coef.csv", index_col=0).values
+        np.testing.assert_allclose(fit["coefficients"], ref_coef, rtol=1e-10)
 
     def test_moderated_t_smaller_than_ordinary(self):
         """Test that moderated t-stats have smaller variance than ordinary."""
@@ -147,7 +156,7 @@ class TestTreat:
         fit = lm_fit(expr, design)
         fit = treat(fit, fc=2.0)  # fc=2 means lfc=1
 
-        assert np.isclose(fit["treat_lfc"], 1.0, rtol=1e-10)
+        assert np.isclose(fit["treat_lfc"], 1.0, rtol=1e-10, atol=1e-12)
 
     def test_higher_threshold_gives_fewer_significant(self):
         """Test that higher lfc threshold gives fewer significant results."""

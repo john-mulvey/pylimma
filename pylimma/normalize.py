@@ -41,8 +41,7 @@ Faithful port of the matrix-applicable methods in R limma's
 
 Two-channel-only methods (``Aquantile``, ``Gquantile``, ``Rquantile``,
 ``Tquantile``) are not ported - they require RGList/MAList input which is
-out of scope under pylimma's AnnData / flat-array design (see the
-``policy_data_class_wrappers`` memory entry).
+out of scope under pylimma's AnnData / flat-array design.
 """
 
 from __future__ import annotations
@@ -56,7 +55,7 @@ from scipy.stats import norm as _scipy_norm
 from scipy.stats import rankdata
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
-from .classes import EList, _is_anndata, get_eawp, put_eawp
+from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
 from .utils import choose_lowess_span
 
 _VALID_METHODS = ("none", "scale", "quantile", "cyclicloess")
@@ -100,6 +99,14 @@ def normalize_between_arrays(
 
     Notes
     -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
+
     Two-channel methods (``"Aquantile"``, ``"Gquantile"``, ``"Rquantile"``,
     ``"Tquantile"``) are not supported; pylimma operates on single-channel
     expression matrices only.
@@ -931,13 +938,23 @@ def background_correct(
     (``limma/R/background.R:40-108``). Accepts a matrix,
     dict / EList / AnnData carrying the foreground, with the background
     passed separately as ``background`` (matches ``backgroundCorrect.matrix``
-    ``Eb`` parameter).
+    ``Eb`` parameter). Even for AnnData input ``background`` is genes x
+    samples (the transpose of ``adata.layers``).
 
-    Two-colour / RGList / MAList dispatch is out of scope (see
-    ``memory/policy_data_class_wrappers.md``). ``movingmin`` and
+    Two-colour / RGList / MAList dispatch is out of scope. ``movingmin`` and
     ``edwards`` both require a printer / spotted-array layout and raise
     ``NotImplementedError``; the ``printer`` parameter is accepted for R
     signature compatibility but is only used by those out-of-scope paths.
+
+    Notes
+    -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
     """
     if printer is not None and method not in ("movingmin", "edwards"):
         # R silently ignores printer for every non-movingmin / non-edwards
@@ -954,6 +971,10 @@ def background_correct(
     eawp = get_eawp(object, layer=layer)
     E = np.asarray(eawp["exprs"], dtype=np.float64).copy()
     Eb = None if background is None else np.asarray(background, dtype=np.float64)
+    if Eb is not None and Eb.ndim == 2 and Eb.shape != E.shape and Eb.shape == E.shape[::-1]:
+        # R's E - Eb stops with "non-conformable arrays"; numpy would give a
+        # broadcasting error that does not mention the orientation.
+        raise _shape_error("background", Eb.shape, E.shape, "non-conformable arrays")
 
     if method == "auto":
         method = "normexp" if Eb is None else "subtract"
@@ -1038,10 +1059,14 @@ def aver_arrays(
     ``avearrays.MAList`` is out of scope (two-colour data only).
 
     For ``AnnData`` input, ``id`` defaults to ``adata.obs_names`` and a
-    new ``AnnData`` is returned (obs axis collapsed to the unique ids).
-    Because the output has a different number of samples than the input,
-    in-place mutation via a layer is not possible, so this is the one
-    AnnData-in path in pylimma that returns a value rather than ``None``.
+    new ``AnnData`` is returned (obs axis collapsed to the unique ids);
+    the input is not modified. The change in shape means the result
+    cannot be stored as a layer of the input, so AnnData-in returns a
+    value. As R's ``avearrays.EList`` averages every matrix with the same
+    ``weights``, X and every layer are averaged; obs / obsm / obsp keep
+    the first occurrence of each id, var / varm / varp are unchanged, and
+    uns is carried over as is (a stored fit still describes the original
+    samples).
     """
     if x is None:
         return None  # R: if(is.null(x)) return(NULL)
@@ -1148,51 +1173,39 @@ def _aver_arrays_elist(x: EList, id=None, weights=None) -> EList:
 
 
 def _aver_arrays_anndata(adata, id=None, weights=None):
-    """AnnData dispatch for aver_arrays.
+    """AnnData dispatch for aver_arrays, mirroring R's avearrays.EList.
 
-    Averages over duplicate samples (obs rows) identified by ``id``
-    (defaulting to ``adata.obs_names``) and returns a new AnnData with
-    the obs axis collapsed to the unique ids in order of first
-    appearance. Gene (var) axis is preserved.
+    Returns a new AnnData with duplicate samples (obs rows identified by
+    ``id``, default ``adata.obs_names``) averaged; the input is not
+    modified. As R's avearrays.EList averages E, weights and every
+    ``x$other`` matrix (all with the same ``weights``), X and every layer
+    are averaged. The rest follows R's ``y <- x[, !duplicated(ID)]`` via
+    anndata subsetting: obs / obsm / obsp keep the first occurrence of
+    each id, var / varm / varp are unchanged, and uns is carried over as
+    is, including any stored fit, which still describes the original
+    samples.
     """
-    try:
-        import anndata as ad
-    except ImportError as exc:
-        raise RuntimeError(
-            "anndata is required for aver_arrays(AnnData) but is not installed"
-        ) from exc
-
-    # get_eawp densifies and transposes to limma's (n_genes, n_samples).
-    eawp = get_eawp(adata)
-    E = np.asarray(eawp["exprs"], dtype=np.float64)
-
-    if id is None:
-        id = np.asarray(adata.obs_names)
-    id_arr = np.asarray([str(v) for v in id])
-    if id_arr.shape[0] != E.shape[1]:
+    id_arr = np.asarray([str(v) for v in (adata.obs_names if id is None else id)])
+    if id_arr.shape[0] != adata.n_obs:
         raise ValueError(
-            f"length of id ({id_arr.shape[0]}) must match number of samples ({E.shape[1]})"
+            f"length of id ({id_arr.shape[0]}) must match number of samples ({adata.n_obs})"
         )
 
-    # Delegate the averaging to the matrix path; output is (n_genes, n_unique).
-    averaged = aver_arrays(E, id=id_arr, weights=weights)
-
-    # First-occurrence ordering of the unique ids, to pick representative
-    # obs rows for the collapsed AnnData.
+    # First occurrence of each id, in order of appearance - the column
+    # order of aver_arrays' output (rowsum(..., reorder=FALSE)).
     _, first_idx = np.unique(id_arr, return_index=True)
     keep_order = np.sort(first_idx)
-    new_obs_names = id_arr[keep_order]
 
-    if adata.obs is not None and len(adata.obs.columns):
-        obs_new = adata.obs.iloc[keep_order].copy()
-    else:
-        obs_new = pd.DataFrame(index=pd.Index(new_obs_names))
-    obs_new.index = pd.Index(new_obs_names)
-
-    var_new = adata.var.copy() if adata.var is not None else None
-
-    # averaged is (n_genes, n_unique_ids); AnnData wants (n_samples, n_genes).
-    return ad.AnnData(X=np.asarray(averaged).T, obs=obs_new, var=var_new)
+    out = adata[keep_order].copy()
+    out.obs_names = pd.Index(id_arr[keep_order])
+    # get_eawp densifies and transposes to limma's (n_genes, n_samples).
+    if adata.X is not None:
+        out.X = np.asarray(aver_arrays(get_eawp(adata)["exprs"], id=id_arr, weights=weights)).T
+    for name in adata.layers:
+        out.layers[name] = np.asarray(
+            aver_arrays(get_eawp(adata, layer=name)["exprs"], id=id_arr, weights=weights)
+        ).T
+    return out
 
 
 # ============================================================================
@@ -1204,7 +1217,7 @@ def _aver_arrays_anndata(adata, id=None, weights=None):
 # single stratum, no reference, default options, calib="affine". Strata,
 # reference, sample, "calib=none" branches and the AffyBatch / RGList /
 # EListRaw S4 dispatchers are out of scope (RGList / EListRaw are not
-# ported per policy_data_class_wrappers).
+# ported).
 #
 # Model. Per-column parameters (a_j, b_j) for j = 1..ncol. The variance-
 # stabilising transform is h(y_ij) = arsinh(exp(b_j) * y_ij + a_j). After
@@ -1445,8 +1458,7 @@ def normalize_vsn(
     to rtol ~ 2e-4. ``pstart`` is documented as a heuristic in
     ``R/vsn2.R`` and is not surfaced through limma's
     ``normalizeVSN.default`` interface, so this change is invisible
-    to users translating limma scripts. See
-    ``notes_during_implementation.md`` 2026-05-01 entry for the full
+    to users translating limma scripts. See ``docs/validation/known_differences.rst`` for the full
     discussion.
     """
     x = np.asarray(x, dtype=np.float64)

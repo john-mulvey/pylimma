@@ -62,6 +62,8 @@ class TestLmSeries:
         np.testing.assert_allclose(
             result["df_residual"], ref_stats["df_residual"].values, rtol=1e-10
         )
+        ref_cov = pd.read_csv(FIXTURES_DIR / "lmfit_cov_coef.csv", index_col=0).values
+        np.testing.assert_allclose(result["cov_coefficients"], ref_cov, rtol=1e-10)
 
     def test_intercept_only(self):
         """Test fitting intercept-only model."""
@@ -156,7 +158,9 @@ class TestLmFitDispatch:
         design = np.ones((6, 1))
         block = np.array([0, 0, 1, 1, 2, 2])
 
-        with pytest.raises(ValueError, match="correlation must be provided"):
+        with pytest.raises(
+            ValueError, match="the correlation must be set, see duplicateCorrelation"
+        ):
             lm_fit(expr, design, block=block)
 
     def test_requires_correlation_with_ndups(self):
@@ -165,7 +169,9 @@ class TestLmFitDispatch:
         expr = np.random.randn(8, 3)
         design = np.ones((3, 1))
 
-        with pytest.raises(ValueError, match="correlation must be provided"):
+        with pytest.raises(
+            ValueError, match="the correlation must be set, see duplicateCorrelation"
+        ):
             lm_fit(expr, design, ndups=2)
 
 
@@ -381,10 +387,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     ``pylimma.voom(adata)`` writes ``voom_weights`` in AnnData
     orientation (samples x genes); ``pylimma.lm_fit(adata,
-    layer='voom_E')`` must auto-load and transpose that layer. Prior
-    to the 2026-04-20 fix, the AnnData idiom silently produced an
-    unweighted fit - see
-    ``memory/known_diff_voom_weights_layer_not_autoloaded.md``.
+    layer='voom_E')`` must auto-load and transpose that layer, otherwise
+    the AnnData idiom would silently produce an unweighted fit.
     """
 
     def _make_pseudobulk(self):
@@ -542,9 +546,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_array_weights_auto_loads_voom_weights(self):
         """array_weights(adata, layer='voom_E') must auto-load the
-        companion voom_weights layer. Previously silently produced the
-        unweighted-equivalent result because get_eawp returned
-        weights=None for AnnData regardless of companion layers.
+        companion voom_weights layer, rather than silently computing the
+        unweighted-equivalent result.
         """
         import pylimma
 
@@ -691,9 +694,8 @@ class TestAnnDataVoomLmFitWeightsBridge:
         """lm_fit(adata, layer='voom_E') without a design= kwarg must
         pick up the design that voom stashed at
         ``adata.uns['voom']['design']``, mirroring R's lmFit one-liner
-        ``if(is.null(design)) design <- y$design``. Pre-fix, lm_fit
-        silently defaulted to an intercept-only model, producing
-        silently-wrong coefficients.
+        ``if(is.null(design)) design <- y$design``, rather than silently
+        defaulting to an intercept-only model.
         """
         import pylimma
 
@@ -861,9 +863,7 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_voom_accepts_formula_string(self):
         """voom(adata, design='~ group') must parse the formula through
-        patsy against adata.obs, matching lm_fit's dispatch. Pre-fix
-        the string was sent straight into np.asarray and raised
-        ``could not convert string to float``.
+        patsy against adata.obs, matching lm_fit's dispatch.
         """
         import pylimma
 
@@ -941,9 +941,9 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_h5ad_roundtrip_preserves_fit(self):
         """Writing adata to h5ad and reading it back must preserve the
-        full fit. Pre-fix, lm_fit stored an MArrayLM in adata.uns, and
-        anndata's IO registry (which dispatches on exact type) raised
-        ``IORegistryError`` on write. We now store a plain dict.
+        full fit. The fit is stored in adata.uns as a plain dict, because
+        anndata's IO registry dispatches on exact type and cannot write an
+        MArrayLM subclass.
         """
         import tempfile
 
@@ -999,8 +999,7 @@ class TestAnnDataVoomLmFitWeightsBridge:
 
     def test_genas_accepts_anndata(self):
         """genas(adata) must route through _resolve_fit_input and
-        operate on adata.uns[key]. Pre-fix it crashed with
-        ``AttributeError: 'AnnData' object has no attribute 'get'``.
+        operate on adata.uns[key].
         """
         import anndata as ad
 
@@ -1051,35 +1050,6 @@ class TestAnnDataVoomLmFitWeightsBridge:
         assert isinstance(pfc, np.ndarray)
         assert pfc.shape == (40,)
 
-    def test_fit_targets_populated_from_adata_obs(self):
-        """lm_fit must propagate adata.obs into fit['targets'],
-        mirroring R's ``fit$targets <- y$targets``.
-        """
-        import anndata as ad
-
-        import pylimma
-
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((8, 40)).astype(np.float32) + 10
-        obs = pd.DataFrame(
-            {
-                "group": pd.Categorical(["A"] * 4 + ["B"] * 4),
-                "donor": [1, 2, 3, 4, 1, 2, 3, 4],
-            }
-        )
-        obs.index = [f"s{i}" for i in range(8)]
-        adata = ad.AnnData(X=X, obs=obs)
-
-        design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4])
-        pylimma.lm_fit(adata, design=design)
-
-        fit = adata.uns["pylimma"]
-        assert "targets" in fit
-        targets = fit["targets"]
-        # pandas DataFrame with the same rows as the obs we passed
-        assert list(targets.columns) == ["group", "donor"]
-        assert len(targets) == 8
-
     def test_fit_targets_populated_from_elist(self):
         """lm_fit on an EList with a targets slot must carry it through
         to fit['targets']."""
@@ -1094,13 +1064,16 @@ class TestAnnDataVoomLmFitWeightsBridge:
         fit = pylimma.lm_fit(el)
         assert "targets" in fit
         assert list(fit["targets"]["sample_id"]) == [f"s{i}" for i in range(6)]
+        # A copy, not an alias: later edits to the EList's targets must
+        # not reach into the fit (R's copy-on-modify).
+        targets["added_later"] = 1.0
+        assert "added_later" not in fit["targets"].columns
 
     def test_get_eawp_captures_var_index_without_columns(self):
         """get_eawp must populate y['probes'] as a DataFrame whose
         index carries var_names, even when adata.var has no annotation
-        columns. Pre-fix the zero-columns gate dropped var_names on
-        the common scanpy state where adata.var_names is set but
-        adata.var is empty.
+        columns - the common scanpy state where adata.var_names is set
+        but adata.var is empty.
         """
         import anndata as ad
 

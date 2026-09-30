@@ -93,9 +93,14 @@ class TestContrastsFit:
         fit = lm_fit(expr, design)
         fit2 = contrasts_fit(fit, contrast_matrix)
 
-        # Compare
+        # Compare the fit before and after the contrasts
+        for key, name in [("coefficients", "coef"), ("stdev_unscaled", "stdev")]:
+            ref_fit = pd.read_csv(FIXTURES_DIR / f"contrasts_fit_{name}.csv", index_col=0).values
+            np.testing.assert_allclose(fit[key], ref_fit, rtol=1e-10)
         np.testing.assert_allclose(fit2["coefficients"], ref_coef, rtol=1e-10)
         np.testing.assert_allclose(fit2["stdev_unscaled"], ref_stdev, rtol=1e-10)
+        ref_cov = pd.read_csv(FIXTURES_DIR / "contrasts_fit2_cov.csv", index_col=0).values
+        np.testing.assert_allclose(fit2["cov_coefficients"], ref_cov, rtol=1e-10)
 
     def test_removes_test_statistics(self):
         """Test that contrasts_fit removes previous test statistics."""
@@ -277,7 +282,9 @@ class TestContrastsFit:
 
         fit = lm_fit(expr, design)
 
-        with pytest.raises(ValueError, match="Cannot specify both"):
+        with pytest.raises(
+            ValueError, match="Must specify exactly one of contrasts or coefficients"
+        ):
             contrasts_fit(fit, contrasts=np.array([[0], [1]]), coefficients=[1])
 
     def test_neither_contrasts_nor_coefficients_raises(self):
@@ -288,7 +295,9 @@ class TestContrastsFit:
 
         fit = lm_fit(expr, design)
 
-        with pytest.raises(ValueError, match="Must specify either"):
+        with pytest.raises(
+            ValueError, match="Must specify exactly one of contrasts or coefficients"
+        ):
             contrasts_fit(fit)
 
 

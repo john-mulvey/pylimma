@@ -808,9 +808,9 @@ tt2_F <- topTable(fit2_eb, coef = NULL, number = Inf)
 write.csv(tt2_F, "R_pipeline_toptable_F.csv", row.names = TRUE)
 
 # -----------------------------------------------------------------------------
-# Phase 2: voom and arrayWeights fixtures
+# voom and arrayWeights fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 2: voom fixtures...\n")
+cat("\nGenerating voom and arrayWeights fixtures...\n")
 
 # RNA-seq count data (simulate realistic counts)
 set.seed(45)
@@ -1049,12 +1049,12 @@ vlf_block <- voomaLmFit(expr_vooma, design_voom, block = block_vooma, plot = FAL
 write.csv(vlf_block$coefficients, "R_voomalmfit_block_coef.csv", row.names = TRUE)
 write.csv(vlf_block$sigma, "R_voomalmfit_block_sigma.csv", row.names = TRUE)
 
-cat("  Phase 2 fixtures complete.\n")
+cat("  voom and arrayWeights fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 2 branch coverage: forcing fixtures for previously untested branches
+# voom / arrayWeights branch coverage: forcing fixtures for previously untested branches
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 2 branch-coverage fixtures...\n")
+cat("\nGenerating voom / arrayWeights branch-coverage fixtures...\n")
 
 # voom with adaptive.span=FALSE and an explicit span value
 cat("  voom (explicit span)...\n")
@@ -1200,12 +1200,12 @@ write.csv(data.frame(n = n_grid, span = span_default),
 write.csv(data.frame(n = n_grid, span = span_legacy),
           "R_chooselowess_legacy.csv", row.names = FALSE)
 
-cat("  Phase 2 branch-coverage fixtures complete.\n")
+cat("  voom / arrayWeights branch-coverage fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 2 Batch 2: bug-fix forcing fixtures
+# arrayWeights / voom bug-fix forcing fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 2 Batch 2 fixtures...\n")
+cat("\nGenerating arrayWeights / voom bug-fix fixtures...\n")
 
 # arrayWeights(method="reml", weights=W) -> .arrayWeightsPrWtsREML
 cat("  arrayWeights (method=reml + prior weights)...\n")
@@ -1241,12 +1241,12 @@ write.csv(vlf_pred_block$coefficients,
 write.csv(vlf_pred_block$sigma,
           "R_voomalmfit_predictor_block_sigma.csv", row.names = TRUE)
 
-cat("  Phase 2 Batch 2 fixtures complete.\n")
+cat("  arrayWeights / voom bug-fix fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 2 Batch 4: normalizeBetweenArrays direct + via voom
+# normalizeBetweenArrays direct + via voom
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 2 Batch 4 fixtures...\n")
+cat("\nGenerating normalizeBetweenArrays fixtures...\n")
 
 # Build a deterministic log-expression matrix with realistic per-column shifts
 set.seed(202604)
@@ -1273,7 +1273,7 @@ write.csv(norm_scale,       "R_norm_scale.csv",       row.names = TRUE)
 write.csv(norm_quantile,    "R_norm_quantile.csv",    row.names = TRUE)
 write.csv(norm_cyclicloess, "R_norm_cyclicloess.csv", row.names = TRUE)
 
-# voom() with each non-default normalize.method (re-uses Phase 2 RNA-seq data)
+# voom() with each non-default normalize.method (re-uses the voom RNA-seq data)
 cat("  voom with normalize.method = scale/quantile/cyclicloess...\n")
 v_normscale       <- voom(counts, design_voom, normalize.method = "scale",
                           plot = FALSE)
@@ -1288,7 +1288,7 @@ write.csv(v_normquantile$weights, "R_voom_normquantile_weights.csv", row.names =
 write.csv(v_normcyclicloess$E,       "R_voom_normcyclicloess_E.csv",       row.names = TRUE)
 write.csv(v_normcyclicloess$weights, "R_voom_normcyclicloess_weights.csv", row.names = TRUE)
 
-cat("  Phase 2 Batch 4 fixtures complete.\n")
+cat("  normalizeBetweenArrays fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
 # model.matrix fixtures
@@ -1326,11 +1326,11 @@ write.csv(mm_numeric, "R_modelmatrix_numeric.csv", row.names = TRUE)
 cat("  model.matrix fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Stage 2 Batch A: branch coverage fixtures (untested sort_by / adjust_method,
+# Branch coverage fixtures: untested sort_by / adjust_method,
 # decide_tests method="separate", asymmetric winsor.tail.p, nonEstimable,
-# p.adjust hochberg)
+# p.adjust hochberg
 # -----------------------------------------------------------------------------
-cat("\n--- Stage 2 Batch A fixtures ---\n")
+cat("\n--- Branch coverage fixtures (topTable, decideTests, eBayes, p.adjust) ---\n")
 
 # topTable alternative sort_by values on eb1 (data1)
 cat("  topTable sort_by=t / logFC / AveExpr / none ...\n")
@@ -1405,16 +1405,16 @@ p_adj_all <- data.frame(
 )
 write.csv(p_adj_all, "R_padjust_all_methods.csv", row.names = FALSE)
 
-cat("  Batch A fixtures complete.\n")
+cat("  Branch coverage fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Stage 2 Batch B: higher-risk branch coverage
+# Higher-risk branch coverage: slow fitting paths and eBayes interactions
 #   - lm.series slow path (NAs + probe-specific weights)
 #   - gls.series slow path (NAs + probe weights + block)
 #   - e_bayes trend=TRUE AND robust=TRUE (interaction)
 #   - mrlm bisquare via MASS::rlm
 # -----------------------------------------------------------------------------
-cat("\n--- Stage 2 Batch B fixtures ---\n")
+cat("\n--- Higher-risk branch coverage fixtures (lm.series, gls.series, eBayes, mrlm) ---\n")
 
 # lm.series slow path: NAs in expression AND probe-specific weights
 cat("  lm.series slow path (NAs + probe weights) ...\n")
@@ -1539,16 +1539,16 @@ write.csv(bi_coef,   "R_mrlm_bisquare_coef.csv",   row.names = FALSE)
 write.csv(data.frame(scale = bi_scale), "R_mrlm_bisquare_scale.csv", row.names = FALSE)
 write.csv(bi_stdev,  "R_mrlm_bisquare_stdev.csv",  row.names = FALSE)
 
-cat("  Batch B fixtures complete.\n")
+cat("  Higher-risk branch coverage fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Stage 2 Batch C: interface completeness
+# Non-default arguments (interface completeness)
 #   - eBayes with non-default stdev.coef.lim
 #   - eBayes robust with non-default winsor.tail.p
 #   - contrasts.fit after weighted lmFit (carries cov.coefficients)
 #   - qqt theoretical quantiles
 # -----------------------------------------------------------------------------
-cat("\n--- Stage 2 Batch C fixtures ---\n")
+cat("\n--- Non-default argument fixtures (eBayes, contrasts.fit, qqt) ---\n")
 
 # eBayes with non-default stdev.coef.lim
 cat("  eBayes stdev.coef.lim=(0.05, 10) ...\n")
@@ -1629,16 +1629,16 @@ write.csv(
   "R_qqt_output.csv", row.names = FALSE
 )
 
-cat("  Batch C fixtures complete.\n")
+cat("  Non-default argument fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Stage 2 Batch D: remaining branches
+# Niche branches
 #   - gls.series intercept-only (all(X==0)) branch
 #   - eBayes mixed Infdf branch (some genes have df.prior=Inf, others finite)
 #   - makeContrasts with level names containing spaces
 #   - lmFit(method="robust", ndups=2)
 # -----------------------------------------------------------------------------
-cat("\n--- Stage 2 Batch D fixtures ---\n")
+cat("\n--- Niche branch fixtures (gls.series, eBayes, makeContrasts, robust lmFit) ---\n")
 
 # gls.series all(X==0) branch: per-gene slow path where observed rows of the
 # design are all zero. Use no-intercept single-column design; put NAs in the
@@ -1761,12 +1761,12 @@ write.csv(
   "R_lmfit_robust_ndups_stats.csv", row.names = TRUE
 )
 
-cat("  Batch D fixtures complete.\n")
+cat("  Niche branch fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 3: Normalisation and Batch Correction fixtures
+# Normalisation and batch-correction fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 3 fixtures...\n")
+cat("\nGenerating normalisation and batch-correction fixtures...\n")
 cat("  R version:", R.version.string, "\n")
 cat("  limma version:", as.character(packageVersion("limma")), "\n")
 
@@ -1783,8 +1783,8 @@ E_fg <- noise + signal
 E_bg <- matrix(rnorm(n_probes * n_arrays, mean = 40, sd = 8),    n_probes, n_arrays)
 colnames(E_fg) <- paste0("array", 1:n_arrays)
 colnames(E_bg) <- paste0("array", 1:n_arrays)
-write.csv(E_fg, "R_phase3_E_foreground.csv", row.names = FALSE)
-write.csv(E_bg, "R_phase3_E_background.csv", row.names = FALSE)
+write.csv(E_fg, "R_intensities_foreground.csv", row.names = FALSE)
+write.csv(E_bg, "R_intensities_background.csv", row.names = FALSE)
 
 # normexp.fit: one column at a time, each method the port supports.
 # Method "rma" requires the affy package and is out of scope for the port.
@@ -1842,6 +1842,7 @@ av_basic    <- avearrays(E_fg, ID = ids)
 av_weighted <- avearrays(E_fg, ID = ids, weights = weights_mat)
 write.csv(av_basic,    "R_avearrays_basic.csv",    row.names = FALSE)
 write.csv(av_weighted, "R_avearrays_weighted.csv", row.names = FALSE)
+write.csv(weights_mat, "R_avearrays_weights_input.csv", row.names = FALSE)
 
 cat("  avearrays.EList...\n")
 el <- new("EList", list(E = E_fg, weights = weights_mat,
@@ -1888,16 +1889,16 @@ rbe3 <- removeBatchEffect(E_rbe, batch = batch, batch2 = batch2,
                           design = design)
 write.csv(rbe3, "R_rbe_batch_batch2.csv", row.names = FALSE)
 
-cat("  Phase 3 fixtures complete.\n")
+cat("  normalisation and batch-correction fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 3 audit forcing fixtures (2026-04-16)
+# Normalisation and batch-correction branch-forcing fixtures
 # -----------------------------------------------------------------------------
-# Added during Phase 3 R-parity audit to force R branches that the original
-# Phase 3 fixtures did not exercise. Do not restructure the blocks above when
-# editing these; append new branches here.
+# Force R branches that the normalisation and batch-correction fixtures above
+# do not exercise. Do not restructure the blocks above when editing these;
+# append new branches here.
 
-cat("Phase 3 audit forcing fixtures...\n")
+cat("Normalisation and batch-correction branch-forcing fixtures...\n")
 
 cat("  normexp.fit(n.pts=200) downsample path...\n")
 set.seed(2026)
@@ -1975,12 +1976,12 @@ rbe_int <- removeBatchEffect(E_int_batch, batch = batch_int, design = design_int
 write.csv(rbe_int, "R_rbe_integer_batch.csv", row.names = FALSE)
 write.csv(E_int_batch, "R_rbe_integer_batch_E_input.csv", row.names = FALSE)
 
-cat("  Phase 3 audit forcing fixtures complete.\n")
+cat("  Normalisation and batch-correction branch-forcing fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
-# Phase 4: Gene Set Testing fixtures
+# Gene-set testing fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 4 fixtures...\n")
+cat("\nGenerating gene-set testing fixtures...\n")
 cat("  R version:", R.version.string, "\n")
 cat("  limma version:", as.character(packageVersion("limma")), "\n")
 
@@ -1989,16 +1990,17 @@ set.seed(4)
 # Shared simulated dataset: 400 genes x 8 samples, 2-group design, three
 # overlapping gene sets, plus a singleton set. Modest differential signal
 # in set A so roast/camera/fry return non-trivial p-values.
-n_genes_p4  <- 400L
-n_arrays_p4 <- 8L
-y_p4        <- matrix(rnorm(n_genes_p4 * n_arrays_p4), n_genes_p4, n_arrays_p4)
-rownames(y_p4) <- paste0("g", seq_len(n_genes_p4))
-group_p4    <- factor(rep(c("A", "B"), each = n_arrays_p4 / 2L))
-design_p4   <- model.matrix(~group_p4)
-contrast_p4 <- 2L  # groupB vs groupA
+n_genes_geneset  <- 400L
+n_arrays_geneset <- 8L
+y_geneset        <- matrix(rnorm(n_genes_geneset * n_arrays_geneset), n_genes_geneset, n_arrays_geneset)
+rownames(y_geneset) <- paste0("g", seq_len(n_genes_geneset))
+group_geneset    <- factor(rep(c("A", "B"), each = n_arrays_geneset / 2L))
+design_geneset   <- model.matrix(~group_geneset)
+colnames(design_geneset) <- c("(Intercept)", "groupB")
+contrast_geneset <- 2L  # groupB vs groupA
 
 # Inject signal into the first 20 genes for group B
-y_p4[1:20, 5:8] <- y_p4[1:20, 5:8] + 1.0
+y_geneset[1:20, 5:8] <- y_geneset[1:20, 5:8] + 1.0
 
 # Gene sets: named list of integer indices (how R limma stores them after
 # ids2indices). Keep some overlap to exercise camera's VIF path.
@@ -2008,18 +2010,18 @@ gene.sets <- list(
   setC = sample(50:200, 30L),
   setD = c(300L)          # singleton (roast/fry must still run)
 )
-write.csv(y_p4,      "R_phase4_y.csv",      row.names = TRUE)
-write.csv(design_p4, "R_phase4_design.csv", row.names = FALSE)
+write.csv(y_geneset,      "R_geneset_y.csv",      row.names = TRUE)
+write.csv(design_geneset, "R_geneset_design.csv", row.names = FALSE)
 # gene sets -> long-form CSV (set_name, gene_index) so the Python side
 # can reconstruct the list without eval()
 sets.long <- do.call(rbind, lapply(names(gene.sets), function(nm)
   data.frame(set = nm, index = gene.sets[[nm]])))
-write.csv(sets.long, "R_phase4_gene_sets.csv", row.names = FALSE)
+write.csv(sets.long, "R_geneset_gene_sets.csv", row.names = FALSE)
 
 # ids2indices: round-trip via identifiers vector
 ids <- ids2indices(
   gene.sets = list(setA = paste0("g", 1:20), setB = paste0("g", 15:40)),
-  identifiers = rownames(y_p4)
+  identifiers = rownames(y_geneset)
 )
 write.csv(data.frame(
   set   = rep(names(ids), lengths(ids)),
@@ -2052,8 +2054,8 @@ write.csv(data.frame(x = tma.x,
 # roast (single set) with FROZEN seed - roast uses sample.int internally
 cat("  roast (single set, seed 4)...\n")
 set.seed(4)
-r_single <- roast(y_p4, index = gene.sets$setA, design = design_p4,
-                  contrast = contrast_p4, nrot = 999)
+r_single <- roast(y_geneset, index = gene.sets$setA, design = design_geneset,
+                  contrast = contrast_geneset, nrot = 999)
 write.csv(as.data.frame(r_single$p.value),       "R_roast_pvalues.csv", row.names = TRUE)
 write.csv(data.frame(ngenes = r_single$ngenes),  "R_roast_ngenes.csv",  row.names = FALSE)
 
@@ -2061,32 +2063,32 @@ write.csv(data.frame(ngenes = r_single$ngenes),  "R_roast_ngenes.csv",  row.name
 cat("  mroast (mean, floormean, median, msq)...\n")
 for (ss in c("mean", "floormean", "mean50", "msq")) {
   set.seed(4)
-  mr <- mroast(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4,
+  mr <- mroast(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
                set.statistic = ss, nrot = 999)
   write.csv(mr, paste0("R_mroast_", ss, ".csv"), row.names = TRUE)
 }
 
 # fry (closed-form, no RNG)
 cat("  fry (single + multi)...\n")
-fr_single <- fry(y_p4, index = gene.sets$setA, design = design_p4, contrast = contrast_p4)
+fr_single <- fry(y_geneset, index = gene.sets$setA, design = design_geneset, contrast = contrast_geneset)
 write.csv(as.data.frame(fr_single), "R_fry_single.csv", row.names = TRUE)
-fr_multi  <- fry(y_p4, index = gene.sets,      design = design_p4, contrast = contrast_p4)
+fr_multi  <- fry(y_geneset, index = gene.sets,      design = design_geneset, contrast = contrast_geneset)
 write.csv(fr_multi, "R_fry_multi.csv", row.names = TRUE)
 
 # camera: ranks-based and parametric paths, with and without VIF estimation
 cat("  camera (default + use.ranks + inter.gene.cor)...\n")
-cam_default <- camera(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4)
+cam_default <- camera(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset)
 write.csv(cam_default, "R_camera_default.csv", row.names = TRUE)
-cam_ranks   <- camera(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4,
+cam_ranks   <- camera(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
                       use.ranks = TRUE)
 write.csv(cam_ranks,   "R_camera_ranks.csv",   row.names = TRUE)
-cam_cor     <- camera(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4,
+cam_cor     <- camera(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
                       inter.gene.cor = 0.05)
 write.csv(cam_cor,     "R_camera_intergene.csv", row.names = TRUE)
 
 # cameraPR: preranked statistic input
-stat <- rnorm(n_genes_p4)
-names(stat) <- rownames(y_p4)
+stat <- rnorm(n_genes_geneset)
+names(stat) <- rownames(y_geneset)
 stat[1:20] <- stat[1:20] + 1.5
 cpr <- cameraPR(stat, index = gene.sets)
 write.csv(cpr, "R_camera_pr.csv", row.names = TRUE)
@@ -2096,14 +2098,14 @@ write.csv(data.frame(statistic = stat), "R_camera_pr_input.csv", row.names = TRU
 cat("  romer (mean, floormean, mean50)...\n")
 for (ss in c("mean", "floormean", "mean50")) {
   set.seed(4)
-  ro <- romer(y_p4, index = gene.sets, design = design_p4, contrast = contrast_p4,
+  ro <- romer(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
               set.statistic = ss, nrot = 999)
   write.csv(ro, paste0("R_romer_", ss, ".csv"), row.names = TRUE)
 }
 
 # geneSetTest + rankSumTestWithCorrelation
 cat("  geneSetTest (alternatives, ranks.only)...\n")
-stat_vec <- rnorm(n_genes_p4); stat_vec[1:20] <- stat_vec[1:20] + 1.5
+stat_vec <- rnorm(n_genes_geneset); stat_vec[1:20] <- stat_vec[1:20] + 1.5
 write.csv(data.frame(statistic = stat_vec), "R_genesettest_input.csv", row.names = FALSE)
 if (file.exists("R_geneSetTest.csv")) file.remove("R_geneSetTest.csv")
 for (alt in c("mixed", "up", "down", "either")) {
@@ -2127,7 +2129,7 @@ write.csv(data.frame(less = rstc["less"], greater = rstc["greater"]),
 # the Python parity test has something non-trivial to compare against.
 cat("  geneSetTest simulation (moderate signal)...\n")
 set.seed(7)
-stat_mod <- rnorm(n_genes_p4)
+stat_mod <- rnorm(n_genes_geneset)
 stat_mod[1:40] <- stat_mod[1:40] + 0.35   # modest uplift
 write.csv(data.frame(statistic = stat_mod),
           "R_genesettest_sim_input.csv", row.names = FALSE)
@@ -2167,13 +2169,13 @@ write.csv(data.frame(pi0_default = c1, pi0_200iter = c2),
 cat("  detectionPValues (matrix path)...\n")
 set.seed(4)
 pr_mat <- matrix(rexp(200L * 4L, rate = 1/50), 200L, 4L)
-status_p4 <- c(rep("negative", 30L), rep("regular", 170L))
-dp <- detectionPValues(pr_mat, status = status_p4, negctrl = "negative")
+status_geneset <- c(rep("negative", 30L), rep("regular", 170L))
+dp <- detectionPValues(pr_mat, status = status_geneset, negctrl = "negative")
 write.csv(pr_mat, "R_detectionPValues_input.csv", row.names = FALSE)
-write.csv(data.frame(status = status_p4), "R_detectionPValues_status.csv", row.names = FALSE)
+write.csv(data.frame(status = status_geneset), "R_detectionPValues_status.csv", row.names = FALSE)
 write.csv(dp, "R_detectionPValues.csv", row.names = FALSE)
 
-cat("  Phase 4 fixtures complete.\n")
+cat("  gene-set testing fixtures complete.\n")
 
 # -----------------------------------------------------------------------------
 # Summary
@@ -2183,9 +2185,9 @@ cat(sprintf("Generated %d CSV files\n", length(list.files(pattern = "^R_.*\\.csv
 
 
 # -----------------------------------------------------------------------------
-# Phase 5: Visualisation fixtures
+# Visualisation, wsva and differential-splicing fixtures
 # -----------------------------------------------------------------------------
-cat("\nGenerating Phase 5 fixtures...\n")
+cat("\nGenerating visualisation, wsva and splicing fixtures...\n")
 cat("  R version:", R.version.string, "\n")
 cat("  limma version:", as.character(packageVersion("limma")), "\n")
 
@@ -2195,44 +2197,45 @@ set.seed(5)
 # Shared simulated dataset: 500 genes x 6 samples, 2 groups, for MA/MD/volcano.
 n_genes  <- 500L
 n_arrays <- 6L
-E_p5     <- matrix(rnorm(n_genes * n_arrays, mean = 8, sd = 1), n_genes, n_arrays)
-rownames(E_p5) <- paste0("g", seq_len(n_genes))
-colnames(E_p5) <- paste0("s", seq_len(n_arrays))
-group_p5     <- factor(rep(c("A", "B"), each = n_arrays / 2L))
-design_p5    <- model.matrix(~group_p5)
+E_twogroup     <- matrix(rnorm(n_genes * n_arrays, mean = 8, sd = 1), n_genes, n_arrays)
+rownames(E_twogroup) <- paste0("g", seq_len(n_genes))
+colnames(E_twogroup) <- paste0("s", seq_len(n_arrays))
+group_twogroup     <- factor(rep(c("A", "B"), each = n_arrays / 2L))
+design_twogroup    <- model.matrix(~group_twogroup)
+colnames(design_twogroup) <- c("(Intercept)", "groupB")
 # Inject signal
-E_p5[1:50, 4:6] <- E_p5[1:50, 4:6] + 1.5
-fit_p5  <- lmFit(E_p5, design_p5)
-fit_p5c <- eBayes(contrasts.fit(fit_p5, coefficients = 2))
-write.csv(E_p5,      "R_phase5_E.csv",      row.names = TRUE)
-write.csv(design_p5, "R_phase5_design.csv", row.names = FALSE)
+E_twogroup[1:50, 4:6] <- E_twogroup[1:50, 4:6] + 1.5
+fit_twogroup  <- lmFit(E_twogroup, design_twogroup)
+fit_twogroup_c <- eBayes(contrasts.fit(fit_twogroup, coefficients = 2))
+write.csv(E_twogroup,      "R_twogroup_E.csv",      row.names = TRUE)
+write.csv(design_twogroup, "R_twogroup_design.csv", row.names = FALSE)
 
 # plotMA numeric substrate for an MArrayLM: Amean vs coef[, 1].
-x_ma <- fit_p5c$Amean
-y_ma <- fit_p5c$coefficients[, 1]
+x_ma <- fit_twogroup_c$Amean
+y_ma <- fit_twogroup_c$coefficients[, 1]
 write.csv(data.frame(A = x_ma, M = y_ma),
           "R_plot_ma_data.csv", row.names = TRUE)
 
 # plotMD on a matrix: column 1 vs midpoint of (column 1, rowMeans of others)
 #   This mirrors R plotMD.default lines 99-101 exactly.
-ave_p5 <- rowMeans(E_p5[, -1, drop = FALSE])
-md_x <- (E_p5[, 1] + ave_p5) / 2
-md_y <- E_p5[, 1] - ave_p5
+ave_twogroup <- rowMeans(E_twogroup[, -1, drop = FALSE])
+md_x <- (E_twogroup[, 1] + ave_twogroup) / 2
+md_y <- E_twogroup[, 1] - ave_twogroup
 write.csv(data.frame(A = md_x, M = md_y),
           "R_plot_md_matrix.csv", row.names = TRUE)
 
 # volcano: log2FC vs -log10(p-value) and B-statistic styles
 write.csv(data.frame(
-  log_fc = fit_p5c$coefficients[, 1],
-  neg_log10_p = -log10(fit_p5c$p.value[, 1]),
-  b = fit_p5c$lods[, 1]
+  log_fc = fit_twogroup_c$coefficients[, 1],
+  neg_log10_p = -log10(fit_twogroup_c$p.value[, 1]),
+  b = fit_twogroup_c$lods[, 1]
 ), "R_volcano_data.csv", row.names = TRUE)
 
 # plotSA: sqrt(sigma) on y-axis; trend overlay sqrt(sqrt(s2.prior[order(x)]))
 # in sorted-x order. Two fixtures: trend=TRUE+robust=TRUE gives per-gene
 # s2.prior AND per-gene df.prior (triggers outlier detection); default
 # eBayes gives scalar s2.prior + scalar df.prior (flat line, no outliers).
-fit_trend <- eBayes(contrasts.fit(lmFit(E_p5, design_p5), coefficients = 2),
+fit_trend <- eBayes(contrasts.fit(lmFit(E_twogroup, design_twogroup), coefficients = 2),
                     trend = TRUE, robust = TRUE)
 write.csv(data.frame(
   Amean       = fit_trend$Amean,
@@ -2246,7 +2249,7 @@ write.csv(data.frame(
   trend_y     = sqrt(sqrt(fit_trend$s2.prior[o_trend]))
 ), "R_plot_sa_trend_line.csv", row.names = FALSE)
 
-fit_flat <- eBayes(contrasts.fit(lmFit(E_p5, design_p5), coefficients = 2))
+fit_flat <- eBayes(contrasts.fit(lmFit(E_twogroup, design_twogroup), coefficients = 2))
 write.csv(data.frame(
   Amean       = fit_flat$Amean,
   sqrt_sigma  = sqrt(fit_flat$sigma),
@@ -2258,23 +2261,30 @@ write.csv(data.frame(
 ), "R_plot_sa_flat_line.csv", row.names = FALSE)
 
 # plotDensities: compute the density curves R would draw (default kernel = gaussian)
-pd_densities <- apply(E_p5, 2, function(col) {
+pd_densities <- apply(E_twogroup, 2, function(col) {
   d <- density(col, n = 512)
   data.frame(x = d$x, y = d$y)
 })
 pd_densities_long <- do.call(rbind, lapply(seq_along(pd_densities), function(i)
-  data.frame(sample = colnames(E_p5)[i], pd_densities[[i]])))
+  data.frame(sample = colnames(E_twogroup)[i], pd_densities[[i]])))
 write.csv(pd_densities_long, "R_plot_densities.csv", row.names = FALSE)
 
 # plotMDS: extract coordinates and variance-explained for both gene.selection
-# branches, with two different top values
+# branches, with two different top values. Eigenvector signs are left to
+# LAPACK by R (and differ between R installations), so each dimension is
+# written with a canonical sign: its largest-magnitude entry positive
+# (first maximum on ties). The Python test applies the same rule.
+.canonical_sign <- function(v) {
+  s <- sign(v[which.max(abs(v))])
+  if (s == 0) v else v * s
+}
 for (sel in c("pairwise", "common")) {
   for (top_k in c(100, 500)) {
-    mds <- plotMDS(E_p5, plot = FALSE, top = top_k, gene.selection = sel)
+    mds <- plotMDS(E_twogroup, plot = FALSE, top = top_k, gene.selection = sel)
     write.csv(data.frame(
-      sample = colnames(E_p5),
-      dim1   = mds$x,
-      dim2   = mds$y,
+      sample = colnames(E_twogroup),
+      dim1   = .canonical_sign(mds$x),
+      dim2   = .canonical_sign(mds$y),
       var_explained_1 = mds$var.explained[1],
       var_explained_2 = mds$var.explained[2]
     ), sprintf("R_plot_mds_%s_top%d.csv", sel, top_k), row.names = FALSE)
@@ -2306,9 +2316,9 @@ vc_down <- vennCounts(dec, include = "down")
 write.csv(as.data.frame(unclass(vc_down)), "R_venn_counts_down.csv", row.names = FALSE)
 
 # coolmap: dump the scaled matrix and both dendrogram orders for each
-# cluster.by branch. Uses the first 50 genes of E_p5 for compactness.
+# cluster.by branch. Uses the first 50 genes of E_twogroup for compactness.
 for (cb in c("de pattern", "expression level")) {
-  E_cm <- E_p5[1:50, ]
+  E_cm <- E_twogroup[1:50, ]
   if (cb == "de pattern") {
     M <- rowMeans(E_cm, na.rm = TRUE)
     DF <- ncol(E_cm) - 1L
@@ -2367,11 +2377,11 @@ write.csv(data.frame(
 # -----------------------------------------------------------------------------
 cat("  wsva (unweighted + weighted-by-sd)...\n")
 set.seed(5)
-E_wsva <- E_p5
+E_wsva <- E_twogroup
 batch_latent <- rep(c(-0.5, 0.5), each = n_arrays / 2L)
 E_wsva[1:250, ] <- E_wsva[1:250, ] + rep(batch_latent, each = 250L)
-sv_unweighted <- wsva(E_wsva, design_p5, n.sv = 2L, weight.by.sd = FALSE)
-sv_weighted   <- wsva(E_wsva, design_p5, n.sv = 2L, weight.by.sd = TRUE)
+sv_unweighted <- wsva(E_wsva, design_twogroup, n.sv = 2L, weight.by.sd = FALSE)
+sv_weighted   <- wsva(E_wsva, design_twogroup, n.sv = 2L, weight.by.sd = TRUE)
 write.csv(E_wsva, "R_wsva_input.csv", row.names = FALSE)
 write.csv(sv_unweighted, "R_wsva_unweighted.csv", row.names = FALSE)
 write.csv(sv_weighted,   "R_wsva_weighted.csv",   row.names = FALSE)
@@ -2447,11 +2457,11 @@ write.csv(data.frame(
   gene   = top_gene_id
 ), "R_plotSplice_substrate.csv", row.names = FALSE)
 
-cat("  Phase 5 fixtures complete.\n")
+cat("  visualisation, wsva and splicing fixtures complete.\n")
 
 
 # -----------------------------------------------------------------------------
-# Phase 6: GO / KEGG enrichment fixtures (goana, kegga, goanaTrend)
+# GO / KEGG enrichment fixtures (goana, kegga, goanaTrend)
 # -----------------------------------------------------------------------------
 #
 # These fixtures validate pylimma's enrichment.py port. They are deliberately
@@ -2463,7 +2473,7 @@ cat("  Phase 5 fixtures complete.\n")
 # same way). The Term column - which real goana fills from GO.db - is
 # supplied via a synthetic pathway.names table; pylimma's port reads it as
 # the optional 4th column of gene.pathway.
-cat("\nGenerating Phase 6 fixtures (goana / kegga / goanaTrend)...\n")
+cat("\nGenerating enrichment fixtures (goana / kegga / goanaTrend)...\n")
 library(limma)
 
 # Universe of 200 genes
@@ -2588,14 +2598,13 @@ write.csv(data.frame(is_de = .gt_isde, covariate = .gt_cov),
 write.csv(data.frame(prob = .gt_prob),
           "R_goanatrend.csv", row.names = FALSE)
 
-cat("  Phase 6 fixtures complete.\n")
+cat("  enrichment fixtures complete.\n")
 
 
 # =============================================================================
-# Forgotten public-API audit (2026-04-30): chooseLowessSpan, qqf, zscore family,
-# loessFit, contrastAsCoef
+# Public API: chooseLowessSpan, qqf, zscore family, loessFit, contrastAsCoef
 # =============================================================================
-cat("\nGenerating forgotten-public-API fixtures...\n")
+cat("\nGenerating public-API fixtures (chooseLowessSpan, qqf, zscore, loessFit, contrastAsCoef)...\n")
 
 set.seed(20260430)
 
@@ -2668,4 +2677,1830 @@ write.csv(
   "R_contrast_as_coef_qr.csv", row.names = FALSE
 )
 
-cat("  Forgotten-public-API fixtures complete.\n")
+cat("  Public-API fixtures complete.\n")
+
+# =============================================================================
+# weightedLowess (weighted_lowess.c) and loessFit: branch-forcing fixtures
+# =============================================================================
+cat("\nGenerating weightedLowess / loessFit branch fixtures...\n")
+
+set.seed(20260930)
+
+.wl_write <- function(case, x, y, weights, fit_loess, fit_lowess, delta_arg = NA_real_) {
+  write.csv(
+    data.frame(
+      x = x, y = y, weights = if (is.null(weights)) NA_real_ else weights,
+      delta_arg = delta_arg,
+      fitted = fit_loess$fitted, residuals = fit_loess$residuals,
+      robustness = fit_loess$weights, delta = fit_loess$delta,
+      lowess_x = fit_lowess$x, lowess_y = fit_lowess$y
+    ),
+    sprintf("R_wl_%s.csv", case), row.names = FALSE
+  )
+}
+.wl_both <- function(case, x, y, weights = NULL, delta = NULL, span = 0.3) {
+  fl <- weightedLowess(x, y, weights = weights, delta = delta, span = span)
+  fw <- weightedLowess(x, y, weights = weights, delta = delta, span = span, output.style = "lowess")
+  .wl_write(case, x, y, weights, fl, fw, delta_arg = if (is.null(delta)) NA_real_ else delta)
+  invisible(fl)
+}
+
+# More points than npts: delta > 0, anchors + linear interpolation
+.wl_x <- round(runif(1000, 0, 10), 2)
+.wl_y <- sin(.wl_x) + rnorm(1000, sd = 0.3)
+.wl_w <- runif(1000, 0.2, 3)
+.f <- .wl_both("interp", .wl_x, .wl_y, .wl_w)
+stopifnot(.f$delta > 0, anyDuplicated(.wl_x) > 0)
+
+# User-supplied delta
+.f <- .wl_both("delta_given", .wl_x, .wl_y, .wl_w, delta = 0.05)
+
+# Fewer points than npts: delta = 0, every point is an anchor
+.f <- .wl_both("small_n", .wl_x[1:150], .wl_y[1:150], .wl_w[1:150])
+stopifnot(.f$delta == 0)
+
+# Unit weights, even n: the weighted median hits half the total weight exactly
+.f <- .wl_both("unweighted", .wl_x[1:500], .wl_y[1:500])
+
+# A large block of tied x: windows inside the block have zero width
+# (dist < THRESHOLD) and the final anchor ties its predecessor (averaged
+# interpolation)
+.wl_x_tied <- c(rep(0, 400), sort(runif(596, 1, 10)), rep(10, 4))
+.wl_y_tied <- rnorm(1000)
+.f <- .wl_both("tied_block", .wl_x_tied, .wl_y_tied, runif(1000, 0.5, 1.5), span = 0.2)
+
+# Constant response with one outlier: MAD is zero so robustness iterations stop
+.wl_y_const <- rep(1, 300)
+.wl_y_const[10] <- 5
+.f <- .wl_both("mad_zero", .wl_x[1:300], .wl_y_const, .wl_w[1:300])
+stopifnot(all(.f$weights == 1))
+
+# loessFit branches -------------------------------------------------------
+.lf_write <- function(case, y, x, weights, fit, span, min_weight = 1e-5, max_weight = 1e5) {
+  write.csv(
+    data.frame(
+      y = y, x = x, weights = if (is.null(weights)) NA_real_ else weights,
+      weights_null = is.null(weights), span = span,
+      min_weight = min_weight, max_weight = max_weight,
+      fitted = fit$fitted, residuals = fit$residuals
+    ),
+    sprintf("R_lf_%s.csv", case), row.names = FALSE
+  )
+}
+.lf_case <- function(case, y, x, weights = NULL, span = 0.3, min_weight = 1e-5, max_weight = 1e5) {
+  fit <- loessFit(y, x, weights = weights, span = span, min.weight = min_weight, max.weight = max_weight)
+  .lf_write(case, y, x, weights, fit, span, min_weight, max_weight)
+  invisible(fit)
+}
+
+.lf_y <- .wl_y[1:600]
+.lf_x <- .wl_x[1:600]
+.lf_w <- .wl_w[1:600]
+.lf_y[c(3, 30)] <- NA
+.lf_x[c(50)] <- NA
+
+# Weighted, with non-finite y/x dropped
+.lf_case("weighted_na", .lf_y, .lf_x, .lf_w)
+# No weights -> base lowess()
+.lf_case("unweighted", .lf_y, .lf_x)
+# Equal weights treated as NULL -> base lowess()
+.lf_case("equal_weights", .lf_y, .lf_x, rep(2, 600))
+# Zero weights clamped to min.weight/max.weight as fitFDistUnequalDF1 does
+.lf_w0 <- .lf_w
+.lf_w0[seq(1, 600, by = 7)] <- 0
+.lf_case("clamped_weights", .lf_y, .lf_x, .lf_w0, min_weight = 1e-8, max_weight = 1e2)
+# min.weight = 0: too few positive weights -> weighted linear regression
+.lf_case("few_positive", .lf_y[4:13], .lf_x[4:13], c(1, 0, 2, 0, 1, 0, 3, 0, 1, 1), min_weight = 0)
+# min.weight = 0: a single positive weight
+.lf_case("one_positive", .lf_y[4:13], .lf_x[4:13], c(0, 0, 2, 0, 0, 0, 0, 0, 0, 0), min_weight = 0)
+# Positively weighted x all equal: slope aliased in lm.wfit
+.lf_case("aliased_slope", .lf_y[4:13], c(rep(1, 5), 2:6), c(rep(1, 5), rep(0, 5)), min_weight = 0)
+# span below 1/nobs -> fitted = y
+.lf_case("span_tiny", .lf_y[4:13], .lf_x[4:13], .lf_w[4:13], span = 0.05)
+# No finite observations
+.lf_case("all_na", rep(NA_real_, 5), 1:5, rep(1, 5))
+
+cat("  weightedLowess / loessFit branch fixtures complete.\n")
+
+# =============================================================================
+# qr() / dqrdc2 column pivoting and lm.series genewise branches
+# =============================================================================
+cat("\nGenerating dqrdc2 / lm.series branch fixtures...\n")
+
+set.seed(20261001)
+
+# qr(): pivot, rank and nonEstimable for matrices that force each dqrdc2 path
+.qr_base <- cbind(1, rep(0:1, each = 4), rnorm(8))
+.qr_near <- function(eps) cbind(.qr_base[, 1:2], .qr_base[, 2] + eps * rnorm(8), rnorm(8))
+.qr_cases <- list(
+  # Large-scale covariate: tol is relative to each column's own norm
+  scaled_covariate = cbind(.qr_base[, 1:2], runif(8, 1.5e8, 2.5e8)),
+  # Fewer rows than columns
+  wide = matrix(rnorm(6), 2, 3),
+  # A zero column ahead of estimable columns is cycled to the end
+  zero_column_first = cbind(0, .qr_base),
+  # An earlier column collinear with an even earlier one
+  collinear_middle = cbind(.qr_base[, 1], 2 * .qr_base[, 1], .qr_base[, 2:3]),
+  # Near-collinear columns either side of tol = 1e-7 (also forces the
+  # reduced-norm recomputation branch)
+  near_tol_dropped = .qr_near(1e-9),
+  near_tol_kept = .qr_near(1e-5),
+  all_zero = matrix(0, 5, 3),
+  single_row = matrix(c(2, 0, 3), 1, 3)
+)
+.qr_long <- do.call(rbind, lapply(names(.qr_cases), function(nm) {
+  m <- .qr_cases[[nm]]
+  data.frame(case = nm, row = as.vector(row(m)), col = as.vector(col(m)), value = as.vector(m))
+}))
+write.csv(.qr_long, "R_qr_inputs.csv", row.names = FALSE)
+.qr_out <- do.call(rbind, lapply(names(.qr_cases), function(nm) {
+  q <- qr(.qr_cases[[nm]])
+  ne <- nonEstimable(.qr_cases[[nm]])
+  data.frame(case = nm, rank = q$rank, pivot = paste(q$pivot, collapse = ";"),
+             non_estimable = if (is.null(ne)) "" else paste(ne, collapse = ";"))
+}))
+stopifnot(.qr_out$rank[.qr_out$case == "near_tol_dropped"] == 3,
+          .qr_out$rank[.qr_out$case == "near_tol_kept"] == 4,
+          .qr_out$rank[.qr_out$case == "all_zero"] == 0)
+write.csv(.qr_out, "R_qr_outputs.csv", row.names = FALSE)
+
+# lmFit: genewise fits that exercise the same pivoting inside lm.fit/lm.wfit
+.lsq_write <- function(case, expr, design, fit, weights = NULL) {
+  write.csv(expr, sprintf("R_lsq_%s_expr.csv", case), row.names = FALSE)
+  write.csv(design, sprintf("R_lsq_%s_design.csv", case), row.names = FALSE)
+  if (!is.null(weights)) write.csv(weights, sprintf("R_lsq_%s_weights.csv", case), row.names = FALSE)
+  nb <- ncol(design)
+  out <- data.frame(sigma = fit$sigma, df_residual = fit$df.residual)
+  for (j in seq_len(nb)) {
+    out[[paste0("coef_", j)]] <- fit$coefficients[, j]
+    out[[paste0("stdev_", j)]] <- fit$stdev.unscaled[, j]
+  }
+  write.csv(out, sprintf("R_lsq_%s.csv", case), row.names = FALSE)
+}
+
+# Fast path: large-scale covariate
+.lsq_design_scaled <- unname(.qr_cases$scaled_covariate)
+.lsq_expr <- matrix(rnorm(20 * 8), 20, 8)
+.f <- lmFit(.lsq_expr, .lsq_design_scaled)
+stopifnot(!anyNA(.f$coefficients))
+.lsq_write("scaled_covariate", .lsq_expr, .lsq_design_scaled, .f)
+
+# Fast path: as many coefficients as samples -> df.residual = 0, sigma NA
+.lsq_design_sat <- cbind(1, c(0, 1, 0), c(0, 0, 1))
+.lsq_expr_sat <- matrix(rnorm(10 * 3), 10, 3)
+.f <- lmFit(.lsq_expr_sat, .lsq_design_sat)
+stopifnot(all(.f$df.residual == 0), all(is.na(.f$sigma)))
+.lsq_write("saturated", .lsq_expr_sat, .lsq_design_sat, .f)
+
+# Slow path: missing values giving n < p, a missing group and all-missing
+.lsq_design3 <- cbind(1, rep(c(0, 1, 0), each = 3), rep(c(0, 0, 1), each = 3))
+.lsq_expr3 <- matrix(rnorm(30 * 9), 30, 9)
+.lsq_expr3[runif(length(.lsq_expr3)) < 0.1] <- NA
+.lsq_expr3[1, ] <- c(1.2, rep(NA, 8))             # one observation
+.lsq_expr3[2, ] <- c(NA, NA, NA, 0.4, NA, NA, 1.1, NA, NA)  # two obs, one per non-baseline group
+.lsq_expr3[3, 4:6] <- NA                          # group 2 absent: zero column in subset
+.lsq_expr3[4, ] <- NA                             # nothing observed
+.f <- lmFit(.lsq_expr3, .lsq_design3)
+stopifnot(.f$df.residual[1] == 0, .f$df.residual[4] == 0, is.na(.f$coefficients[3, 2]))
+.lsq_write("missing", .lsq_expr3, .lsq_design3, .f)
+
+# Slow path with probe weights: zero/negative weights become missing
+.lsq_w <- matrix(runif(30 * 9, 0.2, 2), 30, 9)
+.lsq_w[1:3, 1:2] <- 0
+.lsq_w[5, 7:9] <- -1
+.f <- lmFit(.lsq_expr3, .lsq_design3, weights = .lsq_w)
+.lsq_write("weighted", .lsq_expr3, .lsq_design3, .f, weights = .lsq_w)
+
+# Slow path, rank 0: the only observed rows of the design are zero.
+# R's lm.series stops (chol2inv with size = 0); record the error.
+.lsq_design_r0 <- cbind(c(0, 0, 0, 0, 1, 2, 3, 4))
+.lsq_expr_r0 <- matrix(rnorm(5 * 8), 5, 8)
+.lsq_expr_r0[1, 5:8] <- NA
+write.csv(.lsq_expr_r0, "R_lsq_rank_zero_expr.csv", row.names = FALSE)
+write.csv(.lsq_design_r0, "R_lsq_rank_zero_design.csv", row.names = FALSE)
+.lsq_r0_error <- tryCatch({ lmFit(.lsq_expr_r0, .lsq_design_r0); NA_character_ },
+                          error = function(e) conditionMessage(e))
+stopifnot(!is.na(.lsq_r0_error))
+write.csv(data.frame(r_error = .lsq_r0_error), "R_lsq_rank_zero_error.csv", row.names = FALSE)
+
+cat("  dqrdc2 / lm.series branch fixtures complete.\n")
+
+# =============================================================================
+# fitFDistUnequalDF1: branch-forcing fixtures
+# Each case forces a distinct R branch; the stored outputs let the Python test
+# assert that the branch was actually taken (e.g. df2.shrunk present).
+# =============================================================================
+cat("\nGenerating fitFDistUnequalDF1 branch fixtures...\n")
+
+set.seed(20260929)
+
+.ffdu_write <- function(case, x, df1, fit, covariate = NULL, prior_weights = NULL,
+                        robust = FALSE, span = NA_real_) {
+  n <- length(x)
+  out <- data.frame(
+    x = x,
+    df1 = rep_len(df1, n),
+    covariate = if (is.null(covariate)) NA_real_ else covariate,
+    prior_weights = if (is.null(prior_weights)) NA_real_ else prior_weights,
+    df1_is_unit = length(df1) == 1L,
+    robust = robust,
+    span = span,
+    scale = rep_len(fit$scale, n),
+    df2 = fit$df2,
+    df2_outlier = if (is.null(fit$df2.outlier)) NA_real_ else fit$df2.outlier,
+    df2_shrunk = if (is.null(fit$df2.shrunk)) NA_real_ else fit$df2.shrunk
+  )
+  write.csv(out, sprintf("R_ffdu_%s.csv", case), row.names = FALSE)
+}
+
+# Variances and residual df from a genewise fit with missing values, as in a
+# proteomics experiment: unequal df1 and a handful of high-variance genes.
+.ffdu_n <- 400
+.ffdu_expr <- matrix(rnorm(.ffdu_n * 8), .ffdu_n, 8)
+.ffdu_expr[1:12, ] <- .ffdu_expr[1:12, ] * 3
+.ffdu_expr[runif(length(.ffdu_expr)) < 0.1] <- NA
+.ffdu_fit <- lmFit(.ffdu_expr, cbind(1, rep(0:1, each = 4)))
+.ffdu_x <- .ffdu_fit$sigma^2
+.ffdu_df1 <- .ffdu_fit$df.residual
+.ffdu_amean <- .ffdu_fit$Amean
+stopifnot(all(.ffdu_df1 > 0), length(unique(.ffdu_df1)) > 1)
+
+# Right outliers -> refit, per-gene df2.shrunk, monotonic step
+.f <- fitFDistUnequalDF1(.ffdu_x, .ffdu_df1, robust = TRUE)
+stopifnot(!is.null(.f$df2.shrunk), length(unique(.f$df2.shrunk)) > 1)
+.ffdu_write("shrink", .ffdu_x, .ffdu_df1, .f, robust = TRUE)
+
+# Tied F-statistics inside the right tail (rank ties)
+.ffdu_x_ties <- .ffdu_x
+.ffdu_df1_ties <- .ffdu_df1
+.top <- order(.ffdu_x / .f$scale, decreasing = TRUE)[1:6]
+.ffdu_x_ties[.top[2:3]] <- .ffdu_x_ties[.top[4]]
+.ffdu_df1_ties[.top[2:3]] <- .ffdu_df1_ties[.top[4]]
+.f <- fitFDistUnequalDF1(.ffdu_x_ties, .ffdu_df1_ties, robust = TRUE)
+stopifnot(!is.null(.f$df2.shrunk), .f$df2.shrunk[.top[4]] < .f$df2)
+.ffdu_write("shrink_ties", .ffdu_x_ties, .ffdu_df1_ties, .f, robust = TRUE)
+
+# Covariate trend + NA variances (zero prior weight) + robust
+.ffdu_x_na <- .ffdu_x
+.ffdu_x_na[c(20, 40, 60)] <- NA
+.f <- fitFDistUnequalDF1(.ffdu_x_na, .ffdu_df1, covariate = .ffdu_amean, robust = TRUE)
+stopifnot(!is.null(.f$df2.shrunk))
+.ffdu_write("trend_robust", .ffdu_x_na, .ffdu_df1, .f, covariate = .ffdu_amean, robust = TRUE)
+
+# As above with an explicit span; R's robust refit does not forward span
+.f_span <- fitFDistUnequalDF1(.ffdu_x_na, .ffdu_df1, covariate = .ffdu_amean, span = 0.5, robust = TRUE)
+stopifnot(!isTRUE(all.equal(.f_span$scale, .f$scale)))
+.ffdu_write("trend_robust_span", .ffdu_x_na, .ffdu_df1, .f_span, covariate = .ffdu_amean, robust = TRUE, span = 0.5)
+
+# Covariate trend + NA variances, non-robust (zero-weight loess floor)
+.f <- fitFDistUnequalDF1(.ffdu_x_na, .ffdu_df1, covariate = .ffdu_amean)
+.ffdu_write("trend_na", .ffdu_x_na, .ffdu_df1, .f, covariate = .ffdu_amean)
+
+# Right-tail probability underflows to zero -> df2.outlier = 0.
+# Needs a large, well-behaved background so the initial df2 stays high.
+.ffdu_x_uf <- rchisq(5000, df = 50) / 50
+.ffdu_x_uf[1] <- 1e20
+.f <- fitFDistUnequalDF1(.ffdu_x_uf, 50, robust = TRUE)
+stopifnot(identical(.f$df2.outlier, 0))
+.ffdu_write("underflow", .ffdu_x_uf, 50, .f, robust = TRUE)
+
+# Left outliers only -> refit returned without df2.shrunk.
+# Random data essentially never satisfies RightP >= UniformP at every rank;
+# a tied background (one shared average rank) with two small values does.
+.ffdu_x_left <- rep(1, 200)
+.ffdu_x_left[1:2] <- 0.01
+.f <- fitFDistUnequalDF1(.ffdu_x_left, 6, robust = TRUE)
+.f_nonrobust <- fitFDistUnequalDF1(.ffdu_x_left, 6)
+stopifnot(is.null(.f$df2.shrunk), !isTRUE(all.equal(.f$scale, .f_nonrobust$scale)))
+.ffdu_write("left_only", .ffdu_x_left, 6, .f, robust = TRUE)
+
+# df1 supplied as a unit vector, robust
+.ffdu_x_unit <- rchisq(.ffdu_n, df = 6) / 6
+.ffdu_x_unit[11:16] <- .ffdu_x_unit[11:16] * 30
+.f <- fitFDistUnequalDF1(.ffdu_x_unit, 6, robust = TRUE)
+stopifnot(!is.null(.f$df2.shrunk))
+.ffdu_write("unit_df1", .ffdu_x_unit, 6, .f, robust = TRUE)
+
+# User prior weights, combined with NA x and df1 < 0.01
+.ffdu_pw <- runif(.ffdu_n, 0.2, 2)
+.ffdu_df1_small <- .ffdu_df1
+.ffdu_df1_small[c(7, 8)] <- 0.001
+.f <- fitFDistUnequalDF1(.ffdu_x_na, .ffdu_df1_small, prior.weights = .ffdu_pw)
+.ffdu_write("prior_weights", .ffdu_x_na, .ffdu_df1_small, .f, prior_weights = .ffdu_pw)
+
+# Exactly two informative values: covariate and robust are dropped
+.ffdu_x_two <- c(0.5, 1.5, rep(0, 8))
+.ffdu_cov_two <- seq(1, 10)
+.f <- fitFDistUnequalDF1(.ffdu_x_two, 4, covariate = .ffdu_cov_two, robust = TRUE)
+.ffdu_write("two_informative", .ffdu_x_two, 4, .f, covariate = .ffdu_cov_two, robust = TRUE)
+
+# Fewer than two informative values -> NA hyperparameters
+.ffdu_x_one <- c(0.5, rep(0, 9))
+.f <- fitFDistUnequalDF1(.ffdu_x_one, 4)
+stopifnot(is.na(.f$scale), is.na(.f$df2))
+.ffdu_write("one_informative", .ffdu_x_one, 4, .f)
+
+# Input checks: record R's error for each stop()
+.ffdu_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.ffdu_errors <- data.frame(
+  case = c("df1_length", "df1_na", "covariate_length", "covariate_na",
+           "prior_weights_length", "prior_weights_na", "prior_weights_negative"),
+  r_error = c(
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), c(4, 4))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), c(4, NA, 4))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, covariate = c(1, 2))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, covariate = c(1, NA, 3))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, prior.weights = c(1, 1))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, prior.weights = c(1, NA, 1))),
+    .ffdu_err(fitFDistUnequalDF1(c(1, 2, 3), 4, prior.weights = c(1, -1, 1)))
+  )
+)
+stopifnot(!anyNA(.ffdu_errors$r_error))
+write.csv(.ffdu_errors, "R_ffdu_errors.csv", row.names = FALSE)
+
+# End to end: eBayes robust (and trend + robust) on the unequal-df fit.
+# A single-observation gene gives df = 0, which squeezeVar passes to
+# fitFDistUnequalDF1 as an uninformative (zero-weight) value.
+.ffdu_expr_e2e <- .ffdu_expr
+.ffdu_expr_e2e[400, ] <- c(1.3, rep(NA, 7))
+.ffdu_design <- cbind(1, rep(0:1, each = 4))
+.ffdu_fit_e2e <- lmFit(.ffdu_expr_e2e, .ffdu_design)
+stopifnot(.ffdu_fit_e2e$df.residual[400] == 0)
+write.csv(.ffdu_expr_e2e, "R_ffdu_ebayes_expr.csv", row.names = FALSE)
+for (.trend in c(FALSE, TRUE)) {
+  .eb <- eBayes(.ffdu_fit_e2e, robust = TRUE, trend = .trend)
+  stopifnot(length(unique(.eb$df.prior)) > 1)
+  write.csv(
+    data.frame(
+      t = .eb$t[, 2], p_value = .eb$p.value[, 2], lods = .eb$lods[, 2],
+      s2_post = .eb$s2.post, df_prior = .eb$df.prior,
+      s2_prior = rep_len(.eb$s2.prior, .ffdu_n), df_total = .eb$df.total
+    ),
+    sprintf("R_ffdu_ebayes_robust%s.csv", if (.trend) "_trend" else ""),
+    row.names = FALSE
+  )
+}
+
+cat("  fitFDistUnequalDF1 branch fixtures complete.\n")
+
+# =============================================================================
+# fry / .fryEffects: branch-forcing fixtures
+# =============================================================================
+cat("\nGenerating fry branch fixtures...\n")
+
+set.seed(20261002)
+
+.fry_n <- 200
+.fry_ids <- sprintf("gene%03d", seq_len(.fry_n))
+.fry_expr <- matrix(rnorm(.fry_n * 8), .fry_n, 8, dimnames = list(.fry_ids, NULL))
+.fry_expr[1:15, 5:8] <- .fry_expr[1:15, 5:8] + 1
+.fry_expr[30:45, 5:8] <- .fry_expr[30:45, 5:8] - 0.7
+.fry_expr[100:105, ] <- .fry_expr[100:105, ] * 4          # high-variance genes
+.fry_design <- cbind(1, rep(0:1, each = 4))
+.fry_symbols <- sprintf("SYM%03d", seq_len(.fry_n))
+write.csv(data.frame(id = .fry_ids, symbol = .fry_symbols, .fry_expr, check.names = FALSE),
+          "R_fry_expr.csv", row.names = FALSE)
+
+# Equal residual variances for every gene (sign flips of one vector with
+# values permuted within groups), so fitFDist gives df2 = Inf
+.fry_base <- rnorm(8)
+.fry_expr_null <- t(sapply(seq_len(.fry_n), function(g)
+  sample(c(-1, 1), 1) * c(sample(.fry_base[1:4]), sample(.fry_base[5:8]))))
+dimnames(.fry_expr_null) <- list(.fry_ids, NULL)
+write.csv(data.frame(id = .fry_ids, .fry_expr_null, check.names = FALSE),
+          "R_fry_expr_null.csv", row.names = FALSE)
+
+.fry_sets <- list(up = 1:15, down = 30:45, mixed = c(1:5, 30:35), noise = 150:170)
+
+# Gene sets in long form: case, set, member (1-based index or gene id), weight
+.fry_set_rows <- list()
+.fry_add_sets <- function(case, index) {
+  rows <- lapply(seq_along(index), function(i) {
+    s <- index[[i]]
+    nm <- if (is.null(names(index))) NA_character_ else names(index)[i]
+    if (is.data.frame(s)) {
+      data.frame(case = case, set_number = i, set = nm, member = as.character(s[, 1]), weight = s[, 2])
+    } else {
+      data.frame(case = case, set_number = i, set = nm, member = as.character(s), weight = NA_real_)
+    }
+  })
+  .fry_set_rows[[case]] <<- do.call(rbind, rows)
+}
+.fry_tab_write <- function(case, tab) {
+  write.csv(data.frame(set = rownames(tab), tab, check.names = FALSE),
+            sprintf("R_fry_%s.csv", case), row.names = FALSE)
+}
+.fry_case <- function(case, index, y = .fry_expr, ...) {
+  if (!is.null(index)) .fry_add_sets(case, index)
+  tab <- fry(y, index = index, design = .fry_design, ...)
+  .fry_tab_write(case, tab)
+  invisible(tab)
+}
+
+# standardize options
+.fry_case("std_none", .fry_sets, standardize = "none", sort = "none")
+.fry_case("std_residual", .fry_sets, standardize = "residual.sd", sort = "none")
+.fry_case("std_p2", .fry_sets, standardize = "p2", sort = "none")
+.fry_case("std_posterior", .fry_sets, standardize = "posterior.sd", sort = "none")
+
+# posterior.sd when the prior df is infinite
+.fry_eff_null <- limma:::.lmEffects(.fry_expr_null, .fry_design)
+stopifnot(is.infinite(fitFDist(rowMeans(.fry_eff_null[, -1]^2), df1 = ncol(.fry_eff_null) - 1)$df2))
+.fry_case("posterior_inf", .fry_sets, y = .fry_expr_null, sort = "none")
+
+# robust hyperparameters: df2.shrunk is genewise
+.fry_eff <- limma:::.lmEffects(.fry_expr, .fry_design)
+.fry_rob <- fitFDistRobustly(rowMeans(.fry_eff[, -1]^2), df1 = ncol(.fry_eff) - 1)
+stopifnot(length(unique(.fry_rob$df2.shrunk)) > 1)
+.fry_case("posterior_robust", .fry_sets, robust = TRUE, sort = "none")
+.fry_case("p2_robust", .fry_sets, standardize = "p2", robust = TRUE, sort = "none")
+
+# trend.var: covariate = rowMeans(y)
+.fry_case("trend", .fry_sets, trend.var = TRUE, sort = "none")
+
+# NGenes == 1 set, and a single set (no FDR columns)
+.fry_case("singleton", list(single = 7L, up = 1:15), sort = "none")
+.fry_case("one_set", list(up = 1:15), sort = "none")
+
+# index = NULL, and many unnamed sets (zero-padded default names)
+.fry_case("index_null", NULL, sort = "none")
+.fry_unnamed <- lapply(0:11, function(k) (k * 15 + 1):(k * 15 + 12))
+.fry_case("unnamed_many", .fry_unnamed, sort = "none")
+
+# Character ids, weighted data.frame sets (integer and character), gene.weights
+.fry_case("character_ids", list(up = .fry_ids[1:15], down = .fry_ids[30:45]), sort = "none")
+.fry_case("df_weights_int", list(w = data.frame(i = 1:15, w = seq(0.5, 2, length.out = 15)),
+                                  plain = 30:45), sort = "none")
+.fry_case("df_weights_chr", list(w = data.frame(i = .fry_ids[c(3, 1, 2, 30:35)], w = c(2, 1, 1, rep(-1, 6)))),
+          sort = "none")
+.fry_gene_w <- seq(0.5, 1.5, length.out = .fry_n)
+write.csv(data.frame(gene_weights = .fry_gene_w), "R_fry_input_gene_weights.csv", row.names = FALSE)
+.fry_case("gene_weights", .fry_sets, gene.weights = .fry_gene_w, sort = "none")
+
+# geneid as an annotation column and as a vector
+.fry_el <- new("EList", list(E = .fry_expr, genes = data.frame(Symbol = .fry_symbols, row.names = .fry_ids)))
+.fry_case("geneid_column", list(up = .fry_symbols[1:15], down = .fry_symbols[30:45]),
+          y = .fry_el, geneid = "Symbol", sort = "none")
+.fry_case("geneid_vector", list(up = .fry_symbols[1:15], down = .fry_symbols[30:45]),
+          geneid = .fry_symbols, sort = "none")
+
+# sort options
+.fry_case("sort_directional", .fry_sets, sort = "directional")
+.fry_case("sort_mixed", .fry_sets, sort = "mixed")
+.fry_case("sort_true", .fry_sets, sort = TRUE)
+.fry_case("sort_false", .fry_sets, sort = FALSE)
+
+# ... arguments: array weights, observation weights, block, contrast vector
+.fry_aw <- c(1, 0.5, 2, 1, 1.5, 1, 0.8, 1.2)
+.fry_obs_w <- matrix(runif(.fry_n * 8, 0.3, 2), .fry_n, 8)
+write.csv(data.frame(array_weights = .fry_aw), "R_fry_input_array_weights.csv", row.names = FALSE)
+write.csv(.fry_obs_w, "R_fry_input_obs_weights.csv", row.names = FALSE)
+.fry_case("array_weights", .fry_sets, array.weights = .fry_aw, sort = "none")
+.fry_case("obs_weights", .fry_sets, weights = .fry_obs_w, sort = "none")
+.fry_case("block", .fry_sets, block = rep(1:4, 2), correlation = 0.3, sort = "none")
+.fry_case("contrast_vector", .fry_sets, contrast = c(-1, 1), sort = "none")
+
+write.csv(do.call(rbind, .fry_set_rows), "R_fry_sets.csv", row.names = FALSE)
+
+# Errors raised by fry.default / .fryEffects
+.fry_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.fry_errors <- data.frame(
+  case = c("gene_weights_length", "block_without_correlation", "index_empty",
+           "duplicate_set_names", "duplicate_ids_in_df_set", "df_set_without_weights",
+           "geneid_length"),
+  r_error = c(
+    .fry_err(fry(.fry_expr, .fry_sets, .fry_design, gene.weights = 1:3)),
+    .fry_err(fry(.fry_expr, .fry_sets, .fry_design, block = rep(1:4, 2))),
+    .fry_err(fry(.fry_expr, list(), .fry_design)),
+    .fry_err(fry(.fry_expr, list(a = 1:5, a = 6:10), .fry_design)),
+    .fry_err(fry(.fry_expr, list(w = data.frame(i = .fry_ids[c(1, 1)], w = c(1, 2))), .fry_design)),
+    .fry_err(fry(.fry_expr, list(w = data.frame(i = 1:5)), .fry_design)),
+    .fry_err(fry(.fry_expr, .fry_sets, .fry_design, geneid = .fry_symbols[1:10]))
+  )
+)
+stopifnot(!anyNA(.fry_errors$r_error))
+write.csv(.fry_errors, "R_fry_errors.csv", row.names = FALSE)
+
+cat("  fry branch fixtures complete.\n")
+
+# =============================================================================
+# decideTests (MArrayLM and default methods): branch-forcing fixtures
+# =============================================================================
+cat("\nGenerating decideTests branch fixtures...\n")
+
+set.seed(20261003)
+
+.dt_design <- cbind(1, rep(c(0, 1, 0), each = 4), rep(c(0, 0, 1), each = 4))
+.dt_n <- 300
+.dt_expr <- matrix(rnorm(.dt_n * 12), .dt_n, 12)
+.dt_expr[1:30, 5:8] <- .dt_expr[1:30, 5:8] + 1.5
+.dt_expr[20:50, 9:12] <- .dt_expr[20:50, 9:12] - 1.2
+# Genes whose group-2 and group-3 samples are identical: tied |t| for coefs 2, 3
+.dt_expr[51:55, 9:12] <- .dt_expr[51:55, 5:8] <- .dt_expr[51:55, 5:8] + 3
+.dt_expr_na <- .dt_expr
+.dt_expr_na[runif(length(.dt_expr_na)) < 0.1] <- NA
+.dt_expr_na[56, 5:8] <- NA                          # coefficient 2 not estimable
+write.csv(.dt_expr, "R_dt_expr.csv", row.names = FALSE)
+write.csv(.dt_expr_na, "R_dt_expr_na.csv", row.names = FALSE)
+
+# Equal residual variances -> df.prior = Inf, so eBayes caps df.total while
+# .classifyTestsP / classifyTestsF use df.residual + df.prior uncapped
+.dt_base <- rnorm(12)
+.dt_expr_inf <- t(sapply(seq_len(.dt_n), function(g)
+  c(sample(.dt_base[1:4]), sample(.dt_base[5:8]), sample(.dt_base[9:12]))))
+.dt_expr_inf[1:20, 5:8] <- .dt_expr_inf[1:20, 5:8] + 2
+write.csv(.dt_expr_inf, "R_dt_expr_inf.csv", row.names = FALSE)
+
+.dt_fit <- eBayes(lmFit(.dt_expr, .dt_design))
+.dt_fit_na <- eBayes(lmFit(.dt_expr_na, .dt_design))
+.dt_fit_inf <- eBayes(lmFit(.dt_expr_inf, .dt_design))
+stopifnot(anyNA(.dt_fit_na$p.value), anyNA(.dt_fit_na$F.p.value),
+          is.infinite(.dt_fit_inf$df.prior),
+          any(.dt_fit$t[51:55, 2] == .dt_fit$t[51:55, 3]))
+
+.dt_rows <- list()
+.dt_record <- function(case, data, method, adjust, p_value = 0.05, lfc = 0, fn = decideTests, ...) {
+  res <- unclass(fn(get(sprintf(".dt_%s", data)), method = method, adjust.method = adjust,
+                    p.value = p_value, lfc = lfc, ...))
+  write.csv(res, sprintf("R_dt_%s.csv", case), row.names = FALSE)
+  .dt_rows[[case]] <<- data.frame(case = case, data = data, method = method, adjust = adjust,
+                                  p_value = p_value, lfc = lfc)
+}
+
+# MArrayLM: separate / global with every adjust method, NA p-values, lfc
+for (.adj in c("BH", "fdr", "none", "bonferroni", "holm", "BY")) {
+  .dt_record(sprintf("fit_separate_%s", .adj), "fit_na", "separate", .adj)
+}
+.dt_record("fit_global_BH", "fit_na", "global", "BH")
+.dt_record("fit_global_holm", "fit_na", "global", "holm")
+.dt_record("fit_separate_lfc", "fit_na", "separate", "BH", lfc = 0.5)
+# Partial matching of method / adjust.method
+.dt_record("fit_partial_args", "fit_na", "sep", "bonf")
+
+# MArrayLM: hierarchical and nestedF with every adjust method
+for (.adj in c("BH", "none", "bonferroni", "holm", "BY")) {
+  .dt_record(sprintf("fit_hierarchical_%s", .adj), "fit", "hierarchical", .adj)
+  .dt_record(sprintf("fit_nestedF_%s", .adj), "fit", "nestedF", .adj)
+}
+.dt_record("fit_hierarchical_lfc", "fit", "hierarchical", "BH", lfc = 0.5)
+# Uncapped df in .classifyTestsP / classifyTestsF
+.dt_record("fit_inf_hierarchical", "fit_inf", "hierarchical", "BH")
+.dt_record("fit_inf_nestedF", "fit_inf", "nestedF", "BH")
+
+# Few genes, so the pooled df is small: capping df.total at it changes the
+# hierarchical decision, which R makes with the uncapped df
+set.seed(7)
+.dt_base_small <- rnorm(12)
+.dt_expr_inf_small <- t(sapply(1:4, function(g)
+  c(sample(.dt_base_small[1:4]), sample(.dt_base_small[5:8]), sample(.dt_base_small[9:12]))))
+.dt_expr_inf_small[1, 5:8] <- .dt_expr_inf_small[1, 5:8] + 2.9
+write.csv(.dt_expr_inf_small, "R_dt_expr_inf_small.csv", row.names = FALSE)
+.dt_fit_inf_small <- eBayes(lmFit(.dt_expr_inf_small, .dt_design))
+.dt_capped <- .dt_fit_inf_small
+.dt_capped$df.prior <- .dt_fit_inf_small$df.total - .dt_fit_inf_small$df.residual
+stopifnot(is.infinite(.dt_fit_inf_small$df.prior),
+          !identical(unclass(decideTests(.dt_fit_inf_small, method = "hierarchical"))[],
+                     unclass(decideTests(.dt_capped, method = "hierarchical"))[]))
+.dt_record("fit_inf_small_hierarchical", "fit_inf_small", "hierarchical", "BH")
+
+# Automatic eBayes when p.value is absent
+.dt_lmfit <- lmFit(.dt_expr, .dt_design)
+.dt_record("fit_auto_ebayes", "lmfit", "separate", "BH")
+
+# Default method: a matrix of p-values, with coefficients / tstat / none.
+# (decideTests.default stops on NA p-values; see the error cases.)
+.dt_p <- .dt_fit$p.value
+.dt_coef <- .dt_fit$coefficients
+.dt_tstat <- .dt_fit$t
+.dt_gw <- .dt_fit$F.p.value
+write.csv(.dt_p, "R_dt_input_p.csv", row.names = FALSE)
+write.csv(.dt_coef, "R_dt_input_coef.csv", row.names = FALSE)
+write.csv(.dt_tstat, "R_dt_input_tstat.csv", row.names = FALSE)
+write.csv(data.frame(genewise = .dt_gw), "R_dt_input_genewise.csv", row.names = FALSE)
+
+.dt_default <- function(case, method, adjust, ...) {
+  res <- unclass(decideTests(.dt_p, method = method, adjust.method = adjust, ...))
+  attributes(res) <- list(dim = dim(res))
+  write.csv(res, sprintf("R_dt_%s.csv", case), row.names = FALSE)
+}
+.dt_default("p_separate_nocoef", "separate", "BH")
+.dt_default("p_separate_coef_lfc", "separate", "BH", coefficients = .dt_coef, lfc = 0.5)
+.dt_default("p_global_tstat", "global", "holm", tstat = .dt_tstat)
+for (.adj in c("BH", "none", "bonferroni", "holm", "BY")) {
+  .dt_default(sprintf("p_hierarchical_%s", .adj), "hierarchical", .adj, coefficients = .dt_coef)
+}
+.dt_default("p_hierarchical_nocoef", "hierarchical", "BH")
+# Supplied genewise.p.value: R only defines ngenes when it computes Simes
+# p-values itself, so every adjust.method except "none" errors (see errors).
+# pylimma follows the intended behaviour, ngenes = nrow(p); the reference
+# comes from decideTests.default with that single line added before switch().
+.dt_default("p_hierarchical_genewise_none", "hierarchical", "none", genewise.p.value = .dt_gw)
+.dt_decide_intended <- limma:::decideTests.default
+.dt_body <- as.list(body(.dt_decide_intended))
+.dt_switch <- which(vapply(.dt_body, function(e) is.call(e) && identical(e[[1]], as.name("switch")), TRUE))
+body(.dt_decide_intended) <- as.call(append(.dt_body, list(quote(ngenes <- nrow(p))), after = .dt_switch - 1))
+environment(.dt_decide_intended) <- asNamespace("limma")
+# The patch changes nothing where R itself works
+stopifnot(identical(
+  unclass(.dt_decide_intended(.dt_p, method = "hierarchical", coefficients = .dt_coef))[],
+  unclass(decideTests(.dt_p, method = "hierarchical", coefficients = .dt_coef))[]
+))
+for (.adj in c("BH", "bonferroni", "holm", "BY")) {
+  .res <- unclass(.dt_decide_intended(.dt_p, method = "hierarchical", adjust.method = .adj,
+                                      genewise.p.value = .dt_gw))
+  attributes(.res) <- list(dim = dim(.res))
+  write.csv(.res, sprintf("R_dt_p_hierarchical_genewise_%s_intended.csv", .adj), row.names = FALSE)
+}
+
+write.csv(do.call(rbind, .dt_rows), "R_dt_cases.csv", row.names = FALSE)
+
+# Errors
+.dt_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.dt_errors <- data.frame(
+  case = c("fit_hierarchical_na", "fit_nestedF_na", "fit_bad_method", "p_nestedF", "p_out_of_range",
+           "p_coef_dims", "p_with_na", "p_hierarchical_genewise_bh"),
+  r_error = c(
+    .dt_err(decideTests(.dt_fit_na, method = "hierarchical")),
+    .dt_err(decideTests(.dt_fit_na, method = "nestedF")),
+    .dt_err(decideTests(.dt_fit, method = "bogus")),
+    .dt_err(decideTests(.dt_p, method = "nestedF")),
+    .dt_err(decideTests(.dt_p * 2, method = "separate")),
+    .dt_err(decideTests(.dt_p, coefficients = .dt_coef[, 1:2])),
+    .dt_err(decideTests(.dt_fit_na$p.value)),
+    .dt_err(decideTests(.dt_p, method = "hierarchical", genewise.p.value = .dt_gw))
+  )
+)
+stopifnot(!anyNA(.dt_errors$r_error))
+write.csv(.dt_errors, "R_dt_errors.csv", row.names = FALSE)
+
+cat("  decideTests branch fixtures complete.\n")
+
+# =============================================================================
+# topTable: coefficient selection by name and sort.by / resort.by matching
+# =============================================================================
+cat("\nGenerating topTable argument-matching fixtures...\n")
+
+set.seed(20261004)
+
+.tt_design <- cbind(Intercept = 1, B = rep(c(0, 1, 0), each = 4), C = rep(c(0, 0, 1), each = 4))
+.tt_expr <- matrix(rnorm(100 * 12), 100, 12, dimnames = list(sprintf("g%03d", 1:100), NULL))
+.tt_expr[1:10, 5:8] <- .tt_expr[1:10, 5:8] + 2
+.tt_expr[5:20, 9:12] <- .tt_expr[5:20, 9:12] - 1.5
+write.csv(data.frame(id = rownames(.tt_expr), .tt_expr, check.names = FALSE), "R_tt_expr.csv", row.names = FALSE)
+.tt_fit <- eBayes(lmFit(.tt_expr, .tt_design))
+.tt_cfit <- eBayes(contrasts.fit(lmFit(.tt_expr, .tt_design),
+                                 makeContrasts(CvsB = C - B, levels = .tt_design)))
+
+.tt_write <- function(case, tab) {
+  write.csv(data.frame(id = rownames(tab), tab, check.names = FALSE),
+            sprintf("R_tt_%s.csv", case), row.names = FALSE)
+}
+.tt_write("coef_name", topTable(.tt_fit, coef = "B", number = Inf, sort.by = "none"))
+.tt_write("coef_names_f", topTable(.tt_fit, coef = c("B", "C"), number = 15))
+.tt_write("contrast_name", topTable(.tt_cfit, coef = "CvsB", number = 15))
+# Default coef with an "(Intercept)" column: R drops it and subsets the fit,
+# which regenerates F from the remaining coefficients
+.tt_design_int <- .tt_design
+colnames(.tt_design_int)[1] <- "(Intercept)"
+.tt_fit_int <- eBayes(lmFit(.tt_expr, .tt_design_int))
+stopifnot(!isTRUE(all.equal(topTable(.tt_fit_int, number = Inf, sort.by = "none")$F, .tt_fit_int$F)))
+.tt_write("default_drops_intercept", topTable(.tt_fit_int, number = 15))
+.tt_write("sort_partial", topTable(.tt_fit, coef = "B", number = 15, sort.by = "Ave"))
+.tt_write("sort_alias_M", topTable(.tt_fit, coef = "B", number = 15, sort.by = "M"))
+.tt_write("resort_logfc", topTable(.tt_fit, coef = "B", number = 15, resort.by = "logFC"))
+.tt_write("resort_partial", topTable(.tt_fit, coef = "B", number = 15, resort.by = "Am"))
+
+.tt_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.tt_errors <- data.frame(
+  case = c("sort_by_invalid", "resort_by_none", "resort_by_invalid"),
+  r_error = c(
+    .tt_err(topTable(.tt_fit, coef = "B", sort.by = "pvalue")),
+    .tt_err(topTable(.tt_fit, coef = "B", resort.by = "none")),
+    .tt_err(topTable(.tt_fit, coef = "B", resort.by = "adj"))
+  )
+)
+stopifnot(!anyNA(.tt_errors$r_error))
+write.csv(.tt_errors, "R_tt_errors.csv", row.names = FALSE)
+
+cat("  topTable argument-matching fixtures complete.\n")
+
+# =============================================================================
+# roast / mroast with user-supplied var.prior and df.prior
+# Deterministic outputs only (active proportions); p-values depend on the RNG.
+# =============================================================================
+cat("\nGenerating roast user-prior fixtures...\n")
+
+set.seed(20261005)
+
+.ro_n <- 120
+.ro_expr <- matrix(rnorm(.ro_n * 8), .ro_n, 8)
+.ro_expr[1:12, 5:8] <- .ro_expr[1:12, 5:8] + 1.2
+.ro_expr[30:40, 5:8] <- .ro_expr[30:40, 5:8] - 1
+.ro_design <- cbind(1, rep(0:1, each = 4))
+write.csv(.ro_expr, "R_ro_expr.csv", row.names = FALSE)
+
+.ro_var_prior <- runif(.ro_n, 0.5, 1.5)
+.ro_df_prior <- ifelse(seq_len(.ro_n) %% 3 == 0, Inf, 4)
+write.csv(data.frame(var_prior = .ro_var_prior, df_prior = .ro_df_prior), "R_ro_priors.csv", row.names = FALSE)
+
+.ro_single <- function(case, var_prior, df_prior) {
+  r <- roast(.ro_expr, index = 1:20, design = .ro_design, var.prior = var_prior, df.prior = df_prior, nrot = 99)
+  write.csv(data.frame(direction = rownames(r$p.value), active_prop = r$p.value$Active.Prop),
+            sprintf("R_ro_%s.csv", case), row.names = FALSE)
+  invisible(r)
+}
+.r <- .ro_single("roast_inf", 1, Inf)
+stopifnot(any(.r$p.value$Active.Prop > 0))
+.ro_single("roast_finite", 1, 4)
+
+.ro_sets <- list(a = 1:20, b = 25:45, c = 60:90)
+.ro_m <- mroast(.ro_expr, .ro_sets, .ro_design, var.prior = .ro_var_prior, df.prior = .ro_df_prior,
+                nrot = 99, sort = "none")
+stopifnot(any(.ro_m$PropUp > 0), any(.ro_m$PropDown > 0))
+write.csv(data.frame(set = rownames(.ro_m), NGenes = .ro_m$NGenes, PropDown = .ro_m$PropDown, PropUp = .ro_m$PropUp),
+          "R_ro_mroast_vector_priors.csv", row.names = FALSE)
+
+cat("  roast user-prior fixtures complete.\n")
+
+# =============================================================================
+# Input dispatch: one R pipeline that every supported Python input container
+# (ndarray, DataFrame incl. nullable dtypes, AnnData dense/sparse/h5ad, EList)
+# must reproduce
+# =============================================================================
+cat("\nGenerating input-dispatch fixtures...\n")
+
+set.seed(20261006)
+
+.io_n <- 80
+.io_ids <- sprintf("P%03d", seq_len(.io_n))
+.io_expr <- matrix(rnorm(.io_n * 8, 20, 1.5), .io_n, 8, dimnames = list(.io_ids, sprintf("s%d", 1:8)))
+.io_expr[1:10, 5:8] <- .io_expr[1:10, 5:8] + 2
+.io_expr[runif(length(.io_expr)) < 0.08] <- NA
+.io_group <- factor(rep(c("A", "B"), each = 4))
+.io_design <- model.matrix(~ .io_group)
+colnames(.io_design) <- c("(Intercept)", "groupB")
+write.csv(data.frame(id = .io_ids, symbol = sprintf("GENE%03d", seq_len(.io_n)), .io_expr, check.names = FALSE),
+          "R_io_expr.csv", row.names = FALSE)
+
+.io_write <- function(case, tab) {
+  write.csv(data.frame(id = rownames(tab), tab, check.names = FALSE), sprintf("R_io_%s.csv", case), row.names = FALSE)
+}
+.io_fit <- lmFit(.io_expr, .io_design)
+.io_write("pipeline", topTable(eBayes(.io_fit), coef = "groupB", number = Inf, sort.by = "none"))
+.io_write("contrasts_by_name",
+          topTable(eBayes(contrasts.fit(.io_fit, coefficients = "groupB")), number = Inf, sort.by = "none"))
+
+# data.frame whose first column is non-numeric: treated as gene IDs
+.io_df <- data.frame(symbol = sprintf("GENE%03d", seq_len(.io_n)), .io_expr, check.names = FALSE)
+.io_write("dataframe_id_column", topTable(eBayes(lmFit(.io_df, .io_design)), coef = "groupB",
+                                          number = Inf, sort.by = "none"))
+
+.io_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.io_errors <- data.frame(
+  case = c("id_column_not_first", "two_nonnumeric_columns"),
+  r_error = c(
+    .io_err(lmFit(data.frame(.io_expr, symbol = .io_ids, check.names = FALSE), .io_design)),
+    .io_err(lmFit(data.frame(a = .io_ids, b = .io_ids, .io_expr, check.names = FALSE), .io_design))
+  )
+)
+stopifnot(!anyNA(.io_errors$r_error))
+write.csv(.io_errors, "R_io_errors.csv", row.names = FALSE)
+
+cat("  input-dispatch fixtures complete.\n")
+
+# =============================================================================
+# Interface, fit-slot and edge-case fixtures (full-output references for the
+# tests in "Interface, fit-slot and edge-case parity")
+# =============================================================================
+cat("\nGenerating interface, fit-slot and edge-case fixtures...\n")
+
+set.seed(20261007)
+
+.ie_csv <- function(name, x, ids = NULL) {
+  out <- if (is.null(ids)) as.data.frame(x) else data.frame(id = ids, x, check.names = FALSE)
+  write.csv(out, sprintf("R_ie_%s.csv", name), row.names = FALSE)
+}
+.ie_table <- function(name, tab) .ie_csv(name, tab, ids = rownames(tab))
+.ie_canonical <- function(m) apply(as.matrix(m), 2, function(v) {
+  s <- sign(v[which.max(abs(v))])
+  if (s == 0) v else v * s
+})
+
+# Shared two-group data (30 genes x 8 samples) and designs
+.ie_X <- matrix(rnorm(30 * 8), 30, 8, dimnames = list(sprintf("g%02d", 1:30), NULL))
+.ie_X[1:5, 5:8] <- .ie_X[1:5, 5:8] + 2
+.ie_csv("X", .ie_X, ids = rownames(.ie_X))
+.ie_design_int <- cbind("(Intercept)" = 1, groupB = rep(0:1, each = 4))
+.ie_design_cm <- cbind(groupA = rep(1:0, each = 4), groupB = rep(0:1, each = 4))
+
+# topTable(coef=NULL) drops the "(Intercept)" column
+.ie_table("intercept_strip", topTable(eBayes(lmFit(.ie_X, .ie_design_int)), number = Inf, sort.by = "none"))
+
+# contrasts.fit selecting a coefficient by name, and by 1-based index
+.ie_fit_cm <- lmFit(.ie_X, .ie_design_cm)
+.ie_cf_name <- contrasts.fit(.ie_fit_cm, coefficients = "groupB")
+.ie_cf_int <- contrasts.fit(.ie_fit_cm, coefficients = 2)
+stopifnot(identical(.ie_cf_name$coefficients, .ie_cf_int$coefficients))
+for (.nm in c("coefficients", "stdev.unscaled", "cov.coefficients")) {
+  .ie_csv(sprintf("contrasts_by_name_%s", gsub(".", "_", .nm, fixed = TRUE)), .ie_cf_name[[.nm]])
+}
+
+# Hand-built fit with |coef| exactly at the lfc boundary for topTable / decideTests
+.ie_hb <- new("MArrayLM", list(
+  coefficients = cbind(0, c(2, 1, 0.5, 1.5)), stdev.unscaled = matrix(0.1, 4, 2),
+  sigma = rep(0.1, 4), df.residual = rep(10, 4), cov.coefficients = diag(2) * 0.01, Amean = rep(0, 4)))
+.ie_hb <- eBayes(.ie_hb)
+.ie_hb_tt <- topTable(.ie_hb, coef = 2, lfc = 1, number = Inf, sort.by = "none")
+stopifnot(1 %in% .ie_hb_tt$logFC)
+.ie_table("lfc_boundary_toptable", .ie_hb_tt)
+.ie_hb_dt <- unclass(decideTests(.ie_hb, lfc = 1))
+stopifnot(.ie_hb_dt[2, 2] == 0)
+attributes(.ie_hb_dt) <- list(dim = dim(.ie_hb_dt))
+.ie_csv("lfc_boundary_decidetests", .ie_hb_dt)
+
+# EList input to voom (R drops the EList slots; weights passed explicitly)
+# and to vooma (R uses y$design, ignores y$weights)
+.ie_counts <- matrix(rpois(50 * 6, 20) + 1, 50, 6)
+.ie_w <- matrix(runif(50 * 6, 0.5, 2), 50, 6)
+.ie_d6 <- cbind(1, c(0, 0, 0, 1, 1, 1))
+.ie_csv("counts", .ie_counts)
+.ie_csv("elist_weights", .ie_w)
+.ie_voom_w <- voom(.ie_counts, .ie_d6, weights = .ie_w)
+.ie_csv("voom_explicit_weights_E", .ie_voom_w$E)
+.ie_csv("voom_explicit_weights_weights", .ie_voom_w$weights)
+.ie_logc <- log2(.ie_counts + 1)
+.ie_vooma <- vooma(new("EList", list(E = .ie_logc, weights = .ie_w, design = .ie_d6)))
+stopifnot(isTRUE(all.equal(.ie_vooma$weights, vooma(.ie_logc, .ie_d6)$weights)))
+.ie_csv("vooma_elist_weights", .ie_vooma$weights)
+
+# lmFit on an EList carries genes through to topTable
+.ie_genes <- data.frame(ID = sprintf("ENSG%05d", 1:30), symbol = sprintf("SYM%d", 1:30))
+.ie_el <- new("EList", list(E = unname(.ie_X), genes = .ie_genes))
+.ie_table("elist_genes_toptable",
+          topTable(eBayes(lmFit(.ie_el, .ie_design_int)), coef = 2, number = Inf, sort.by = "none"))
+
+# plotRLDF: training scores (canonical sign per dimension) and singular values
+.ie_y3 <- matrix(rnorm(200 * 12), 200, 12)
+.ie_d3 <- cbind(1, rep(c(0, 1, 0), each = 4), rep(c(0, 0, 1), each = 4))
+.ie_csv("rldf_y", .ie_y3)
+.ie_rldf <- plotRLDF(.ie_y3, .ie_d3, plot = FALSE)
+.ie_csv("rldf_training", .ie_canonical(.ie_rldf$training))
+.ie_csv("rldf_singular_values", data.frame(d = .ie_rldf$singular.values))
+
+# Fit slots set by lmFit / eBayes
+.ie_csv("fit_slots", data.frame(
+  method_ls = lmFit(.ie_X, .ie_design_int, method = "ls")$method,
+  method_robust = suppressWarnings(lmFit(.ie_X, .ie_design_int, method = "robust"))$method,
+  proportion = eBayes(lmFit(.ie_X, .ie_design_int), proportion = 0.05)$proportion))
+
+# contrasts.fit with an empty contrast matrix: every slot's dimensions
+.ie_d3b <- cbind(1, rep(0:1, each = 4), rep(0:1, 4))
+.ie_fit3 <- lmFit(.ie_X, .ie_d3b)
+.ie_cf_empty <- contrasts.fit(.ie_fit3, contrasts = matrix(0, 3, 0))
+.ie_csv("contrasts_empty_dims", do.call(rbind, lapply(
+  c("coefficients", "stdev.unscaled", "cov.coefficients", "contrasts"),
+  function(nm) data.frame(slot = nm, nrow = NROW(.ie_cf_empty[[nm]]), ncol = NCOL(.ie_cf_empty[[nm]])))))
+
+# contrasts.fit with coefficients that are zero in every contrast column
+.ie_X10 <- matrix(rnorm(40 * 10), 40, 10)
+.ie_d10 <- cbind(1, rep(0:1, each = 5), rep(0:1, 5))
+.ie_csv("X10", .ie_X10)
+.ie_cf_zero <- contrasts.fit(eBayes(lmFit(.ie_X10, .ie_d10)), contrasts = matrix(c(0, 0, 1), ncol = 1))
+for (.nm in c("coefficients", "stdev.unscaled", "cov.coefficients")) {
+  .ie_csv(sprintf("contrasts_all_zero_%s", gsub(".", "_", .nm, fixed = TRUE)), .ie_cf_zero[[.nm]])
+}
+
+# lmFit(method="robust") forwards ... to MASS::rlm: maxit = 2 changes the fit
+.ie_Xr <- matrix(rnorm(20 * 6), 20, 6)
+.ie_Xr[cbind(1:20, sample(1:6, 20, replace = TRUE))] <- .ie_Xr[cbind(1:20, sample(1:6, 20, replace = TRUE))] + 8
+.ie_d6r <- cbind(1, rep(0:1, each = 3))
+.ie_csv("robust_X", .ie_Xr)
+.ie_rob2 <- suppressWarnings(lmFit(.ie_Xr, .ie_d6r, method = "robust", maxit = 2))
+.ie_rob_default <- suppressWarnings(lmFit(.ie_Xr, .ie_d6r, method = "robust"))
+stopifnot(!isTRUE(all.equal(.ie_rob2$coefficients, .ie_rob_default$coefficients)))
+.ie_csv("robust_maxit2_coefficients", .ie_rob2$coefficients)
+.ie_csv("robust_maxit2_stdev_unscaled", .ie_rob2$stdev.unscaled)
+.ie_csv("robust_maxit2_sigma", data.frame(sigma = .ie_rob2$sigma))
+
+# classifyTestsF on a rank-deficient fit (duplicated design column)
+.ie_Xd <- matrix(rnorm(30 * 6), 30, 6)
+.ie_Xd[1:6, 4:6] <- .ie_Xd[1:6, 4:6] + 3
+.ie_dd <- cbind(1, c(0, 0, 0, 1, 1, 1), c(0, 0, 0, 1, 1, 1))
+.ie_csv("rankdef_X", .ie_Xd)
+.ie_rd <- suppressMessages(eBayes(lmFit(.ie_Xd, .ie_dd)))
+.ie_ctf <- unclass(classifyTestsF(.ie_rd, p.value = 0.05))
+attributes(.ie_ctf) <- list(dim = dim(.ie_ctf))
+.ie_csv("rankdef_classifytestsf", .ie_ctf)
+
+# eBayes t-mixture with tied moderated t but different stdev.unscaled: the
+# tie order changes var.prior (R's order() is stable)
+.ie_ng <- 400
+.ie_se <- rep(0.5, .ie_ng)
+.ie_sig <- sqrt(rchisq(.ie_ng, 6) / 6)
+.ie_coef <- rnorm(.ie_ng) * .ie_se * .ie_sig
+.ie_tie <- 1:3
+.ie_se[.ie_tie] <- c(0.3, 1, 2)
+.ie_sig[.ie_tie] <- 1
+.ie_coef[.ie_tie] <- 6 * .ie_se[.ie_tie]
+.ie_hb2 <- function(ord) {
+  idx <- c(ord, setdiff(seq_len(.ie_ng), ord))
+  new("MArrayLM", list(coefficients = cbind(.ie_coef[idx]), stdev.unscaled = cbind(.ie_se[idx]),
+                       sigma = .ie_sig[idx], df.residual = rep(6, .ie_ng), Amean = rep(0, .ie_ng)))
+}
+.ie_eb_tie <- eBayes(.ie_hb2(.ie_tie), proportion = 0.01)
+stopifnot(length(unique(round(.ie_eb_tie$t[.ie_tie, 1], 10))) == 1,
+          !isTRUE(all.equal(.ie_eb_tie$var.prior, eBayes(.ie_hb2(rev(.ie_tie)), proportion = 0.01)$var.prior)))
+.ie_csv("tmixture_ties_input", data.frame(coefficient = .ie_coef, stdev_unscaled = .ie_se, sigma = .ie_sig))
+.ie_csv("tmixture_ties_ebayes", data.frame(var_prior = .ie_eb_tie$var.prior, t = .ie_eb_tie$t[, 1],
+                                           p_value = .ie_eb_tie$p.value[, 1], lods = .ie_eb_tie$lods[, 1]))
+
+# eBayes(trend=TRUE) where the t-mixture estimate is NA (a non-estimable
+# coefficient has all-NA t), so var.prior falls back to 1/s2.prior. Under
+# trend s2.prior is genewise and R recycles its first element into the NA slot.
+.ie_eb_fb <- suppressWarnings(eBayes(suppressMessages(lmFit(.ie_Xd, .ie_dd)), trend = TRUE))
+stopifnot(all(is.na(.ie_eb_fb$t[, 3])), isTRUE(all.equal(.ie_eb_fb$var.prior[3], 1 / .ie_eb_fb$s2.prior[1])))
+.ie_csv("var_prior_fallback_var_prior", data.frame(var_prior = .ie_eb_fb$var.prior))
+.ie_csv("var_prior_fallback", data.frame(t = .ie_eb_fb$t[, 2], p_value = .ie_eb_fb$p.value[, 2],
+                                         lods = .ie_eb_fb$lods[, 2], s2_prior = .ie_eb_fb$s2.prior))
+
+# avereps on an EList: E and weights averaged by genes$ID, genes de-duplicated
+.ie_el4 <- new("EList", list(E = matrix(c(1, 3, 5, 7, 2, 4, 6, 8), 4, 2),
+                             weights = matrix(c(1, 0.5, 1, 1, 1, 2, 1, 1), 4, 2),
+                             genes = data.frame(ID = c("A", "A", "B", "B"))))
+.ie_av <- avereps(.ie_el4)
+.ie_csv("avereps_elist_E", .ie_av$E, ids = rownames(.ie_av$E))
+.ie_csv("avereps_elist_weights", .ie_av$weights, ids = rownames(.ie_av$weights))
+
+cat("  interface, fit-slot and edge-case fixtures complete.\n")
+
+# =============================================================================
+# selectModel: branch-forcing fixtures
+# =============================================================================
+cat("\nGenerating selectModel fixtures...\n")
+
+set.seed(20261008)
+
+.sm_n <- 60
+.sm_group <- rep(0:1, each = 6)
+.sm_cov <- rnorm(12)
+.sm_y <- matrix(rnorm(.sm_n * 12), .sm_n, 12)
+.sm_y[1:15, 7:12] <- .sm_y[1:15, 7:12] + 1.5               # group effect
+.sm_y[16:30, ] <- .sm_y[16:30, ] + outer(rep(1, 15), 1.2 * .sm_cov)  # covariate effect
+write.csv(.sm_y, "R_sm_y.csv", row.names = FALSE)
+write.csv(data.frame(group = .sm_group, cov = .sm_cov), "R_sm_covariates.csv", row.names = FALSE)
+.sm_designs <- list(null = cbind(1), group = cbind(1, .sm_group), full = cbind(1, .sm_group, .sm_cov))
+.sm_designs$null <- matrix(1, 12, 1)
+.sm_s2_true <- runif(.sm_n, 0.8, 1.2)
+write.csv(data.frame(s2_true = .sm_s2_true), "R_sm_s2_true.csv", row.names = FALSE)
+
+.sm_write <- function(case, sm) {
+  write.csv(data.frame(unname(sm$IC), pref = as.character(sm$pref), criterion = sm$criterion),
+            sprintf("R_sm_%s.csv", case), row.names = FALSE)
+}
+.sm_write("aic", selectModel(.sm_y, .sm_designs, criterion = "aic"))
+.sm_write("bic", selectModel(.sm_y, .sm_designs, criterion = "bic"))
+.sm_write("mallowscp", selectModel(.sm_y, .sm_designs, criterion = "mallowscp", s2.true = .sm_s2_true))
+.sm_write("mallowscp_scalar", selectModel(.sm_y, .sm_designs, criterion = "mallowscp", s2.true = 1))
+.sm_write("prior", selectModel(.sm_y, .sm_designs, criterion = "aic", df.prior = 4, s2.prior = 0.9))
+.sm_write("unnamed", selectModel(.sm_y, unname(.sm_designs), criterion = "bic"))
+.sm_aic <- selectModel(.sm_y, .sm_designs, criterion = "aic")
+stopifnot(length(unique(as.character(.sm_aic$pref))) == 3)   # every model is preferred somewhere
+
+.sm_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.sm_y_na <- .sm_y
+.sm_y_na[1, 1] <- NA
+.sm_errors <- data.frame(
+  case = c("na_input", "prior_without_s2", "mallowscp_without_s2_true", "s2_true_wrong_length", "bad_criterion"),
+  r_error = c(
+    .sm_err(selectModel(.sm_y_na, .sm_designs)),
+    .sm_err(selectModel(.sm_y, .sm_designs, df.prior = 4)),
+    .sm_err(selectModel(.sm_y, .sm_designs, criterion = "mallowscp")),
+    .sm_err(selectModel(.sm_y, .sm_designs, criterion = "mallowscp", s2.true = c(1, 2))),
+    .sm_err(selectModel(.sm_y, .sm_designs, criterion = "xv"))
+  )
+)
+stopifnot(!anyNA(.sm_errors$r_error))
+write.csv(.sm_errors, "R_sm_errors.csv", row.names = FALSE)
+
+cat("  selectModel fixtures complete.\n")
+
+# =============================================================================
+# camera with an estimated inter-gene correlation (inter.gene.cor = NA / NULL)
+# and allow.neg.cor
+# =============================================================================
+cat("\nGenerating camera estimated-correlation fixtures...\n")
+
+set.seed(20261009)
+
+.cam_n <- 200
+.cam_design <- cbind(1, rep(0:1, each = 4))
+.cam_y <- matrix(rnorm(.cam_n * 8), .cam_n, 8)
+# Anti-correlated pairs: genes 11-15 mirror genes 1-5, so the set's
+# estimated inter-gene correlation is negative
+.cam_y[11:15, ] <- -.cam_y[1:5, ] + matrix(rnorm(5 * 8, sd = 0.1), 5, 8)
+# Positively correlated set sharing a latent factor, with a group effect
+.cam_latent <- rnorm(8)
+.cam_y[21:35, ] <- .cam_y[21:35, ] + outer(rep(1, 15), 1.5 * .cam_latent)
+.cam_y[21:35, 5:8] <- .cam_y[21:35, 5:8] + 0.8
+write.csv(.cam_y, "R_cam_y.csv", row.names = FALSE)
+.cam_sets <- list(anti = c(1:5, 11:15), pos = 21:35, plain = 100:130, single = 150)
+write.csv(do.call(rbind, lapply(names(.cam_sets), function(nm) data.frame(set = nm, index = .cam_sets[[nm]]))),
+          "R_cam_sets.csv", row.names = FALSE)
+
+.cam_run <- function(...) camera(.cam_y, .cam_sets, .cam_design, sort = FALSE, ...)
+.cam_write <- function(case, tab) {
+  write.csv(data.frame(set = rownames(tab), tab, check.names = FALSE), sprintf("R_cam_%s.csv", case), row.names = FALSE)
+}
+.cam_cases <- list(
+  est_parametric = list(inter.gene.cor = NA),
+  est_parametric_neg = list(inter.gene.cor = NA, allow.neg.cor = TRUE),
+  est_ranks = list(inter.gene.cor = NA, use.ranks = TRUE),
+  est_ranks_neg = list(inter.gene.cor = NA, use.ranks = TRUE, allow.neg.cor = TRUE),
+  est_null = list(inter.gene.cor = NULL),
+  est_nondirectional = list(inter.gene.cor = NA, directional = FALSE)
+)
+.cam_out <- lapply(.cam_cases, function(args) suppressWarnings(do.call(.cam_run, args)))
+for (.nm in names(.cam_out)) .cam_write(.nm, .cam_out[[.nm]])
+stopifnot(
+  .cam_out$est_parametric["anti", "Correlation"] < 0,
+  is.na(.cam_out$est_parametric["single", "Correlation"]),
+  .cam_out$est_parametric["anti", "PValue"] != .cam_out$est_parametric_neg["anti", "PValue"],
+  .cam_out$est_ranks["anti", "PValue"] != .cam_out$est_ranks_neg["anti", "PValue"],
+  identical(.cam_out$est_null, .cam_out$est_parametric)
+)
+
+cat("  camera estimated-correlation fixtures complete.\n")
+
+# =============================================================================
+# gls.series with a correlation: block and duplicate-spot structures, fast
+# and slow paths, estimated correlation, and input errors
+# =============================================================================
+cat("\nGenerating gls.series correlation fixtures...\n")
+
+set.seed(20261010)
+
+.gls_n <- 40
+.gls_design <- cbind(1, rep(0:1, each = 4))
+.gls_block <- rep(1:4, 2)
+.gls_M <- matrix(rnorm(.gls_n * 8), .gls_n, 8) + outer(rep(1, .gls_n), rnorm(4)[.gls_block])
+.gls_M[1:8, 5:8] <- .gls_M[1:8, 5:8] + 1.5
+.gls_M_na <- .gls_M
+.gls_M_na[cbind(c(2, 5, 9, 17, 30), c(1, 6, 3, 8, 2))] <- NA
+.gls_w_probe <- matrix(runif(.gls_n * 8, 0.3, 2), .gls_n, 8)
+.gls_w_array <- c(1, 0.5, 2, 1, 1.5, 1, 0.8, 1.2)
+write.csv(.gls_M, "R_gls_cor_M.csv", row.names = FALSE)
+write.csv(.gls_M_na, "R_gls_cor_M_na.csv", row.names = FALSE)
+write.csv(.gls_w_probe, "R_gls_cor_probe_weights.csv", row.names = FALSE)
+write.csv(data.frame(w = .gls_w_array), "R_gls_cor_array_weights.csv", row.names = FALSE)
+
+.gls_write <- function(case, fit) {
+  write.csv(data.frame(fit$coefficients, fit$stdev.unscaled, sigma = fit$sigma, df_residual = fit$df.residual),
+            sprintf("R_gls_cor_%s.csv", case), row.names = FALSE)
+  write.csv(fit$cov.coefficients, sprintf("R_gls_cor_%s_cov.csv", case), row.names = FALSE)
+  write.csv(data.frame(correlation = fit$correlation), sprintf("R_gls_cor_%s_correlation.csv", case), row.names = FALSE)
+}
+.gls_write("block", gls.series(.gls_M, .gls_design, block = .gls_block, correlation = 0.4))
+.gls_write("block_na", gls.series(.gls_M_na, .gls_design, block = .gls_block, correlation = 0.4))
+.gls_write("block_probe_weights", gls.series(.gls_M, .gls_design, block = .gls_block, correlation = 0.4,
+                                              weights = .gls_w_probe))
+.gls_write("block_array_weights", gls.series(.gls_M, .gls_design, block = .gls_block, correlation = 0.4,
+                                              weights = .gls_w_array))
+.gls_est <- gls.series(.gls_M, .gls_design, block = .gls_block)
+stopifnot(.gls_est$correlation != 0.4)
+.gls_write("block_estimated", .gls_est)
+.gls_write("dups", gls.series(.gls_M, .gls_design, ndups = 2, spacing = 1, correlation = 0.3))
+.gls_write("dups_na", gls.series(.gls_M_na, .gls_design, ndups = 2, spacing = 1, correlation = 0.3))
+.gls_nodup <- withCallingHandlers(gls.series(.gls_M, .gls_design, ndups = 1, correlation = 0.3),
+                                  warning = function(w) invokeRestart("muffleWarning"))
+stopifnot(.gls_nodup$correlation == 0)
+.gls_write("ndups1", .gls_nodup)
+
+.gls_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.gls_errors <- data.frame(
+  case = c("correlation_one", "block_length"),
+  r_error = c(.gls_err(gls.series(.gls_M, .gls_design, block = .gls_block, correlation = 1)),
+              .gls_err(gls.series(.gls_M, .gls_design, block = 1:3, correlation = 0.4)))
+)
+stopifnot(!anyNA(.gls_errors$r_error))
+write.csv(.gls_errors, "R_gls_cor_errors.csv", row.names = FALSE)
+
+cat("  gls.series correlation fixtures complete.\n")
+
+# =============================================================================
+# gls.series forwards ... to duplicateCorrelation (trim) when the correlation
+# is estimated
+# =============================================================================
+cat("\nGenerating gls.series ... forwarding fixtures...\n")
+
+.glt_M <- as.matrix(read.csv("R_gls_cor_M.csv"))
+.glt_design <- cbind(1, rep(0:1, each = 4))
+.glt_block <- rep(1:4, 2)
+.glt_gls <- gls.series(.glt_M, .glt_design, block = .glt_block, trim = 0.3)
+stopifnot(!isTRUE(all.equal(.glt_gls$correlation, gls.series(.glt_M, .glt_design, block = .glt_block)$correlation)))
+write.csv(data.frame(.glt_gls$coefficients, .glt_gls$stdev.unscaled, sigma = .glt_gls$sigma,
+                     correlation = .glt_gls$correlation), "R_gls_trim_gls.csv", row.names = FALSE)
+
+cat("  gls.series ... forwarding fixtures complete.\n")
+
+# =============================================================================
+# contrasts.fit on fits with NA coefficients, on singular designs, and on a
+# row subset fit[1:3, ]
+# =============================================================================
+cat("\nGenerating contrasts.fit NA-coefficient and subset fixtures...\n")
+
+set.seed(20261011)
+
+.cn_n <- 30
+.cn_grp <- rep(1:3, each = 3)
+.cn_y <- matrix(rnorm(.cn_n * 9), .cn_n, 9)
+.cn_y[1:6, 7:9] <- .cn_y[1:6, 7:9] + 2
+.cn_y[1, 4:6] <- NA        # group 2 missing entirely: NA coefficient
+.cn_y[2, c(1, 5, 9)] <- NA # scattered missing values, all coefficients estimable
+write.csv(.cn_y, "R_cn_y.csv", row.names = FALSE)
+
+.cn_designs <- list(
+  cellmeans = cbind(A = .cn_grp == 1, B = .cn_grp == 2, C = .cn_grp == 3) * 1,
+  treatment = cbind(Intercept = 1, B = (.cn_grp == 2) * 1, C = (.cn_grp == 3) * 1)
+)
+.cn_contrasts <- list(
+  cellmeans = cbind(BvsA = c(-1, 1, 0), CvsA = c(-1, 0, 1)),
+  treatment = cbind(CvsB = c(0, -1, 1), C = c(0, 0, 1))
+)
+.cn_write <- function(case, fit) {
+  eb <- eBayes(fit)
+  for (nm in c("coefficients", "stdev.unscaled", "t", "p.value")) {
+    write.csv(unname(as.matrix(eb[[nm]])), sprintf("R_cn_%s_%s.csv", case, gsub(".", "_", nm, fixed = TRUE)),
+              row.names = FALSE)
+  }
+  write.csv(unname(fit$cov.coefficients), sprintf("R_cn_%s_cov_coefficients.csv", case), row.names = FALSE)
+}
+for (.d in names(.cn_designs)) {
+  .fit <- suppressWarnings(lmFit(.cn_y, .cn_designs[[.d]]))
+  stopifnot(is.na(.fit$coefficients[1, 2]))
+  .cf <- contrasts.fit(.fit, .cn_contrasts[[.d]])
+  # NA coefficients are set to 0 with stdev 1e30 before contrasting, then
+  # contrasts whose stdev exceeds 1e20 are set back to NA: the contrast using
+  # the NA coefficient is NA, the other is finite
+  stopifnot(is.na(.cf$coefficients[1, 1]), is.na(.cf$stdev.unscaled[1, 1]),
+            is.finite(.cf$coefficients[1, 2]))
+  .cn_write(sprintf("na_%s", .d), .cf)
+}
+
+# Singular design: the third column duplicates the second
+.cn_d_sing <- cbind(1, .cn_grp == 2, .cn_grp == 2, .cn_grp == 3) * 1
+.cn_fit_sing <- suppressMessages(lmFit(.cn_y[3:30, ], .cn_d_sing))
+.cn_write("singular", contrasts.fit(.cn_fit_sing, cbind(c(0, 0, 0, 1), c(0, 1, 0, -1))))
+.cn_sing_err <- tryCatch({ contrasts.fit(.cn_fit_sing, cbind(c(0, 0, 1, 0))); NA_character_ },
+                         error = function(e) conditionMessage(e))
+stopifnot(!is.na(.cn_sing_err))
+write.csv(data.frame(r_error = .cn_sing_err), "R_cn_singular_error.csv", row.names = FALSE)
+
+# Row subset fit[1:3, ] then contrasts.fit, and eBayes on the three genes
+.cn_fit_tr <- suppressWarnings(lmFit(.cn_y, .cn_designs$treatment))
+.cn_write("subset", contrasts.fit(.cn_fit_tr[1:3, ], .cn_contrasts$treatment))
+.cn_write("subset_coefficients", contrasts.fit(.cn_fit_tr[1:3, ], coefficients = c("B", "C")))
+
+cat("  contrasts.fit NA-coefficient and subset fixtures complete.\n")
+
+# =============================================================================
+# trigammaInverse: every branch, including the extremes
+# =============================================================================
+cat("\nGenerating trigammaInverse fixtures...\n")
+
+.ti_x <- c(NA, NaN, -1, 0, 1e-12, 9.99e-7, 1e-6, 1e-3, 0.01, 0.1, 0.5, 1, 2, 5, 10, 100, 1e3, 1e6,
+           1e7, 1.0001e7, 1e8, 1e12, Inf)
+.ti_vector <- suppressWarnings(trigammaInverse(.ti_x))
+.ti_scalar <- vapply(.ti_x, function(v) suppressWarnings(trigammaInverse(v)), numeric(1))
+stopifnot(identical(.ti_vector[4], Inf), .ti_vector[length(.ti_x)] == 0, is.nan(.ti_vector[3]))
+.ti_warn <- tryCatch({ trigammaInverse(-1); NA_character_ }, warning = function(w) conditionMessage(w))
+stopifnot(identical(.ti_warn, "NaNs produced"), length(trigammaInverse(numeric(0))) == 0)
+write.csv(data.frame(x = .ti_x, vector_call = .ti_vector, scalar_call = .ti_scalar,
+                     is_nan = is.nan(.ti_vector)),
+          "R_trigamma_inverse_extremes.csv", row.names = FALSE)
+
+cat("  trigammaInverse fixtures complete.\n")
+
+# =============================================================================
+# eBayes(trend = TRUE) on fits with missing values (non-robust)
+# =============================================================================
+cat("\nGenerating eBayes trend + missing-value fixtures...\n")
+
+set.seed(20261012)
+
+.tn_n <- 300
+.tn_design <- cbind(1, rep(0:1, each = 4))
+.tn_amean <- runif(.tn_n, 2, 12)
+.tn_y <- matrix(rnorm(.tn_n * 8, sd = rep(2 / sqrt(.tn_amean), 8)), .tn_n, 8) + .tn_amean
+.tn_y[1:20, 5:8] <- .tn_y[1:20, 5:8] + 1.5
+.tn_y[runif(length(.tn_y)) < 0.1] <- NA
+.tn_y_df0 <- .tn_y
+.tn_y_df0[300, ] <- c(5, rep(NA, 7))
+.tn_y_allna <- .tn_y
+.tn_y_allna[299, ] <- NA
+write.csv(.tn_y, "R_tn_y.csv", row.names = FALSE)
+write.csv(.tn_y_df0, "R_tn_y_df0.csv", row.names = FALSE)
+write.csv(.tn_y_allna, "R_tn_y_allna.csv", row.names = FALSE)
+.tn_cov <- rowMeans(.tn_y, na.rm = TRUE) + rnorm(.tn_n, sd = 0.1)
+write.csv(data.frame(covariate = .tn_cov), "R_tn_covariate.csv", row.names = FALSE)
+
+.tn_write <- function(case, eb) {
+  write.csv(data.frame(t = eb$t[, 2], p_value = eb$p.value[, 2], lods = eb$lods[, 2], s2_post = eb$s2.post,
+                       df_prior = rep_len(eb$df.prior, .tn_n), s2_prior = rep_len(eb$s2.prior, .tn_n),
+                       df_total = eb$df.total, F = eb$F, F_p_value = eb$F.p.value),
+            sprintf("R_tn_%s.csv", case), row.names = FALSE)
+}
+.tn_fit <- lmFit(.tn_y, .tn_design)
+stopifnot(length(unique(.tn_fit$df.residual)) > 1)
+.tn_eb <- eBayes(.tn_fit, trend = TRUE)
+stopifnot(length(unique(.tn_eb$s2.prior)) > 1)
+.tn_write("trend", .tn_eb)
+.tn_fit_df0 <- lmFit(.tn_y_df0, .tn_design)
+stopifnot(.tn_fit_df0$df.residual[300] == 0)
+.tn_write("trend_df0", eBayes(.tn_fit_df0, trend = TRUE))
+.tn_write("trend_numeric", eBayes(.tn_fit, trend = .tn_cov))
+.tn_err <- tryCatch({ eBayes(lmFit(.tn_y_allna, .tn_design), trend = TRUE); NA_character_ },
+                    error = function(e) conditionMessage(e))
+stopifnot(!is.na(.tn_err))
+write.csv(data.frame(r_error = .tn_err), "R_tn_allna_error.csv", row.names = FALSE)
+
+cat("  eBayes trend + missing-value fixtures complete.\n")
+
+# =============================================================================
+# fitFDist spline trend predicted at excluded points: predict.ns() is linear
+# beyond the boundary knots
+# =============================================================================
+cat("\nGenerating fitFDist out-of-range prediction fixtures...\n")
+
+set.seed(20261013)
+
+.ffo_write <- function(case, x, covariate) {
+  ok <- is.finite(x)
+  # Precondition: some excluded points lie outside the range of the fitted
+  # covariate on each side, so predict.ns extrapolates
+  stopifnot(any(covariate[!ok] < min(covariate[ok])), any(covariate[!ok] > max(covariate[ok])))
+  fit <- fitFDist(x, df1 = 4, covariate = covariate)
+  write.csv(data.frame(x = x, covariate = covariate, scale = fit$scale, df2 = fit$df2, nok = sum(ok)),
+            sprintf("R_fit_f_dist_outside_%s.csv", case), row.names = FALSE)
+}
+.ffo_cov <- sort(runif(60, 2, 10))
+# Prior-variance spread between points makes df2 finite
+.ffo_x <- exp(0.3 * .ffo_cov + rnorm(60, sd = 0.7)) * rchisq(60, df = 4) / 4
+.ffo_x[c(1:3, 30, 45, 58:60)] <- NA
+.ffo_write("splinedf4", .ffo_x, .ffo_cov)
+stopifnot(is.finite(read.csv("R_fit_f_dist_outside_splinedf4.csv")$df2[1]))
+# Five usable points give splinedf = 2, a basis with no interior knots
+.ffo_cov2 <- c(1, 3, 4, 5, 6, 7, 9)
+.ffo_x2 <- c(NA, rchisq(5, df = 4) / 4, NA)
+.ffo_write("splinedf2", .ffo_x2, .ffo_cov2)
+
+cat("  fitFDist out-of-range prediction fixtures complete.\n")
+
+# =============================================================================
+# lmFit on a two-group design (lmfit_*.csv)
+# =============================================================================
+cat("\nGenerating lmfit fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data
+  n_genes <- 50
+  n_samples <- 8
+
+  # Expression matrix (genes x samples)
+  expr <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(expr) <- paste0("gene", 1:n_genes)
+  colnames(expr) <- paste0("sample", 1:n_samples)
+
+  # Two-group design
+  group <- factor(rep(c("A", "B"), each = 4))
+  design <- model.matrix(~ group)
+
+  # Fit linear model
+  fit <- lmFit(expr, design)
+
+  # Save inputs
+  write.csv(expr, "lmfit_expr.csv", row.names = TRUE)
+  write.csv(design, "lmfit_design.csv", row.names = FALSE)
+
+  # Save outputs
+  write.csv(fit$coefficients, "lmfit_coefficients.csv", row.names = TRUE)
+  write.csv(fit$stdev.unscaled, "lmfit_stdev_unscaled.csv", row.names = TRUE)
+  write.csv(data.frame(sigma = fit$sigma, df_residual = fit$df.residual, Amean = fit$Amean),
+            "lmfit_stats.csv", row.names = TRUE)
+  write.csv(fit$cov.coefficients, "lmfit_cov_coef.csv", row.names = TRUE)
+})
+
+cat("  lmfit fixtures complete.\n")
+
+# =============================================================================
+# contrasts.fit on a three-group cell-means design (contrasts_*.csv)
+# =============================================================================
+cat("\nGenerating contrasts fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data
+  n_genes <- 30
+  n_samples <- 12
+
+  # Expression matrix (genes x samples)
+  expr <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(expr) <- paste0("gene", 1:n_genes)
+
+  # Three-group design
+  group <- factor(rep(c("A", "B", "C"), each = 4))
+  design <- model.matrix(~ 0 + group)
+  colnames(design) <- levels(group)
+
+  # Fit linear model
+  fit <- lmFit(expr, design)
+
+  # Create contrasts
+  contrast_matrix <- makeContrasts(
+    BvsA = B - A,
+    CvsA = C - A,
+    CvsB = C - B,
+    levels = design
+  )
+
+  # Apply contrasts
+  fit2 <- contrasts.fit(fit, contrast_matrix)
+
+  # Save inputs
+  write.csv(expr, "contrasts_expr.csv", row.names = TRUE)
+  write.csv(design, "contrasts_design.csv", row.names = FALSE)
+  write.csv(contrast_matrix, "contrast_matrix.csv", row.names = TRUE)
+
+  # Save original fit
+  write.csv(fit$coefficients, "contrasts_fit_coef.csv", row.names = TRUE)
+  write.csv(fit$stdev.unscaled, "contrasts_fit_stdev.csv", row.names = TRUE)
+
+  # Save contrast fit
+  write.csv(fit2$coefficients, "contrasts_fit2_coef.csv", row.names = TRUE)
+  write.csv(fit2$stdev.unscaled, "contrasts_fit2_stdev.csv", row.names = TRUE)
+  write.csv(fit2$cov.coefficients, "contrasts_fit2_cov.csv", row.names = TRUE)
+})
+
+cat("  contrasts fixtures complete.\n")
+
+# =============================================================================
+# eBayes on a two-group design (ebayes_*.csv)
+# =============================================================================
+cat("\nGenerating ebayes fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data
+  n_genes <- 50
+  n_samples <- 8
+
+  # Expression matrix with some true differences
+  expr <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(expr) <- paste0("gene", 1:n_genes)
+
+  # Add true effects to first 10 genes
+  expr[1:10, 5:8] <- expr[1:10, 5:8] + 2
+
+  # Two-group design
+  group <- factor(rep(c("A", "B"), each = 4))
+  design <- model.matrix(~ group)
+
+  # Fit and run eBayes
+  fit <- lmFit(expr, design)
+  fit <- eBayes(fit)
+
+  # Save outputs
+  write.csv(
+    data.frame(
+      t = fit$t[, 2],
+      p_value = fit$p.value[, 2],
+      lods = fit$lods[, 2],
+      s2_post = fit$s2.post,
+      df_total = fit$df.total
+    ),
+    "ebayes_stats.csv",
+    row.names = TRUE
+  )
+
+  write.csv(
+    data.frame(
+      s2_prior = fit$s2.prior,
+      df_prior = fit$df.prior,
+      F_stat = fit$F,
+      F_p_value = fit$F.p.value
+    ),
+    "ebayes_global.csv",
+    row.names = FALSE
+  )
+
+  # Also save the fit coefficients for reference
+  write.csv(fit$coefficients, "ebayes_coef.csv", row.names = TRUE)
+  write.csv(expr, "ebayes_expr.csv", row.names = TRUE)
+  write.csv(design, "ebayes_design.csv", row.names = FALSE)
+})
+
+cat("  ebayes fixtures complete.\n")
+
+# =============================================================================
+# topTable on the eBayes data (toptable_*.csv)
+# =============================================================================
+cat("\nGenerating toptable fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data
+  n_genes <- 50
+  n_samples <- 8
+
+  # Expression with true effects
+  expr <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(expr) <- paste0("gene", 1:n_genes)
+  expr[1:10, 5:8] <- expr[1:10, 5:8] + 2  # True DE genes
+
+  # Two-group design
+  group <- factor(rep(c("A", "B"), each = 4))
+  design <- model.matrix(~ group)
+
+  # Fit
+  fit <- lmFit(expr, design)
+  fit <- eBayes(fit)
+
+  # Get top table for coefficient 2 (groupB)
+  tt <- topTable(fit, coef = 2, number = 20, sort.by = "B")
+
+  # Rename columns to match our snake_case convention
+  names(tt) <- c("log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b")
+  tt$gene <- rownames(tt)
+  rownames(tt) <- NULL
+  tt <- tt[, c("gene", "log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b")]
+
+  write.csv(tt, "toptable_output.csv", row.names = FALSE)
+
+  # Also get all genes for verification
+  tt_all <- topTable(fit, coef = 2, number = Inf, sort.by = "none")
+  names(tt_all) <- c("log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b")
+  tt_all$gene <- rownames(tt_all)
+  rownames(tt_all) <- NULL
+  tt_all <- tt_all[, c("gene", "log_fc", "ave_expr", "t", "p_value", "adj_p_value", "b")]
+  write.csv(tt_all, "toptable_all.csv", row.names = FALSE)
+})
+
+cat("  toptable fixtures complete.\n")
+
+# =============================================================================
+# fitFDist and squeezeVar on F-distributed variances
+# =============================================================================
+cat("\nGenerating squeeze_var fixtures...\n")
+
+local({
+  set.seed(42)
+
+  # Generate test data: sample variances from chi-squared
+  n_genes <- 100
+  df_residual <- 5
+  true_s0 <- 0.5
+  true_d0 <- 4
+
+  # Generate sample variances: s^2 ~ s0^2 * F(df, d0)
+  # which is equivalent to s^2 ~ s0^2 * (chi2(df)/df) / (chi2(d0)/d0)
+  sample_var <- true_s0 * rf(n_genes, df1 = df_residual, df2 = true_d0)
+
+  # Run fitFDist
+  fit <- fitFDist(sample_var, df1 = df_residual)
+
+  # Run squeezeVar
+  sv <- squeezeVar(sample_var, df = df_residual)
+
+  # Save test inputs and outputs
+  write.csv(
+    data.frame(sample_var = sample_var),
+    "squeeze_var_input.csv",
+    row.names = FALSE
+  )
+
+  write.csv(
+    data.frame(
+      fit_scale = fit$scale,
+      fit_df2 = fit$df2
+    ),
+    "fit_f_dist_output.csv",
+    row.names = FALSE
+  )
+
+  write.csv(
+    data.frame(
+      var_post = sv$var.post,
+      var_prior = sv$var.prior,
+      df_prior = sv$df.prior
+    ),
+    "squeeze_var_output.csv",
+    row.names = FALSE
+  )
+})
+
+cat("  squeeze_var fixtures complete.\n")
+
+# =============================================================================
+# EList and MArrayLM [i, j] subsetting (R_elist_*, R_marraylm_*)
+# =============================================================================
+cat("\nGenerating classes fixtures...\n")
+
+local({
+  set.seed(42)
+
+  n_genes <- 30
+  n_samples <- 8
+
+  E <- matrix(rnorm(n_genes * n_samples), nrow = n_genes)
+  rownames(E) <- paste0("gene", 1:n_genes)
+  colnames(E) <- paste0("sample", 1:n_samples)
+
+  weights <- matrix(runif(n_genes * n_samples, 0.5, 1.5), nrow = n_genes)
+  rownames(weights) <- rownames(E)
+  colnames(weights) <- colnames(E)
+
+  genes <- data.frame(
+    ID = rownames(E),
+    chromosome = sample(c("chr1", "chr2", "chr3"), n_genes, replace = TRUE),
+    row.names = rownames(E),
+    stringsAsFactors = FALSE
+  )
+
+  group <- factor(rep(c("A", "B"), each = 4))
+  targets <- data.frame(
+    SampleID = colnames(E),
+    Group = group,
+    row.names = colnames(E),
+    stringsAsFactors = FALSE
+  )
+
+  design <- model.matrix(~ group)
+  rownames(design) <- colnames(E)
+  colnames(design) <- c("Intercept", "groupB")
+
+  # -----------------------------------------------------------------------------
+  # EList subsetting
+  # -----------------------------------------------------------------------------
+
+  el <- new("EList", list(
+    E = E,
+    weights = weights,
+    genes = genes,
+    targets = targets,
+    design = design
+  ))
+
+  write_elist <- function(obj, tag) {
+    write.csv(obj$E, sprintf("R_elist_%s_E.csv", tag), row.names = TRUE)
+    write.csv(obj$weights, sprintf("R_elist_%s_weights.csv", tag), row.names = TRUE)
+    write.csv(obj$genes, sprintf("R_elist_%s_genes.csv", tag), row.names = TRUE)
+    write.csv(obj$targets, sprintf("R_elist_%s_targets.csv", tag), row.names = TRUE)
+    write.csv(obj$design, sprintf("R_elist_%s_design.csv", tag), row.names = TRUE)
+  }
+
+  # Full object
+  write_elist(el, "full")
+
+  # Row subset (first 10 genes)
+  write_elist(el[1:10, ], "rows")
+
+  # Column subset (first 4 samples)
+  write_elist(el[, 1:4], "cols")
+
+  # Row + column subset
+  write_elist(el[1:10, 1:4], "both")
+
+  # String-indexed rows
+  write_elist(el[c("gene3", "gene7", "gene15"), ], "rowstr")
+
+  # Boolean row mask
+  row_mask <- rep(FALSE, n_genes); row_mask[c(2, 4, 6, 8, 10)] <- TRUE
+  write_elist(el[row_mask, ], "rowbool")
+
+  # -----------------------------------------------------------------------------
+  # MArrayLM subsetting
+  # -----------------------------------------------------------------------------
+
+  fit <- lmFit(el, design)
+  fit <- eBayes(fit)
+
+  write_marraylm <- function(obj, tag) {
+    write.csv(obj$coefficients, sprintf("R_marraylm_%s_coefficients.csv", tag), row.names = TRUE)
+    write.csv(obj$stdev.unscaled, sprintf("R_marraylm_%s_stdev_unscaled.csv", tag), row.names = TRUE)
+    write.csv(obj$t, sprintf("R_marraylm_%s_t.csv", tag), row.names = TRUE)
+    write.csv(obj$p.value, sprintf("R_marraylm_%s_p_value.csv", tag), row.names = TRUE)
+    write.csv(obj$lods, sprintf("R_marraylm_%s_lods.csv", tag), row.names = TRUE)
+    write.csv(data.frame(
+      Amean = obj$Amean,
+      sigma = obj$sigma,
+      df_residual = obj$df.residual,
+      df_total = obj$df.total,
+      s2_post = obj$s2.post
+    ), sprintf("R_marraylm_%s_i_slots.csv", tag), row.names = TRUE)
+    write.csv(obj$genes, sprintf("R_marraylm_%s_genes.csv", tag), row.names = TRUE)
+  }
+
+  write_marraylm(fit, "full")
+  write_marraylm(fit[1:10, ], "rows")
+  write_marraylm(fit[, 2, drop = FALSE], "cols")
+  write_marraylm(fit[1:10, 2, drop = FALSE], "both")
+  write_marraylm(fit[c("gene3", "gene7", "gene15"), ], "rowstr")
+})
+
+cat("  classes fixtures complete.\n")
+
+# =============================================================================
+# fitFDist spline trend with interior knots on a boundary knot: ns() shoves
+# them inwards, or fails when every interior knot is on one boundary
+# =============================================================================
+cat("\nGenerating fitFDist knot-shoving fixtures...\n")
+
+set.seed(20261014)
+
+.fks_run <- function(x, covariate) {
+  shoved <- FALSE
+  fit <- withCallingHandlers(fitFDist(x, df1 = 4, covariate = covariate), warning = function(w) {
+    if (grepl("shoving 'interior' knots", conditionMessage(w))) {
+      shoved <<- TRUE
+      invokeRestart("muffleWarning")
+    }
+  })
+  # Precondition: ns() moved an interior knot
+  stopifnot(shoved)
+  fit
+}
+.fks_write <- function(case, x, covariate) {
+  fit <- .fks_run(x, covariate)
+  write.csv(data.frame(x = x, covariate = covariate, scale = fit$scale, df2 = fit$df2),
+            sprintf("R_fit_f_dist_shoved_%s.csv", case), row.names = FALSE)
+}
+.fks_x <- function(covariate) exp(0.1 * covariate + rnorm(length(covariate), sd = 0.5)) * rchisq(length(covariate), 4) / 4
+.fks_cov <- list(
+  left = c(rep(0, 20), runif(20, 1, 10)),
+  right = c(runif(20, 1, 10), rep(10, 20)),
+  both = c(rep(0, 15), runif(10, 1, 9), rep(10, 15))
+)
+for (.case in names(.fks_cov)) .fks_write(.case, .fks_x(.fks_cov[[.case]]), .fks_cov[[.case]])
+# Excluded points are predicted with the shoved knots
+.fks_x_na <- .fks_x(.fks_cov$left)
+.fks_x_na[c(3, 25, 33)] <- NA
+.fks_write("left_na", .fks_x_na, .fks_cov$left)
+
+# More than two thirds tied at the minimum: every interior knot is on the
+# left boundary, ns() stops and fitFDist reports a problem with the covariate
+.fks_cov_err <- c(rep(0, 30), runif(10, 1, 10))
+.fks_x_err <- .fks_x(.fks_cov_err)
+.fks_err <- tryCatch({ fitFDist(.fks_x_err, df1 = 4, covariate = .fks_cov_err); NA_character_ },
+                     error = function(e) conditionMessage(e))
+stopifnot(identical(.fks_err, "Problem with covariate"))
+write.csv(data.frame(x = .fks_x_err, covariate = .fks_cov_err), "R_fit_f_dist_shoved_error_input.csv",
+          row.names = FALSE)
+
+cat("  fitFDist knot-shoving fixtures complete.\n")
+
+# =============================================================================
+# fitFDist spline trend on a numerically rank-deficient basis: lm.fit drops
+# aliased columns (tol 1e-7), evar uses the effects beyond the rank, and
+# predictions at excluded points are NA
+# =============================================================================
+cat("\nGenerating fitFDist rank-deficient trend fixtures...\n")
+
+set.seed(20261015)
+
+.frd_write <- function(case, x, covariate) {
+  ok <- is.finite(x)
+  # Precondition: the ns() basis for the usable points is rank deficient
+  design <- splines::ns(covariate[ok], df = 4, intercept = TRUE)
+  stopifnot(lm.fit(design, log(x[ok]))$rank < ncol(design))
+  fit <- fitFDist(x, df1 = 4, covariate = covariate)
+  write.csv(data.frame(x = x, covariate = covariate, scale = fit$scale, df2 = fit$df2),
+            sprintf("R_fit_f_dist_rank_deficient_%s.csv", case), row.names = FALSE)
+  fit
+}
+.frd_cov <- rep(c(1, 1 + 1e-9, 2, 3), each = 10)
+.frd_x <- exp(rnorm(40, sd = 0.5)) * rchisq(40, 4) / 4
+.frd_write("low", .frd_x, .frd_cov)
+.frd_cov_mid <- rep(c(1, 2, 2 + 1e-9, 3), each = 10)
+.frd_write("mid", exp(rnorm(40, sd = 0.5)) * rchisq(40, 4) / 4, .frd_cov_mid)
+.frd_x_na <- .frd_x
+.frd_x_na[c(5, 35)] <- NA
+.frd_fit_na <- .frd_write("na", .frd_x_na, .frd_cov)
+stopifnot(all(is.na(.frd_fit_na$scale[c(5, 35)])), all(is.finite(.frd_fit_na$scale[-c(5, 35)])))
+
+cat("  fitFDist rank-deficient trend fixtures complete.\n")
+
+# =============================================================================
+# contrasts.fit branches: coefficients= returns fit[, coefficients] (keeping
+# test statistics, regenerating F, subsetting cov.coefficients / contrasts /
+# var.prior), the stored contrasts matrix, no cov.coefficients, and a
+# near-orthogonal design
+# =============================================================================
+cat("\nGenerating contrasts.fit branch fixtures...\n")
+
+set.seed(20261016)
+
+.cfb_grp <- rep(1:3, each = 4)
+.cfb_y <- matrix(rnorm(40 * 12), 40, 12)
+.cfb_y[1:8, .cfb_grp == 3] <- .cfb_y[1:8, .cfb_grp == 3] + 2
+write.csv(.cfb_y, "R_cfb_y.csv", row.names = FALSE)
+.cfb_design <- cbind(Intercept = 1, B = (.cfb_grp == 2) * 1, C = (.cfb_grp == 3) * 1)
+.cfb_eb <- eBayes(lmFit(.cfb_y, .cfb_design), proportion = 0.1)
+stopifnot(length(.cfb_eb$var.prior) == 3)
+
+.cfb_write <- function(case, fit) {
+  for (nm in c("coefficients", "stdev.unscaled", "t", "p.value", "lods", "cov.coefficients", "contrasts")) {
+    if (!is.null(fit[[nm]])) {
+      write.csv(unname(as.matrix(fit[[nm]])), sprintf("R_cfb_%s_%s.csv", case, gsub(".", "_", nm, fixed = TRUE)),
+                row.names = FALSE)
+    }
+  }
+  vec <- data.frame(F = if (is.null(fit$F)) NA else fit$F, F_p_value = if (is.null(fit$F.p.value)) NA else fit$F.p.value)
+  write.csv(vec, sprintf("R_cfb_%s_f.csv", case), row.names = FALSE)
+  if (!is.null(fit$var.prior)) write.csv(data.frame(var_prior = fit$var.prior), sprintf("R_cfb_%s_var_prior.csv", case),
+                                         row.names = FALSE)
+}
+
+# coefficients= on an eBayes fit keeps t / p.value / lods and regenerates F
+.cfb_sub <- contrasts.fit(.cfb_eb, coefficients = c(2, 3))
+stopifnot(!is.null(.cfb_sub$t), !is.null(.cfb_sub$F), length(.cfb_sub$var.prior) == 2,
+          !isTRUE(all.equal(.cfb_sub$F, .cfb_eb$F)))
+.cfb_write("coef_subset", .cfb_sub)
+write.csv(topTable(.cfb_sub, coef = 1, number = Inf, sort.by = "none"), "R_cfb_coef_subset_toptable.csv",
+          row.names = FALSE)
+# a single coefficient, in reversed order
+.cfb_write("coef_reversed", contrasts.fit(.cfb_eb, coefficients = c(3, 2)))
+
+# coefficients= on a fit that already has contrasts subsets that matrix; the
+# stored contrasts matrix is the one supplied, all-zero Intercept row included
+.cfb_cm <- cbind(CvsB = c(0, -1, 1), C = c(0, 0, 1))
+.cfb_cf <- eBayes(contrasts.fit(lmFit(.cfb_y, .cfb_design), .cfb_cm))
+stopifnot(identical(unname(.cfb_cf$contrasts), unname(.cfb_cm)))
+.cfb_write("contrasted", .cfb_cf)
+.cfb_write("contrasted_coef2", contrasts.fit(.cfb_cf, coefficients = 2))
+
+# Rank-deficient fit: cov.coefficients is subset through pivot, in pivot order
+.cfb_d_sing <- cbind(.cfb_design[, 1:2], dup = .cfb_design[, 2], C = .cfb_design[, 3])
+.cfb_eb_sing <- eBayes(suppressMessages(lmFit(.cfb_y, .cfb_d_sing)))
+stopifnot(ncol(.cfb_eb_sing$cov.coefficients) == 3)
+.cfb_write("singular_coef41", contrasts.fit(.cfb_eb_sing, coefficients = c(4, 1)))
+.cfb_sing_err <- tryCatch({ contrasts.fit(.cfb_eb_sing, coefficients = 3); NA_character_ },
+                          error = function(e) conditionMessage(e))
+stopifnot(identical(.cfb_sing_err, "Subsetting to non-estimable coefficients is not allowed."))
+
+# No cov.coefficients: warn and assume orthogonal coefficients
+.cfb_nocov <- lmFit(.cfb_y, .cfb_design)
+.cfb_nocov$cov.coefficients <- NULL
+.cfb_nocov_warn <- NULL
+.cfb_nocov_cf <- withCallingHandlers(contrasts.fit(.cfb_nocov, .cfb_cm), warning = function(w) {
+  .cfb_nocov_warn <<- conditionMessage(w)
+  invokeRestart("muffleWarning")
+})
+stopifnot(identical(.cfb_nocov_warn, "cov.coefficients not found in fit - assuming coefficients are orthogonal"))
+.cfb_write("nocov", .cfb_nocov_cf)
+
+# Near-orthogonal design: one coefficient correlation in [1e-14, 1e-12), where
+# the deciding test all(abs(lower.tri) < 1e-14) is FALSE
+.cfb_x1 <- rep(c(-1, 1), 6)
+.cfb_x2 <- rep(c(-1, -1, 1, 1), 3) + 3e-13 * .cfb_x1
+.cfb_d_orth <- cbind(1, .cfb_x1, .cfb_x2)
+.cfb_fit_orth <- lmFit(.cfb_y, .cfb_d_orth)
+.cfb_cor <- abs(cov2cor(.cfb_fit_orth$cov.coefficients)[lower.tri(diag(3))])
+stopifnot(max(.cfb_cor) >= 1e-14, max(.cfb_cor) < 1e-12)
+write.csv(.cfb_d_orth, "R_cfb_orth_design.csv", row.names = FALSE)
+.cfb_write("orth", contrasts.fit(.cfb_fit_orth, cbind(c(0, 1, 1), c(0, 1, -1))))
+
+cat("  contrasts.fit branch fixtures complete.\n")
+
+# =============================================================================
+# lmFit correlation: missing stops, an explicit NULL is estimated by
+# gls.series via duplicateCorrelation; voom passes correlation = NULL
+# =============================================================================
+cat("\nGenerating lmFit correlation = NULL fixtures...\n")
+
+set.seed(20261017)
+
+.lcn_counts <- matrix(rpois(200 * 8, 50), 200, 8)
+.lcn_counts[1:20, 5:8] <- .lcn_counts[1:20, 5:8] * 2
+.lcn_design <- cbind(1, rep(0:1, each = 4))
+.lcn_block <- rep(1:4, 2)
+.lcn_y <- log2(.lcn_counts + 1)
+write.csv(.lcn_counts, "R_lcn_counts.csv", row.names = FALSE)
+.lcn_err <- tryCatch({ lmFit(.lcn_y, .lcn_design, block = .lcn_block); NA_character_ },
+                     error = function(e) conditionMessage(e))
+stopifnot(identical(.lcn_err, "the correlation must be set, see duplicateCorrelation"))
+.lcn_write <- function(case, fit) {
+  stopifnot(fit$correlation != 0)
+  write.csv(data.frame(coefficients = fit$coefficients, stdev_unscaled = fit$stdev.unscaled,
+                       sigma = fit$sigma, correlation = fit$correlation),
+            sprintf("R_lcn_%s.csv", case), row.names = FALSE)
+}
+.lcn_write("block", lmFit(.lcn_y, .lcn_design, block = .lcn_block, correlation = NULL))
+.lcn_write("ndups", lmFit(.lcn_y, .lcn_design, ndups = 2, correlation = NULL))
+.lcn_v <- voom(.lcn_counts, .lcn_design, block = .lcn_block)
+write.csv(.lcn_v$weights, "R_lcn_voom_weights.csv", row.names = FALSE)
+
+cat("  lmFit correlation = NULL fixtures complete.\n")

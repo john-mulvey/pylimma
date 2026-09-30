@@ -14,20 +14,21 @@ Worked R-vs-Python notebooks
 ----------------------------
 
 Four of the five worked-example datasets under ``examples/`` have an
-R-vs-Python parity notebook that runs the same pipeline in R and
-pylimma side-by-side, compares the ``topTable`` output, and plots
-R-vs-pylimma scatters:
+R-vs-Python parity notebook. Each one loads R limma's results for the
+pipeline (precomputed by ``data/_setup_R_references.R`` on R 4.5.2
+with limma 3.66.0), runs the same pipeline live in pylimma, compares
+the two top tables column by column and plots R against pylimma:
 
-- ``examples/all_chiaretti/all_R_vs_Python.ipynb`` - classical
-  microarray pipeline (``lm_fit`` + ``e_bayes``) on the
-  Chiaretti *et al.* (2004) ALL cohort.
-- ``examples/gse60450/gse60450_R_vs_Python.ipynb`` - bulk RNA-seq
-  with voom on the Fu *et al.* (2015) mouse mammary data.
-- ``examples/pasilla/pasilla_R_vs_Python.ipynb`` -
-  ``voom_with_quality_weights`` + ``duplicate_correlation`` on the
+- :doc:`r_vs_pylimma/all_chiaretti` - classical microarray pipeline
+  (``lm_fit`` + ``contrasts_fit`` + ``e_bayes`` + ``top_table``) on
+  the Chiaretti *et al.* (2004) ALL cohort.
+- :doc:`r_vs_pylimma/gse60450` - bulk RNA-seq with ``voom`` on the
+  Fu *et al.* (2015) mouse mammary data.
+- :doc:`r_vs_pylimma/pasilla` - differential splicing
+  (``lm_fit`` + ``diff_splice`` + ``top_splice``) on the
   *Drosophila* Pasilla data.
-- ``examples/yoruba/yoruba_R_vs_Python.ipynb`` - voom + gene-set
-  testing (``camera`` / ``roast``) on Yoruba HapMap LCLs.
+- :doc:`r_vs_pylimma/yoruba` - RNA-seq with ``voom`` on the Yoruba
+  HapMap lymphoblastoid cell lines.
 
 The fifth worked example, ``examples/kang_pbmc/``, is an
 AnnData-native scRNA-seq pseudobulk demonstration and does not have
@@ -37,20 +38,18 @@ layer (``get_eawp`` / ``put_eawp``) rather than numerical parity.
 Tolerances
 ----------
 
-Per-function-family tolerances are tabulated in
-:doc:`fixtures`. Summary: expression and design matrices match R at
-``rtol=1e-10``; voom / vooma precision weights and lm_fit /
-contrasts_fit statistics at ``rtol=1e-8``; p-values compared on the
-log10 scale with a max-diff tolerance of 1.0. Two known-divergence
-families (``normexp_fit(method="saddle")`` and rotation-based
-Monte-Carlo gene-set tests) use a looser tolerance documented in
-:doc:`known_differences`.
+Tolerances are tabulated in :doc:`fixtures`. Summary: deterministic
+statistics match R at ``rtol=1e-6`` or tighter, and p-values are
+compared on the log10 scale. Three known-divergence families
+(``normexp_fit(method="saddle")``, ``normalize_vsn`` and the
+rotation-based Monte-Carlo gene-set tests) use looser tolerances
+documented in :doc:`known_differences`.
 
 Known differences from R limma
 ------------------------------
 
-Four families of small, non-bug-for-bug divergences are documented in
-:doc:`known_differences`:
+Four families of small, non-bug-for-bug numerical divergences are
+documented in :doc:`known_differences`:
 
 - ``normexp_fit(method="saddle")`` drifts up to ~2e-4 from R because
   scipy's Nelder-Mead and R's ``nmmin`` share the algorithm but use
@@ -73,10 +72,10 @@ Four families of small, non-bug-for-bug divergences are documented in
   noise patterns. Real-world residuals are 6+ orders of magnitude
   above the trigger condition.
 
-Publication figures
--------------------
-
-Publication-quality figures (R-vs-pylimma log-FC scatter, moderated-t
-scatter, -log10(p) scatter, rank-concordance curve, runtime bars) are
-planned for the four parity notebooks and will be embedded here once
-generated.
+The same page also documents three deliberate divergences: ``genas``
+applies the logFC / predFC re-centring that limma's code intends but
+does not perform; ``decide_tests(method="hierarchical")`` with a
+supplied ``genewise_p_value`` follows limma's intended behaviour where
+limma 3.66.0 errors; and ``voom`` / ``voom_with_quality_weights`` use
+an EList's design (and, for voom, weights) slots, with a warning, where
+R silently drops them.

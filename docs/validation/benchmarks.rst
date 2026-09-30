@@ -100,8 +100,8 @@ Interpretation
   ``top_table``): pylimma is within 15% of R across all datasets.
 - **voom pipeline**: pylimma is ~2x slower than R on both GSE60450
   and Yoruba. The bottleneck is the LOWESS fit inside ``voom``'s
-  mean-variance modelling - R limma uses hand-written C
-  (``weighted_lowess.c``) while pylimma uses
+  mean-variance modelling - R's ``voom`` calls base R's compiled
+  ``lowess()`` while pylimma uses
   ``statsmodels.nonparametric.lowess``.
 - **Splicing** (``diff_splice`` + ``top_splice``) on Pasilla: pylimma
   is within 15% of R.

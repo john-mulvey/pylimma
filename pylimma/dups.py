@@ -458,9 +458,13 @@ def avereps(
 
     For ``AnnData`` input, ``ID`` defaults to ``adata.var_names`` and a
     new ``AnnData`` is returned with the var axis collapsed to the
-    unique ids. As with :func:`aver_arrays`, the sample-count vs
-    gene-count shape change means in-place mutation via a layer is not
-    possible, so AnnData-in returns a value.
+    unique ids; the input is not modified. The change in shape means the
+    result cannot be stored as a layer of the input, so AnnData-in
+    returns a value. As R's ``avereps.EList`` averages every matrix, X and
+    every layer are averaged; var / varm / varp keep the first
+    occurrence of each ID, obs / obsm / obsp are unchanged, and uns is
+    carried over as is (a stored fit still describes the original
+    probes).
     """
     if _is_anndata(x):
         return _avereps_anndata(x, ID=ID)
@@ -561,49 +565,35 @@ def _avereps_elist(el, ID=None):
 
 
 def _avereps_anndata(adata, ID=None):
-    """AnnData dispatch for avereps.
+    """AnnData dispatch for avereps, mirroring R's avereps.EList.
 
-    Averages over duplicate probes (var rows) identified by ``ID``
-    (defaulting to ``adata.var_names``) and returns a new AnnData with
-    the var axis collapsed to the unique ids in order of first
-    appearance. Sample (obs) axis is preserved.
+    Returns a new AnnData with duplicate probes (var rows identified by
+    ``ID``, default ``adata.var_names``) averaged; the input is not
+    modified. As R's avereps.EList averages E, weights and every
+    ``x$other`` matrix, X and every layer are averaged. The rest follows
+    anndata's own subsetting to the first occurrence of each ID (R's
+    ``genes[!duplicated(ID), ]``): var / varm / varp keep the first
+    occurrence, obs / obsm / obsp are unchanged, and uns is carried over
+    as is (R's ``y <- x``), including any stored fit, which still
+    describes the original probes.
     """
-    try:
-        import anndata as ad
-    except ImportError as exc:
-        raise RuntimeError("anndata is required for avereps(AnnData) but is not installed") from exc
+    ID = np.asarray(adata.var_names) if ID is None else np.asarray(ID)
+    if ID.shape[0] != adata.n_vars:
+        raise ValueError(f"length of ID ({ID.shape[0]}) must match number of probes ({adata.n_vars})")
 
-    # get_eawp densifies and transposes to limma's (n_probes, n_samples).
-    eawp = get_eawp(adata)
-    E = np.asarray(eawp["exprs"], dtype=np.float64)
-
-    if ID is None:
-        ID = np.asarray(adata.var_names)
-    ID = np.asarray(ID)
-    if ID.shape[0] != E.shape[0]:
-        raise ValueError(f"length of ID ({ID.shape[0]}) must match number of probes ({E.shape[0]})")
-
-    # Delegate the averaging to the ndarray path; output is
-    # (n_unique_probes, n_samples).
-    averaged = avereps(E, ID=ID)
-
-    # First-occurrence ordering of the unique ids, for picking
-    # representative var rows in the collapsed AnnData.
+    # First occurrence of each ID, in order of appearance - the row order
+    # of avereps' output (rowsum(..., reorder=FALSE)).
     _, first_idx = np.unique(ID, return_index=True)
     keep_order = np.sort(first_idx)
-    new_var_names = np.asarray(ID)[keep_order]
 
-    if adata.var is not None and len(adata.var.columns):
-        var_new = adata.var.iloc[keep_order].copy()
-    else:
-        var_new = pd.DataFrame(index=pd.Index(new_var_names))
-    var_new.index = pd.Index(new_var_names)
-
-    obs_new = adata.obs.copy() if adata.obs is not None else None
-
-    # averaged is (n_unique_probes, n_samples); AnnData wants
-    # (n_samples, n_vars).
-    return ad.AnnData(X=np.asarray(averaged).T, obs=obs_new, var=var_new)
+    out = adata[:, keep_order].copy()
+    out.var_names = pd.Index(ID[keep_order].astype(str))
+    # get_eawp densifies and transposes to limma's (n_probes, n_samples).
+    if adata.X is not None:
+        out.X = np.asarray(avereps(get_eawp(adata)["exprs"], ID=ID)).T
+    for name in adata.layers:
+        out.layers[name] = np.asarray(avereps(get_eawp(adata, layer=name)["exprs"], ID=ID)).T
+    return out
 
 
 def duplicate_correlation(
@@ -643,7 +633,9 @@ def duplicate_correlation(
     trim : float, default 0.15
         Trimmed mean proportion for consensus correlation.
     weights : ndarray, optional
-        Observation weights.
+        Observation weights. Even for AnnData input a 2-D
+        matrix is genes x samples (the transpose of ``adata.layers``);
+        weights stored as an AnnData layer are read with ``weights_layer=``.
 
     Returns
     -------

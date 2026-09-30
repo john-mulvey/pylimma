@@ -46,5 +46,5 @@ pylimma's test suite is fixture-based - the CSV files in
 repository. Running ``pytest`` does not require an R installation.
 
 Regenerating the fixtures (only needed if porting a new function or
-pulling a newer R limma version) does require R, Bioconductor limma,
-and the helper packages listed in :doc:`validation/fixtures`.
+pulling a newer R limma version) does require R with the limma, MASS
+and statmod packages; see :doc:`validation/fixtures`.

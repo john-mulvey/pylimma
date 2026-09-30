@@ -19,8 +19,8 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .classes import _resolve_fit_input
-from .utils import p_adjust
+from .classes import MArrayLM, _resolve_fit_input
+from .utils import _match_arg, p_adjust
 
 if TYPE_CHECKING:
     pass
@@ -246,6 +246,14 @@ def top_table(
                 "Treat p-values can only be displayed for single coefficients. "
                 "Specify a single coef or use e_bayes() instead of treat()."
             )
+        # R: coef <- unique(coef); fit <- fit[,coef] when fewer than all
+        # columns are selected, which regenerates F from those columns.
+        coef_idx = list(dict.fromkeys(coef_idx))
+        if len(coef_idx) < n_coefs:
+            fit = MArrayLM(fit)[:, coef_idx]
+            coef_idx = list(range(len(coef_idx)))
+        else:
+            coef_idx = list(range(n_coefs))
         if confint:
             import warnings
 
@@ -282,6 +290,10 @@ def top_table(
         )
 
 
+_SORT_CHOICES = ("logFC", "M", "A", "Amean", "AveExpr", "P", "p", "T", "t", "B", "none")
+_SORT_ALIASES = {"log_fc": "logFC", "ave_expr": "AveExpr", "b": "B"}
+
+
 def _top_table_t(
     fit: dict,
     coef: int,
@@ -296,6 +308,12 @@ def _top_table_t(
     _genelist_explicit: bool = False,
 ) -> pd.DataFrame:
     """Top table for single coefficient (t-statistics)."""
+    # R .topTableT: match.arg on sort.by / resort.by (resort.by has no "none").
+    # pylimma's snake_case column names are accepted as aliases.
+    sort_by = _match_arg(_SORT_ALIASES.get(sort_by, sort_by), _SORT_CHOICES, "sort.by")
+    if resort_by is not None:
+        resort_by = _match_arg(_SORT_ALIASES.get(resort_by, resort_by), _SORT_CHOICES[:-1], "resort.by")
+
     coefficients = fit["coefficients"]
     n_genes = coefficients.shape[0]
 
@@ -528,6 +546,7 @@ def top_table_f(
     *,
     coef_idx: list[int] | None = None,
     resort_by: str | None = None,
+    key: str = "pylimma",
     _genelist_explicit: bool | None = None,
 ) -> pd.DataFrame:
     """
@@ -539,8 +558,9 @@ def top_table_f(
 
     Parameters
     ----------
-    fit : dict
-        Fit object from :func:`e_bayes` containing F-statistics.
+    fit : AnnData, MArrayLM, or dict
+        Fit object from :func:`e_bayes` containing F-statistics. For
+        AnnData input the fit is read from ``adata.uns[key]``.
     number : int, default 10
         Maximum number of genes to return.
     genelist : DataFrame, list, or array, optional
@@ -570,12 +590,15 @@ def top_table_f(
     resort_by : str, optional (keyword-only)
         pylimma extension: secondary sort column applied after
         ``sort_by`` + truncation.
+    key : str, default "pylimma" (keyword-only)
+        Key for fit results in adata.uns (AnnData input only).
 
     Returns
     -------
     DataFrame
         Table of top genes ranked by F-statistic.
     """
+    fit, _adata, _adata_key = _resolve_fit_input(fit, key)
     # R topTableF.R:7 emits a deprecation message on every call. Mirror
     # it with DeprecationWarning so downstream tooling (pytest's
     # warning capture, IDE linters) sees an equivalent signal.

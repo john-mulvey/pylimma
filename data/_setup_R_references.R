@@ -9,9 +9,8 @@
 #
 # Only limma + edgeR are required; no Bioconductor data packages.
 #
-# Usage:
-#   cd pylimma/data
-#   Rscript _setup_R_references.R
+# Usage (from the pylimma repository root):
+#   Rscript data/_setup_R_references.R
 # ------------------------------------------------------------------
 
 suppressPackageStartupMessages({
@@ -19,7 +18,7 @@ suppressPackageStartupMessages({
     library(edgeR)
 })
 
-OUT <- "R_references"
+OUT <- "data/R_references"
 dir.create(OUT, showWarnings = FALSE, recursive = TRUE)
 
 cat(sprintf("R %s; limma %s; edgeR %s\n",
@@ -121,6 +120,7 @@ cat(sprintf("  %d rows x %d cols\n", nrow(ts), ncol(ts)))
 writeLines(c(
     sprintf("generated_at: %s", format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")),
     sprintf("r_version: %s", R.version.string),
+    sprintf("bioconductor_version: %s", BiocManager::version()),
     sprintf("limma_version: %s", packageVersion("limma")),
     sprintf("edger_version: %s", packageVersion("edgeR")),
     sprintf("platform: %s-%s-%s", Sys.info()["sysname"],

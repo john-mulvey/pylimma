@@ -31,11 +31,12 @@ from pylimma.normalize import (
     normexp_fit,
     normexp_signal,
 )
-from pylimma.squeeze_var import squeeze_var
+from pylimma.squeeze_var import fit_f_dist, fit_f_dist_unequal_df1, squeeze_var
 from pylimma.toptable import top_table
 
 from .helpers import (
     assert_close_to_reference,
+    canonical_column_signs,
     compare_arrays,
     compare_pvalues,
     limma_available,
@@ -329,9 +330,9 @@ class TestEBayesRParity:
 
         # Compare on log scale - allow 1 order of magnitude difference
         result = compare_pvalues(
-            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
-        assert result["match"], f"p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+        assert result["match"], f"p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
 
     def test_basic_lods(self, data1):
         """Test B-statistics (lods) match R."""
@@ -379,10 +380,7 @@ class TestEBayesRParity:
 
         # df_prior (R returns Inf for this dataset)
         r_df_prior = r_global["df_prior"].values[0]
-        if np.isinf(r_df_prior):
-            assert fit["df_prior"] > 1e6 or np.isinf(fit["df_prior"]), "df_prior should be infinite"
-        else:
-            assert_close_to_reference(fit["df_prior"], r_df_prior, tol=0.1, name="df_prior")
+        np.testing.assert_allclose(fit["df_prior"], r_df_prior, rtol=1e-6)
 
     def test_basic_f_statistics(self, data1):
         """Test F-statistics match R."""
@@ -396,10 +394,10 @@ class TestEBayesRParity:
 
         # F p-value (log scale)
         result_p = compare_pvalues(
-            r_global["F_p_value"].values, fit["F_p_value"], max_log10_diff=1.0
+            r_global["F_p_value"].values, fit["F_p_value"], max_log10_diff=1e-6
         )
         assert result_p["match"], (
-            f"F_p_value differs: max_log10_diff={result_p['max_log10_diff']:.2f}"
+            f"F_p_value differs: max_log10_diff={result_p['max_log10_diff']:.2e}"
         )
 
     def test_trend_s2_prior_is_array(self, data1):
@@ -434,10 +432,7 @@ class TestEBayesRParity:
 
         # df_prior (R returns Inf for this dataset with trend)
         r_df_prior = r_global.iloc[0, 0]
-        if np.isinf(r_df_prior):
-            assert fit["df_prior"] > 1e6 or np.isinf(fit["df_prior"]), "df_prior should be infinite"
-        else:
-            assert_close_to_reference(fit["df_prior"], r_df_prior, tol=0.1, name="df_prior")
+        np.testing.assert_allclose(fit["df_prior"], r_df_prior, rtol=1e-6)
 
 
 # =============================================================================
@@ -464,10 +459,10 @@ class TestTreatRParity:
         fit = treat(fit, lfc=0.5)
 
         result = compare_pvalues(
-            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
         assert result["match"], (
-            f"treat p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+            f"treat p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
         )
 
     def test_lfc10_pvalues(self, data1):
@@ -477,10 +472,10 @@ class TestTreatRParity:
         fit = treat(fit, lfc=1.0)
 
         result = compare_pvalues(
-            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
         assert result["match"], (
-            f"treat lfc=1.0 p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+            f"treat lfc=1.0 p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
         )
 
     def test_upshot_t_statistics(self, data1):
@@ -499,10 +494,10 @@ class TestTreatRParity:
         fit = treat(fit, lfc=0.5, upshot=True)
 
         result = compare_pvalues(
-            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
         assert result["match"], (
-            f"treat upshot p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+            f"treat upshot p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
         )
 
 
@@ -541,15 +536,15 @@ class TestTopTableRParity:
 
         # Compare p-values (log scale)
         result = compare_pvalues(
-            r_tt["P.Value"].values, py_tt["p_value"].values, max_log10_diff=1.0
+            r_tt["P.Value"].values, py_tt["p_value"].values, max_log10_diff=1e-6
         )
-        assert result["match"], f"P.Value differs: max_log10_diff={result['max_log10_diff']:.2f}"
+        assert result["match"], f"P.Value differs: max_log10_diff={result['max_log10_diff']:.2e}"
 
         # Compare adj.P.Value (log scale)
         result = compare_pvalues(
-            r_tt["adj.P.Val"].values, py_tt["adj_p_value"].values, max_log10_diff=1.0
+            r_tt["adj.P.Val"].values, py_tt["adj_p_value"].values, max_log10_diff=1e-6
         )
-        assert result["match"], f"adj.P.Val differs: max_log10_diff={result['max_log10_diff']:.2f}"
+        assert result["match"], f"adj.P.Val differs: max_log10_diff={result['max_log10_diff']:.2e}"
 
     def test_confint_columns(self, data1):
         """Test topTable confidence intervals match R."""
@@ -669,10 +664,7 @@ class TestSqueezeVarRParity:
         sv = squeeze_var(fit["sigma"] ** 2, fit["df_residual"])
 
         r_df_prior = r_sv["df_prior"].values[0]
-        if np.isinf(r_df_prior):
-            assert sv["df_prior"] > 1e6 or np.isinf(sv["df_prior"]), "df_prior should be infinite"
-        else:
-            assert_close_to_reference(sv["df_prior"], r_df_prior, tol=0.1, name="df_prior")
+        np.testing.assert_allclose(sv["df_prior"], r_df_prior, rtol=1e-6)
 
     def test_trend_var_post(self, data1):
         """Test squeezeVar with covariate (trend) matches R."""
@@ -710,8 +702,8 @@ class TestMultiContrastRParity:
         assert result["match"], f"F differs: max_rel={result['max_rel_diff']:.2e}"
 
         # F p-value
-        result_p = compare_pvalues(r_stats["F_p"].values, fit["F_p_value"], max_log10_diff=1.0)
-        assert result_p["match"], f"F_p differs: max_log10_diff={result_p['max_log10_diff']:.2f}"
+        result_p = compare_pvalues(r_stats["F_p"].values, fit["F_p_value"], max_log10_diff=1e-6)
+        assert result_p["match"], f"F_p differs: max_log10_diff={result_p['max_log10_diff']:.2e}"
 
     def test_three_group_coefficients(self, data2):
         """Test multi-contrast coefficients match R."""
@@ -1230,10 +1222,7 @@ class TestTopTableEdgeCasesRParity:
         # Check that filtered genes have |logFC| >= 1
         assert np.all(np.abs(py_tt["log_fc"]) >= 1), "lfc filter not applied correctly"
 
-        # Number of results should be similar
-        assert abs(len(py_tt) - len(r_tt)) <= 2, (
-            f"lfc filter count differs: R={len(r_tt)}, Py={len(py_tt)}"
-        )
+        assert len(py_tt) == len(r_tt), f"lfc filter count differs: R={len(r_tt)}, Py={len(py_tt)}"
 
     def test_pvalue_filter(self, data1):
         """Test topTable with p.value filter matches R."""
@@ -1253,10 +1242,10 @@ class TestTopTableEdgeCasesRParity:
 
         # Compare adjusted p-values
         result = compare_pvalues(
-            r_tt["adj.P.Val"].values, py_tt["adj_p_value"].values, max_log10_diff=1.0
+            r_tt["adj.P.Val"].values, py_tt["adj_p_value"].values, max_log10_diff=1e-6
         )
         assert result["match"], (
-            f"bonferroni p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+            f"bonferroni p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
         )
 
     def test_no_adjustment(self, data1):
@@ -1441,9 +1430,9 @@ class TestContrastsEBayesRParity:
         assert result["match"], f"contrasts eBayes t differs: max_rel={result['max_rel_diff']:.2e}"
 
         # Compare p-values
-        result_p = compare_pvalues(r_eb["BvsA.1"].values, fit["p_value"][:, 0], max_log10_diff=1.0)
+        result_p = compare_pvalues(r_eb["BvsA.1"].values, fit["p_value"][:, 0], max_log10_diff=1e-6)
         assert result_p["match"], (
-            f"contrasts eBayes p differs: max_log10_diff={result_p['max_log10_diff']:.2f}"
+            f"contrasts eBayes p differs: max_log10_diff={result_p['max_log10_diff']:.2e}"
         )
 
 
@@ -1518,7 +1507,7 @@ class TestPipelineRParity:
 
 
 # =============================================================================
-# Phase 2: voom tests
+# voom, arrayWeights and duplicateCorrelation tests
 # =============================================================================
 
 
@@ -1612,10 +1601,10 @@ class TestVoomRParity:
 
         # Compare p-values
         result_p = compare_pvalues(
-            r_stats["p_value"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
         assert result_p["match"], (
-            f"voom pipeline p differs: max_log10_diff={result_p['max_log10_diff']:.2f}"
+            f"voom pipeline p differs: max_log10_diff={result_p['max_log10_diff']:.2e}"
         )
 
     def test_voom_no_replication_warning(self, voom_data):
@@ -1705,7 +1694,9 @@ class TestVoomRParity:
         consensus = dupcor["consensus_correlation"]
 
         # Consensus correlation should match R
-        assert np.isclose(consensus, r_consensus["consensus_correlation"].values[0], rtol=1e-6)
+        assert np.isclose(
+            consensus, r_consensus["consensus_correlation"].values[0], rtol=1e-6, atol=1e-12
+        )
 
         v_block = voom(voom_data["counts"], voom_data["design"], block=block, correlation=consensus)
 
@@ -1728,8 +1719,8 @@ class TestVoomRParity:
         v_prior = voom(voom_data["counts"], voom_data["design"], offset_prior=r_offset_prior.values)
 
         # E and weights should be identical
-        assert np.allclose(v_offset["E"], v_prior["E"], rtol=1e-14)
-        assert np.allclose(v_offset["weights"], v_prior["weights"], rtol=1e-14)
+        assert np.allclose(v_offset["E"], v_prior["E"], rtol=1e-14, atol=1e-12)
+        assert np.allclose(v_offset["weights"], v_prior["weights"], rtol=1e-14, atol=1e-12)
 
 
 class TestArrayWeightsRParity:
@@ -1882,7 +1873,7 @@ class TestVoomaRParity:
         expr = np.log2(voom_data["counts"] + 1)
         va = vooma(expr, voom_data["design"], legacy_span=True)
 
-        assert np.isclose(va["span"], r_span["span"].values[0], rtol=1e-10), (
+        assert np.isclose(va["span"], r_span["span"].values[0], rtol=1e-10, atol=1e-12), (
             f"vooma legacy span differs: Py={va['span']}, R={r_span['span'].values[0]}"
         )
 
@@ -1935,6 +1926,7 @@ class TestDuplicateCorrelationRParity:
             dc["consensus_correlation"],
             r_consensus["consensus_correlation"].values[0],
             rtol=1e-6,
+            atol=1e-12,
         ), (
             f"consensus_correlation differs: Python={dc['consensus_correlation']:.6f}, R={r_consensus['consensus_correlation'].values[0]:.6f}"
         )
@@ -1971,7 +1963,10 @@ class TestDuplicateCorrelationRParity:
 
         # Verify consensus matches R
         assert np.isclose(
-            dc["consensus_correlation"], r_consensus["consensus_correlation"].values[0], rtol=1e-6
+            dc["consensus_correlation"],
+            r_consensus["consensus_correlation"].values[0],
+            rtol=1e-6,
+            atol=1e-12,
         ), "Consensus differs from R"
 
 
@@ -2089,7 +2084,7 @@ class TestVoomaLmFitRParity:
 
 
 # =============================================================================
-# Phase 2 branch coverage: forcing tests for previously untested branches
+# voom / arrayWeights branch coverage: forcing tests for previously untested branches
 # =============================================================================
 
 
@@ -2207,7 +2202,7 @@ class TestVoomaLmFitBranchCoverage:
         expr = np.log2(voom_data["counts"] + 1)
         fit = vooma_lm_fit(expr, voom_data["design"], legacy_span=True)
 
-        assert np.isclose(fit["span"], r_span["span"].values[0], rtol=1e-10), (
+        assert np.isclose(fit["span"], r_span["span"].values[0], rtol=1e-10, atol=1e-12), (
             f"voomaLmFit legacy span differs: Py={fit['span']}, R={r_span['span'].values[0]}"
         )
         result_c = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-8)
@@ -2465,7 +2460,7 @@ class TestVoomaLmFitPredictorRParity:
         expr = np.log2(voom_data["counts"] + 1)
         fit = vooma_lm_fit(expr, voom_data["design"], predictor=predictor)
 
-        assert np.isclose(fit["span"], r_span["span"].values[0], rtol=1e-10)
+        assert np.isclose(fit["span"], r_span["span"].values[0], rtol=1e-10, atol=1e-12)
         result_c = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-8)
         assert result_c["match"], (
             f"voomaLmFit predictor coef differ: max_rel={result_c['max_rel_diff']:.2e}"
@@ -2606,7 +2601,7 @@ class TestVoomNormalizeMethodRParity:
 
 
 class TestVoomInterfaceParams:
-    """Phase 2 Batch 3: optional R parameters added to the public surface."""
+    """Optional voom-family parameters from R added to the public surface."""
 
     def test_voom_norep_targets(self, voom_data):
         """voom no-replication branch returns a targets dict carrying lib_size."""
@@ -2792,10 +2787,8 @@ class TestVoomInterfaceParams:
 class TestVoomaByGroupDispatch:
     """Polymorphic dispatch tests for vooma_by_group.
 
-    Pre-fix, vooma_by_group silently returned a plain dict regardless
-    of input class - AnnData input was never mutated. Fix: route the
-    output through put_eawp so AnnData -> write layers + uns + return
-    None; EList -> EList; ndarray / dict -> dict (unchanged).
+    Output follows the input class via put_eawp: AnnData -> layers + uns
+    written, returns None; EList -> EList; ndarray / dict -> dict.
     """
 
     def _data(self):
@@ -2894,7 +2887,7 @@ class TestChooseLowessSpanRParity:
 
 
 # =============================================================================
-# Stage 2 Batch A: branch coverage tests
+# Branch coverage: top_table sort_by / adjust_method, decide_tests separate, asymmetric winsor.tail.p, nonEstimable, p.adjust hochberg
 # =============================================================================
 
 
@@ -3028,10 +3021,12 @@ class TestSqueezeVarAsymWinsorRParity:
         # Global var_prior: R stores a single number; Python returns a scalar
         r_vp = float(r_glob["var_prior"].iloc[0])
         py_vp = float(np.atleast_1d(sv["var_prior"])[0])
-        assert np.isclose(r_vp, py_vp, rtol=1e-6), f"var_prior differs: R={r_vp}, Py={py_vp}"
+        assert np.isclose(r_vp, py_vp, rtol=1e-6, atol=1e-12), (
+            f"var_prior differs: R={r_vp}, Py={py_vp}"
+        )
 
 
-class TestNonEstimableRParity:
+class TestLmFitNonEstimableRParity:
     """nonEstimable rank-deficient parity."""
 
     def test_rank_deficient(self):
@@ -3080,7 +3075,8 @@ class TestPAdjustAllMethodsRParity:
 
 
 # =============================================================================
-# Stage 2 Batch B: higher-risk branch coverage
+# Higher-risk branch coverage: lm.series / gls.series slow paths, eBayes trend + robust,
+# mrlm bisquare
 # =============================================================================
 
 
@@ -3234,7 +3230,8 @@ class TestMrlmBisquareRParity:
 
 
 # =============================================================================
-# Stage 2 Batch C: interface completeness
+# Non-default arguments: eBayes stdev.coef.lim / winsor.tail.p, contrasts.fit after
+# weighted lmFit, qqt
 # =============================================================================
 
 
@@ -3255,7 +3252,7 @@ class TestEBayesStdevCoefLimRParity:
         # var_prior is per-coefficient; coef index 1 must match
         r_vp = float(r_out["var_prior"].iloc[0])
         py_vp = float(np.atleast_1d(eb["var_prior"])[1])
-        assert np.isclose(r_vp, py_vp, rtol=1e-8), (
+        assert np.isclose(r_vp, py_vp, rtol=1e-8, atol=1e-12), (
             f"eBayes stdev_coef_lim var_prior differs: R={r_vp}, Py={py_vp}"
         )
 
@@ -3359,7 +3356,8 @@ class TestQqtRParity:
 
 
 # =============================================================================
-# Stage 2 Batch D: remaining niche branches
+# Niche branches: gls.series intercept-only, eBayes mixed Inf df.prior, makeContrasts
+# level names with spaces, robust lmFit with ndups
 # =============================================================================
 
 
@@ -3532,24 +3530,24 @@ class TestLmFitRobustNdupsRParity:
                 spacing=1,
             )
 
-        result = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-4)
+        result = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-6)
         assert result["match"], (
             f"lm_fit(robust, ndups=2) coef differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
-        result = compare_arrays(r_stdev.values, fit["stdev_unscaled"], rtol=1e-4)
+        result = compare_arrays(r_stdev.values, fit["stdev_unscaled"], rtol=1e-6)
         assert result["match"], (
             f"lm_fit(robust, ndups=2) stdev differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
-        result = compare_arrays(r_stats["sigma"].values, fit["sigma"], rtol=1e-4)
+        result = compare_arrays(r_stats["sigma"].values, fit["sigma"], rtol=1e-6)
         assert result["match"], (
             f"lm_fit(robust, ndups=2) sigma differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
 
 # =============================================================================
-# Phase 3: normexp, background_correct, avearrays, removeBatchEffect
+# normexp, background_correct, avearrays, removeBatchEffect
 # =============================================================================
 
 
@@ -3558,7 +3556,7 @@ class TestNormexpFitRParity:
 
     @pytest.fixture(scope="class")
     def fg(self):
-        return load_r_csv_no_index("phase3_E_foreground").values[:, 0]
+        return load_r_csv_no_index("intensities_foreground").values[:, 0]
 
     def test_rma(self, fg):
         # Closed-form RMA via affy::bg.parameters port - floating-point parity.
@@ -3574,8 +3572,8 @@ class TestNormexpFitRParity:
 
     def test_saddle(self, fg):
         # scipy Nelder-Mead vs R nmmin converge to different points on the
-        # saddle-likelihood's flat plateau; rtol=1e-3 matches the
-        # known_diff_normexp_saddle memory entry. MLE refinement collapses
+        # saddle-likelihood's flat plateau; rtol=1e-3 as documented in
+        # docs/validation/known_differences.rst. MLE refinement collapses
         # to 1e-13; test_mle below exercises that.
         expected = load_r_csv_no_index("normexp_fit_saddle")["par"].values
         got = normexp_fit(fg, method="saddle")["par"]
@@ -3618,8 +3616,8 @@ class TestBackgroundCorrectRParity:
 
     @pytest.fixture(scope="class")
     def matrices(self):
-        E = load_r_csv_no_index("phase3_E_foreground").values
-        Eb = load_r_csv_no_index("phase3_E_background").values
+        E = load_r_csv_no_index("intensities_foreground").values
+        Eb = load_r_csv_no_index("intensities_background").values
         return E, Eb
 
     @pytest.mark.parametrize("method", ["none", "subtract", "half", "minimum"])
@@ -3631,19 +3629,19 @@ class TestBackgroundCorrectRParity:
 
     def test_normexp(self, matrices):
         # Saddle-plateau sensitivity bounds absolute error at ~2e-2 on
-        # corrected-signal scale (50-300). See known_diff_normexp_saddle.
+        # corrected-signal scale (50-300). See docs/validation/known_differences.rst.
         E, Eb = matrices
         got = background_correct(E, background=Eb, method="normexp", verbose=False)
         expected = load_r_csv_no_index("background_correct_normexp").values
         abs_diff = np.nanmax(np.abs(got - expected))
-        assert abs_diff < 0.1, f"max_abs_diff={abs_diff:.3e}"
+        assert abs_diff < 0.05, f"max_abs_diff={abs_diff:.3e}"
 
     def test_normexp_offset(self, matrices):
         E, _ = matrices
         got = background_correct(E, method="normexp", offset=50, verbose=False)
         expected = load_r_csv_no_index("background_correct_normexp_offset").values
         abs_diff = np.nanmax(np.abs(got - expected))
-        assert abs_diff < 0.1, f"max_abs_diff={abs_diff:.3e}"
+        assert abs_diff < 0.05, f"max_abs_diff={abs_diff:.3e}"
 
     def test_subtract_eb(self, matrices):
         E, Eb = matrices
@@ -3681,11 +3679,11 @@ class TestAverArraysRParity:
 
     @pytest.fixture(scope="class")
     def fg(self):
-        return load_r_csv_no_index("phase3_E_foreground").values
+        return load_r_csv_no_index("intensities_foreground").values
 
     @pytest.fixture(scope="class")
     def weights(self):
-        return load_r_csv_no_index("phase3_avearrays_weights_input").values
+        return load_r_csv_no_index("avearrays_weights_input").values
 
     @pytest.fixture(scope="class")
     def ids(self):
@@ -3838,15 +3836,16 @@ class TestRemoveBatchEffectRParity:
             remove_batch_effect(rbe_inputs["E"], batch=rbe_inputs["batch"])
 
 
-class TestPhase3SmokePipeline:
-    """End-to-end dispatch smoke check: Phase 3 plus Phase 1/2 entry points."""
+class TestNormalisationSmokePipeline:
+    """End-to-end dispatch smoke check: background correction and normalisation
+    feeding lm_fit / e_bayes."""
 
     def test_background_normalize_lmfit_ebayes(self):
         """background_correct -> normalize_between_arrays -> lm_fit -> e_bayes
         runs cleanly and produces a top table (dispatch sanity, not parity)."""
         from pylimma.normalize import normalize_between_arrays
 
-        E = load_r_csv_no_index("phase3_E_foreground").values
+        E = load_r_csv_no_index("intensities_foreground").values
         corrected = background_correct(E, method="normexp", verbose=False)
         # Log-transform so downstream voom-less pipeline is on a sensible scale
         log_E = np.log2(np.maximum(corrected, 1.0))
@@ -3859,9 +3858,10 @@ class TestPhase3SmokePipeline:
         assert "p_value" in tt.columns or "P.Value" in tt.columns
 
 
-class TestPhase3BranchCoverage:
-    """Forcing tests for Phase 3 R branches that the primary Phase 3 suite
-    did not exercise. Added during the 2026-04-16 Phase 3 R-parity audit.
+class TestNormalisationBatchBranchCoverage:
+    """Forcing tests for normexp_fit / normexp_signal / background_correct /
+    aver_arrays / remove_batch_effect R branches that the primary suite does
+    not exercise.
     """
 
     # --- normexp_fit branches -------------------------------------------------
@@ -3898,7 +3898,7 @@ class TestPhase3BranchCoverage:
     def test_trace_flag_does_not_alter_output(self):
         # R: if(trace) cat("trace not currently implemented\n")
         # trace must be a no-op numerically.
-        x = load_r_csv_no_index("phase3_E_foreground").values[:, 0]
+        x = load_r_csv_no_index("intensities_foreground").values[:, 0]
         a = normexp_fit(x, method="rma")["par"]
         b = normexp_fit(x, method="rma", trace=True)["par"]
         np.testing.assert_array_equal(a, b)
@@ -3950,7 +3950,7 @@ class TestPhase3BranchCoverage:
             )
 
     def test_invalid_method_raises(self):
-        E = load_r_csv_no_index("phase3_E_foreground").values
+        E = load_r_csv_no_index("intensities_foreground").values
         with pytest.raises(ValueError, match="method"):
             background_correct(E, method="bogus", verbose=False)
 
@@ -3989,12 +3989,12 @@ class TestPhase3BranchCoverage:
         assert got.shape == (5, 2)
 
     def test_ndarray_in_ndarray_out(self):
-        x = load_r_csv_no_index("phase3_E_foreground").values
+        x = load_r_csv_no_index("intensities_foreground").values
         got = aver_arrays(x, id=["a", "a", "b", "b"])
         assert isinstance(got, np.ndarray)
 
     def test_elist_in_elist_out(self):
-        x = load_r_csv_no_index("phase3_E_foreground").values
+        x = load_r_csv_no_index("intensities_foreground").values
         elist = EList(
             {
                 "E": x,
@@ -4007,7 +4007,7 @@ class TestPhase3BranchCoverage:
 
     def test_elist_no_duplicates_returns_unchanged(self):
         # R: if(!any(d)) return(x) for EList with no duplicate IDs.
-        x = load_r_csv_no_index("phase3_E_foreground").values
+        x = load_r_csv_no_index("intensities_foreground").values
         elist = EList(
             {
                 "E": x,
@@ -4070,181 +4070,112 @@ class TestPhase3BranchCoverage:
 
 
 # =============================================================================
-# Second-pass audit verification tests (2026-04-22)
+# Interface, fit-slot and edge-case parity
 # =============================================================================
 #
-# These tests verify the 20 findings from a second-pass audit (2026-04-22).
-# Each test either:
-#   (a) compares pylimma output to live R output via run_r_comparison, or
-#   (b) asserts a Python-only behavioural property (crashes, warnings, slot
-#       presence).
-#
-# BEFORE the fixes land, every test in this block is expected to FAIL -
-# that failure IS the verification that the finding is real.
-# AFTER the fixes land, every test should PASS.
-#
-# Findings are grouped by verification tier (A/B/C) as in the plan file
-# /Users/John/.claude/plans/create-a-plan-of-twinkly-clock.md.
+# Each test either compares pylimma output to live R output via
+# run_r_comparison, or asserts a Python-only behavioural property (errors,
+# warnings, slot presence). Grouped by what they check:
+#   - coefficient names, filter boundaries, weights, EList handling and plot_rldf
+#   - fit slots, contrasts_fit edge cases and argument pass-through
+#   - Python-only checks (no R needed)
 # =============================================================================
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding1InterceptStripRParity:
-    """Finding 1: lm_fit does not populate fit['coef_names'], so top_table
-    cannot identify the '(Intercept)' column to strip when coef=None.
-    R's topTable emits 'Removing intercept from test coefficients' and
-    returns a single-contrast table."""
-
-    def test_top_table_strips_intercept_on_named_design(self):
-        from .helpers import run_r_comparison
-
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, 8))
-        design_df = pd.DataFrame(
-            {
-                "(Intercept)": 1.0,
-                "groupB": [0] * 4 + [1] * 4,
-            }
-        )
-        fit = lm_fit(X, design=design_df)
-        fit = e_bayes(fit)
-        tt_py = top_table(fit, number=5)
-        py_cols = list(tt_py.columns)
-
-        # R reference: topTable(fit, coef=NULL) on same inputs strips
-        # intercept. Pass design as DataFrame so column names survive the
-        # CSV round-trip; inside R we rename back to (Intercept)/groupB.
-        r_code = """
-        library(limma)
-        X <- as.matrix(read.csv('{tmpdir}/X.csv', row.names=1))
-        design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
-        colnames(design) <- c("(Intercept)", "groupB")
-        fit <- lmFit(X, design)
-        fit <- eBayes(fit)
-        tt <- topTable(fit, number=5)
-        # Emit number of logFC-style columns so we can assert R stripped
-        # to a 1-contrast table (column "logFC"), not kept as F-table.
-        has_logFC <- matrix(as.integer("logFC" %in% colnames(tt)), 1, 1)
-        has_F <- matrix(as.integer("F" %in% colnames(tt)), 1, 1)
-        """
-        r_results = run_r_comparison(
-            py_data={"X": X, "design": design_df.values},
-            r_code_template=r_code,
-            output_vars=["has_logFC", "has_F"],
-        )
-        r_has_logFC = bool(int(r_results["has_logFC"].ravel()[0]))
-        r_has_F = bool(int(r_results["has_F"].ravel()[0]))
-        # R: logFC=True, F=False (intercept stripped, single-contrast table)
-        assert r_has_logFC and not r_has_F, (
-            f"R sanity: expected logFC-only table; got logFC={r_has_logFC} F={r_has_F}"
-        )
-        # Pylimma currently keeps intercept -> two coef columns + F stat
-        py_has_F = "F" in py_cols
-        # The divergence to expose: pylimma has F-column where R doesn't
-        assert py_has_F == r_has_F, (
-            f"pylimma F-column presence disagrees with R: py={py_has_F} R={r_has_F}; py_cols={py_cols}"
-        )
+def _assert_top_table_matches(tab: pd.DataFrame, r: pd.DataFrame, check_ids: bool = True) -> None:
+    """Compare a single-coefficient top_table with R's topTable, column by column."""
+    if check_ids:
+        assert list(tab.index) == list(r["id"])
+    for r_col in ("logFC", "AveExpr", "t", "B"):
+        if r_col in r.columns:
+            np.testing.assert_allclose(tab[_TT_COLUMNS[r_col]], r[r_col], rtol=1e-6, atol=1e-12)
+    for r_col in ("P.Value", "adj.P.Val"):
+        _assert_log10_pvalues_close(r[r_col], tab[_TT_COLUMNS[r_col]])
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding2ContrastsFitNamedCoefRParity:
-    """Finding 2: contrasts_fit(fit, coefficients='name') fails because
-    fit['coef_names'] is never populated (cascade from finding 1)."""
-
-    def test_contrasts_fit_accepts_string_coefficient_name(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((20, 8))
-        # Cell-means design (no intercept) gives two full-rank columns
-        # that we can reference by name.
-        design_df = pd.DataFrame(
-            {
-                "groupA": [1] * 4 + [0] * 4,
-                "groupB": [0] * 4 + [1] * 4,
-            }
-        )
-        fit = lm_fit(X, design=design_df)
-        # R: contrasts.fit(fit, coefficients="groupB") succeeds.
-        # Pre-fix pylimma raises ValueError("Cannot use coefficient name...")
-        # because fit['coef_names'] is never populated by lm_fit.
-        f2 = contrasts_fit(fit, coefficients=["groupB"])
-        assert "groupB" in f2.get("contrast_names", []), (
-            f"contrast_names does not include 'groupB': {f2.get('contrast_names')}"
-        )
+def _assert_contrast_slots_match(fit: dict, prefix: str) -> None:
+    """Compare coefficients, stdev_unscaled and cov_coefficients with R's contrasts.fit."""
+    for r_slot, py_slot in (("coefficients", "coefficients"), ("stdev_unscaled", "stdev_unscaled"),
+                            ("cov_coefficients", "cov_coefficients")):
+        r = load_r_csv_no_index(f"{prefix}_{r_slot}").to_numpy(dtype=float)
+        np.testing.assert_allclose(np.asarray(fit[py_slot], dtype=float), r, rtol=1e-6, atol=1e-12)
 
 
-class TestFinding3LfcBoundaryRParity:
-    """Finding 3: top_table lfc filter uses strict '>' where R uses '>='.
-    A gene with |logFC| exactly equal to the lfc threshold is kept by R
-    but dropped by pylimma. This test controls the coefficients directly
-    via a hand-built fit to avoid floating-point-path divergence between
-    R's QR and numpy's QR at the boundary."""
+# -----------------------------------------------------------------------------
+# Coefficient names, filter boundaries, weights, EList handling and plot_rldf
+# -----------------------------------------------------------------------------
 
-    def test_boundary_gene_kept_with_exact_lfc(self):
-        # Hand-build a fit with one coefficient = exactly 1.0 and the
-        # other coefficients clearly >1.0 and <1.0. R's topTable with
-        # lfc=1.0 keeps |coef| >= 1.0 (toptable.R:234), so the boundary
-        # gene at index 1 should appear in the output.
-        n_genes = 4
-        coefs_col1 = np.array([2.0, 1.0, 0.5, 1.5])  # boundary at idx 1
+
+class TestTopTableInterceptStripRParity:
+    """top_table(coef=None) on a design with an '(Intercept)' column drops the
+    intercept, as R's topTable does ('Removing intercept from test
+    coefficients'), and returns the single-contrast table."""
+
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id")
+        design = pd.DataFrame({"(Intercept)": 1.0, "groupB": np.repeat([0.0, 1.0], 4)})
+        with pytest.warns(UserWarning, match="Removing intercept"):
+            tab = top_table(e_bayes(lm_fit(X, design)), number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("ie_intercept_strip")
+        assert "F" not in tab.columns
+        _assert_top_table_matches(tab, r)
+
+
+class TestContrastsFitNamedCoefRParity:
+    """contrasts_fit(fit, coefficients='name') selects coefficients by name,
+    as R's contrasts.fit does; every contrast slot matches R."""
+
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id")
+        design = pd.DataFrame({"groupA": np.repeat([1.0, 0.0], 4), "groupB": np.repeat([0.0, 1.0], 4)})
+        fit = contrasts_fit(lm_fit(X, design), coefficients=["groupB"])
+        assert fit["contrast_names"] == ["groupB"]
+        _assert_contrast_slots_match(fit, "ie_contrasts_by_name")
+
+
+class TestTopTableLfcBoundaryRParity:
+    """top_table's lfc filter keeps a gene whose |logFC| equals lfc exactly
+    (R uses '>='). The fit is hand-built in both R and Python so the
+    boundary value is exact."""
+
+    def test_matches_r(self):
         fit = {
-            "coefficients": np.column_stack([np.zeros(n_genes), coefs_col1]),
-            "stdev_unscaled": np.ones((n_genes, 2)) * 0.1,
-            "sigma": np.full(n_genes, 0.1),
-            "df_residual": np.full(n_genes, 10),
+            "coefficients": np.column_stack([np.zeros(4), [2.0, 1.0, 0.5, 1.5]]),
+            "stdev_unscaled": np.full((4, 2), 0.1),
+            "sigma": np.full(4, 0.1),
+            "df_residual": np.full(4, 10.0),
             "cov_coefficients": np.eye(2) * 0.01,
-            "rank": 2,
-            "pivot": np.array([0, 1]),
-            "Amean": np.zeros(n_genes),
-            "design": np.eye(2),
-            "genes": None,
-            "method": "ls",
+            "Amean": np.zeros(4),
         }
-        fit = e_bayes(fit)
-        tt = top_table(fit, coef=1, lfc=1.0, number=n_genes, sort_by="none")
-        # Post-fix: boundary gene (idx 1, coef == 1.0 exactly) is kept.
-        # logFC column should include 1.0 exactly.
-        returned_lfc = set(round(float(x), 8) for x in tt["log_fc"].values)
-        assert 1.0 in returned_lfc, (
-            f"boundary gene (coef=1.0 exact) missing from top_table; got {returned_lfc}"
-        )
+        tab = top_table(e_bayes(fit), coef=1, lfc=1.0, number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("ie_lfc_boundary_toptable")
+        assert 1.0 in r["logFC"].to_numpy()  # the boundary gene is kept by R
+        _assert_top_table_matches(tab, r, check_ids=False)
 
 
-class TestFinding4DecideTestsLfcBoundaryRParity:
-    """Finding 4: decide_tests MArrayLM path uses '<' where R uses '>'
-    for the lfc cut. A gene with |coef| == lfc exactly should be zeroed
-    by R's MArrayLM dispatch (decidetests.R:165: `* (abs(coef) > lfc)`).
-    Uses a hand-crafted fit to avoid QR floating-point divergence."""
+class TestDecideTestsLfcBoundaryRParity:
+    """decide_tests on a fit zeroes a gene whose |coef| equals lfc exactly, as
+    R's MArrayLM method does (decidetests.R:165: `* (abs(coef) > lfc)`).
+    The fit is hand-built in both R and Python so the boundary is exact."""
 
-    def test_decide_tests_marraylm_lfc_boundary_zeroed(self):
-        # Hand-built fit with coef-1 values: [2.0, 1.0, 0.5, 1.5]. The
-        # boundary gene (idx 1, exact 1.0) should be zeroed with lfc=1.0
-        # under R's MArrayLM convention (post-fix pylimma).
-        n_genes = 4
-        coefs_col1 = np.array([2.0, 1.0, 0.5, 1.5])
+    def test_matches_r(self):
         fit = {
-            "coefficients": np.column_stack([np.zeros(n_genes), coefs_col1]),
-            "stdev_unscaled": np.ones((n_genes, 2)) * 0.1,
-            "sigma": np.full(n_genes, 0.1),
-            "df_residual": np.full(n_genes, 10),
+            "coefficients": np.column_stack([np.zeros(4), [2.0, 1.0, 0.5, 1.5]]),
+            "stdev_unscaled": np.full((4, 2), 0.1),
+            "sigma": np.full(4, 0.1),
+            "df_residual": np.full(4, 10.0),
             "cov_coefficients": np.eye(2) * 0.01,
-            "rank": 2,
-            "pivot": np.array([0, 1]),
-            "Amean": np.zeros(n_genes),
-            "design": np.eye(2),
-            "method": "ls",
+            "Amean": np.zeros(4),
         }
-        fit = e_bayes(fit)
-        res = decide_tests(fit, lfc=1.0)
-        # Boundary gene at row 1 (coef == 1.0 exactly) must be zeroed.
-        assert res[1, 1] == 0, (
-            f"boundary gene not zeroed: res[1, 1]={res[1, 1]} (R's MArrayLM path would give 0)"
-        )
+        r = load_r_csv_no_index("ie_lfc_boundary_decidetests").to_numpy(dtype=float)
+        assert r[1, 1] == 0  # boundary gene zeroed by R
+        np.testing.assert_array_equal(decide_tests(e_bayes(fit), lfc=1.0), r)
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding5WsvaWeightsRParity:
-    """Finding 5: wsva silently drops weights/block/correlation from
-    **kwargs. R's wsva forwards them into .lmEffects for a weighted fit."""
+class TestWsvaWeightsRParity:
+    """wsva forwards weights / block / correlation into the effects fit, as
+    R's wsva passes them to .lmEffects."""
 
     def test_wsva_weights_change_output(self):
         from pylimma import wsva
@@ -4271,20 +4202,23 @@ class TestFinding5WsvaWeightsRParity:
             r_code_template=r_code,
             output_vars=["svr_mat"],
         )
-        # run_r_comparison flattens single-col output to 1-D; ravel both
-        # sides for a shape-insensitive comparison. Signs are ambiguous
-        # under SVD so compare absolute values.
-        r_sv = np.asarray(r_results["svr_mat"], dtype=float).ravel()
-        py_sv = np.asarray(sv_py_weighted, dtype=float).ravel()
-        res = compare_arrays(np.abs(r_sv), np.abs(py_sv), rtol=1e-6)
+        # run_r_comparison flattens single-col output to 1-D. Each
+        # surrogate variable is an SVD vector, defined only up to sign
+        # (left to LAPACK by R and NumPy), so canonicalise both sides'
+        # signs and compare exactly.
+        py_sv = np.asarray(sv_py_weighted, dtype=float)
+        r_sv = np.asarray(r_results["svr_mat"], dtype=float).reshape(py_sv.shape)
+        res = compare_arrays(
+            canonical_column_signs(r_sv).ravel(), canonical_column_signs(py_sv).ravel(), rtol=1e-6
+        )
         assert res["match"], f"wsva weights not honoured; max_rel={res['max_rel_diff']:.2e}"
 
 
 @pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding6VoomFamilyElistRParity:
-    """Finding 6: voom/vooma/voom_with_quality_weights/vooma_lm_fit have
-    different R behaviours on EList input. Per-function probes to
-    confirm the divergence table in the plan."""
+class TestVoomFamilyElistRParity:
+    """EList input to voom / vooma / voom_with_quality_weights / vooma_lm_fit:
+    which EList slots each function uses, and the warnings pylimma emits
+    where it deliberately differs from R (see known differences)."""
 
     def _make_elist(self):
         rng = np.random.default_rng(0)
@@ -4293,37 +4227,40 @@ class TestFinding6VoomFamilyElistRParity:
         D = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])
         return EList({"E": X, "weights": W, "design": D}), X, W, D
 
-    def test_voom_diverges_on_elist_weights(self):
-        """Pylimma's voom pulls EList['weights']; R's voom does not."""
+    def test_voom_uses_elist_weights_like_r_explicit_weights(self):
+        """voom(el) uses EList['weights'] (a documented divergence: R drops the
+        slot), so it must equal R's voom with those weights passed explicitly."""
+        import warnings as _w
+
         from pylimma import voom
 
-        el, X, W, D = self._make_elist()
-        v_el_py = voom(el, design=D)
-        v_arr_py = voom(X, design=D)
-        # If pylimma is pulling weights, outputs will differ:
-        assert not np.allclose(v_el_py["weights"], v_arr_py["weights"]), (
-            "voom: EList and ndarray paths match - divergence not reproduced"
+        counts = load_r_csv_no_index("ie_counts").to_numpy(dtype=float)
+        weights = load_r_csv_no_index("ie_elist_weights").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]]).astype(float)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            v = voom(EList({"E": counts, "weights": weights}), design=design)
+        np.testing.assert_allclose(v["E"], load_r_csv_no_index("ie_voom_explicit_weights_E").to_numpy(dtype=float),
+                                   rtol=1e-6)
+        np.testing.assert_allclose(
+            v["weights"], load_r_csv_no_index("ie_voom_explicit_weights_weights").to_numpy(dtype=float), rtol=1e-6
         )
 
-    def test_vooma_matches_ndarray(self):
-        """Pylimma vooma should match R: uses y$design but not y$weights.
-        So EList and ndarray should produce identical weights."""
+    def test_vooma_elist_matches_r(self):
+        """vooma(el) uses EList['design'] and ignores EList['weights'], as R's
+        vooma does (the fixture checks R gives the same weights as the
+        matrix call)."""
         from pylimma import vooma
 
-        el, X, W, D = self._make_elist()
-        # log-transform so vooma's range is reasonable
-        Y = np.log2(X + 1)
-        el_log = EList({"E": Y, "weights": W, "design": D})
-        v_el = vooma(el_log, design=D)
-        v_arr = vooma(Y, design=D)
-        w_el = v_el["weights"] if isinstance(v_el, dict) else v_el.get("weights")
-        w_arr = v_arr["weights"] if isinstance(v_arr, dict) else v_arr.get("weights")
-        assert np.allclose(w_el, w_arr, rtol=1e-10), (
-            "vooma: EList and ndarray outputs should match (R parity)"
-        )
+        counts = load_r_csv_no_index("ie_counts").to_numpy(dtype=float)
+        weights = load_r_csv_no_index("ie_elist_weights").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]]).astype(float)
+        v = vooma(EList({"E": np.log2(counts + 1), "weights": weights, "design": design}))
+        w = v["weights"] if isinstance(v, dict) else v.get("weights")
+        np.testing.assert_allclose(w, load_r_csv_no_index("ie_vooma_elist_weights").to_numpy(dtype=float), rtol=1e-6)
 
     def test_voom_emits_elist_design_and_weights_warnings(self):
-        """Post-fix: voom(el) emits two warnings when EList has weights+design."""
+        """voom(el) emits two warnings when the EList has both weights and design."""
         import warnings as _w
 
         from pylimma import voom
@@ -4339,7 +4276,7 @@ class TestFinding6VoomFamilyElistRParity:
         assert weights_warned, f"voom did not warn about EList weights; msgs={msgs}"
 
     def test_voom_no_warning_when_caller_passes_kwargs(self):
-        """Post-fix: voom(el, design=D, weights=W) suppresses the EList warnings."""
+        """voom(el, design=D, weights=W) suppresses the EList warnings."""
         import warnings as _w
 
         from pylimma import voom
@@ -4354,7 +4291,7 @@ class TestFinding6VoomFamilyElistRParity:
         )
 
     def test_voom_no_warning_on_ndarray(self):
-        """Post-fix: voom(ndarray) emits no EList warnings."""
+        """voom(ndarray) emits no EList warnings."""
         import warnings as _w
 
         from pylimma import voom
@@ -4369,7 +4306,7 @@ class TestFinding6VoomFamilyElistRParity:
         )
 
     def test_voom_with_quality_weights_warns_on_elist_design_only(self):
-        """Post-fix: voom_with_quality_weights(el) warns for design only
+        """voom_with_quality_weights(el) warns for design only
         (not weights)."""
         import warnings as _w
 
@@ -4389,324 +4326,230 @@ class TestFinding6VoomFamilyElistRParity:
         )
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding7LmFitElistGenesRParity:
-    """Finding 7: lm_fit drops EList['genes'] slot; fit['genes'] is None
-    even when EList was built with a genes DataFrame. R's lmFit keeps
-    it (fit$genes <- y$probes)."""
+class TestLmFitElistGenesRParity:
+    """lm_fit carries EList['genes'] into fit['genes'], as R's lmFit does
+    (fit$genes <- y$probes), so the annotation reaches top_table."""
 
-    def test_elist_genes_propagate_to_fit(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((50, 6))
-        genes_df = pd.DataFrame(
-            {
-                "ID": [f"ENSG{i:05d}" for i in range(50)],
-                "symbol": [f"SYM{i}" for i in range(50)],
-            }
-        )
-        el = EList({"E": X, "genes": genes_df})
-        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])
-        fit = lm_fit(el, design=design)
-        g = fit.get("genes")
-        assert g is not None, "fit['genes'] is None; EList genes slot dropped"
-        # genes should be a DataFrame with 'symbol' column
-        if isinstance(g, pd.DataFrame):
-            assert "symbol" in g.columns, f"genes columns: {list(g.columns)}"
-        else:
-            pytest.fail(f"expected DataFrame, got {type(g).__name__}")
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id").to_numpy()
+        genes = pd.DataFrame({"ID": [f"ENSG{i:05d}" for i in range(1, 31)],
+                              "symbol": [f"SYM{i}" for i in range(1, 31)]})
+        design = pd.DataFrame({"(Intercept)": 1.0, "groupB": np.repeat([0.0, 1.0], 4)})
+        fit = e_bayes(lm_fit(EList({"E": X, "genes": genes}), design))
+        tab = top_table(fit, coef=1, number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("ie_elist_genes_toptable")
+        assert list(tab["ID"]) == list(r["ID"]) and list(tab["symbol"]) == list(r["symbol"])
+        _assert_top_table_matches(tab, r, check_ids=False)
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding8PlotRldfMathRParity:
-    """Finding 8: plot_rldf uses simplified discriminant math; R's
-    plotRLDF uses regularised within-covariance + Cholesky-backsolve.
-    Compare training coords and singular values."""
+class TestPlotRldfMathRParity:
+    """plot_rldf training scores and singular values match R's plotRLDF
+    (regularised within-group covariance with a Cholesky back-solve). Each
+    discriminant is defined only up to sign, so scores are compared under a
+    canonical sign (the fixture is written the same way)."""
 
-    def test_training_and_singular_values_match_r(self):
+    def test_matches_r(self):
         from pylimma import plot_rldf
 
-        from .helpers import run_r_comparison
-
-        # Three-group design so we get 2 discriminant functions
-        # (p-1 = 3-1 = 2), matching show_dimensions=(0, 1).
-        rng = np.random.default_rng(0)
-        y = rng.standard_normal((200, 12))
+        y = load_r_csv_no_index("ie_rldf_y").to_numpy(dtype=float)
         design = np.column_stack(
-            [
-                np.ones(12),
-                [0] * 4 + [1] * 4 + [0] * 4,
-                [0] * 4 + [0] * 4 + [1] * 4,
-            ]
+            [np.ones(12), np.repeat([0.0, 1.0, 0.0], 4), np.repeat([0.0, 0.0, 1.0], 4)]
         )
         out = plot_rldf(y, design, plot=False)
-
-        r_code = """
-        library(limma)
-        y <- as.matrix(read.csv('{tmpdir}/y.csv', row.names=1))
-        design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
-        prl <- plotRLDF(y, design, plot=FALSE)
-        training_out <- prl$training
-        sv_out <- matrix(prl$singular.values, ncol=1)
-        """
-        r_results = run_r_comparison(
-            py_data={"y": y, "design": design},
-            r_code_template=r_code,
-            output_vars=["training_out", "sv_out"],
-        )
-        r_sv = np.asarray(r_results["sv_out"], dtype=float).ravel()
-
-        # Pull training / singular values from pylimma return
-        # Pylimma current keys: training_scores, top_probes, singular_values
-        py_training = out.get("training_scores") if isinstance(out, dict) else None
-        py_sv = out.get("singular_values") if isinstance(out, dict) else None
-        if py_training is None or py_sv is None:
-            pytest.fail(
-                f"plot_rldf does not return expected keys; "
-                f"got: {list(out.keys()) if isinstance(out, dict) else type(out)}"
-            )
-        # Compare singular values (sign-invariant)
-        r_sv_sorted = np.sort(np.abs(r_sv))[::-1]
-        py_sv_sorted = np.sort(np.abs(np.asarray(py_sv).ravel()))[::-1]
-        # Truncate to shorter to avoid shape issues
-        k = min(len(r_sv_sorted), len(py_sv_sorted))
-        res_sv = compare_arrays(r_sv_sorted[:k], py_sv_sorted[:k], rtol=1e-6)
-        assert res_sv["match"], (
-            f"plot_rldf singular values diverge from R: "
-            f"max_rel={res_sv['max_rel_diff']:.2e}; "
-            f"R={r_sv_sorted[:k].tolist()}; py={py_sv_sorted[:k].tolist()}"
+        r_training = load_r_csv_no_index("ie_rldf_training").to_numpy(dtype=float)
+        r_sv = load_r_csv_no_index("ie_rldf_singular_values")["d"].to_numpy()
+        np.testing.assert_allclose(np.asarray(out["singular_values"]).ravel(), r_sv, rtol=1e-6)
+        py_training = np.asarray(out["training_scores"], dtype=float)[:, : r_training.shape[1]]
+        np.testing.assert_allclose(
+            canonical_column_signs(py_training), r_training, rtol=1e-6, atol=1e-12
         )
 
 
 # -----------------------------------------------------------------------------
-# Tier B - code-reading findings needing R confirmation
+# Fit slots, contrasts_fit edge cases and argument pass-through
 # -----------------------------------------------------------------------------
 
 
-class TestFinding9FitMethodSlotRParity:
-    """Finding 9: R's lmFit sets fit$method. pylimma's lm_fit does not."""
+class TestLmFitMethodSlotRParity:
+    """lm_fit sets fit['method'] to the value R's lmFit stores in fit$method."""
 
-    def test_fit_method_populated(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((20, 6))
-        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])
-        fit = lm_fit(X, design, method="ls")
-        assert "method" in fit, "fit['method'] missing; R writes fit$method at lmfit.R:86"
-        assert fit["method"] == "ls", f"fit['method'] should be 'ls', got {fit.get('method')!r}"
+    @pytest.mark.parametrize("method", ["ls", "robust"])
+    def test_matches_r(self, method):
+        import warnings as _w
+
+        X = load_r_csv_no_index("ie_X").set_index("id").to_numpy()
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(X, design, method=method)
+        assert fit["method"] == load_r_csv_no_index("ie_fit_slots")[f"method_{method}"].iloc[0]
 
 
-class TestFinding10FitProportionSlotRParity:
-    """Finding 10: R's eBayes sets fit$proportion. pylimma's e_bayes does not."""
+class TestEBayesProportionSlotRParity:
+    """e_bayes sets fit['proportion'] to the value R's eBayes stores in
+    fit$proportion."""
 
-    def test_fit_proportion_populated(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, 8))
-        design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4])
-        fit = lm_fit(X, design)
-        fit = e_bayes(fit, proportion=0.05)
-        assert "proportion" in fit, (
-            "fit['proportion'] missing; R writes fit$proportion at ebayes.R:15"
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id").to_numpy()
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        fit = e_bayes(lm_fit(X, design), proportion=0.05)
+        assert fit["proportion"] == load_r_csv_no_index("ie_fit_slots")["proportion"].iloc[0]
+
+
+class TestContrastsFitEmptyShapeRParity:
+    """contrasts_fit with an empty contrast matrix gives every slot the same
+    dimensions as R's contrasts.fit (cov.coefficients becomes 0 x 0)."""
+
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X").set_index("id").to_numpy()
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4), np.tile([0.0, 1.0], 4)])
+        fit = contrasts_fit(lm_fit(X, design), contrasts=np.zeros((3, 0)))
+        r = load_r_csv_no_index("ie_contrasts_empty_dims").set_index("slot")
+        for r_slot, py_slot in (("coefficients", "coefficients"), ("stdev.unscaled", "stdev_unscaled"),
+                                ("cov.coefficients", "cov_coefficients"), ("contrasts", "contrasts")):
+            assert np.shape(fit[py_slot]) == (r.loc[r_slot, "nrow"], r.loc[r_slot, "ncol"]), py_slot
+
+
+class TestContrastsAllZeroRParity:
+    """contrasts_fit drops coefficients that are zero in every contrast column
+    before the orthogonality check, as R's contrasts.fit does; every contrast
+    slot matches R."""
+
+    def test_matches_r(self):
+        X = load_r_csv_no_index("ie_X10").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(10), np.repeat([0.0, 1.0], 5), np.tile([0.0, 1.0], 5)])
+        fit = contrasts_fit(e_bayes(lm_fit(X, design)), contrasts=np.array([[0.0], [0.0], [1.0]]))
+        _assert_contrast_slots_match(fit, "ie_contrasts_all_zero")
+
+
+class TestLmFitRobustKwargsRParity:
+    """lm_fit(method='robust') forwards extra keyword arguments to the robust
+    fit, as R's lmFit forwards ... to MASS::rlm. The fixture data are chosen
+    so that maxit=2 gives a different fit from the default in R."""
+
+    def test_maxit_matches_r(self):
+        import warnings as _w
+
+        X = load_r_csv_no_index("ie_robust_X").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(X, design, method="robust", maxit=2)
+        np.testing.assert_allclose(
+            fit["coefficients"], load_r_csv_no_index("ie_robust_maxit2_coefficients").to_numpy(dtype=float), rtol=1e-6
         )
-        assert fit["proportion"] == 0.05, (
-            f"fit['proportion'] should be 0.05, got {fit.get('proportion')!r}"
+        np.testing.assert_allclose(
+            fit["stdev_unscaled"], load_r_csv_no_index("ie_robust_maxit2_stdev_unscaled").to_numpy(dtype=float),
+            rtol=1e-6,
         )
+        np.testing.assert_allclose(fit["sigma"], load_r_csv_no_index("ie_robust_maxit2_sigma")["sigma"], rtol=1e-6)
 
 
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding14ContrastsFitEmptyShapeRParity:
-    """Finding 14: contrasts_fit empty-contrasts path leaves cov_coefficients
-    at (p, p) shape. R subsets it to (0, 0) via fit[,0]."""
+class TestContrastsFitCoefficientsIntDocRParity:
+    """contrasts_fit(coefficients=int) is 0-based: coefficients=[1] selects the
+    same coefficient as R's coefficients=2 (the fixture checks R's name and
+    index selections agree)."""
 
-    def test_empty_contrasts_shapes_consistent(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, 8))
-        design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4, [0, 1, 0, 1] * 2])
-        fit = lm_fit(X, design)
-        f2 = contrasts_fit(fit, contrasts=np.zeros((3, 0)))
-        n_contrasts = f2["coefficients"].shape[1]
-        cov_cols = (
-            f2["cov_coefficients"].shape[1] if f2.get("cov_coefficients") is not None else None
-        )
-        assert cov_cols == n_contrasts, (
-            f"cov_coefficients cols ({cov_cols}) != n_contrasts ({n_contrasts}); shapes inconsistent"
-        )
-
-
-@pytest.mark.skipif(not limma_available(), reason="R/limma not available")
-class TestFinding15ContrastsAllZeroRParity:
-    """Finding 15: R's contrasts.fit strips coefficient rows that are zero
-    in every contrast column before the orthog check. pylimma does not."""
-
-    def test_contrasts_all_zero_pruning(self):
-        from .helpers import run_r_comparison
-
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((40, 10))
-        # Design with 3 coefs; build a contrast that only references coef 2
-        # (coef 0 and 1 are "AllZero" in the contrast).
-        design = np.column_stack([np.ones(10), [0] * 5 + [1] * 5, [0, 1] * 5])
-        fit = lm_fit(X, design)
-        fit = e_bayes(fit)
-        contrasts = np.array([[0.0], [0.0], [1.0]])
-        f2 = contrasts_fit(fit, contrasts=contrasts)
-
-        r_code = """
-        library(limma)
-        X <- as.matrix(read.csv('{tmpdir}/X.csv', row.names=1))
-        design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
-        fit <- lmFit(X, design)
-        fit <- eBayes(fit)
-        contr <- matrix(c(0, 0, 1), ncol=1)
-        f2 <- contrasts.fit(fit, contrasts=contr)
-        coef_r <- as.matrix(f2$coefficients)
-        stdev_r <- as.matrix(f2$stdev.unscaled)
-        """
-        r_results = run_r_comparison(
-            py_data={"X": X, "design": design},
-            r_code_template=r_code,
-            output_vars=["coef_r", "stdev_r"],
-        )
-        # Both should match to rtol=1e-6 AFTER R's AllZero reduction
-        res = compare_arrays(
-            r_results["coef_r"].reshape(f2["coefficients"].shape), f2["coefficients"], rtol=1e-6
-        )
-        assert res["match"], (
-            f"contrasts_fit ContrastsAllZero divergence: max_rel={res['max_rel_diff']:.2e}"
-        )
-
-
-class TestFinding17LmFitRobustKwargsRParity:
-    """Finding 17: R's lmFit forwards ... to MASS::rlm (e.g. maxit=50).
-    pylimma's lm_fit has no **kwargs so passing maxit= is a TypeError."""
-
-    def test_lm_fit_robust_accepts_rlm_kwargs(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((20, 6))
-        design = np.column_stack([np.ones(6), [0] * 3 + [1] * 3])
-        # Pre-fix: this raises TypeError("unexpected keyword argument 'maxit'")
-        fit = lm_fit(X, design, method="robust", maxit=50)
-        # Post-fix: no crash, fit has expected slots
-        assert fit["coefficients"].shape == (20, 2)
-
-
-class TestFinding19CoefficientsIntDocRParity:
-    """Finding 19: contrasts_fit(coefficients=int) is 0-based; R is 1-based.
-    The docstring should flag this. Doc-only verification."""
-
-    def test_docstring_flags_zero_based(self):
-        from pylimma.contrasts import contrasts_fit as cf
-
-        doc = cf.__doc__ or ""
-        assert (
-            "0-based" in doc
-            or "zero-based" in doc.lower()
-            or "R uses 1-based" in doc
-            or "R is 1-based" in doc
-        ), "contrasts_fit docstring does not warn R users about 0-based indices"
+    def test_zero_based_index_matches_r_one_based(self):
+        X = load_r_csv_no_index("ie_X").set_index("id")
+        design = pd.DataFrame({"groupA": np.repeat([1.0, 0.0], 4), "groupB": np.repeat([0.0, 1.0], 4)})
+        _assert_contrast_slots_match(contrasts_fit(lm_fit(X, design), coefficients=[1]), "ie_contrasts_by_name")
 
 
 # -----------------------------------------------------------------------------
-# Tier C - Python-only verification (no R needed)
+# Python-only checks (no R needed)
 # -----------------------------------------------------------------------------
 
 
-class TestFinding11ClassifyTestsFRankDeficientRParity:
-    """Finding 11: classify_tests_f crashes on fits where cov_coefficients
-    has NaN diagonals (rank-deficient design). R's cov.coefficients has
-    shape (rank, rank) with no NaN padding."""
+class TestClassifyTestsFRankDeficientRParity:
+    """classify_tests_f on a rank-deficient fit (non-estimable coefficient)
+    matches R's classifyTestsF."""
 
-    def test_classify_tests_f_no_crash_on_rank_deficient(self):
+    def test_matches_r(self):
         import warnings as _w
 
         from pylimma import classify_tests_f
 
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((30, 6))
-        # Rank-deficient design: col 2 is identical to col 1
-        design = np.column_stack(
-            [
-                np.ones(6),
-                [0, 0, 0, 1, 1, 1],
-                [0, 0, 0, 1, 1, 1],
-            ]
-        )
+        X = load_r_csv_no_index("ie_rankdef_X").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]]).astype(float)
         with _w.catch_warnings():
-            _w.filterwarnings("ignore", message="Coefficients not estimable")
-            fit = lm_fit(X, design)
-            # Populate the t/F slots needed for classify_tests_f.
-            # Without is_fullrank, e_bayes skips F-stat so we must manually
-            # set a reasonable t/df_residual state for classify_tests_f.
-            # Even with no F-stat from e_bayes, calling classify_tests_f
-            # directly on the fit should not crash.
-            fit = e_bayes(fit)
-            try:
-                result = classify_tests_f(fit, p_value=0.05)
-            except np.linalg.LinAlgError:
-                pytest.fail("classify_tests_f raised LinAlgError on NaN cov")
-            # Post-fix: returns finite classification results
-            assert result is not None
+            _w.simplefilter("ignore")
+            fit = e_bayes(lm_fit(X, design))
+        result = np.asarray(classify_tests_f(fit, p_value=0.05), dtype=float)
+        np.testing.assert_array_equal(result, load_r_csv_no_index("ie_rankdef_classifytestsf").to_numpy(dtype=float))
 
 
-class TestFinding12TmixtureStableSortRParity:
-    """Finding 12: _tmixture_vector uses unstable argsort + [::-1] reverse.
-    R's order(..., decreasing=TRUE) is stable; reverse means tie-order
-    diverges."""
+class TestEBayesTmixtureStableSortRParity:
+    """The t-mixture estimate in e_bayes breaks ties in the same order as R's
+    stable order(..., decreasing=TRUE). The fixture has three tied moderated
+    t-statistics with different stdev.unscaled, where R's var.prior depends
+    on the tie order."""
 
-    def test_stable_descending_sort_on_ties(self):
-        # Proxy test: any place in ebayes.py that sorts tstat should
-        # use kind='stable'. Grep the relevant line and assert.
-        from pathlib import Path as _P
-
-        src = _P(__file__).parent.parent / "pylimma" / "ebayes.py"
-        text = src.read_text()
-        # Look for np.argsort(tstat)[::-1] pattern; should be replaced
-        # with np.argsort(-tstat, kind="stable")
-        bad = "np.argsort(tstat)[::-1]"
-        assert bad not in text, f"ebayes.py still uses unstable sort pattern '{bad}'"
-
-
-class TestFinding13VarPriorShapeMismatchRParity:
-    """Finding 13: var_prior fallback '1/s2_prior' broadcasts incorrectly
-    when trend=True (s2_prior is per-gene). R recycles scalar."""
-
-    def test_var_prior_nan_fallback_does_not_crash_with_trend(self):
-        rng = np.random.default_rng(0)
-        X = rng.standard_normal((50, 8))
-        design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4])
-        fit = lm_fit(X, design)
-        # proportion=1e-10 makes _tmixture_vector's ntarget<1 branch fire,
-        # returning NaN. With trend=True, s2_prior is per-gene.
-        try:
-            e_bayes(fit, trend=True, proportion=1e-10)
-        except ValueError as e:
-            if "broadcast" in str(e) or "shape" in str(e):
-                pytest.fail(f"var_prior fallback shape mismatch: {e}")
+    def test_matches_r(self):
+        inputs = load_r_csv_no_index("ie_tmixture_ties_input")
+        n = len(inputs)
+        fit = {
+            "coefficients": inputs[["coefficient"]].to_numpy(),
+            "stdev_unscaled": inputs[["stdev_unscaled"]].to_numpy(),
+            "sigma": inputs["sigma"].to_numpy(),
+            "df_residual": np.full(n, 6.0),
+            "Amean": np.zeros(n),
+        }
+        eb = e_bayes(fit, proportion=0.01)
+        r = load_r_csv_no_index("ie_tmixture_ties_ebayes")
+        np.testing.assert_allclose(np.ravel(eb["var_prior"]), r["var_prior"].iloc[:1], rtol=1e-6)
+        np.testing.assert_allclose(eb["t"][:, 0], r["t"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["p_value"], eb["p_value"][:, 0])
+        np.testing.assert_allclose(eb["lods"][:, 0], r["lods"], rtol=1e-6)
 
 
-class TestFinding16AverepsElistRParity:
-    """Finding 16: avereps(EList) crashes. Should average the E matrix
-    across replicate rows, using EList['genes']['ID'] or index as ID."""
+class TestEBayesVarPriorShapeMismatchRParity:
+    """e_bayes(trend=True) when the t-mixture estimate is NA (a non-estimable
+    coefficient) uses R's fallback var.prior = 1/s2.prior, recycling the
+    genewise s2_prior as R does, and every moderated statistic matches R."""
 
-    def test_avereps_on_elist_does_not_crash(self):
+    def test_matches_r(self):
+        import warnings as _w
+
+        X = load_r_csv_no_index("ie_rankdef_X").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1]]).astype(float)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            eb = e_bayes(lm_fit(X, design), trend=True)
+        np.testing.assert_allclose(
+            np.ravel(eb["var_prior"]), load_r_csv_no_index("ie_var_prior_fallback_var_prior")["var_prior"], rtol=1e-6
+        )
+        r = load_r_csv_no_index("ie_var_prior_fallback")
+        np.testing.assert_allclose(eb["s2_prior"], r["s2_prior"], rtol=1e-6)
+        np.testing.assert_allclose(eb["t"][:, 1], r["t"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["p_value"], eb["p_value"][:, 1])
+        np.testing.assert_allclose(eb["lods"][:, 1], r["lods"], rtol=1e-6)
+
+
+class TestAverepsElistRParity:
+    """avereps on an EList averages E and weights across replicate rows by
+    genes['ID'], as R's avereps.EList does."""
+
+    def test_matches_r(self):
         from pylimma import avereps
 
-        X = np.array([[1.0, 2], [3, 4], [5, 6], [7, 8]])
-        W = np.array([[1.0, 1], [0.5, 2], [1, 1], [1, 1]])
-        genes = pd.DataFrame({"ID": ["A", "A", "B", "B"]})
-        el = EList({"E": X, "weights": W, "genes": genes})
-        # Pre-fix: crashes in np.asarray(dict).
-        # Post-fix: returns an EList-like with 2 rows (A, B).
+        el = EList({
+            "E": np.array([[1.0, 2], [3, 4], [5, 6], [7, 8]]),
+            "weights": np.array([[1.0, 1], [0.5, 2], [1, 1], [1, 1]]),
+            "genes": pd.DataFrame({"ID": ["A", "A", "B", "B"]}),
+        })
         out = avereps(el)
-        # Accept EList, dict, ndarray, or DataFrame shapes
-        if hasattr(out, "get") and callable(out.get):
-            arr = np.asarray(out.get("E", out) if "E" in out else out)
-        else:
-            arr = np.asarray(out)
-        assert arr.shape[0] == 2, f"expected 2 averaged rows, got shape {arr.shape}"
+        for slot in ("E", "weights"):
+            r = load_r_csv_no_index(f"ie_avereps_elist_{slot}").set_index("id")
+            py = out[slot]
+            py = py if isinstance(py, pd.DataFrame) else pd.DataFrame(np.asarray(py), index=r.index)
+            assert list(py.index) == list(r.index)
+            np.testing.assert_allclose(np.asarray(py, dtype=float), r.to_numpy(dtype=float), rtol=1e-12)
 
 
-class TestFinding18LmSeriesSignatureRParity:
-    """Finding 18: R's lm.series accepts ndups/spacing; pylimma's doesn't.
-    Either remove lm_series from __all__ or add these kwargs."""
+class TestLmSeriesSignatureRParity:
+    """lm_series is either kept out of __all__ or accepts R's ndups / spacing
+    arguments (R's lm.series takes both)."""
 
     def test_lm_series_either_hidden_or_accepts_ndups(self):
         import pylimma
@@ -4725,9 +4568,9 @@ class TestFinding18LmSeriesSignatureRParity:
                 pytest.fail(f"lm_series is public but rejects R's ndups/spacing: {e}")
 
 
-class TestFinding20VoomaByGroupPlotRParity:
-    """Finding 20: vooma_by_group(plot=True) silently a no-op.
-    Post-fix: either plot is produced or a warning is emitted."""
+class TestVoomaByGroupPlotRParity:
+    """vooma_by_group(plot=True) either draws the plot or warns; it is never
+    silently a no-op."""
 
     def test_plot_true_emits_warning_or_draws(self):
         import warnings as _w
@@ -4740,9 +4583,8 @@ class TestFinding20VoomaByGroupPlotRParity:
         with _w.catch_warnings(record=True) as caught:
             _w.simplefilter("always")
             vooma_by_group(X, group=group, plot=True)
-        # Post-fix: we get either (a) a warning about plot=True not
-        # implemented, or (b) plot was actually drawn (check via mpl gca).
-        # Pre-fix: neither happens.
+        # Expect either (a) a warning that plot=True is not implemented, or
+        # (b) a plot actually drawn (check via mpl gca).
         msgs = [str(w.message) for w in caught]
         plot_mentioned = any("plot" in m.lower() for m in msgs)
         # Check matplotlib figure existence
@@ -4757,7 +4599,7 @@ class TestFinding20VoomaByGroupPlotRParity:
 
 
 # =============================================================================
-# Phase 6: enrichment (goana / kegga / goanaTrend)
+# enrichment (goana / kegga / goanaTrend)
 # =============================================================================
 
 
@@ -4805,7 +4647,7 @@ class TestGoanaRParity:
         py = goana(de=de_list, gene_pathway=gp, universe=universe, trend=False)
         r = load_r_csv("goana_default").loc[py.index]
         for r_col, py_col in (("P.Up", "p_up"), ("P.Down", "p_down")):
-            res = compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1.0)
+            res = compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1e-6)
             assert res["match"], (
                 f"goana {py_col} differs: max_log10_diff={res['max_log10_diff']:.3e}"
             )
@@ -4850,7 +4692,7 @@ class TestKeggaRParity:
         py = kegga(de=de_list, gene_pathway=gp, pathway_names=pn, universe=universe, trend=False)
         r = load_r_csv("kegga_default").loc[py.index]
         for r_col, py_col in (("P.Up", "p_up"), ("P.Down", "p_down")):
-            res = compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1.0)
+            res = compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1e-6)
             assert res["match"], (
                 f"kegga {py_col} differs: max_log10_diff={res['max_log10_diff']:.3e}"
             )
@@ -4891,7 +4733,7 @@ class TestGoanaTrendRParity:
 
 class TestGoanaTrendInterface:
     def test_trend_true_raises_not_implemented(self):
-        """trend=True is the BiasedUrn path, deferred to Phase 2."""
+        """trend=True is the BiasedUrn path, not yet ported."""
         from pylimma import goana, kegga
 
         gp, de_list, universe = _load_goana_inputs()
@@ -4903,8 +4745,8 @@ class TestGoanaTrendInterface:
 
 
 # =============================================================================
-# Forgotten public-API audit (2026-04-30): chooseLowessSpan, qqf, zscore family,
-# loessFit, contrastAsCoef, plus public-API promotion smoke tests.
+# Public API: chooseLowessSpan, qqf, zscore family, loessFit, contrastAsCoef,
+# plus top-level import checks for exported functions.
 # =============================================================================
 
 
@@ -5009,9 +4851,8 @@ class TestContrastAsCoefRParity:
         contr = make_contrasts(BvsA="B-A", levels=["A", "B"])
         res = contrast_as_coef(design, contr)
 
-        # Design columns may differ in absolute sign of the orthogonal-
-        # complement column (Q decomposition is unique only up to column
-        # signs); compare absolute values for the unnamed Q column.
+        # R builds the orthogonal-complement column with deterministic
+        # LINPACK qr(), so its sign is reproducible and compared exactly.
         py_design = res["design"]
         assert list(py_design.columns) == list(ref_design.columns), (
             f"column names differ: py={list(py_design.columns)}, r={list(ref_design.columns)}"
@@ -5019,15 +4860,7 @@ class TestContrastAsCoefRParity:
         for col in ref_design.columns:
             r_vals = ref_design[col].values
             py_vals = py_design[col].values
-            if col == "BvsA":
-                cmp = compare_arrays(r_vals, py_vals, rtol=1e-10, atol=1e-12)
-            else:
-                cmp = compare_arrays(
-                    np.abs(r_vals),
-                    np.abs(py_vals),
-                    rtol=1e-10,
-                    atol=1e-12,
-                )
+            cmp = compare_arrays(r_vals, py_vals, rtol=1e-10, atol=1e-12)
             assert cmp["match"], (
                 f"contrast_as_coef design column '{col}' differs: max_rel={cmp['max_rel_diff']:.3e}"
             )
@@ -5094,7 +4927,7 @@ class TestNormalizeVSNRParity:
         hx = _vsn_trsf(x, r_par)
         hoffset = float(np.log2(2.0 * _scaling_factor_transform(np.mean(r_b))))
         py_at_r = hx / np.log(2.0) - hoffset
-        cmp = compare_arrays(ref, py_at_r, rtol=1e-6, atol=1e-7)
+        cmp = compare_arrays(ref, py_at_r, rtol=1e-6, atol=1e-12)
         assert cmp["match"], (
             f"transform at R params differs: "
             f"max_rel={cmp['max_rel_diff']:.3e} max_abs={cmp['max_abs_diff']:.3e}"
@@ -5126,8 +4959,8 @@ class TestModifyWeightsRParity:
 
 
 class TestPublicAPIPromotion:
-    """Audit gap (2026-04-30): symbols that R limma exports must be
-    importable from top-level pylimma without underscore prefix."""
+    """Symbols that R limma exports must be importable from top-level
+    pylimma without an underscore prefix."""
 
     def test_mrlm_importable_from_top_level(self):
         import pylimma
@@ -5162,3 +4995,1348 @@ class TestPublicAPIPromotion:
         y = pylimma.trigamma_inverse(x)
         round_trip = polygamma(1, y)
         np.testing.assert_allclose(round_trip, x, rtol=1e-7)
+
+
+# =============================================================================
+# weightedLowess (weighted_lowess.c) and loessFit: branch-forcing parity
+# =============================================================================
+
+
+def _nan_to_none(column: pd.Series):
+    return None if column.isna().all() else column.to_numpy(dtype=float)
+
+
+class TestWeightedLowessBranchParity:
+    """Each fixture forces a distinct branch of weightedLowess / weighted_lowess.c."""
+
+    @staticmethod
+    def _assert_branch_taken(case: str, r: pd.DataFrame, span: float) -> None:
+        if case in ("interp", "delta_given"):
+            assert r["delta"].iloc[0] > 0 and r["x"].duplicated().any()
+        if case == "small_n":
+            assert r["delta"].iloc[0] == 0
+        if case == "unweighted":
+            # Unit weights and even n: cumulative weight hits exactly half.
+            assert r["weights"].isna().all() and len(r) % 2 == 0
+        if case == "tied_block":
+            # The tied block holds more than a span's worth of weight, so its
+            # windows have zero width; the last anchor ties its predecessor.
+            tied = r["x"] == r["x"].min()
+            assert r.loc[tied, "weights"].sum() > span * r["weights"].sum()
+            assert r["x"].iloc[-1] == r["x"].iloc[-2]
+        if case == "mad_zero":
+            assert (r["robustness"] == 1).all()
+
+    @pytest.mark.parametrize(
+        "case, span",
+        [
+            ("interp", 0.3),
+            ("delta_given", 0.3),
+            ("small_n", 0.3),
+            ("unweighted", 0.3),
+            ("tied_block", 0.2),
+            ("mad_zero", 0.3),
+        ],
+    )
+    def test_matches_r(self, case, span):
+        from pylimma import weighted_lowess
+
+        r = load_r_csv_no_index(f"wl_{case}")
+        self._assert_branch_taken(case, r, span)
+        delta = None if pd.isna(r["delta_arg"].iloc[0]) else float(r["delta_arg"].iloc[0])
+        kwargs = dict(weights=_nan_to_none(r["weights"]), delta=delta, span=span)
+
+        loess_style = weighted_lowess(r["x"], r["y"], **kwargs)
+        np.testing.assert_allclose(loess_style["fitted"], r["fitted"], rtol=1e-6)
+        np.testing.assert_allclose(loess_style["residuals"], r["residuals"], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(loess_style["weights"], r["robustness"], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(loess_style["delta"], r["delta"].iloc[0], rtol=1e-6)
+
+        lowess_style = weighted_lowess(r["x"], r["y"], output_style="lowess", **kwargs)
+        np.testing.assert_allclose(lowess_style["x"], r["lowess_x"], rtol=1e-6)
+        np.testing.assert_allclose(lowess_style["y"], r["lowess_y"], rtol=1e-6)
+
+
+class TestLoessFitBranchParity:
+    """Each fixture forces a distinct branch of R's loessFit."""
+
+    @staticmethod
+    def _assert_branch_taken(case: str, r: pd.DataFrame) -> None:
+        weights = r["weights"]
+        positive = int((weights > 0).sum())
+        span = r["span"].iloc[0]
+        if case == "weighted_na":
+            assert (r["y"].isna() | r["x"].isna()).any() and weights.nunique() > 1
+        if case == "unweighted":
+            assert r["weights_null"].all()
+        if case == "equal_weights":
+            assert weights.nunique() == 1
+        if case == "clamped_weights":
+            assert (weights == 0).any() and r["min_weight"].iloc[0] == 1e-8
+        if case in ("few_positive", "aliased_slope"):
+            assert r["min_weight"].iloc[0] == 0 and 1 < positive < 4 + 1 / span
+        if case == "aliased_slope":
+            assert r.loc[weights > 0, "x"].nunique() == 1
+        if case == "one_positive":
+            assert r["min_weight"].iloc[0] == 0 and positive == 1
+        if case == "span_tiny":
+            assert span < 1 / len(r)
+        if case == "all_na":
+            assert r["y"].isna().all()
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "weighted_na",
+            "unweighted",
+            "equal_weights",
+            "clamped_weights",
+            "few_positive",
+            "one_positive",
+            "aliased_slope",
+            "span_tiny",
+            "all_na",
+        ],
+    )
+    def test_matches_r(self, case):
+        from pylimma import loess_fit
+
+        r = load_r_csv_no_index(f"lf_{case}")
+        self._assert_branch_taken(case, r)
+        fit = loess_fit(
+            r["y"].to_numpy(dtype=float),
+            r["x"].to_numpy(dtype=float),
+            weights=None if r["weights_null"].iloc[0] else r["weights"].to_numpy(dtype=float),
+            span=float(r["span"].iloc[0]),
+            min_weight=float(r["min_weight"].iloc[0]),
+            max_weight=float(r["max_weight"].iloc[0]),
+        )
+        np.testing.assert_allclose(fit["fitted"], r["fitted"], rtol=1e-6)
+        np.testing.assert_allclose(fit["residuals"], r["residuals"], rtol=1e-6, atol=1e-12)
+
+
+# =============================================================================
+# qr() / dqrdc2 pivoting and lm.series genewise branches
+# =============================================================================
+
+
+class TestDqrdc2PivotParity:
+    """Column pivoting and rank against R's qr() (LINPACK dqrdc2) and nonEstimable()."""
+
+    CASES = [
+        "scaled_covariate",
+        "wide",
+        "zero_column_first",
+        "collinear_middle",
+        "near_tol_dropped",
+        "near_tol_kept",
+        "all_zero",
+        "single_row",
+    ]
+
+    @staticmethod
+    def _matrix(case: str) -> np.ndarray:
+        long = load_r_csv_no_index("qr_inputs")
+        cells = long[long["case"] == case]
+        m = np.zeros((cells["row"].max(), cells["col"].max()))
+        m[cells["row"] - 1, cells["col"] - 1] = cells["value"]
+        return m
+
+    @pytest.mark.parametrize("case", CASES)
+    def test_matches_r(self, case):
+        from pylimma.lmfit import _dqrdc2_pivot, non_estimable
+
+        x = self._matrix(case)
+        r = load_r_csv_no_index("qr_outputs").set_index("case").loc[case]
+        if case == "scaled_covariate":
+            assert np.abs(x).max() > 1e8
+        if case in ("wide", "single_row"):
+            assert x.shape[0] < x.shape[1]
+        if case == "zero_column_first":
+            assert not x[:, 0].any()
+
+        pivot, rank = _dqrdc2_pivot(x)
+        assert rank == r["rank"]
+        assert list(pivot + 1) == [int(v) for v in r["pivot"].split(";")]
+        expected_ne = None if pd.isna(r["non_estimable"]) else r["non_estimable"].split(";")
+        assert non_estimable(x) == expected_ne
+
+
+class TestLmSeriesBranchParity:
+    """lmFit genewise fits through lm.fit / lm.wfit pivoting, fast and slow paths."""
+
+    @pytest.mark.parametrize("case", ["scaled_covariate", "saturated", "missing", "weighted"])
+    def test_matches_r(self, case):
+        expr = load_r_csv_no_index(f"lsq_{case}_expr").to_numpy(dtype=float)
+        design = load_r_csv_no_index(f"lsq_{case}_design").to_numpy(dtype=float)
+        weights = (
+            load_r_csv_no_index(f"lsq_{case}_weights").to_numpy(dtype=float) if case == "weighted" else None
+        )
+        r = load_r_csv_no_index(f"lsq_{case}")
+        if case == "missing":
+            n_obs = np.isfinite(expr).sum(axis=1)
+            assert (n_obs == 1).any() and (n_obs == 0).any() and (n_obs[n_obs > 0] < design.shape[1]).any()
+        if case == "saturated":
+            assert design.shape[0] == design.shape[1]
+
+        fit = lm_fit(expr, design, weights=weights)
+        for j in range(design.shape[1]):
+            np.testing.assert_allclose(fit["coefficients"][:, j], r[f"coef_{j + 1}"], rtol=1e-6, atol=1e-12)
+            np.testing.assert_allclose(fit["stdev_unscaled"][:, j], r[f"stdev_{j + 1}"], rtol=1e-6)
+        np.testing.assert_allclose(fit["sigma"], r["sigma"], rtol=1e-6)
+        np.testing.assert_array_equal(fit["df_residual"], r["df_residual"])
+
+    def test_rank_zero_gene_errors_like_r(self):
+        assert isinstance(load_r_csv_no_index("lsq_rank_zero_error")["r_error"].iloc[0], str)
+        expr = load_r_csv_no_index("lsq_rank_zero_expr").to_numpy(dtype=float)
+        design = load_r_csv_no_index("lsq_rank_zero_design").to_numpy(dtype=float)
+        with pytest.raises(ValueError):
+            lm_fit(expr, design)
+
+
+# =============================================================================
+# fitFDist: spline trend predicted at excluded points
+# =============================================================================
+
+
+class TestFitFDistOutOfRangePredictionParity:
+    """Excluded points whose covariate lies beyond the fitted range.
+
+    R predicts the trend there with ``predict(ns, newx)``, which is linear
+    beyond the boundary knots. The fixtures assert that such points exist on
+    both sides; ``splinedf2`` has no interior knots.
+    """
+
+    @pytest.mark.parametrize("case", ["splinedf4", "splinedf2"])
+    def test_scale_and_df2(self, case):
+        r = load_r_csv_no_index(f"fit_f_dist_outside_{case}")
+        ok = np.isfinite(r["x"].values)
+        cov = r["covariate"].values
+        assert cov[~ok].min() < cov[ok].min() and cov[~ok].max() > cov[ok].max()
+        py = fit_f_dist(r["x"].values, df1=4, covariate=cov)
+        np.testing.assert_allclose(py["scale"], r["scale"].values, rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
+
+
+class TestFitFDistKnotShovingParity:
+    """Interior spline knots that coincide with a boundary knot.
+
+    With a third or more of the covariate tied at an extreme, a quantile knot
+    equals the boundary knot and R's ns() moves it inwards with a warning;
+    the fixtures assert R warned. When every interior knot is on one
+    boundary, ns() fails and fitFDist stops.
+    """
+
+    @pytest.mark.parametrize("case", ["left", "right", "both", "left_na"])
+    def test_scale_and_df2(self, case):
+        r = load_r_csv_no_index(f"fit_f_dist_shoved_{case}")
+        with pytest.warns(UserWarning, match="shoving 'interior' knots"):
+            py = fit_f_dist(r["x"].values, df1=4, covariate=r["covariate"].values)
+        np.testing.assert_allclose(py["scale"], r["scale"].values, rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
+
+    def test_all_knots_on_boundary_errors(self):
+        r = load_r_csv_no_index("fit_f_dist_shoved_error_input")
+        with pytest.raises(ValueError, match="Problem with covariate"):
+            fit_f_dist(r["x"].values, df1=4, covariate=r["covariate"].values)
+
+
+class TestFitFDistRankDeficientTrendParity:
+    """Spline trend whose basis is numerically rank deficient.
+
+    Covariate values 1e-9 apart are distinct but alias two basis columns at
+    lm.fit's tolerance (1e-7); the fixtures assert R found the rank below the
+    number of columns. R's evar uses the effects beyond the rank, and the
+    aliased coefficient is NA, so excluded points (case ``na``) get NA scale.
+    """
+
+    @pytest.mark.parametrize("case", ["low", "mid", "na"])
+    def test_scale_and_df2(self, case):
+        r = load_r_csv_no_index(f"fit_f_dist_rank_deficient_{case}")
+        py = fit_f_dist(r["x"].values, df1=4, covariate=r["covariate"].values)
+        np.testing.assert_allclose(py["scale"], r["scale"].values, rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
+
+
+# =============================================================================
+# fitFDistUnequalDF1: branch-forcing parity
+# =============================================================================
+
+
+def _assert_log10_pvalues_close(r_pvals, py_pvals, rtol=1e-6):
+    np.testing.assert_allclose(
+        np.log10(np.asarray(py_pvals, dtype=float)),
+        np.log10(np.asarray(r_pvals, dtype=float)),
+        rtol=rtol,
+    )
+
+
+class TestFitFDistUnequalDF1BranchParity:
+    """Each fixture forces a distinct branch of R's fitFDistUnequalDF1.
+
+    The branch-taken preconditions are asserted on the R output first, so a
+    test cannot pass by routing through an easier branch.
+    """
+
+    CASES = [
+        "shrink",
+        "shrink_ties",
+        "trend_robust",
+        "trend_robust_span",
+        "trend_na",
+        "underflow",
+        "left_only",
+        "unit_df1",
+        "prior_weights",
+        "two_informative",
+        "one_informative",
+    ]
+
+    @staticmethod
+    def _assert_branch_taken(case: str, r: pd.DataFrame) -> None:
+        shrunk = r["df2_shrunk"]
+        if case in ("shrink", "shrink_ties", "trend_robust", "trend_robust_span", "unit_df1", "underflow"):
+            assert shrunk.notna().all() and shrunk.nunique() > 1
+        if case == "shrink_ties":
+            tail = r[shrunk < r["df2"]]
+            assert tail.duplicated(subset=["x", "df1"]).any()
+        if case in ("trend_robust", "trend_robust_span", "trend_na", "prior_weights"):
+            assert r["x"].isna().any()
+        if case == "underflow":
+            assert r["df2_outlier"].iloc[0] == 0
+        if case == "left_only":
+            assert shrunk.isna().all() and r["df2_outlier"].isna().all()
+        if case == "prior_weights":
+            assert (r["df1"] < 0.01).any()
+        if case == "one_informative":
+            assert r["scale"].isna().all() and r["df2"].isna().all()
+
+    @pytest.mark.parametrize("case", CASES)
+    def test_matches_r(self, case):
+        r = load_r_csv_no_index(f"ffdu_{case}")
+        self._assert_branch_taken(case, r)
+
+        df1 = r["df1"].to_numpy(dtype=float)
+        if r["df1_is_unit"].iloc[0]:
+            df1 = df1[:1]
+        span = None if pd.isna(r["span"].iloc[0]) else float(r["span"].iloc[0])
+        py = fit_f_dist_unequal_df1(
+            r["x"].to_numpy(dtype=float),
+            df1,
+            covariate=_nan_to_none(r["covariate"]),
+            span=span,
+            robust=bool(r["robust"].iloc[0]),
+            prior_weights=_nan_to_none(r["prior_weights"]),
+        )
+
+        n = len(r)
+        np.testing.assert_allclose(np.broadcast_to(py["scale"], n), r["scale"], rtol=1e-6)
+        np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(py.get("df2_outlier", np.nan), r["df2_outlier"].iloc[0], rtol=1e-6)
+        np.testing.assert_allclose(
+            np.broadcast_to(py.get("df2_shrunk", np.nan), n), r["df2_shrunk"], rtol=1e-6
+        )
+
+    @pytest.mark.parametrize(
+        "case, kwargs",
+        [
+            ("df1_length", dict(x=[1.0, 2.0, 3.0], df1=[4.0, 4.0])),
+            ("df1_na", dict(x=[1.0, 2.0, 3.0], df1=[4.0, np.nan, 4.0])),
+            ("covariate_length", dict(x=[1.0, 2.0, 3.0], df1=4.0, covariate=[1.0, 2.0])),
+            ("covariate_na", dict(x=[1.0, 2.0, 3.0], df1=4.0, covariate=[1.0, np.nan, 3.0])),
+            ("prior_weights_length", dict(x=[1.0, 2.0, 3.0], df1=4.0, prior_weights=[1.0, 1.0])),
+            ("prior_weights_na", dict(x=[1.0, 2.0, 3.0], df1=4.0, prior_weights=[1.0, np.nan, 1.0])),
+            ("prior_weights_negative", dict(x=[1.0, 2.0, 3.0], df1=4.0, prior_weights=[1.0, -1.0, 1.0])),
+        ],
+    )
+    def test_input_errors_match_r(self, case, kwargs):
+        r_errors = load_r_csv_no_index("ffdu_errors").set_index("case")["r_error"]
+        assert isinstance(r_errors[case], str)  # R stops on this input
+        with pytest.raises(ValueError):
+            fit_f_dist_unequal_df1(**{k: np.asarray(v, dtype=float) for k, v in kwargs.items()})
+
+    @pytest.mark.parametrize("trend", [False, True])
+    def test_ebayes_robust_unequal_df(self, trend):
+        """eBayes(robust=TRUE) with genewise df from missing values, incl. a df=0 gene."""
+        r = load_r_csv_no_index(f"ffdu_ebayes_robust{'_trend' if trend else ''}")
+        assert r["df_prior"].nunique() > 1
+        expr = load_r_csv_no_index("ffdu_ebayes_expr").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        fit = e_bayes(lm_fit(expr, design), robust=True, trend=trend)
+
+        np.testing.assert_allclose(fit["t"][:, 1], r["t"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["p_value"], fit["p_value"][:, 1])
+        np.testing.assert_allclose(fit["lods"][:, 1], r["lods"], rtol=1e-6)
+        np.testing.assert_allclose(fit["s2_post"], r["s2_post"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(fit["df_prior"], len(r)), r["df_prior"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(fit["s2_prior"], len(r)), r["s2_prior"], rtol=1e-6)
+        np.testing.assert_allclose(fit["df_total"], r["df_total"], rtol=1e-6)
+
+
+# =============================================================================
+# fry / .fryEffects: branch-forcing parity
+# =============================================================================
+
+
+def _fry_expr(name: str = "fry_expr") -> pd.DataFrame:
+    frame = load_r_csv_no_index(name).set_index("id")
+    return frame.drop(columns=[c for c in ("symbol",) if c in frame.columns])
+
+
+def _fry_sets(case: str):
+    """Rebuild the gene sets R used for ``case`` (1-based indices -> 0-based)."""
+    rows = load_r_csv_no_index("fry_sets")
+    rows = rows[rows["case"] == case]
+
+    def members(values: pd.Series):
+        numeric = pd.to_numeric(values, errors="coerce")
+        return (numeric.astype(int) - 1).tolist() if numeric.notna().all() else values.astype(str).tolist()
+
+    sets = []
+    for (_, name), block in rows.groupby([rows["set_number"], rows["set"].fillna("")], sort=False):
+        if block["weight"].notna().any():
+            ids = members(block["member"])
+            sets.append((name, pd.DataFrame({"id": ids, "weight": block["weight"].to_numpy()})))
+        else:
+            sets.append((name, members(block["member"])))
+    if rows["set"].isna().all():
+        return [s for _, s in sets]
+    return dict(sets)
+
+
+class TestFryBranchParity:
+    """Each fixture forces a distinct branch of R's fry.default / .fryEffects."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+
+    @classmethod
+    def _case_call(cls, case: str):
+        expr = _fry_expr()
+        kwargs = {"sort": "none"}
+        if case.startswith("std_"):
+            kwargs["standardize"] = {
+                "std_none": "none", "std_residual": "residual.sd",
+                "std_p2": "p2", "std_posterior": "posterior.sd",
+            }[case]
+        elif case == "posterior_inf":
+            expr = _fry_expr("fry_expr_null")
+        elif case == "posterior_robust":
+            kwargs["robust"] = True
+        elif case == "p2_robust":
+            kwargs.update(standardize="p2", robust=True)
+        elif case == "trend":
+            kwargs["trend_var"] = True
+        elif case == "gene_weights":
+            kwargs["gene_weights"] = load_r_csv_no_index("fry_input_gene_weights")["gene_weights"].to_numpy()
+        elif case == "geneid_column":
+            symbols = load_r_csv_no_index("fry_expr").set_index("id")["symbol"]
+            expr = EList({"E": expr.to_numpy(), "genes": pd.DataFrame({"Symbol": symbols})})
+            kwargs["geneid"] = "Symbol"
+        elif case == "geneid_vector":
+            kwargs["geneid"] = load_r_csv_no_index("fry_expr")["symbol"].to_numpy()
+        elif case.startswith("sort_"):
+            kwargs["sort"] = {
+                "sort_directional": "directional", "sort_mixed": "mixed",
+                "sort_true": True, "sort_false": False,
+            }[case]
+        elif case == "array_weights":
+            kwargs["array_weights"] = load_r_csv_no_index("fry_input_array_weights")["array_weights"].to_numpy()
+        elif case == "obs_weights":
+            kwargs["weights"] = load_r_csv_no_index("fry_input_obs_weights").to_numpy(dtype=float)
+        elif case == "block":
+            kwargs.update(block=np.tile(np.arange(1, 5), 2), correlation=0.3)
+        elif case == "contrast_vector":
+            kwargs["contrast"] = np.array([-1.0, 1.0])
+        index = None if case == "index_null" else _fry_sets(case)
+        return expr, index, kwargs
+
+    @staticmethod
+    def _assert_branch_taken(case: str, r: pd.DataFrame) -> None:
+        if case == "posterior_inf":
+            null = _fry_expr("fry_expr_null").to_numpy()
+            within = np.concatenate([null[:, :4] - null[:, :4].mean(1, keepdims=True),
+                                     null[:, 4:] - null[:, 4:].mean(1, keepdims=True)], axis=1)
+            ss = np.sum(within**2, axis=1)
+            assert np.allclose(ss, ss[0])  # equal residual variances -> df2 = Inf
+        if case == "singleton":
+            assert (r["NGenes"] == 1).any()
+        if case == "one_set":
+            assert "FDR" not in r.columns
+        if case == "unnamed_many":
+            assert list(r["set"]) == [f"set{i:02d}" for i in range(1, 13)]
+
+    CASES = [
+        "std_none", "std_residual", "std_p2", "std_posterior", "posterior_inf",
+        "posterior_robust", "p2_robust", "trend", "singleton", "one_set",
+        "index_null", "unnamed_many", "character_ids", "df_weights_int",
+        "df_weights_chr", "gene_weights", "geneid_column", "geneid_vector",
+        "sort_directional", "sort_mixed", "sort_true", "sort_false",
+        "array_weights", "obs_weights", "block", "contrast_vector",
+    ]
+
+    @pytest.mark.parametrize("case", CASES)
+    def test_matches_r(self, case):
+        from pylimma import fry
+
+        r = load_r_csv_no_index(f"fry_{case}")
+        self._assert_branch_taken(case, r)
+        expr, index, kwargs = self._case_call(case)
+        tab = fry(expr, index, self.DESIGN, **kwargs)
+
+        assert list(tab.index) == list(r["set"])
+        np.testing.assert_array_equal(tab["n_genes"], r["NGenes"])
+        np.testing.assert_array_equal(tab["direction"], r["Direction"])
+        _assert_log10_pvalues_close(r["PValue"], tab["p_value"])
+        _assert_log10_pvalues_close(r["PValue.Mixed"], tab["p_value_mixed"])
+        assert ("fdr" in tab.columns) == ("FDR" in r.columns)
+        if "FDR" in r.columns:
+            _assert_log10_pvalues_close(r["FDR"], tab["fdr"])
+            _assert_log10_pvalues_close(r["FDR.Mixed"], tab["fdr_mixed"])
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "gene_weights_length", "block_without_correlation", "index_empty",
+            "duplicate_set_names", "duplicate_ids_in_df_set", "df_set_without_weights",
+            "geneid_length",
+        ],
+    )
+    def test_errors_match_r(self, case):
+        from pylimma import fry
+
+        assert isinstance(load_r_csv_no_index("fry_errors").set_index("case")["r_error"][case], str)
+        expr = _fry_expr()
+        sets = {"up": list(range(15)), "down": list(range(29, 45))}
+        call = {
+            "gene_weights_length": lambda: fry(expr, sets, self.DESIGN, gene_weights=[1.0, 2.0, 3.0]),
+            "block_without_correlation": lambda: fry(expr, sets, self.DESIGN, block=np.tile(np.arange(4), 2)),
+            "index_empty": lambda: fry(expr, {}, self.DESIGN),
+            "duplicate_set_names": lambda: fry(expr, [("a", [0]), ("a", [1])], self.DESIGN),
+            "duplicate_ids_in_df_set": lambda: fry(
+                expr, {"w": pd.DataFrame({"id": ["gene001", "gene001"], "w": [1.0, 2.0]})}, self.DESIGN
+            ),
+            "df_set_without_weights": lambda: fry(expr, {"w": pd.DataFrame({"id": [0, 1, 2]})}, self.DESIGN),
+            "geneid_length": lambda: fry(expr, sets, self.DESIGN, geneid=[f"SYM{i}" for i in range(10)]),
+        }[case]
+        with pytest.raises(ValueError):
+            call()
+
+
+# =============================================================================
+# decideTests (MArrayLM and default methods): branch-forcing parity
+# =============================================================================
+
+
+class TestDecideTestsBranchParity:
+    """Each fixture forces a distinct branch of R's decideTests methods."""
+
+    DESIGN = np.column_stack(
+        [np.ones(12), np.repeat([0.0, 1.0, 0.0], 4), np.repeat([0.0, 0.0, 1.0], 4)]
+    )
+
+    @classmethod
+    def _fit(cls, data: str):
+        expr = {
+            "fit": "dt_expr", "fit_na": "dt_expr_na", "fit_inf": "dt_expr_inf",
+            "fit_inf_small": "dt_expr_inf_small", "lmfit": "dt_expr",
+        }[data]
+        fit = lm_fit(load_r_csv_no_index(expr).to_numpy(dtype=float), cls.DESIGN)
+        return fit if data == "lmfit" else e_bayes(fit)
+
+    FIT_CASES = load_r_csv_no_index("dt_cases")["case"].tolist() if (FIXTURES_DIR / "R_dt_cases.csv").exists() else []
+
+    @pytest.mark.parametrize("case", FIT_CASES)
+    def test_fit_matches_r(self, case):
+        spec = load_r_csv_no_index("dt_cases").set_index("case").loc[case]
+        fit = self._fit(spec["data"])
+        if spec["data"] == "fit_na":
+            assert np.isnan(fit["p_value"]).any()
+        if spec["data"] in ("fit_inf", "fit_inf_small"):
+            assert np.all(np.isinf(fit["df_prior"]))
+        if spec["method"] == "nestedF" and spec["data"] == "fit":
+            assert np.any(fit["t"][50:55, 1] == fit["t"][50:55, 2])  # tied |t|
+        results = decide_tests(
+            fit, method=spec["method"], adjust_method=spec["adjust"],
+            p_value=float(spec["p_value"]), lfc=float(spec["lfc"]),
+        )
+        np.testing.assert_array_equal(results, load_r_csv_no_index(f"dt_{case}").to_numpy(dtype=float))
+
+    @pytest.mark.parametrize(
+        "case, method, adjust, extra",
+        [
+            ("p_separate_nocoef", "separate", "BH", {}),
+            ("p_separate_coef_lfc", "separate", "BH", {"coefficients": "coef", "lfc": 0.5}),
+            ("p_global_tstat", "global", "holm", {"tstat": "tstat"}),
+            ("p_hierarchical_BH", "hierarchical", "BH", {"coefficients": "coef"}),
+            ("p_hierarchical_none", "hierarchical", "none", {"coefficients": "coef"}),
+            ("p_hierarchical_bonferroni", "hierarchical", "bonferroni", {"coefficients": "coef"}),
+            ("p_hierarchical_holm", "hierarchical", "holm", {"coefficients": "coef"}),
+            ("p_hierarchical_BY", "hierarchical", "BY", {"coefficients": "coef"}),
+            ("p_hierarchical_nocoef", "hierarchical", "BH", {}),
+            ("p_hierarchical_genewise_none", "hierarchical", "none", {"genewise_p_value": "genewise"}),
+            ("p_hierarchical_genewise_BH_intended", "hierarchical", "BH", {"genewise_p_value": "genewise"}),
+            ("p_hierarchical_genewise_bonferroni_intended", "hierarchical", "bonferroni", {"genewise_p_value": "genewise"}),
+            ("p_hierarchical_genewise_holm_intended", "hierarchical", "holm", {"genewise_p_value": "genewise"}),
+            ("p_hierarchical_genewise_BY_intended", "hierarchical", "BY", {"genewise_p_value": "genewise"}),
+        ],
+    )
+    def test_pvalue_matrix_matches_r(self, case, method, adjust, extra):
+        """``*_intended`` cases: literal R errors (see test_errors_match_r's
+        p_hierarchical_genewise_bh); the reference is R's decideTests.default
+        with ngenes <- nrow(p) added, i.e. limma's intended behaviour."""
+        if case.endswith("_intended"):
+            r_error = load_r_csv_no_index("dt_errors").set_index("case")["r_error"]["p_hierarchical_genewise_bh"]
+            assert "ngenes" in r_error
+        inputs = {
+            "coef": lambda: load_r_csv_no_index("dt_input_coef").to_numpy(dtype=float),
+            "tstat": lambda: load_r_csv_no_index("dt_input_tstat").to_numpy(dtype=float),
+            "genewise": lambda: load_r_csv_no_index("dt_input_genewise")["genewise"].to_numpy(),
+        }
+        kwargs = {k: (inputs[v]() if isinstance(v, str) else v) for k, v in extra.items()}
+        p = load_r_csv_no_index("dt_input_p").to_numpy(dtype=float)
+        results = decide_tests(p, method=method, adjust_method=adjust, **kwargs)
+        np.testing.assert_array_equal(results, load_r_csv_no_index(f"dt_{case}").to_numpy(dtype=float))
+
+    @pytest.mark.parametrize(
+        "case",
+        [
+            "fit_hierarchical_na", "fit_nestedF_na", "fit_bad_method", "p_nestedF",
+            "p_out_of_range", "p_coef_dims", "p_with_na",
+        ],
+    )
+    def test_errors_match_r(self, case):
+        assert isinstance(load_r_csv_no_index("dt_errors").set_index("case")["r_error"][case], str)
+        p = load_r_csv_no_index("dt_input_p").to_numpy(dtype=float)
+        coef = load_r_csv_no_index("dt_input_coef").to_numpy(dtype=float)
+        call = {
+            "fit_hierarchical_na": lambda: decide_tests(self._fit("fit_na"), method="hierarchical"),
+            "fit_nestedF_na": lambda: decide_tests(self._fit("fit_na"), method="nestedF"),
+            "fit_bad_method": lambda: decide_tests(self._fit("fit"), method="bogus"),
+            "p_nestedF": lambda: decide_tests(p, method="nestedF"),
+            "p_out_of_range": lambda: decide_tests(p * 2),
+            "p_coef_dims": lambda: decide_tests(p, coefficients=coef[:, :2]),
+            "p_with_na": lambda: decide_tests(self._fit("fit_na")["p_value"]),
+        }[case]
+        with pytest.raises(ValueError):
+            call()
+
+
+# =============================================================================
+# topTable: coefficient selection by name and sort.by / resort.by matching
+# =============================================================================
+
+_TT_COLUMNS = {
+    "logFC": "log_fc", "AveExpr": "ave_expr", "t": "t", "P.Value": "p_value",
+    "adj.P.Val": "adj_p_value", "B": "b", "F": "F",
+}
+
+
+class TestTopTableArgumentParity:
+    """coef by name (single, F-test, contrast) and match.arg on sort.by / resort.by."""
+
+    DESIGN = pd.DataFrame(
+        {"Intercept": 1.0, "B": np.repeat([0.0, 1.0, 0.0], 4), "C": np.repeat([0.0, 0.0, 1.0], 4)}
+    )
+
+    @classmethod
+    def _fit(cls, contrasts=False):
+        design = cls.DESIGN.rename(columns={"Intercept": "(Intercept)"}) if contrasts == "intercept" else cls.DESIGN
+        fit = lm_fit(load_r_csv_no_index("tt_expr").set_index("id"), design)
+        if contrasts is True:
+            fit = contrasts_fit(fit, make_contrasts(CvsB="C - B", levels=cls.DESIGN))
+        return e_bayes(fit)
+
+    @pytest.mark.parametrize(
+        "case, contrasts, kwargs",
+        [
+            ("coef_name", False, dict(coef="B", number=np.inf, sort_by="none")),
+            ("coef_names_f", False, dict(coef=["B", "C"], number=15)),
+            ("default_drops_intercept", "intercept", dict(number=15)),
+            ("contrast_name", True, dict(coef="CvsB", number=15)),
+            ("sort_partial", False, dict(coef="B", number=15, sort_by="Ave")),
+            ("sort_alias_M", False, dict(coef="B", number=15, sort_by="M")),
+            ("resort_logfc", False, dict(coef="B", number=15, resort_by="logFC")),
+            ("resort_partial", False, dict(coef="B", number=15, resort_by="Am")),
+        ],
+    )
+    def test_matches_r(self, case, contrasts, kwargs):
+        r = load_r_csv_no_index(f"tt_{case}")
+        tab = top_table(self._fit(contrasts), **kwargs)
+        assert list(tab.index) == list(r["id"])
+        for r_col in r.columns.drop("id"):
+            py_col = "B" if (r_col == "B" and "F" in r.columns) else _TT_COLUMNS.get(r_col, r_col)
+            if r_col in ("P.Value", "adj.P.Val"):
+                _assert_log10_pvalues_close(r[r_col], tab[py_col])
+            else:
+                np.testing.assert_allclose(tab[py_col], r[r_col], rtol=1e-6, atol=1e-12)
+
+    @pytest.mark.parametrize(
+        "case, kwargs",
+        [
+            ("sort_by_invalid", dict(sort_by="pvalue")),
+            ("resort_by_none", dict(resort_by="none")),
+            ("resort_by_invalid", dict(resort_by="adj")),
+        ],
+    )
+    def test_errors_match_r(self, case, kwargs):
+        assert isinstance(load_r_csv_no_index("tt_errors").set_index("case")["r_error"][case], str)
+        with pytest.raises(ValueError):
+            top_table(self._fit(), coef="B", **kwargs)
+
+
+# =============================================================================
+# roast / mroast with user-supplied var.prior and df.prior (deterministic parts)
+# =============================================================================
+
+
+class TestRoastUserPriorParity:
+    """Active proportions depend on var.post from .squeezeVar with the user's priors."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+
+    @pytest.mark.parametrize("case, df_prior", [("roast_inf", np.inf), ("roast_finite", 4.0)])
+    def test_roast_matches_r(self, case, df_prior):
+        from pylimma import roast
+
+        r = load_r_csv_no_index(f"ro_{case}")
+        assert (r["active_prop"] > 0).any()
+        expr = load_r_csv_no_index("ro_expr").to_numpy(dtype=float)
+        out = roast(expr, list(range(20)), self.DESIGN, var_prior=1.0, df_prior=df_prior,
+                    nrot=99, rng=np.random.default_rng(1))
+        np.testing.assert_allclose(out["p_value"].loc[r["direction"], "active_prop"], r["active_prop"], rtol=1e-12)
+
+    def test_mroast_vector_priors_matches_r(self):
+        from pylimma import mroast
+
+        r = load_r_csv_no_index("ro_mroast_vector_priors")
+        priors = load_r_csv_no_index("ro_priors")
+        df_prior = priors["df_prior"].to_numpy(dtype=float)
+        assert np.isinf(df_prior).any() and np.isfinite(df_prior).any()  # mixed .squeezeVar branch
+        expr = load_r_csv_no_index("ro_expr").to_numpy(dtype=float)
+        sets = {"a": list(range(0, 20)), "b": list(range(24, 45)), "c": list(range(59, 90))}
+        out = mroast(expr, sets, self.DESIGN, var_prior=priors["var_prior"].to_numpy(), df_prior=df_prior,
+                     nrot=99, rng=np.random.default_rng(1), sort="none")
+        assert list(out.index) == list(r["set"])
+        np.testing.assert_array_equal(out["n_genes"], r["NGenes"])
+        np.testing.assert_allclose(out["prop_down"], r["PropDown"], rtol=1e-12)
+        np.testing.assert_allclose(out["prop_up"], r["PropUp"], rtol=1e-12)
+
+
+# =============================================================================
+# Input dispatch: every supported container reproduces one R pipeline
+# =============================================================================
+
+
+def _io_expr() -> pd.DataFrame:
+    return load_r_csv_no_index("io_expr").set_index("id").drop(columns="symbol")
+
+
+def _io_container(kind: str):
+    import anndata as ad
+    import scipy.sparse as sp
+
+    expr = _io_expr()
+    if kind == "ndarray":
+        return expr.to_numpy()
+    if kind == "dataframe":
+        return expr
+    if kind == "dataframe_nullable":
+        nullable = expr.astype("Float64")
+        assert nullable.isna().to_numpy().any()  # pd.NA, not NaN
+        return nullable
+    if kind == "elist":
+        return EList({"E": expr.to_numpy(), "genes": pd.DataFrame(index=expr.index)})
+    obs, var = pd.DataFrame(index=expr.columns), pd.DataFrame(index=expr.index)
+    X = expr.to_numpy().T.copy()
+    return ad.AnnData(X=sp.csr_matrix(X) if kind == "anndata_sparse" else X, obs=obs, var=var)
+
+
+class TestInputDispatchParity:
+    """lmFit -> eBayes -> topTable on the same data through every input container."""
+
+    DESIGN = pd.DataFrame({"(Intercept)": 1.0, "groupB": np.repeat([0.0, 1.0], 4)})
+
+    @staticmethod
+    def _assert_table_matches(tab: pd.DataFrame, r: pd.DataFrame, check_ids: bool = True) -> None:
+        if check_ids:
+            assert list(tab.index) == list(r["id"])
+        for r_col in ("logFC", "AveExpr", "t", "B"):
+            np.testing.assert_allclose(tab[_TT_COLUMNS[r_col]], r[r_col], rtol=1e-6, atol=1e-12)
+        for r_col in ("P.Value", "adj.P.Val"):
+            _assert_log10_pvalues_close(r[r_col], tab[_TT_COLUMNS[r_col]])
+
+    def _top_table(self, container):
+        fit = lm_fit(container, self.DESIGN)
+        if fit is None:  # AnnData: lm_fit / e_bayes write to container.uns
+            e_bayes(container)
+            return top_table(container, coef="groupB", number=np.inf, sort_by="none")
+        return top_table(e_bayes(fit), coef="groupB", number=np.inf, sort_by="none")
+
+    @pytest.mark.parametrize(
+        "kind", ["ndarray", "dataframe", "dataframe_nullable", "elist", "anndata_dense", "anndata_sparse"]
+    )
+    def test_container_matches_r(self, kind):
+        container = _io_container(kind)
+        tab = self._top_table(container)
+        self._assert_table_matches(tab, load_r_csv_no_index("io_pipeline"), check_ids=kind != "ndarray")
+
+    def test_anndata_h5ad_round_trip_matches_r(self, tmp_path):
+        import anndata as ad
+
+        adata = _io_container("anndata_dense")
+        lm_fit(adata, self.DESIGN)
+        path = tmp_path / "fit.h5ad"
+        adata.write_h5ad(path)
+        reloaded = ad.read_h5ad(path)
+        assert isinstance(reloaded.uns["pylimma"]["coef_names"], np.ndarray)  # the h5ad form
+
+        e_bayes(reloaded)
+        self._assert_table_matches(
+            top_table(reloaded, coef="groupB", number=np.inf, sort_by="none"),
+            load_r_csv_no_index("io_pipeline"),
+        )
+
+    def test_contrasts_by_name_after_h5ad_matches_r(self, tmp_path):
+        import anndata as ad
+
+        adata = _io_container("anndata_dense")
+        lm_fit(adata, self.DESIGN)
+        adata.write_h5ad(tmp_path / "fit.h5ad")
+        reloaded = ad.read_h5ad(tmp_path / "fit.h5ad")
+        contrasts_fit(reloaded, coefficients=["groupB"])
+        e_bayes(reloaded)
+        self._assert_table_matches(
+            top_table(reloaded, number=np.inf, sort_by="none"), load_r_csv_no_index("io_contrasts_by_name")
+        )
+
+    def test_dataframe_first_column_ids_matches_r(self):
+        frame = load_r_csv_no_index("io_expr").set_index("id")
+        tab = top_table(e_bayes(lm_fit(frame, self.DESIGN)), coef="groupB", number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("io_dataframe_id_column")
+        self._assert_table_matches(tab, r)
+        assert list(tab["symbol"]) == list(r["symbol"])
+
+    @pytest.mark.parametrize("case", ["id_column_not_first", "two_nonnumeric_columns"])
+    def test_dataframe_errors_match_r(self, case):
+        assert isinstance(load_r_csv_no_index("io_errors").set_index("case")["r_error"][case], str)
+        expr = _io_expr()
+        frame = {
+            "id_column_not_first": lambda: expr.assign(symbol=list(expr.index)),
+            "two_nonnumeric_columns": lambda: pd.concat(
+                [pd.DataFrame({"a": list(expr.index), "b": list(expr.index)}, index=expr.index), expr], axis=1
+            ),
+        }[case]()
+        with pytest.raises(TypeError):
+            lm_fit(frame, self.DESIGN)
+
+
+# =============================================================================
+# selectModel: branch-forcing parity
+# =============================================================================
+
+
+class TestSelectModelRParity:
+    """select_model information criteria, preferred model and criterion for
+    every branch of R's selectModel."""
+
+    @staticmethod
+    def _inputs(named: bool = True):
+        y = load_r_csv_no_index("sm_y").to_numpy(dtype=float)
+        cov = load_r_csv_no_index("sm_covariates")
+        designs = [
+            np.ones((12, 1)),
+            np.column_stack([np.ones(12), cov["group"]]),
+            np.column_stack([np.ones(12), cov["group"], cov["cov"]]),
+        ]
+        return y, (dict(zip(["null", "group", "full"], designs)) if named else designs)
+
+    @pytest.mark.parametrize(
+        "case, kwargs, named",
+        [
+            ("aic", dict(criterion="aic"), True),
+            ("bic", dict(criterion="bic"), True),
+            ("mallowscp", dict(criterion="mallowscp", s2_true="vector"), True),
+            ("mallowscp_scalar", dict(criterion="mallowscp", s2_true=1.0), True),
+            ("prior", dict(criterion="aic", df_prior=4, s2_prior=0.9), True),
+            ("unnamed", dict(criterion="bic"), False),
+        ],
+    )
+    def test_matches_r(self, case, kwargs, named):
+        from pylimma import select_model
+
+        y, designs = self._inputs(named)
+        if kwargs.get("s2_true") == "vector":
+            kwargs = dict(kwargs, s2_true=load_r_csv_no_index("sm_s2_true")["s2_true"].to_numpy())
+        # keep_default_na=False: the model named "null" must stay a string
+        r = pd.read_csv(FIXTURES_DIR / f"R_sm_{case}.csv", keep_default_na=False)
+        if case == "aic":
+            assert r["pref"].nunique() == 3  # every model preferred for some genes
+        out = select_model(y, designs, **kwargs)
+        np.testing.assert_allclose(np.asarray(out["IC"], dtype=float), r[["X1", "X2", "X3"]].to_numpy(), rtol=1e-6)
+        assert [str(p) for p in out["pref"]] == list(r["pref"].astype(str))
+        assert out["criterion"] == r["criterion"].iloc[0]
+
+    @pytest.mark.parametrize(
+        "case, kwargs",
+        [
+            ("na_input", dict()),
+            ("prior_without_s2", dict(df_prior=4)),
+            ("mallowscp_without_s2_true", dict(criterion="mallowscp")),
+            ("s2_true_wrong_length", dict(criterion="mallowscp", s2_true=np.array([1.0, 2.0]))),
+            ("bad_criterion", dict(criterion="xv")),
+        ],
+    )
+    def test_errors_match_r(self, case, kwargs):
+        from pylimma import select_model
+
+        assert isinstance(load_r_csv_no_index("sm_errors").set_index("case")["r_error"][case], str)
+        y, designs = self._inputs()
+        if case == "na_input":
+            y = y.copy()
+            y[0, 0] = np.nan
+        with pytest.raises(ValueError):
+            select_model(y, designs, **kwargs)
+
+
+# =============================================================================
+# camera with an estimated inter-gene correlation and allow.neg.cor
+# =============================================================================
+
+
+class TestCameraEstimatedCorrelationRParity:
+    """camera with inter.gene.cor = NA / NULL estimates each set's correlation
+    (NA for a singleton); allow.neg.cor controls whether a negative estimate
+    is clamped, for both the parametric and the rank-based test. The fixture
+    includes an anti-correlated set so the clamp changes the result."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+
+    @staticmethod
+    def _sets():
+        rows = load_r_csv_no_index("cam_sets")
+        return {name: (block["index"].to_numpy() - 1).tolist() for name, block in rows.groupby("set", sort=False)}
+
+    @pytest.mark.parametrize(
+        "case, kwargs",
+        [
+            ("est_parametric", dict(inter_gene_cor=np.nan)),
+            ("est_parametric_neg", dict(inter_gene_cor=np.nan, allow_neg_cor=True)),
+            ("est_ranks", dict(inter_gene_cor=np.nan, use_ranks=True)),
+            ("est_ranks_neg", dict(inter_gene_cor=np.nan, use_ranks=True, allow_neg_cor=True)),
+            ("est_null", dict(inter_gene_cor=None)),
+            ("est_nondirectional", dict(inter_gene_cor=np.nan, directional=False)),
+        ],
+    )
+    def test_matches_r(self, case, kwargs):
+        import warnings as _w
+
+        from pylimma import camera
+
+        y = load_r_csv_no_index("cam_y").to_numpy(dtype=float)
+        r = load_r_csv_no_index(f"cam_{case}")
+        if case == "est_parametric":
+            assert r.set_index("set").loc["anti", "Correlation"] < 0
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            tab = camera(y, self._sets(), self.DESIGN, sort=False, **kwargs)
+        assert list(tab.index) == list(r["set"])
+        np.testing.assert_array_equal(tab["n_genes"], r["NGenes"])
+        np.testing.assert_allclose(tab["correlation"], r["Correlation"], rtol=1e-6)
+        if "Direction" in r.columns:
+            assert list(tab["direction"]) == list(r["Direction"])
+        _assert_log10_pvalues_close(r["PValue"], tab["p_value"])
+        _assert_log10_pvalues_close(r["FDR"], tab["fdr"])
+
+    def test_nondirectional_warns_like_r(self):
+        from pylimma import camera
+
+        y = load_r_csv_no_index("cam_y").to_numpy(dtype=float)
+        with pytest.warns(UserWarning, match="use_ranks|use.ranks"):
+            camera(y, self._sets(), self.DESIGN, sort=False, inter_gene_cor=np.nan, directional=False)
+
+
+# =============================================================================
+# gls.series with a correlation: block / duplicate structures, both paths
+# =============================================================================
+
+
+class TestGlsSeriesCorrelationRParity:
+    """gls_series matches R's gls.series with a block or duplicate-spot
+    correlation, on the fast path, the slow path (missing values or probe
+    weights), with array weights, with the correlation estimated by
+    duplicateCorrelation, and with ndups = 1 (R warns and uses 0)."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    BLOCK = np.tile(np.arange(1, 5), 2)
+
+    @pytest.mark.parametrize(
+        "case, data, kwargs",
+        [
+            ("block", "M", dict(block="block", correlation=0.4)),
+            ("block_na", "M_na", dict(block="block", correlation=0.4)),
+            ("block_probe_weights", "M", dict(block="block", correlation=0.4, weights="probe")),
+            ("block_array_weights", "M", dict(block="block", correlation=0.4, weights="array")),
+            ("block_estimated", "M", dict(block="block")),
+            ("dups", "M", dict(ndups=2, spacing=1, correlation=0.3)),
+            ("dups_na", "M_na", dict(ndups=2, spacing=1, correlation=0.3)),
+            ("ndups1", "M", dict(ndups=1, correlation=0.3)),
+        ],
+    )
+    def test_matches_r(self, case, data, kwargs):
+        import warnings as _w
+
+        from pylimma import gls_series
+
+        M = load_r_csv_no_index(f"gls_cor_{data}").to_numpy(dtype=float)
+        if data == "M_na":
+            assert np.isnan(M).any()
+        kwargs = dict(kwargs)
+        if kwargs.get("block") == "block":
+            kwargs["block"] = self.BLOCK
+        if kwargs.get("weights") == "probe":
+            kwargs["weights"] = load_r_csv_no_index("gls_cor_probe_weights").to_numpy(dtype=float)
+        elif kwargs.get("weights") == "array":
+            kwargs["weights"] = load_r_csv_no_index("gls_cor_array_weights")["w"].to_numpy()
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = gls_series(M, self.DESIGN, **kwargs)
+        r = load_r_csv_no_index(f"gls_cor_{case}").to_numpy(dtype=float)
+        np.testing.assert_allclose(fit["coefficients"], r[:, 0:2], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(fit["stdev_unscaled"], r[:, 2:4], rtol=1e-6)
+        np.testing.assert_allclose(fit["sigma"], r[:, 4], rtol=1e-6)
+        np.testing.assert_array_equal(fit["df_residual"], r[:, 5])
+        np.testing.assert_allclose(
+            fit["cov_coefficients"], load_r_csv_no_index(f"gls_cor_{case}_cov").to_numpy(dtype=float), rtol=1e-6
+        )
+        np.testing.assert_allclose(
+            fit["correlation"], load_r_csv_no_index(f"gls_cor_{case}_correlation")["correlation"].iloc[0], rtol=1e-6
+        )
+
+    def test_ndups1_warns_like_r(self):
+        from pylimma import gls_series
+
+        M = load_r_csv_no_index("gls_cor_M").to_numpy(dtype=float)
+        with pytest.warns(UserWarning, match="ndups"):
+            gls_series(M, self.DESIGN, ndups=1, correlation=0.3)
+
+    @pytest.mark.parametrize("case", ["correlation_one", "block_length"])
+    def test_errors_match_r(self, case):
+        from pylimma import gls_series
+
+        assert isinstance(load_r_csv_no_index("gls_cor_errors").set_index("case")["r_error"][case], str)
+        M = load_r_csv_no_index("gls_cor_M").to_numpy(dtype=float)
+        kwargs = {"correlation_one": dict(block=self.BLOCK, correlation=1.0),
+                  "block_length": dict(block=np.arange(1, 4), correlation=0.4)}[case]
+        with pytest.raises(ValueError):
+            gls_series(M, self.DESIGN, **kwargs)
+
+
+class TestGlsSeriesDotsForwardingRParity:
+    """gls_series forwards R's ... (here trim) to duplicate_correlation when
+    the correlation is estimated. The fixture checks trim = 0.3 changes R's
+    estimated correlation."""
+
+    def test_trim_matches_r(self):
+        from pylimma import gls_series
+
+        M = load_r_csv_no_index("gls_cor_M").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        fit = gls_series(M, design, block=np.tile(np.arange(1, 5), 2), trim=0.3)
+        r = load_r_csv_no_index("gls_trim_gls").to_numpy(dtype=float)
+        np.testing.assert_allclose(fit["correlation"], r[0, 5], rtol=1e-6)
+        np.testing.assert_allclose(fit["coefficients"], r[:, 0:2], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(fit["stdev_unscaled"], r[:, 2:4], rtol=1e-6)
+        np.testing.assert_allclose(fit["sigma"], r[:, 4], rtol=1e-6)
+
+
+# =============================================================================
+# contrasts.fit with NA coefficients, singular designs and row subsets
+# =============================================================================
+
+
+class TestContrastsFitNACoefficientRParity:
+    """contrasts_fit on fits with an NA coefficient (a gene missing a whole
+    group), under the orthogonal (cell-means) and non-orthogonal (treatment)
+    standard-error formulas; on a singular design; and on a row subset
+    fit[0:3, :] (R's fit[1:3, ]). R sets NA coefficients to 0 with stdev
+    1e30, contrasts, then returns NA for contrasts whose stdev exceeds 1e20."""
+
+    GROUP = np.repeat([1, 2, 3], 3)
+
+    @classmethod
+    def _design(cls, kind: str) -> pd.DataFrame:
+        g = cls.GROUP
+        if kind == "cellmeans":
+            return pd.DataFrame({"A": (g == 1) * 1.0, "B": (g == 2) * 1.0, "C": (g == 3) * 1.0})
+        return pd.DataFrame({"Intercept": 1.0, "B": (g == 2) * 1.0, "C": (g == 3) * 1.0})
+
+    CONTRASTS = {
+        "cellmeans": np.array([[-1.0, -1.0], [1.0, 0.0], [0.0, 1.0]]),
+        "treatment": np.array([[0.0, 0.0], [-1.0, 0.0], [1.0, 1.0]]),
+    }
+
+    @staticmethod
+    def _assert_matches(fit, case: str) -> None:
+        cov = load_r_csv_no_index(f"cn_{case}_cov_coefficients").to_numpy(dtype=float)
+        np.testing.assert_allclose(np.asarray(fit["cov_coefficients"], dtype=float), cov, rtol=1e-6, atol=1e-12)
+        eb = e_bayes(fit)
+        for r_slot, py_slot in (("coefficients", "coefficients"), ("stdev_unscaled", "stdev_unscaled"), ("t", "t")):
+            r = load_r_csv_no_index(f"cn_{case}_{r_slot}").to_numpy(dtype=float)
+            np.testing.assert_allclose(np.asarray(eb[py_slot], dtype=float), r, rtol=1e-6, atol=1e-12)
+        _assert_log10_pvalues_close(load_r_csv_no_index(f"cn_{case}_p_value").to_numpy(dtype=float), eb["p_value"])
+
+    @staticmethod
+    def _y():
+        return load_r_csv_no_index("cn_y").to_numpy(dtype=float)
+
+    @pytest.mark.parametrize("kind", ["cellmeans", "treatment"])
+    def test_na_coefficient_matches_r(self, kind):
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(self._y(), self._design(kind))
+        assert np.isnan(fit["coefficients"][0, 1])  # gene 1 has no group-2 samples
+        cf = contrasts_fit(fit, contrasts=self.CONTRASTS[kind])
+        assert np.isnan(cf["coefficients"][0, 0]) and np.isfinite(cf["coefficients"][0, 1])
+        self._assert_matches(cf, f"na_{kind}")
+
+    def test_singular_design_matches_r(self):
+        import warnings as _w
+
+        g = self.GROUP
+        design = np.column_stack([np.ones(9), g == 2, g == 2, g == 3]).astype(float)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(self._y()[2:], design)
+        contrasts = np.array([[0.0, 0.0], [0.0, 1.0], [0.0, 0.0], [1.0, -1.0]])
+        self._assert_matches(contrasts_fit(fit, contrasts=contrasts), "singular")
+        assert isinstance(load_r_csv_no_index("cn_singular_error")["r_error"].iloc[0], str)
+        with pytest.raises(ValueError):
+            contrasts_fit(fit, contrasts=np.array([[0.0], [0.0], [1.0], [0.0]]))
+
+    def test_row_subset_then_contrasts_matches_r(self):
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(self._y(), self._design("treatment"))
+        subset = fit[0:3, :]
+        self._assert_matches(contrasts_fit(subset, contrasts=self.CONTRASTS["treatment"]), "subset")
+        self._assert_matches(contrasts_fit(subset, coefficients=["B", "C"]), "subset_coefficients")
+
+
+# =============================================================================
+# trigammaInverse: every branch, including the extremes
+# =============================================================================
+
+
+class TestTrigammaInverseRParity:
+    """trigamma_inverse matches R's trigammaInverse on every branch: NA / NaN
+    pass through, negatives give NaN with a warning, x < 1e-6 uses 1/x,
+    x > 1e7 uses 1/sqrt(x), and the rest (including both boundaries) use
+    Newton iteration. Checked as one vector call and element by element,
+    since R's Newton stopping rule is taken over the whole vector."""
+
+    def test_vector_call_matches_r(self):
+        import warnings as _w
+
+        from pylimma import trigamma_inverse
+
+        r = load_r_csv_no_index("trigamma_inverse_extremes")
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            y = trigamma_inverse(r["x"].to_numpy(dtype=float))
+        np.testing.assert_allclose(y, r["vector_call"].to_numpy(dtype=float), rtol=1e-10)
+
+    def test_scalar_calls_match_r(self):
+        import warnings as _w
+
+        from pylimma import trigamma_inverse
+
+        r = load_r_csv_no_index("trigamma_inverse_extremes")
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            y = np.array([float(trigamma_inverse(v)) for v in r["x"].to_numpy(dtype=float)])
+        np.testing.assert_allclose(y, r["scalar_call"].to_numpy(dtype=float), rtol=1e-10)
+
+    def test_negative_warns_and_empty_returns_empty(self):
+        from pylimma import trigamma_inverse
+
+        with pytest.warns(RuntimeWarning, match="NaNs produced"):
+            assert np.isnan(trigamma_inverse(np.array([-1.0]))[0])
+        assert np.asarray(trigamma_inverse(np.array([]))).size == 0
+
+
+# =============================================================================
+# eBayes(trend = TRUE) on fits with missing values (non-robust)
+# =============================================================================
+
+
+class TestEBayesTrendMissingValuesRParity:
+    """e_bayes(trend=True) on a fit with missing values (genewise df, so R's
+    unequal-df1 hyperparameter fit with a loess trend), with a df = 0 gene,
+    and with a numeric covariate as trend. An all-NA gene gives an NA Amean
+    covariate, which R rejects."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+
+    @pytest.mark.parametrize("case, data", [("trend", "y"), ("trend_df0", "y_df0"), ("trend_numeric", "y")])
+    def test_matches_r(self, case, data):
+        import warnings as _w
+
+        y = load_r_csv_no_index(f"tn_{data}").to_numpy(dtype=float)
+        trend = load_r_csv_no_index("tn_covariate")["covariate"].to_numpy() if case == "trend_numeric" else True
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(y, self.DESIGN)
+            assert len(np.unique(fit["df_residual"])) > 1  # genewise df from missing values
+            eb = e_bayes(fit, trend=trend)
+        r = load_r_csv_no_index(f"tn_{case}")
+        n = len(r)
+        np.testing.assert_allclose(eb["t"][:, 1], r["t"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["p_value"], eb["p_value"][:, 1])
+        np.testing.assert_allclose(eb["lods"][:, 1], r["lods"], rtol=1e-6)
+        np.testing.assert_allclose(eb["s2_post"], r["s2_post"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(eb["df_prior"], n), r["df_prior"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(eb["s2_prior"], n), r["s2_prior"], rtol=1e-6)
+        np.testing.assert_allclose(eb["df_total"], r["df_total"], rtol=1e-6)
+        np.testing.assert_allclose(eb["F"], r["F"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["F_p_value"], eb["F_p_value"])
+
+    def test_all_na_gene_errors_like_r(self):
+        import warnings as _w
+
+        assert isinstance(load_r_csv_no_index("tn_allna_error")["r_error"].iloc[0], str)
+        y = load_r_csv_no_index("tn_y_allna").to_numpy(dtype=float)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(y, self.DESIGN)
+            with pytest.raises(ValueError):
+                e_bayes(fit, trend=True)
+
+
+# =============================================================================
+# contrasts.fit: coefficients= path, stored contrasts, missing cov.coefficients
+# =============================================================================
+
+
+class TestContrastsFitBranchParity:
+    """Each fixture forces a branch of R's contrasts.fit / [.MArrayLM.
+
+    ``coefficients=`` returns ``fit[, coefficients]``: test statistics are
+    kept and subset, F is regenerated, and cov.coefficients, contrasts and
+    var.prior are subset (cov.coefficients through pivot, in pivot order, for
+    a rank-deficient fit). The R script asserts each precondition.
+    """
+
+    SLOTS = {
+        "coefficients": "coefficients", "stdev_unscaled": "stdev_unscaled", "t": "t",
+        "p_value": "p_value", "lods": "lods", "cov_coefficients": "cov_coefficients",
+        "contrasts": "contrasts",
+    }
+    DESIGN = pd.DataFrame(
+        {"Intercept": 1.0, "B": np.repeat([0.0, 1.0, 0.0], 4), "C": np.repeat([0.0, 0.0, 1.0], 4)}
+    )
+    CM = pd.DataFrame({"CvsB": [0.0, -1.0, 1.0], "C": [0.0, 0.0, 1.0]}, index=["Intercept", "B", "C"])
+
+    @staticmethod
+    def _y():
+        return load_r_csv_no_index("cfb_y").to_numpy(dtype=float)
+
+    def _assert_matches(self, fit, case):
+        for r_slot, py_slot in self.SLOTS.items():
+            path = FIXTURES_DIR / f"R_cfb_{case}_{r_slot}.csv"
+            if not path.exists():
+                assert fit.get(py_slot) is None, py_slot
+                continue
+            r = pd.read_csv(path).to_numpy(dtype=float)
+            np.testing.assert_allclose(np.asarray(fit[py_slot], dtype=float), r, rtol=1e-6, atol=1e-12,
+                                       err_msg=py_slot)
+        r_f = load_r_csv_no_index(f"cfb_{case}_f")
+        if r_f["F"].isna().all():
+            assert fit.get("F") is None and fit.get("F_p_value") is None
+        else:
+            np.testing.assert_allclose(fit["F"], r_f["F"], rtol=1e-6, atol=1e-12)
+            _assert_log10_pvalues_close(r_f["F_p_value"], fit["F_p_value"])
+        path = FIXTURES_DIR / f"R_cfb_{case}_var_prior.csv"
+        if path.exists():
+            np.testing.assert_allclose(fit["var_prior"], pd.read_csv(path)["var_prior"], rtol=1e-6)
+
+    def _eb(self):
+        return e_bayes(lm_fit(self._y(), self.DESIGN), proportion=0.1)
+
+    def test_coefficients_subset_keeps_statistics(self):
+        sub = contrasts_fit(self._eb(), coefficients=[1, 2])
+        self._assert_matches(sub, "coef_subset")
+        tab = top_table(sub, coef=0, number=np.inf, sort_by="none")
+        _assert_top_table_matches(tab, load_r_csv_no_index("cfb_coef_subset_toptable"), check_ids=False)
+
+    def test_coefficients_reversed(self):
+        self._assert_matches(contrasts_fit(self._eb(), coefficients=["C", "B"]), "coef_reversed")
+
+    def test_contrasted_fit(self):
+        cf = e_bayes(contrasts_fit(lm_fit(self._y(), self.DESIGN), self.CM))
+        self._assert_matches(cf, "contrasted")
+        self._assert_matches(contrasts_fit(cf, coefficients=[1]), "contrasted_coef2")
+
+    def test_rank_deficient_subset_in_pivot_order(self):
+        design = self.DESIGN.assign(dup=self.DESIGN["B"])[["Intercept", "B", "dup", "C"]]
+        with pytest.warns(UserWarning):
+            eb = e_bayes(lm_fit(self._y(), design))
+        self._assert_matches(contrasts_fit(eb, coefficients=[3, 0]), "singular_coef41")
+        with pytest.raises(ValueError, match="Subsetting to non-estimable coefficients is not allowed"):
+            contrasts_fit(eb, coefficients=[2])
+
+    def test_missing_cov_coefficients(self):
+        fit = lm_fit(self._y(), self.DESIGN)
+        del fit["cov_coefficients"]
+        with pytest.warns(UserWarning, match="cov.coefficients not found in fit - assuming coefficients"):
+            cf = contrasts_fit(fit, self.CM)
+        self._assert_matches(cf, "nocov")
+
+    def test_near_orthogonal_design(self):
+        design = load_r_csv_no_index("cfb_orth_design").to_numpy(dtype=float)
+        cf = contrasts_fit(lm_fit(self._y(), design), np.array([[0.0, 0.0], [1.0, 1.0], [1.0, -1.0]]))
+        self._assert_matches(cf, "orth")
+
+
+# =============================================================================
+# lm_fit correlation: omitted vs explicit None, as R's missing() vs NULL
+# =============================================================================
+
+
+class TestLmFitCorrelationNoneParity:
+    """R's lmFit stops when correlation is missing but passes an explicit NULL
+    to gls.series, which estimates it with duplicateCorrelation; voom passes
+    correlation = NULL. The fixtures assert R's error and a non-zero estimate."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    BLOCK = np.tile([1, 2, 3, 4], 2)
+
+    @staticmethod
+    def _y():
+        return np.log2(load_r_csv_no_index("lcn_counts").to_numpy(dtype=float) + 1)
+
+    def test_omitted_correlation_errors(self):
+        with pytest.raises(ValueError, match="the correlation must be set, see duplicateCorrelation"):
+            lm_fit(self._y(), self.DESIGN, block=self.BLOCK)
+
+    @pytest.mark.parametrize("case", ["block", "ndups"])
+    def test_none_estimates_correlation(self, case):
+        kwargs = {"block": self.BLOCK} if case == "block" else {"ndups": 2}
+        fit = lm_fit(self._y(), self.DESIGN, correlation=None, **kwargs)
+        r = load_r_csv_no_index(f"lcn_{case}")
+        np.testing.assert_allclose(fit["correlation"], r["correlation"].iloc[0], rtol=1e-6)
+        for slot in ("coefficients", "stdev_unscaled"):
+            cols = [f"{slot}.x1", f"{slot}.x2"]
+            np.testing.assert_allclose(fit[slot], r[cols].to_numpy(), rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(fit["sigma"], r["sigma"], rtol=1e-6)
+
+    def test_voom_block_without_correlation(self):
+        from pylimma import voom
+
+        counts = load_r_csv_no_index("lcn_counts").to_numpy(dtype=float)
+        v = voom(counts, self.DESIGN, block=self.BLOCK)
+        r = load_r_csv_no_index("lcn_voom_weights").to_numpy(dtype=float)
+        np.testing.assert_allclose(v["weights"], r, rtol=1e-6)

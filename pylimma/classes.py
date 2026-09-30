@@ -46,6 +46,24 @@ import pandas as pd
 # ----------------------------------------------------------------------------
 
 
+def _shape_error(name: str, actual, expected, message: str) -> ValueError:
+    """Shape-mismatch error for a genes x samples matrix argument.
+
+    pylimma follows limma's genes x samples orientation for explicit
+    matrix arguments, the transpose of AnnData's samples x genes. When the
+    argument is exactly the transpose of what was expected, say so.
+    A square matrix (as many genes as samples) cannot be detected.
+    """
+    actual, expected = tuple(actual), tuple(expected)
+    if len(actual) == 2 and actual != expected and actual == expected[::-1]:
+        message = (
+            f"{message}. {name} has shape {actual} but pylimma expects genes x samples "
+            f"{expected}; it looks transposed (AnnData stores samples x genes). "
+            f"Pass {name}.T."
+        )
+    return ValueError(message)
+
+
 def as_matrix_weights(
     weights,
     dim: tuple[int, int] | None = None,
@@ -65,8 +83,8 @@ def as_matrix_weights(
     6. anything else - ``ValueError("weights is of unexpected size")``.
 
     The result is always freshly allocated so downstream ``weights[...] = ...``
-    writes do not leak into the caller's memory (see
-    ``known_diff_weights_mutation.md``).
+    writes do not leak into the caller's memory (R's copy-on-modify
+    semantics leave the caller's weights unchanged).
 
     R's branch order is preserved verbatim. In particular, if ``G == N``
     a length-G vector is treated as probe weights (branch 4), matching
@@ -118,7 +136,7 @@ def as_matrix_weights(
         return arr.copy()
 
     if min(dw) != 1:
-        raise ValueError("weights is of unexpected shape")
+        raise _shape_error("weights", dw, target, "weights is of unexpected shape")
 
     # Row matrix of array weights: (1, N) with N == target[1] > 1.
     if dw[1] > 1 and dw[1] == target[1]:
@@ -484,6 +502,69 @@ class MArrayLM(_LargeDataObject):
         for k, v in kwargs.items():
             self[k] = v
 
+    def _subset(self, i, j) -> "MArrayLM":
+        """R's ``[.MArrayLM`` (subsetting.R).
+
+        ``fit[i, :]`` subsets genes only. Selecting columns (anything other
+        than ``:``) also subsets cov_coefficients (through ``pivot``, in
+        pivot order, when the design was rank deficient), creates an
+        identity ``contrasts`` matrix if none is present and subsets it,
+        subsets var_prior, and regenerates F and F_p_value from the kept
+        columns.
+        """
+        if isinstance(j, slice) and j == slice(None):
+            return super()._subset(i, j)
+
+        names = self.get("contrast_names") or self.get("coef_names")
+        ncoef = self.ncol
+        j_idx = np.arange(ncoef)[_resolve_index(j, names)]
+
+        # cov_coefficients covers only estimable coefficients (NaN rows here,
+        # fewer columns in R); selecting a non-estimable coefficient is an error
+        cov = self.get("cov_coefficients")
+        cov_idx = j_idx
+        if cov is not None:
+            estimable = ~np.isnan(np.diag(np.asarray(cov, dtype=np.float64)))
+            if not estimable.all():
+                if self.get("pivot") is None:
+                    raise ValueError("design matrix not of full rank but pivot is missing")
+                pivot = np.asarray(self["pivot"])
+                if np.isin(j_idx, pivot[estimable.sum() :]).any():
+                    raise ValueError("Subsetting to non-estimable coefficients is not allowed.")
+                cov_idx = pivot[np.isin(pivot, j_idx)]
+
+        fit = MArrayLM(dict(self))
+        if fit.get("contrasts") is None:
+            fit["contrasts"] = np.eye(ncoef)
+            if names is not None:
+                fit["contrast_names"] = list(names)
+        out = super(MArrayLM, fit)._subset(i, j_idx)
+
+        if cov is not None:
+            out["cov_coefficients"] = np.asarray(cov, dtype=np.float64)[np.ix_(cov_idx, cov_idx)]
+        out["contrasts"] = np.asarray(out["contrasts"])[:, j_idx]
+        if out.get("contrast_names") is not None:
+            out["contrast_names"] = [out["contrast_names"][k] for k in j_idx]
+        if out.get("var_prior") is not None:
+            out["var_prior"] = np.atleast_1d(out["var_prior"])[j_idx]
+
+        if out.get("F") is not None:
+            if j_idx.size:
+                from scipy import stats
+
+                from .decide_tests import classify_tests_f
+
+                f_stat, df1, df2 = classify_tests_f(out, fstat_only=True)
+                out["F"] = f_stat
+                if np.ravel(df2)[0] > 1e6:
+                    out["F_p_value"] = stats.chi2.sf(df1 * f_stat, df1)
+                else:
+                    out["F_p_value"] = stats.f.sf(f_stat, df1, df2)
+            else:
+                out.pop("F", None)
+                out.pop("F_p_value", None)
+        return out
+
     # ---- R-parity convenience methods (lmfit.R, classes.R) ----
 
     def fitted(self) -> np.ndarray:
@@ -600,7 +681,7 @@ def get_eawp(
         If obj is of an unsupported class. Two-channel microarray wrappers
         (RGList, MAList, EListRaw) and Bioconductor S4 containers
         (ExpressionSet, eSet, PLMset, marrayNorm) are deliberately out of
-        scope - see policy_data_class_wrappers in project memory.
+        scope; extract the expression matrix instead.
     """
     if obj is None:
         raise TypeError("data object is None")
@@ -692,8 +773,8 @@ def get_eawp(
     if cls_name in _UNSUPPORTED_WRAPPER_NAMES:
         raise TypeError(
             f"{cls_name} is not supported by pylimma. "
-            "Two-channel and Bioconductor S4 wrappers are out of scope "
-            "(policy_data_class_wrappers). Extract the expression matrix "
+            "Two-channel and Bioconductor S4 wrappers are out of scope. "
+            "Extract the expression matrix "
             "and pass it directly, or wrap it in pylimma.EList."
         )
 
@@ -713,16 +794,23 @@ def get_eawp(
         )
 
     if isinstance(obj, pd.DataFrame):
-        numeric_cols = obj.dtypes.apply(lambda dt: np.issubdtype(dt, np.number))
+        # R lmFit: vapply(object, is.numeric); logical columns are not numeric.
+        # pandas' check also covers nullable extension dtypes (Float64, Int64).
+        numeric_cols = obj.dtypes.apply(
+            lambda dt: pd.api.types.is_numeric_dtype(dt) and not pd.api.types.is_bool_dtype(dt)
+        )
         if numeric_cols.all():
-            y["exprs"] = obj.values.astype(np.float64)
-        elif (~numeric_cols).sum() == 1 and len(obj.columns) > 1:
-            y["exprs"] = obj.iloc[:, 1:].values.astype(np.float64)
+            y["exprs"] = obj.to_numpy(dtype=np.float64, na_value=np.nan)
+        elif (~numeric_cols).sum() == 1 and not numeric_cols.iloc[0] and len(obj.columns) > 1:
+            # R: identical(sum(WhichNotNumeric), 1L) - the one non-numeric
+            # column must be the first; it becomes the gene IDs.
+            y["exprs"] = obj.iloc[:, 1:].to_numpy(dtype=np.float64, na_value=np.nan)
             y["probes"] = obj.iloc[:, [0]]
         else:
             raise TypeError(
-                "DataFrame input must be all-numeric or have exactly one "
-                "non-numeric column (treated as gene IDs)"
+                "Expression object should be numeric, instead it is a data.frame with "
+                f"{int((~numeric_cols).sum())} non-numeric columns (a single non-numeric "
+                "first column is treated as gene IDs)"
             )
         # Mirror R's getEAWP: if the input has non-default row names,
         # wrap them as a one-column probes DataFrame so gene names
@@ -759,6 +847,30 @@ def _eawp_from_elist_like(obj) -> dict:
         "design": obj.get("design"),
         "targets": obj.get("targets"),
     }
+
+
+def _elist_from_layer(y, layer: str | None = None, weights_layer: str | None = None):
+    """Resolve an AnnData layer selection into an EList at a function's entry.
+
+    For functions whose internals call ``get_eawp(y)`` more than once
+    (the gene-set tests), resolving ``layer`` / ``weights_layer`` once up
+    front lets those internals stay unchanged. When both are None the
+    input is returned untouched; otherwise the result carries the same
+    exprs / weights / probes / targets / design that ``get_eawp`` reads,
+    so the voom companion-weights and design pickup behave as for an
+    EList produced by voom in R.
+    """
+    if layer is None and weights_layer is None:
+        return y
+    eawp = get_eawp(y, layer=layer, weights_layer=weights_layer)
+    slots = {
+        "E": eawp["exprs"],
+        "weights": eawp["weights"],
+        "genes": eawp["probes"],
+        "targets": eawp["targets"],
+        "design": eawp["design"],
+    }
+    return EList({k: v for k, v in slots.items() if v is not None})
 
 
 # ----------------------------------------------------------------------------
@@ -896,5 +1008,78 @@ def _resolve_fit_input(data, key: str):
             raise ValueError(
                 f"No fit results found in adata.uns[{key!r}]. Did you run lm_fit() first?"
             )
-        return data.uns[key], data, key
-    return data, None, None
+        return _with_list_names(data.uns[key]), data, key
+    return _with_list_names(data), None, None
+
+
+VAR_MISMATCH_MESSAGE = (
+    "adata.var does not match the genes in the stored fit (genes were subset, "
+    "reordered or renamed after fitting), so its annotation cannot be used. "
+    "Pass the identifiers as a vector, or re-run lm_fit on this object."
+)
+
+
+def _var_matches_fit(fit, adata) -> bool:
+    """True when adata.var describes the fit's rows, in order.
+
+    anndata copies adata.uns unchanged when genes are subset or reordered,
+    so a stored fit can outlive the var axis it was computed on. lm_fit
+    records var_names as fit["genes"]; adata.var is only used alongside
+    the fit when those names still match exactly.
+    """
+    genes = fit.get("genes")
+    if genes is None:
+        return False
+    names = genes.index if isinstance(genes, pd.DataFrame) else genes
+    return [str(g) for g in names] == [str(g) for g in adata.var_names]
+
+
+def _with_list_names(fit):
+    """Undo h5ad's list -> ndarray conversion of the name slots.
+
+    write_h5ad / read_h5ad turns list-valued slots into ndarrays, and name
+    lookups (.index, `or`) expect lists. Applied to every fit input, not
+    only AnnData, so a fit taken out of a reloaded adata.uns by hand also
+    works. Returns a shallow copy when a slot needs converting, so the
+    caller's object is left untouched.
+    """
+    if not isinstance(fit, dict):
+        return fit
+    stale = [s for s in ("coef_names", "contrast_names") if isinstance(fit.get(s), np.ndarray)]
+    if not stale:
+        return fit
+    fit = type(fit)(fit)
+    for slot in stale:
+        fit[slot] = fit[slot].astype(str).tolist()
+    return fit
+
+
+def get_fit(adata, key: str = "pylimma") -> MArrayLM:
+    """Extract a fit stored in ``adata.uns[key]`` as a standalone MArrayLM.
+
+    pylimma stores AnnData fits as plain dicts (for h5ad compatibility).
+    This helper returns an independent :class:`MArrayLM` with the name
+    slots restored to lists (h5ad stores them as arrays).
+
+    The fit has no ``targets`` slot: ``adata.obs`` may have been subset,
+    reordered or edited since the fit was made, so it cannot be
+    guaranteed to describe the fitted samples. Read ``adata.obs``
+    directly if you need the sample metadata.
+
+    Parameters
+    ----------
+    adata : AnnData
+        Object holding a fit from :func:`lm_fit` / :func:`e_bayes` /
+        :func:`contrasts_fit` / :func:`treat`.
+    key : str, default "pylimma"
+        The ``adata.uns`` entry holding the fit.
+
+    Returns
+    -------
+    MArrayLM
+        A deep copy: editing it does not change ``adata.uns[key]``.
+    """
+    if not _is_anndata(adata):
+        raise TypeError(f"get_fit expects an AnnData object; got {type(adata).__name__}")
+    fit, _, _ = _resolve_fit_input(adata, key)
+    return MArrayLM(deepcopy(dict(fit)))

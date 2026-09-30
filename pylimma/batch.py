@@ -18,8 +18,8 @@ Faithful ports:
   ``plotting.py``.
 
 Accepts matrix / dict / EList / AnnData via the ``get_eawp`` /
-``put_eawp`` dispatchers. RGList / MAList / EListRaw are out of scope
-(see ``memory/policy_data_class_wrappers.md``).
+``put_eawp`` dispatchers. R's two-colour classes (RGList / MAList /
+EListRaw) are not ported.
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from .classes import get_eawp, put_eawp
-from .lmfit import lm_fit
+from .classes import _shape_error, get_eawp, put_eawp
+from .lmfit import _numeric_design, lm_fit
 
 
 def _factor_levels(factor) -> tuple[np.ndarray, np.ndarray]:
@@ -157,6 +157,16 @@ def remove_batch_effect(
     Returns
     -------
     Same class as input (matrix -> ndarray, EList -> EList, AnnData -> None).
+
+    Notes
+    -----
+    **AnnData views.** Results are written into the AnnData. If it is a
+    view (e.g. ``adata[:, mask]``), anndata first turns it into a
+    standalone copy, with an ``ImplicitModificationWarning``, and the
+    results land on that copy rather than on the parent. Assign the view
+    to a variable first (``sub = adata[:, mask]``) or pass
+    ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
+    discards the results.
     """
     original_input = x
     eawp = get_eawp(x, layer=layer)
@@ -198,7 +208,7 @@ def remove_batch_effect(
             UserWarning,
         )
         design = np.ones((X.shape[1], 1), dtype=np.float64)
-    design = np.asarray(design, dtype=np.float64)
+    design = _numeric_design(design)
 
     full_design = np.concatenate([design, X_batch], axis=1)
     fit = lm_fit(X, design=full_design, **lmfit_kwargs)
@@ -306,7 +316,7 @@ def _lm_effects_residual(
     if weights is not None:
         w_mat = np.asarray(weights, dtype=np.float64)
         if w_mat.shape != (y.shape[0], n):
-            raise ValueError("weights must have same dimensions as y")
+            raise _shape_error("weights", w_mat.shape, (y.shape[0], n), "weights must have same dimensions as y")
         if np.any(w_mat <= 0) or np.any(np.isnan(w_mat)):
             raise ValueError("weights must be positive")
         effects = np.zeros((y.shape[0], n))
@@ -338,6 +348,7 @@ def wsva(
     weights: np.ndarray | None = None,
     block: np.ndarray | None = None,
     correlation: float | None = None,
+    layer: str | None = None,
     **kwargs,
 ) -> np.ndarray:
     """Weighted surrogate variable analysis.
@@ -355,13 +366,17 @@ def wsva(
     (wsva.R:1, lmEffects.R:1). ``weights`` aliased as array-weights
     (length ``n_arrays``) is promoted to ``array_weights`` to match
     R's lmEffects.R:52-56.
+
+    ``layer`` (AnnData only) selects an ``adata.layers`` entry in place
+    of ``adata.X``. As R's ``as.matrix(y)`` does, only the expression
+    matrix is used; companion weights layers are not picked up.
     """
     # R's .lmEffects (lmEffects.R:52-56) promotes a length-n vector
     # passed as `weights` to `array.weights` when array_weights is None.
     # Mirror that aliasing before dispatch.
-    eawp = get_eawp(y)
+    eawp = get_eawp(y, layer=layer)
     y_mat = np.asarray(eawp["exprs"], dtype=np.float64)
-    design = np.asarray(design, dtype=np.float64)
+    design = _numeric_design(design)
     if design.ndim == 1:
         design = design.reshape(-1, 1)
 

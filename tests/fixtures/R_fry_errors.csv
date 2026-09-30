@@ -1,0 +1,8 @@
+"case","r_error"
+"gene_weights_length","length of gene.weights should equal nrow(y)"
+"block_without_correlation","Intra-block correlation must be specified"
+"index_empty","index is empty"
+"duplicate_set_names","Gene sets don't have unique names"
+"duplicate_ids_in_df_set","Duplicate gene ids in set 1"
+"df_set_without_weights","index 1 is a data.frame but doesn't contain gene weights"
+"geneid_length","geneid vector should be of length nrow(y)"

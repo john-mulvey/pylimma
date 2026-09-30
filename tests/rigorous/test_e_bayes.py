@@ -4,10 +4,8 @@ Rigorous per-branch parity tests for pylimma.ebayes.e_bayes.
 Each test exercises a specific R branch of eBayes() / .ebayes() /
 tmixture.matrix() / tmixture.vector() in R limma's ebayes.R.
 
-These tests were added by a rigorous single-function audit on
-2026-04-29. They are intentionally tight (rtol=1e-8) and run a live R
-subprocess via helpers.run_r_comparison so any regression surfaces
-immediately.
+These tests are intentionally tight (rtol=1e-8) and run a live R subprocess via
+helpers.run_r_comparison so any regression surfaces immediately.
 """
 
 from __future__ import annotations
@@ -594,7 +592,7 @@ class TestRigorousEBayes:
             output_vars=["v0"],
         )
         r_v0 = float(np.asarray(r_results["v0"]).ravel()[0])
-        assert np.isclose(py_v0, r_v0, rtol=1e-6), (
+        assert np.isclose(py_v0, r_v0, rtol=1e-6, atol=1e-12), (
             f"v0 with v0_lim clipping differs: R={r_v0:.6e}, Py={py_v0:.6e}"
         )
 
@@ -636,7 +634,7 @@ class TestRigorousEBayes:
             output_vars=["v0"],
         )
         r_v0 = float(np.asarray(r_results["v0"]).ravel()[0])
-        assert np.isclose(py_v0, r_v0, rtol=1e-6), (
+        assert np.isclose(py_v0, r_v0, rtol=1e-6, atol=1e-12), (
             f"tmixture NA removal differs: R={r_v0:.6e}, Py={py_v0:.6e}"
         )
 

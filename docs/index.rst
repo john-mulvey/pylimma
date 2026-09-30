@@ -6,8 +6,9 @@ Bioconductor package for differential expression analysis. It provides
 the full linear-modelling pipeline (``lm_fit``, ``contrasts_fit``,
 ``e_bayes``, ``top_table``), voom for RNA-seq, gene-set testing
 (camera, roast, fry, romer), normalisation, batch correction, and
-differential splicing - all validated to match R limma output within
-``rtol=1e-6`` on fixture parity tests.
+differential splicing - all validated against R limma 3.66.0 by
+fixture-based parity tests. The few remaining numerical differences are
+documented in :doc:`validation/known_differences`.
 
 pylimma accepts numpy arrays, pandas DataFrames, AnnData objects, or
 limma-style ``EList`` dict subclasses, with centralised polymorphic
@@ -58,6 +59,10 @@ Contents
    :caption: Validation
 
    validation/parity_report
+   validation/r_vs_pylimma/all_chiaretti
+   validation/r_vs_pylimma/gse60450
+   validation/r_vs_pylimma/pasilla
+   validation/r_vs_pylimma/yoruba
    validation/known_differences
    validation/fixtures
    validation/benchmarks
@@ -65,7 +70,13 @@ Contents
 Citation
 --------
 
-Please cite the original limma papers when using pylimma:
+When using pylimma, please cite pylimma itself:
+
+- Mulvey, J. F. (2026). pylimma: a faithful, AnnData-native Python port
+  of R limma for differential expression analysis. *bioRxiv*.
+  https://doi.org/10.64898/2026.07.06.736732
+
+and the original limma papers for the statistical methods:
 
 - Smyth, G. K. (2004). Linear models and empirical Bayes methods for
   assessing differential expression in microarray experiments.
@@ -78,9 +89,6 @@ Please cite the original limma papers when using pylimma:
 - Law, C. W., Chen, Y., Shi, W., and Smyth, G. K. (2014). voom:
   precision weights unlock linear model analysis tools for RNA-seq
   read counts. *Genome Biology* 15, R29.
-
-A pylimma preprint / Zenodo DOI will be listed here once published.
-Until then, cite the GitHub repository and the version tag.
 
 Indices
 -------

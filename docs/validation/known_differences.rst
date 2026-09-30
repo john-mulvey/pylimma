@@ -135,3 +135,64 @@ change that aligns the two patterns is detected automatically.
 ``sigma`` is also at machine epsilon, t-statistics are inf/NaN,
 and the empirical-Bayes posterior is dominated by the prior
 regardless of which "garbage" stdev was returned.
+
+Deliberate divergences: intended rather than literal R behaviour
+----------------------------------------------------------------
+
+Where R limma contains a clear bug, pylimma follows the behaviour the
+limma code evidently intends rather than reproducing the bug. Each
+case below is tested against a reference computed in R with the
+single-line correction applied, and the literal R behaviour is
+recorded in the fixtures alongside it.
+
+decide_tests: hierarchical method with a supplied genewise_p_value
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For a matrix of p-values, ``decideTests.default(method="hierarchical",
+genewise.p.value=...)`` in limma 3.66.0 fails with
+``object 'ngenes' not found`` for every ``adjust.method`` except
+``"none"``. ``ngenes`` is defined only inside the branch that
+computes Simes genewise p-values when none are supplied, but the
+p-value cut-off multiplier uses it in both cases.
+
+pylimma uses ``ngenes = nrow(p)`` in both cases. The reference
+fixtures (``R_dt_p_hierarchical_genewise_*_intended.csv``) come from
+R's ``decideTests.default`` with ``ngenes <- nrow(p)`` inserted before
+its ``switch()``; the fixture script checks that the patched function
+reproduces R exactly wherever R itself succeeds.
+
+genas: logFC / predFC subsets re-centre the coefficients
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In ``genas(subset="logFC")`` and ``genas(subset="predFC")``, limma
+assigns the re-centred coefficients to ``fit$coeff``. R's ``$<-`` does
+not partial-match, so this creates a new list element and the
+re-centring never reaches the likelihood, which reads
+``fit$coefficients``. pylimma applies the re-centring as the code
+intends.
+
+fit_f_dist_unequal_df1: two informative values with zero prior weights
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With exactly two informative variances, ``fitFDistUnequalDF1`` sets
+``prior.weights <- NULL`` to fit them without weights. But
+``PriorWeights <- !is.null(prior.weights)`` has already been computed, so
+if any prior weight existed - including the zero weights the function
+itself creates for missing ``x`` or ``df1 < 0.01`` - limma 3.66.0
+multiplies by ``NULL`` and returns ``scale = NaN``. pylimma clears the flag
+together with the weights. The reference is R's function with
+``PriorWeights <- !is.null(prior.weights)`` repeated after the reset;
+``tests/rigorous/test_fit_f_dist_unequal_df1.py`` checks that unpatched R
+returns NaN and that pylimma matches the patched function.
+
+Deliberate interface difference: EList design and weights in voom
+-----------------------------------------------------------------
+
+R's ``voom`` and ``voomWithQualityWeights`` call ``as.matrix()`` on an
+``EList`` input, which silently drops every slot except ``E``. pylimma's
+``voom`` uses the EList's ``design`` and ``weights`` slots, and
+``voom_with_quality_weights`` its ``design`` slot, when the caller does
+not pass them explicitly, and emits a ``UserWarning`` each time so that
+code ported from R does not change results unnoticed. Passing
+``design=`` / ``weights=`` explicitly reproduces R exactly. ``vooma`` and
+``vooma_lm_fit`` already match R and do not warn.
