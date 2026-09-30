@@ -31,9 +31,6 @@ def _r_error(r_expr: str) -> str:
 
 
 class TestRigorousTrigammaInverse:
-    @pytest.mark.xfail(
-        strict=True, reason="audits/trigamma_inverse.md Finding 1: logical input computes"
-    )
     @pytest.mark.parametrize(
         "py_value, r_expr",
         [(True, "TRUE"), (np.array([True, False]), "c(TRUE, FALSE)")],
@@ -44,7 +41,7 @@ class TestRigorousTrigammaInverse:
         R treats logical input as non-numeric and stops.
         """
         assert _r_error(r_expr) == "Non-numeric argument to mathematical function"
-        with pytest.raises((TypeError, ValueError)):
+        with pytest.raises(TypeError, match="Non-numeric argument to mathematical function"):
             trigamma_inverse(py_value)
 
     def test_character_input_errors(self):
@@ -53,9 +50,6 @@ class TestRigorousTrigammaInverse:
         with pytest.raises((TypeError, ValueError)):
             trigamma_inverse("a")
 
-    @pytest.mark.xfail(
-        strict=True, reason="audits/trigamma_inverse.md Finding 2: numpy divide warning"
-    )
     def test_zero_returns_inf_without_warning(self):
         """Exercises R-B6 (fitFDist.R:32-38) at x = 0: `y[omit] <- 1/x[omit]`.
 

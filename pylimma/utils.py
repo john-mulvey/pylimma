@@ -74,6 +74,9 @@ def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
     - For very small x (< 1e-6), uses asymptotic approximation 1/x
     """
     x = np.asarray(x)
+    # R: if(!is.numeric(x)) stop(...); logical, character and complex are not numeric
+    if x.dtype.kind not in "iuf":
+        raise TypeError("Non-numeric argument to mathematical function")
     scalar_input = x.ndim == 0
     x = np.atleast_1d(x).astype(np.float64)
 
@@ -98,7 +101,8 @@ def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
 
     # Asymptotic approximations
     y[large_mask] = 1.0 / np.sqrt(x[large_mask])
-    y[small_mask] = 1.0 / x[small_mask]
+    with np.errstate(divide="ignore"):  # R's 1/0 is Inf without a warning
+        y[small_mask] = 1.0 / x[small_mask]
 
     # Newton iteration for normal range
     if np.any(normal_mask):
