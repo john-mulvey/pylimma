@@ -78,11 +78,3 @@ supplied ``genewise_p_value`` follows limma's intended behaviour where
 limma 3.66.0 errors; and ``voom`` / ``voom_with_quality_weights`` use
 an EList's design (and, for voom, weights) slots, with a warning, where
 R silently drops them.
-
-Publication figures
--------------------
-
-Publication-quality figures (R-vs-pylimma log-FC scatter, moderated-t
-scatter, -log10(p) scatter, rank-concordance curve, runtime bars) are
-planned for the four parity notebooks and will be embedded here once
-generated.
