@@ -319,17 +319,19 @@ def contrasts_fit(
     -----
     Exactly one of `contrasts` or `coefficients` must be provided.
 
-    The `coefficients` parameter provides a simpler way to specify the
-    contrasts matrix when the desired contrasts are just a subset of
-    the original coefficients.
+    With `coefficients`, the result is ``fit[:, coefficients]``, as in R:
+    existing test statistics are kept for the selected columns, F is
+    regenerated from them, and cov_coefficients, contrasts and var_prior are
+    subset.
 
     The transformation preserves the relationship between coefficients and
     their standard errors. For orthogonal designs, the standard errors
     transform simply. For non-orthogonal designs, the correlation structure
     is accounted for.
 
-    Any previous test statistics (t, p-values, etc.) are removed since they
-    are no longer valid after the transformation.
+    With `contrasts`, any previous test statistics (t, p-values, etc.) are
+    removed since they are no longer valid after the transformation. The
+    ``contrasts`` slot stores the matrix as supplied.
 
     References
     ----------
@@ -340,60 +342,29 @@ def contrasts_fit(
     fit, _adata, _adata_key = _resolve_fit_input(data, key)
     is_anndata = _adata is not None
 
-    # Validate fit object
-    if "coefficients" not in fit:
-        raise ValueError("fit must contain coefficients")
-    if "stdev_unscaled" not in fit:
-        raise ValueError("fit must contain stdev_unscaled")
+    # R contrasts.R:11
+    if (contrasts is None) == (coefficients is None):
+        raise ValueError("Must specify exactly one of contrasts or coefficients")
 
-    # Check that exactly one of contrasts or coefficients is provided
-    if contrasts is None and coefficients is None:
-        raise ValueError("Must specify either 'contrasts' or 'coefficients'")
-    if contrasts is not None and coefficients is not None:
-        raise ValueError("Cannot specify both 'contrasts' and 'coefficients'")
-
-    # Remove any previous test statistics
-    fit = {k: v for k, v in fit.items() if k not in ("t", "p_value", "lods", "F", "F_p_value")}
-
-    # Get dimensions
-    fit_coef = fit["coefficients"]
-    stdev_unscaled = fit["stdev_unscaled"]
-    n_genes, n_coef = fit_coef.shape
-
-    # Handle coefficients parameter - convert to contrast matrix
-    contrast_names = None
+    # R contrasts.R:14: if coefficients are input, just subset (fit[, coefficients])
     if coefficients is not None:
-        # Normalize to list
-        if not isinstance(coefficients, (list, tuple)):
+        if isinstance(coefficients, (str, int, np.integer)):
             coefficients = [coefficients]
+        return _return_fit(MArrayLM(fit)[:, list(coefficients)], data, key, is_anndata)
 
-        # Get coefficient names from fit if available
-        coef_names = fit.get("coef_names")
+    if fit.get("coefficients") is None:
+        raise ValueError("fit must contain coefficients component")
+    if fit.get("stdev_unscaled") is None:
+        raise ValueError("fit must contain stdev_unscaled component")
 
-        # Convert names to indices and build contrast matrix
-        coef_indices = []
-        selected_names = []
-        for c in coefficients:
-            if isinstance(c, str):
-                if coef_names is None:
-                    raise ValueError(f"Cannot use coefficient name '{c}' - no coef_names in fit")
-                if c not in coef_names:
-                    raise ValueError(f"Coefficient '{c}' not found. Available: {coef_names}")
-                idx = coef_names.index(c)
-                coef_indices.append(idx)
-                selected_names.append(c)
-            else:
-                coef_indices.append(int(c))
-                if coef_names is not None:
-                    selected_names.append(coef_names[int(c)])
-                else:
-                    selected_names.append(f"coef{int(c)}")
-
-        # Build identity-like contrast matrix for selected coefficients
-        contrasts = np.zeros((n_coef, len(coef_indices)))
-        for j, idx in enumerate(coef_indices):
-            contrasts[idx, j] = 1.0
-        contrast_names = selected_names
+    # Remove test statistics in case e_bayes() has previously been run
+    fit = MArrayLM(
+        {k: v for k, v in fit.items() if k not in ("t", "p_value", "lods", "F", "F_p_value")}
+    )
+    fit_coef = np.asarray(fit["coefficients"], dtype=np.float64)
+    stdev_unscaled = np.asarray(fit["stdev_unscaled"], dtype=np.float64)
+    n_coef = fit_coef.shape[1]
+    contrast_names = None
 
     # Extract contrast names if DataFrame, then convert to array.
     # Capture row names too so we can replicate R's row/col name check.
@@ -437,92 +408,57 @@ def contrasts_fit(
 
     fit["contrasts"] = contrasts
     n_contrasts = contrasts.shape[1]
-
-    # Store contrast names (generate default names if not provided)
     if contrast_names is None:
         contrast_names = [f"contrast{i}" for i in range(n_contrasts)]
     fit["contrast_names"] = contrast_names
 
-    # Handle empty contrasts
-    if n_contrasts == 0:
-        fit["coefficients"] = fit_coef[:, :0]
-        fit["stdev_unscaled"] = stdev_unscaled[:, :0]
-        # Match R's fit[,0] subsetting: every coefficient-indexed slot
-        # collapses to its 0-col form so the returned MArrayLM is
-        # internally shape-consistent.
-        if fit.get("cov_coefficients") is not None:
-            cov = np.asarray(fit["cov_coefficients"])
-            fit["cov_coefficients"] = cov[:0, :0]
-        if fit.get("var_prior") is not None:
-            fit["var_prior"] = np.asarray(fit["var_prior"])[:0]
-        if fit.get("coef_names") is not None:
-            fit["coef_names"] = []
-        if is_anndata:
-            # Plain dict for h5ad compatibility; see lm_fit.
-            data.uns[key] = dict(fit)
-            return None
-        if not isinstance(fit, MArrayLM):
-            fit = MArrayLM(fit)
-        return fit
+    # Special case of contrast matrix with 0 columns
+    if not n_contrasts:
+        return _return_fit(fit[:, []], data, key, is_anndata)
 
-    # R's contrasts.fit strips rows (coefficients) that are zero in every
-    # contrast column before the orthogonality check (contrasts.R:77-85).
-    # Comment there says "Not necessary but can make the function faster",
-    # but removing those rows also changes which correlations enter the
-    # lower.tri(cormatrix) orthog test and can flip the code path on
-    # pathological contrasts that leave an unused-but-correlated
-    # coefficient.
-    contrasts_all_zero = np.where(np.all(contrasts == 0, axis=1))[0]
-    if contrasts_all_zero.size and contrasts_all_zero.size < n_coef:
-        keep = np.setdiff1d(np.arange(n_coef), contrasts_all_zero)
+    # Correlation matrix of estimable coefficients. pylimma keeps a p x p
+    # cov_coefficients with NaN rows for non-estimable coefficients where R
+    # keeps the estimable rank x rank block in pivot order.
+    cov_coefficients = fit.get("cov_coefficients")
+    if cov_coefficients is None:
+        warnings.warn("cov.coefficients not found in fit - assuming coefficients are orthogonal")
+        cov_coefficients = np.diag(np.mean(stdev_unscaled**2, axis=0))
+        cormatrix = np.eye(n_coef)
+    else:
+        cov_coefficients = np.asarray(cov_coefficients, dtype=np.float64)
+        estimable = ~np.isnan(np.diag(cov_coefficients))
+        if not estimable.all():
+            if fit.get("pivot") is None:
+                raise ValueError("cor.coef not full rank but pivot column not found in fit")
+            est = np.asarray(fit["pivot"])[: estimable.sum()]
+            cov_coefficients = cov_coefficients[np.ix_(est, est)]
+        cormatrix = _cov2cor(cov_coefficients)
+
+    # If design matrix was singular, reduce to estimable coefficients
+    r = cormatrix.shape[0]
+    if r < n_coef:
+        est = np.asarray(fit["pivot"])[:r]
+        if np.any(np.delete(contrasts, est, axis=0) != 0):
+            raise ValueError("trying to take contrast of non-estimable coefficient")
+        contrasts = contrasts[est, :]
+        fit_coef = fit_coef[:, est]
+        stdev_unscaled = stdev_unscaled[:, est]
+        n_coef = r
+
+    # Remove coefficients that don't appear in any contrast
+    all_zero = np.where(np.sum(np.abs(contrasts), axis=1) == 0)[0]
+    if all_zero.size:
+        keep = np.setdiff1d(np.arange(n_coef), all_zero)
         contrasts = contrasts[keep, :]
         fit_coef = fit_coef[:, keep]
         stdev_unscaled = stdev_unscaled[:, keep]
-        if fit.get("cov_coefficients") is not None:
-            cov_existing = np.asarray(fit["cov_coefficients"])
-            fit["cov_coefficients"] = cov_existing[np.ix_(keep, keep)]
-        n_coef = len(keep)
-        fit["contrasts"] = contrasts
+        cov_coefficients = cov_coefficients[np.ix_(keep, keep)]
+        cormatrix = cormatrix[np.ix_(keep, keep)]
+        n_coef = keep.size
 
-    # Get or construct covariance matrix
-    if "cov_coefficients" not in fit or fit["cov_coefficients"] is None:
-        warnings.warn("cov_coefficients not found in fit - assuming coefficients are orthogonal")
-        var_coef = np.nanmean(stdev_unscaled**2, axis=0)
-        cov_coefficients = np.diag(var_coef)
-        cormatrix = np.eye(n_coef)
-        orthog = True
-    else:
-        cov_coefficients = fit["cov_coefficients"]
-        # Handle NaN in cov matrix (non-estimable coefficients)
-        valid_idx = ~np.isnan(np.diag(cov_coefficients))
-        if not np.all(valid_idx):
-            # Reduce to estimable coefficients
-            est_idx = np.where(valid_idx)[0]
-            cov_coefficients = cov_coefficients[np.ix_(est_idx, est_idx)]
-
-            # Check contrasts only use estimable coefficients
-            non_est_idx = np.where(~valid_idx)[0]
-            if np.any(contrasts[non_est_idx, :] != 0):
-                raise ValueError("Trying to take contrast of non-estimable coefficient")
-
-            contrasts = contrasts[est_idx, :]
-            fit_coef = fit_coef[:, est_idx]
-            stdev_unscaled = stdev_unscaled[:, est_idx]
-            n_coef = len(est_idx)
-
-        # Compute correlation matrix
-        std = np.sqrt(np.diag(cov_coefficients))
-        std[std == 0] = 1  # Avoid division by zero
-        cormatrix = cov_coefficients / np.outer(std, std)
-
-        # Check if orthogonal
-        if cormatrix.size < 2:
-            orthog = True
-        else:
-            orthog = np.sum(np.abs(cormatrix[np.tril_indices(n_coef, -1)])) < 1e-12
-
-    # Handle NA coefficients
-    na_coef = np.any(np.isnan(fit_coef))
+    # Replace NA coefficients with large (but finite) standard deviations
+    # to allow zero contrast entries to clobber NA coefficients
+    na_coef = np.isnan(fit_coef).any()
     if na_coef:
         na_mask = np.isnan(fit_coef)
         fit_coef = fit_coef.copy()
@@ -530,40 +466,49 @@ def contrasts_fit(
         fit_coef[na_mask] = 0
         stdev_unscaled[na_mask] = 1e30
 
-    # Transform coefficients
     new_coefficients = fit_coef @ contrasts
 
-    # Transform covariance matrix
-    R = np.linalg.cholesky(cov_coefficients).T  # Upper triangular
-    new_cov = (R @ contrasts).T @ (R @ contrasts)
-    fit["cov_coefficients"] = new_cov
+    # Test whether design was orthogonal (R contrasts.R:100-104)
+    if cormatrix.size < 2:
+        orthog = True
+    else:
+        orthog = bool(np.all(np.abs(cormatrix[np.tril_indices(n_coef, -1)]) < 1e-14))
 
-    # Transform standard errors
+    # New correlation matrix; R's chol() fails on a 0 x 0 matrix
+    if cov_coefficients.size == 0:
+        raise ValueError("'a' must have dims > 0")
+    chol_cov = np.linalg.cholesky(cov_coefficients).T
+    fit["cov_coefficients"] = (chol_cov @ contrasts).T @ (chol_cov @ contrasts)
+
+    # New standard deviations
     if orthog:
-        # Simple case: variances add
         new_stdev = np.sqrt(stdev_unscaled**2 @ contrasts**2)
     else:
-        # Non-orthogonal: need to account for correlations
-        R_cor = np.linalg.cholesky(cormatrix).T
-        new_stdev = np.zeros((n_genes, n_contrasts))
-        for i in range(n_genes):
-            # Scale contrasts by stdev
-            scaled_contrasts = stdev_unscaled[i, :, np.newaxis] * contrasts
-            RUC = R_cor @ scaled_contrasts
-            new_stdev[i, :] = np.sqrt(np.sum(RUC**2, axis=0))
+        chol_cor = np.linalg.cholesky(cormatrix).T
+        ruc = np.einsum("ab,gb,bc->gac", chol_cor, stdev_unscaled, contrasts)
+        new_stdev = np.sqrt(np.sum(ruc**2, axis=1))
 
-    # Restore NAs
+    # Replace NAs if necessary
     if na_coef:
-        large_stdev = new_stdev > 1e20
-        new_coefficients[large_stdev] = np.nan
-        new_stdev[large_stdev] = np.nan
+        large = new_stdev > 1e20
+        new_coefficients[large] = np.nan
+        new_stdev[large] = np.nan
 
     fit["coefficients"] = new_coefficients
     fit["stdev_unscaled"] = new_stdev
+    return _return_fit(fit, data, key, is_anndata)
 
-    if not isinstance(fit, MArrayLM):
-        fit = MArrayLM(fit)
 
+def _cov2cor(cov: np.ndarray) -> np.ndarray:
+    """R's stats::cov2cor."""
+    inv_sd = np.sqrt(1 / np.diag(cov))
+    cor = inv_sd[:, None] * cov * inv_sd[None, :]
+    np.fill_diagonal(cor, 1.0)
+    return cor
+
+
+def _return_fit(fit, data, key, is_anndata):
+    """Return an MArrayLM, or store it in adata.uns[key] and return None."""
     if is_anndata:
         # Plain dict for h5ad compatibility; see lm_fit.
         data.uns[key] = dict(fit)

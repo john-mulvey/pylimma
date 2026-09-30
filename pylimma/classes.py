@@ -484,6 +484,69 @@ class MArrayLM(_LargeDataObject):
         for k, v in kwargs.items():
             self[k] = v
 
+    def _subset(self, i, j) -> "MArrayLM":
+        """R's ``[.MArrayLM`` (subsetting.R).
+
+        ``fit[i, :]`` subsets genes only. Selecting columns (anything other
+        than ``:``) also subsets cov_coefficients (through ``pivot``, in
+        pivot order, when the design was rank deficient), creates an
+        identity ``contrasts`` matrix if none is present and subsets it,
+        subsets var_prior, and regenerates F and F_p_value from the kept
+        columns.
+        """
+        if isinstance(j, slice) and j == slice(None):
+            return super()._subset(i, j)
+
+        names = self.get("contrast_names") or self.get("coef_names")
+        ncoef = self.ncol
+        j_idx = np.arange(ncoef)[_resolve_index(j, names)]
+
+        # cov_coefficients covers only estimable coefficients (NaN rows here,
+        # fewer columns in R); selecting a non-estimable coefficient is an error
+        cov = self.get("cov_coefficients")
+        cov_idx = j_idx
+        if cov is not None:
+            estimable = ~np.isnan(np.diag(np.asarray(cov, dtype=np.float64)))
+            if not estimable.all():
+                if self.get("pivot") is None:
+                    raise ValueError("design matrix not of full rank but pivot is missing")
+                pivot = np.asarray(self["pivot"])
+                if np.isin(j_idx, pivot[estimable.sum() :]).any():
+                    raise ValueError("Subsetting to non-estimable coefficients is not allowed.")
+                cov_idx = pivot[np.isin(pivot, j_idx)]
+
+        fit = MArrayLM(dict(self))
+        if fit.get("contrasts") is None:
+            fit["contrasts"] = np.eye(ncoef)
+            if names is not None:
+                fit["contrast_names"] = list(names)
+        out = super(MArrayLM, fit)._subset(i, j_idx)
+
+        if cov is not None:
+            out["cov_coefficients"] = np.asarray(cov, dtype=np.float64)[np.ix_(cov_idx, cov_idx)]
+        out["contrasts"] = np.asarray(out["contrasts"])[:, j_idx]
+        if out.get("contrast_names") is not None:
+            out["contrast_names"] = [out["contrast_names"][k] for k in j_idx]
+        if out.get("var_prior") is not None:
+            out["var_prior"] = np.atleast_1d(out["var_prior"])[j_idx]
+
+        if out.get("F") is not None:
+            if j_idx.size:
+                from scipy import stats
+
+                from .decide_tests import classify_tests_f
+
+                f_stat, df1, df2 = classify_tests_f(out, fstat_only=True)
+                out["F"] = f_stat
+                if np.ravel(df2)[0] > 1e6:
+                    out["F_p_value"] = stats.chi2.sf(df1 * f_stat, df1)
+                else:
+                    out["F_p_value"] = stats.f.sf(f_stat, df1, df2)
+            else:
+                out.pop("F", None)
+                out.pop("F_p_value", None)
+        return out
+
     # ---- R-parity convenience methods (lmfit.R, classes.R) ----
 
     def fitted(self) -> np.ndarray:

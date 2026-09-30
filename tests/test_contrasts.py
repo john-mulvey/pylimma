@@ -282,7 +282,9 @@ class TestContrastsFit:
 
         fit = lm_fit(expr, design)
 
-        with pytest.raises(ValueError, match="Cannot specify both"):
+        with pytest.raises(
+            ValueError, match="Must specify exactly one of contrasts or coefficients"
+        ):
             contrasts_fit(fit, contrasts=np.array([[0], [1]]), coefficients=[1])
 
     def test_neither_contrasts_nor_coefficients_raises(self):
@@ -293,7 +295,9 @@ class TestContrastsFit:
 
         fit = lm_fit(expr, design)
 
-        with pytest.raises(ValueError, match="Must specify either"):
+        with pytest.raises(
+            ValueError, match="Must specify exactly one of contrasts or coefficients"
+        ):
             contrasts_fit(fit)
 
 

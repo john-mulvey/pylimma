@@ -4392,3 +4392,85 @@ set.seed(20261015)
 stopifnot(all(is.na(.frd_fit_na$scale[c(5, 35)])), all(is.finite(.frd_fit_na$scale[-c(5, 35)])))
 
 cat("  fitFDist rank-deficient trend fixtures complete.\n")
+
+# =============================================================================
+# contrasts.fit branches: coefficients= returns fit[, coefficients] (keeping
+# test statistics, regenerating F, subsetting cov.coefficients / contrasts /
+# var.prior), the stored contrasts matrix, no cov.coefficients, and a
+# near-orthogonal design
+# =============================================================================
+cat("\nGenerating contrasts.fit branch fixtures...\n")
+
+set.seed(20261016)
+
+.cfb_grp <- rep(1:3, each = 4)
+.cfb_y <- matrix(rnorm(40 * 12), 40, 12)
+.cfb_y[1:8, .cfb_grp == 3] <- .cfb_y[1:8, .cfb_grp == 3] + 2
+write.csv(.cfb_y, "R_cfb_y.csv", row.names = FALSE)
+.cfb_design <- cbind(Intercept = 1, B = (.cfb_grp == 2) * 1, C = (.cfb_grp == 3) * 1)
+.cfb_eb <- eBayes(lmFit(.cfb_y, .cfb_design), proportion = 0.1)
+stopifnot(length(.cfb_eb$var.prior) == 3)
+
+.cfb_write <- function(case, fit) {
+  for (nm in c("coefficients", "stdev.unscaled", "t", "p.value", "lods", "cov.coefficients", "contrasts")) {
+    if (!is.null(fit[[nm]])) {
+      write.csv(unname(as.matrix(fit[[nm]])), sprintf("R_cfb_%s_%s.csv", case, gsub(".", "_", nm, fixed = TRUE)),
+                row.names = FALSE)
+    }
+  }
+  vec <- data.frame(F = if (is.null(fit$F)) NA else fit$F, F_p_value = if (is.null(fit$F.p.value)) NA else fit$F.p.value)
+  write.csv(vec, sprintf("R_cfb_%s_f.csv", case), row.names = FALSE)
+  if (!is.null(fit$var.prior)) write.csv(data.frame(var_prior = fit$var.prior), sprintf("R_cfb_%s_var_prior.csv", case),
+                                         row.names = FALSE)
+}
+
+# coefficients= on an eBayes fit keeps t / p.value / lods and regenerates F
+.cfb_sub <- contrasts.fit(.cfb_eb, coefficients = c(2, 3))
+stopifnot(!is.null(.cfb_sub$t), !is.null(.cfb_sub$F), length(.cfb_sub$var.prior) == 2,
+          !isTRUE(all.equal(.cfb_sub$F, .cfb_eb$F)))
+.cfb_write("coef_subset", .cfb_sub)
+write.csv(topTable(.cfb_sub, coef = 1, number = Inf, sort.by = "none"), "R_cfb_coef_subset_toptable.csv",
+          row.names = FALSE)
+# a single coefficient, in reversed order
+.cfb_write("coef_reversed", contrasts.fit(.cfb_eb, coefficients = c(3, 2)))
+
+# coefficients= on a fit that already has contrasts subsets that matrix; the
+# stored contrasts matrix is the one supplied, all-zero Intercept row included
+.cfb_cm <- cbind(CvsB = c(0, -1, 1), C = c(0, 0, 1))
+.cfb_cf <- eBayes(contrasts.fit(lmFit(.cfb_y, .cfb_design), .cfb_cm))
+stopifnot(identical(unname(.cfb_cf$contrasts), unname(.cfb_cm)))
+.cfb_write("contrasted", .cfb_cf)
+.cfb_write("contrasted_coef2", contrasts.fit(.cfb_cf, coefficients = 2))
+
+# Rank-deficient fit: cov.coefficients is subset through pivot, in pivot order
+.cfb_d_sing <- cbind(.cfb_design[, 1:2], dup = .cfb_design[, 2], C = .cfb_design[, 3])
+.cfb_eb_sing <- eBayes(suppressMessages(lmFit(.cfb_y, .cfb_d_sing)))
+stopifnot(ncol(.cfb_eb_sing$cov.coefficients) == 3)
+.cfb_write("singular_coef41", contrasts.fit(.cfb_eb_sing, coefficients = c(4, 1)))
+.cfb_sing_err <- tryCatch({ contrasts.fit(.cfb_eb_sing, coefficients = 3); NA_character_ },
+                          error = function(e) conditionMessage(e))
+stopifnot(identical(.cfb_sing_err, "Subsetting to non-estimable coefficients is not allowed."))
+
+# No cov.coefficients: warn and assume orthogonal coefficients
+.cfb_nocov <- lmFit(.cfb_y, .cfb_design)
+.cfb_nocov$cov.coefficients <- NULL
+.cfb_nocov_warn <- NULL
+.cfb_nocov_cf <- withCallingHandlers(contrasts.fit(.cfb_nocov, .cfb_cm), warning = function(w) {
+  .cfb_nocov_warn <<- conditionMessage(w)
+  invokeRestart("muffleWarning")
+})
+stopifnot(identical(.cfb_nocov_warn, "cov.coefficients not found in fit - assuming coefficients are orthogonal"))
+.cfb_write("nocov", .cfb_nocov_cf)
+
+# Near-orthogonal design: one coefficient correlation in [1e-14, 1e-12), where
+# the deciding test all(abs(lower.tri) < 1e-14) is FALSE
+.cfb_x1 <- rep(c(-1, 1), 6)
+.cfb_x2 <- rep(c(-1, -1, 1, 1), 3) + 3e-13 * .cfb_x1
+.cfb_d_orth <- cbind(1, .cfb_x1, .cfb_x2)
+.cfb_fit_orth <- lmFit(.cfb_y, .cfb_d_orth)
+.cfb_cor <- abs(cov2cor(.cfb_fit_orth$cov.coefficients)[lower.tri(diag(3))])
+stopifnot(max(.cfb_cor) >= 1e-14, max(.cfb_cor) < 1e-12)
+write.csv(.cfb_d_orth, "R_cfb_orth_design.csv", row.names = FALSE)
+.cfb_write("orth", contrasts.fit(.cfb_fit_orth, cbind(c(0, 1, 1), c(0, 1, -1))))
+
+cat("  contrasts.fit branch fixtures complete.\n")

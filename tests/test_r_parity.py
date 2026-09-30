@@ -6214,3 +6214,88 @@ class TestEBayesTrendMissingValuesRParity:
             fit = lm_fit(y, self.DESIGN)
             with pytest.raises(ValueError):
                 e_bayes(fit, trend=True)
+
+
+# =============================================================================
+# contrasts.fit: coefficients= path, stored contrasts, missing cov.coefficients
+# =============================================================================
+
+
+class TestContrastsFitBranchParity:
+    """Each fixture forces a branch of R's contrasts.fit / [.MArrayLM.
+
+    ``coefficients=`` returns ``fit[, coefficients]``: test statistics are
+    kept and subset, F is regenerated, and cov.coefficients, contrasts and
+    var.prior are subset (cov.coefficients through pivot, in pivot order, for
+    a rank-deficient fit). The R script asserts each precondition.
+    """
+
+    SLOTS = {
+        "coefficients": "coefficients", "stdev_unscaled": "stdev_unscaled", "t": "t",
+        "p_value": "p_value", "lods": "lods", "cov_coefficients": "cov_coefficients",
+        "contrasts": "contrasts",
+    }
+    DESIGN = pd.DataFrame(
+        {"Intercept": 1.0, "B": np.repeat([0.0, 1.0, 0.0], 4), "C": np.repeat([0.0, 0.0, 1.0], 4)}
+    )
+    CM = pd.DataFrame({"CvsB": [0.0, -1.0, 1.0], "C": [0.0, 0.0, 1.0]}, index=["Intercept", "B", "C"])
+
+    @staticmethod
+    def _y():
+        return load_r_csv_no_index("cfb_y").to_numpy(dtype=float)
+
+    def _assert_matches(self, fit, case):
+        for r_slot, py_slot in self.SLOTS.items():
+            path = FIXTURES_DIR / f"R_cfb_{case}_{r_slot}.csv"
+            if not path.exists():
+                assert fit.get(py_slot) is None, py_slot
+                continue
+            r = pd.read_csv(path).to_numpy(dtype=float)
+            np.testing.assert_allclose(np.asarray(fit[py_slot], dtype=float), r, rtol=1e-6, atol=1e-12,
+                                       err_msg=py_slot)
+        r_f = load_r_csv_no_index(f"cfb_{case}_f")
+        if r_f["F"].isna().all():
+            assert fit.get("F") is None and fit.get("F_p_value") is None
+        else:
+            np.testing.assert_allclose(fit["F"], r_f["F"], rtol=1e-6, atol=1e-12)
+            _assert_log10_pvalues_close(r_f["F_p_value"], fit["F_p_value"])
+        path = FIXTURES_DIR / f"R_cfb_{case}_var_prior.csv"
+        if path.exists():
+            np.testing.assert_allclose(fit["var_prior"], pd.read_csv(path)["var_prior"], rtol=1e-6)
+
+    def _eb(self):
+        return e_bayes(lm_fit(self._y(), self.DESIGN), proportion=0.1)
+
+    def test_coefficients_subset_keeps_statistics(self):
+        sub = contrasts_fit(self._eb(), coefficients=[1, 2])
+        self._assert_matches(sub, "coef_subset")
+        tab = top_table(sub, coef=0, number=np.inf, sort_by="none")
+        _assert_top_table_matches(tab, load_r_csv_no_index("cfb_coef_subset_toptable"), check_ids=False)
+
+    def test_coefficients_reversed(self):
+        self._assert_matches(contrasts_fit(self._eb(), coefficients=["C", "B"]), "coef_reversed")
+
+    def test_contrasted_fit(self):
+        cf = e_bayes(contrasts_fit(lm_fit(self._y(), self.DESIGN), self.CM))
+        self._assert_matches(cf, "contrasted")
+        self._assert_matches(contrasts_fit(cf, coefficients=[1]), "contrasted_coef2")
+
+    def test_rank_deficient_subset_in_pivot_order(self):
+        design = self.DESIGN.assign(dup=self.DESIGN["B"])[["Intercept", "B", "dup", "C"]]
+        with pytest.warns(UserWarning):
+            eb = e_bayes(lm_fit(self._y(), design))
+        self._assert_matches(contrasts_fit(eb, coefficients=[3, 0]), "singular_coef41")
+        with pytest.raises(ValueError, match="Subsetting to non-estimable coefficients is not allowed"):
+            contrasts_fit(eb, coefficients=[2])
+
+    def test_missing_cov_coefficients(self):
+        fit = lm_fit(self._y(), self.DESIGN)
+        del fit["cov_coefficients"]
+        with pytest.warns(UserWarning, match="cov.coefficients not found in fit - assuming coefficients"):
+            cf = contrasts_fit(fit, self.CM)
+        self._assert_matches(cf, "nocov")
+
+    def test_near_orthogonal_design(self):
+        design = load_r_csv_no_index("cfb_orth_design").to_numpy(dtype=float)
+        cf = contrasts_fit(lm_fit(self._y(), design), np.array([[0.0, 0.0], [1.0, 1.0], [1.0, -1.0]]))
+        self._assert_matches(cf, "orth")
