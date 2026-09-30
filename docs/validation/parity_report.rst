@@ -14,20 +14,21 @@ Worked R-vs-Python notebooks
 ----------------------------
 
 Four of the five worked-example datasets under ``examples/`` have an
-R-vs-Python parity notebook that runs the same pipeline in R and
-pylimma side-by-side, compares the ``topTable`` output, and plots
-R-vs-pylimma scatters:
+R-vs-Python parity notebook. Each one loads R limma's results for the
+pipeline (precomputed by ``data/_setup_R_references.R`` on R 4.5.2
+with limma 3.66.0), runs the same pipeline live in pylimma, compares
+the two top tables column by column and plots R against pylimma:
 
-- ``examples/all_chiaretti/all_R_vs_Python.ipynb`` - classical
-  microarray pipeline (``lm_fit`` + ``e_bayes``) on the
-  Chiaretti *et al.* (2004) ALL cohort.
-- ``examples/gse60450/gse60450_R_vs_Python.ipynb`` - bulk RNA-seq
-  with voom on the Fu *et al.* (2015) mouse mammary data.
-- ``examples/pasilla/pasilla_R_vs_Python.ipynb`` -
-  ``voom_with_quality_weights`` + ``duplicate_correlation`` on the
+- :doc:`r_vs_pylimma/all_chiaretti` - classical microarray pipeline
+  (``lm_fit`` + ``contrasts_fit`` + ``e_bayes`` + ``top_table``) on
+  the Chiaretti *et al.* (2004) ALL cohort.
+- :doc:`r_vs_pylimma/gse60450` - bulk RNA-seq with ``voom`` on the
+  Fu *et al.* (2015) mouse mammary data.
+- :doc:`r_vs_pylimma/pasilla` - differential splicing
+  (``lm_fit`` + ``diff_splice`` + ``top_splice``) on the
   *Drosophila* Pasilla data.
-- ``examples/yoruba/yoruba_R_vs_Python.ipynb`` - voom + gene-set
-  testing (``camera`` / ``roast``) on Yoruba HapMap LCLs.
+- :doc:`r_vs_pylimma/yoruba` - RNA-seq with ``voom`` on the Yoruba
+  HapMap lymphoblastoid cell lines.
 
 The fifth worked example, ``examples/kang_pbmc/``, is an
 AnnData-native scRNA-seq pseudobulk demonstration and does not have

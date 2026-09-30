@@ -59,6 +59,10 @@ Contents
    :caption: Validation
 
    validation/parity_report
+   validation/r_vs_pylimma/all_chiaretti
+   validation/r_vs_pylimma/gse60450
+   validation/r_vs_pylimma/pasilla
+   validation/r_vs_pylimma/yoruba
    validation/known_differences
    validation/fixtures
    validation/benchmarks
