@@ -3730,3 +3730,58 @@ stopifnot(
 )
 
 cat("  camera estimated-correlation fixtures complete.\n")
+
+# =============================================================================
+# gls.series with a correlation: block and duplicate-spot structures, fast
+# and slow paths, estimated correlation, and input errors
+# =============================================================================
+cat("\nGenerating gls.series correlation fixtures...\n")
+
+set.seed(20261010)
+
+.gls_n <- 40
+.gls_design <- cbind(1, rep(0:1, each = 4))
+.gls_block <- rep(1:4, 2)
+.gls_M <- matrix(rnorm(.gls_n * 8), .gls_n, 8) + outer(rep(1, .gls_n), rnorm(4)[.gls_block])
+.gls_M[1:8, 5:8] <- .gls_M[1:8, 5:8] + 1.5
+.gls_M_na <- .gls_M
+.gls_M_na[cbind(c(2, 5, 9, 17, 30), c(1, 6, 3, 8, 2))] <- NA
+.gls_w_probe <- matrix(runif(.gls_n * 8, 0.3, 2), .gls_n, 8)
+.gls_w_array <- c(1, 0.5, 2, 1, 1.5, 1, 0.8, 1.2)
+write.csv(.gls_M, "R_gls_cor_M.csv", row.names = FALSE)
+write.csv(.gls_M_na, "R_gls_cor_M_na.csv", row.names = FALSE)
+write.csv(.gls_w_probe, "R_gls_cor_probe_weights.csv", row.names = FALSE)
+write.csv(data.frame(w = .gls_w_array), "R_gls_cor_array_weights.csv", row.names = FALSE)
+
+.gls_write <- function(case, fit) {
+  write.csv(data.frame(fit$coefficients, fit$stdev.unscaled, sigma = fit$sigma, df_residual = fit$df.residual),
+            sprintf("R_gls_cor_%s.csv", case), row.names = FALSE)
+  write.csv(fit$cov.coefficients, sprintf("R_gls_cor_%s_cov.csv", case), row.names = FALSE)
+  write.csv(data.frame(correlation = fit$correlation), sprintf("R_gls_cor_%s_correlation.csv", case), row.names = FALSE)
+}
+.gls_write("block", gls.series(.gls_M, .gls_design, block = .gls_block, correlation = 0.4))
+.gls_write("block_na", gls.series(.gls_M_na, .gls_design, block = .gls_block, correlation = 0.4))
+.gls_write("block_probe_weights", gls.series(.gls_M, .gls_design, block = .gls_block, correlation = 0.4,
+                                              weights = .gls_w_probe))
+.gls_write("block_array_weights", gls.series(.gls_M, .gls_design, block = .gls_block, correlation = 0.4,
+                                              weights = .gls_w_array))
+.gls_est <- gls.series(.gls_M, .gls_design, block = .gls_block)
+stopifnot(.gls_est$correlation != 0.4)
+.gls_write("block_estimated", .gls_est)
+.gls_write("dups", gls.series(.gls_M, .gls_design, ndups = 2, spacing = 1, correlation = 0.3))
+.gls_write("dups_na", gls.series(.gls_M_na, .gls_design, ndups = 2, spacing = 1, correlation = 0.3))
+.gls_nodup <- withCallingHandlers(gls.series(.gls_M, .gls_design, ndups = 1, correlation = 0.3),
+                                  warning = function(w) invokeRestart("muffleWarning"))
+stopifnot(.gls_nodup$correlation == 0)
+.gls_write("ndups1", .gls_nodup)
+
+.gls_err <- function(expr) tryCatch({ expr; NA_character_ }, error = function(e) conditionMessage(e))
+.gls_errors <- data.frame(
+  case = c("correlation_one", "block_length"),
+  r_error = c(.gls_err(gls.series(.gls_M, .gls_design, block = .gls_block, correlation = 1)),
+              .gls_err(gls.series(.gls_M, .gls_design, block = 1:3, correlation = 0.4)))
+)
+stopifnot(!anyNA(.gls_errors$r_error))
+write.csv(.gls_errors, "R_gls_cor_errors.csv", row.names = FALSE)
+
+cat("  gls.series correlation fixtures complete.\n")

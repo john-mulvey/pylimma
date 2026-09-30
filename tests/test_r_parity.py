@@ -5891,3 +5891,79 @@ class TestCameraEstimatedCorrelationRParity:
         y = load_r_csv_no_index("cam_y").to_numpy(dtype=float)
         with pytest.warns(UserWarning, match="use_ranks|use.ranks"):
             camera(y, self._sets(), self.DESIGN, sort=False, inter_gene_cor=np.nan, directional=False)
+
+
+# =============================================================================
+# gls.series with a correlation: block / duplicate structures, both paths
+# =============================================================================
+
+
+class TestGlsSeriesCorrelationRParity:
+    """gls_series matches R's gls.series with a block or duplicate-spot
+    correlation, on the fast path, the slow path (missing values or probe
+    weights), with array weights, with the correlation estimated by
+    duplicateCorrelation, and with ndups = 1 (R warns and uses 0)."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    BLOCK = np.tile(np.arange(1, 5), 2)
+
+    @pytest.mark.parametrize(
+        "case, data, kwargs",
+        [
+            ("block", "M", dict(block="block", correlation=0.4)),
+            ("block_na", "M_na", dict(block="block", correlation=0.4)),
+            ("block_probe_weights", "M", dict(block="block", correlation=0.4, weights="probe")),
+            ("block_array_weights", "M", dict(block="block", correlation=0.4, weights="array")),
+            ("block_estimated", "M", dict(block="block")),
+            ("dups", "M", dict(ndups=2, spacing=1, correlation=0.3)),
+            ("dups_na", "M_na", dict(ndups=2, spacing=1, correlation=0.3)),
+            ("ndups1", "M", dict(ndups=1, correlation=0.3)),
+        ],
+    )
+    def test_matches_r(self, case, data, kwargs):
+        import warnings as _w
+
+        from pylimma import gls_series
+
+        M = load_r_csv_no_index(f"gls_cor_{data}").to_numpy(dtype=float)
+        if data == "M_na":
+            assert np.isnan(M).any()
+        kwargs = dict(kwargs)
+        if kwargs.get("block") == "block":
+            kwargs["block"] = self.BLOCK
+        if kwargs.get("weights") == "probe":
+            kwargs["weights"] = load_r_csv_no_index("gls_cor_probe_weights").to_numpy(dtype=float)
+        elif kwargs.get("weights") == "array":
+            kwargs["weights"] = load_r_csv_no_index("gls_cor_array_weights")["w"].to_numpy()
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = gls_series(M, self.DESIGN, **kwargs)
+        r = load_r_csv_no_index(f"gls_cor_{case}").to_numpy(dtype=float)
+        np.testing.assert_allclose(fit["coefficients"], r[:, 0:2], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(fit["stdev_unscaled"], r[:, 2:4], rtol=1e-6)
+        np.testing.assert_allclose(fit["sigma"], r[:, 4], rtol=1e-6)
+        np.testing.assert_array_equal(fit["df_residual"], r[:, 5])
+        np.testing.assert_allclose(
+            fit["cov_coefficients"], load_r_csv_no_index(f"gls_cor_{case}_cov").to_numpy(dtype=float), rtol=1e-6
+        )
+        np.testing.assert_allclose(
+            fit["correlation"], load_r_csv_no_index(f"gls_cor_{case}_correlation")["correlation"].iloc[0], rtol=1e-6
+        )
+
+    def test_ndups1_warns_like_r(self):
+        from pylimma import gls_series
+
+        M = load_r_csv_no_index("gls_cor_M").to_numpy(dtype=float)
+        with pytest.warns(UserWarning, match="ndups"):
+            gls_series(M, self.DESIGN, ndups=1, correlation=0.3)
+
+    @pytest.mark.parametrize("case", ["correlation_one", "block_length"])
+    def test_errors_match_r(self, case):
+        from pylimma import gls_series
+
+        assert isinstance(load_r_csv_no_index("gls_cor_errors").set_index("case")["r_error"][case], str)
+        M = load_r_csv_no_index("gls_cor_M").to_numpy(dtype=float)
+        kwargs = {"correlation_one": dict(block=self.BLOCK, correlation=1.0),
+                  "block_length": dict(block=np.arange(1, 4), correlation=0.4)}[case]
+        with pytest.raises(ValueError):
+            gls_series(M, self.DESIGN, **kwargs)
