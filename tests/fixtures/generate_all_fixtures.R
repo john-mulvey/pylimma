@@ -3878,3 +3878,48 @@ write.csv(data.frame(x = .ti_x, vector_call = .ti_vector, scalar_call = .ti_scal
           "R_trigamma_inverse_extremes.csv", row.names = FALSE)
 
 cat("  trigammaInverse fixtures complete.\n")
+
+# =============================================================================
+# eBayes(trend = TRUE) on fits with missing values (non-robust)
+# =============================================================================
+cat("\nGenerating eBayes trend + missing-value fixtures...\n")
+
+set.seed(20261012)
+
+.tn_n <- 300
+.tn_design <- cbind(1, rep(0:1, each = 4))
+.tn_amean <- runif(.tn_n, 2, 12)
+.tn_y <- matrix(rnorm(.tn_n * 8, sd = rep(2 / sqrt(.tn_amean), 8)), .tn_n, 8) + .tn_amean
+.tn_y[1:20, 5:8] <- .tn_y[1:20, 5:8] + 1.5
+.tn_y[runif(length(.tn_y)) < 0.1] <- NA
+.tn_y_df0 <- .tn_y
+.tn_y_df0[300, ] <- c(5, rep(NA, 7))
+.tn_y_allna <- .tn_y
+.tn_y_allna[299, ] <- NA
+write.csv(.tn_y, "R_tn_y.csv", row.names = FALSE)
+write.csv(.tn_y_df0, "R_tn_y_df0.csv", row.names = FALSE)
+write.csv(.tn_y_allna, "R_tn_y_allna.csv", row.names = FALSE)
+.tn_cov <- rowMeans(.tn_y, na.rm = TRUE) + rnorm(.tn_n, sd = 0.1)
+write.csv(data.frame(covariate = .tn_cov), "R_tn_covariate.csv", row.names = FALSE)
+
+.tn_write <- function(case, eb) {
+  write.csv(data.frame(t = eb$t[, 2], p_value = eb$p.value[, 2], lods = eb$lods[, 2], s2_post = eb$s2.post,
+                       df_prior = rep_len(eb$df.prior, .tn_n), s2_prior = rep_len(eb$s2.prior, .tn_n),
+                       df_total = eb$df.total, F = eb$F, F_p_value = eb$F.p.value),
+            sprintf("R_tn_%s.csv", case), row.names = FALSE)
+}
+.tn_fit <- lmFit(.tn_y, .tn_design)
+stopifnot(length(unique(.tn_fit$df.residual)) > 1)
+.tn_eb <- eBayes(.tn_fit, trend = TRUE)
+stopifnot(length(unique(.tn_eb$s2.prior)) > 1)
+.tn_write("trend", .tn_eb)
+.tn_fit_df0 <- lmFit(.tn_y_df0, .tn_design)
+stopifnot(.tn_fit_df0$df.residual[300] == 0)
+.tn_write("trend_df0", eBayes(.tn_fit_df0, trend = TRUE))
+.tn_write("trend_numeric", eBayes(.tn_fit, trend = .tn_cov))
+.tn_err <- tryCatch({ eBayes(lmFit(.tn_y_allna, .tn_design), trend = TRUE); NA_character_ },
+                    error = function(e) conditionMessage(e))
+stopifnot(!is.na(.tn_err))
+write.csv(data.frame(r_error = .tn_err), "R_tn_allna_error.csv", row.names = FALSE)
+
+cat("  eBayes trend + missing-value fixtures complete.\n")

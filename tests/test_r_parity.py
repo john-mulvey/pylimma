@@ -6104,3 +6104,51 @@ class TestTrigammaInverseRParity:
         with pytest.warns(RuntimeWarning, match="NaNs produced"):
             assert np.isnan(trigamma_inverse(np.array([-1.0]))[0])
         assert np.asarray(trigamma_inverse(np.array([]))).size == 0
+
+
+# =============================================================================
+# eBayes(trend = TRUE) on fits with missing values (non-robust)
+# =============================================================================
+
+
+class TestEBayesTrendMissingValuesRParity:
+    """e_bayes(trend=True) on a fit with missing values (genewise df, so R's
+    unequal-df1 hyperparameter fit with a loess trend), with a df = 0 gene,
+    and with a numeric covariate as trend. An all-NA gene gives an NA Amean
+    covariate, which R rejects."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+
+    @pytest.mark.parametrize("case, data", [("trend", "y"), ("trend_df0", "y_df0"), ("trend_numeric", "y")])
+    def test_matches_r(self, case, data):
+        import warnings as _w
+
+        y = load_r_csv_no_index(f"tn_{data}").to_numpy(dtype=float)
+        trend = load_r_csv_no_index("tn_covariate")["covariate"].to_numpy() if case == "trend_numeric" else True
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(y, self.DESIGN)
+            assert len(np.unique(fit["df_residual"])) > 1  # genewise df from missing values
+            eb = e_bayes(fit, trend=trend)
+        r = load_r_csv_no_index(f"tn_{case}")
+        n = len(r)
+        np.testing.assert_allclose(eb["t"][:, 1], r["t"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["p_value"], eb["p_value"][:, 1])
+        np.testing.assert_allclose(eb["lods"][:, 1], r["lods"], rtol=1e-6)
+        np.testing.assert_allclose(eb["s2_post"], r["s2_post"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(eb["df_prior"], n), r["df_prior"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(eb["s2_prior"], n), r["s2_prior"], rtol=1e-6)
+        np.testing.assert_allclose(eb["df_total"], r["df_total"], rtol=1e-6)
+        np.testing.assert_allclose(eb["F"], r["F"], rtol=1e-6)
+        _assert_log10_pvalues_close(r["F_p_value"], eb["F_p_value"])
+
+    def test_all_na_gene_errors_like_r(self):
+        import warnings as _w
+
+        assert isinstance(load_r_csv_no_index("tn_allna_error")["r_error"].iloc[0], str)
+        y = load_r_csv_no_index("tn_y_allna").to_numpy(dtype=float)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(y, self.DESIGN)
+            with pytest.raises(ValueError):
+                e_bayes(fit, trend=True)
