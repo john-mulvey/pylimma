@@ -110,17 +110,22 @@ def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
         # Initial guess: 1/trigamma(y) is approximately y - 0.5 for moderate y
         y_iter = 0.5 + 1.0 / x_norm
 
-        for _ in range(50):
+        # R: repeat { iter <- iter+1; ...; if(converged) break;
+        #   if(iter > 50) { warning("Iteration limit exceeded"); break } }
+        iteration = 0
+        while True:
+            iteration += 1
             tri = polygamma(1, y_iter)  # trigamma
             psigamma2 = polygamma(2, y_iter)  # tetragamma
             dif = tri * (1.0 - tri / x_norm) / psigamma2
             y_iter = y_iter + dif
             if np.max(-dif / y_iter) < 1e-8:
                 break
-        else:
-            import warnings
+            if iteration > 50:
+                import warnings
 
-            warnings.warn("Iteration limit exceeded in trigamma_inverse")
+                warnings.warn("Iteration limit exceeded")
+                break
 
         y[normal_mask] = y_iter
 
