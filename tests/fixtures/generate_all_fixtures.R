@@ -4361,3 +4361,34 @@ write.csv(data.frame(x = .fks_x_err, covariate = .fks_cov_err), "R_fit_f_dist_sh
           row.names = FALSE)
 
 cat("  fitFDist knot-shoving fixtures complete.\n")
+
+# =============================================================================
+# fitFDist spline trend on a numerically rank-deficient basis: lm.fit drops
+# aliased columns (tol 1e-7), evar uses the effects beyond the rank, and
+# predictions at excluded points are NA
+# =============================================================================
+cat("\nGenerating fitFDist rank-deficient trend fixtures...\n")
+
+set.seed(20261015)
+
+.frd_write <- function(case, x, covariate) {
+  ok <- is.finite(x)
+  # Precondition: the ns() basis for the usable points is rank deficient
+  design <- splines::ns(covariate[ok], df = 4, intercept = TRUE)
+  stopifnot(lm.fit(design, log(x[ok]))$rank < ncol(design))
+  fit <- fitFDist(x, df1 = 4, covariate = covariate)
+  write.csv(data.frame(x = x, covariate = covariate, scale = fit$scale, df2 = fit$df2),
+            sprintf("R_fit_f_dist_rank_deficient_%s.csv", case), row.names = FALSE)
+  fit
+}
+.frd_cov <- rep(c(1, 1 + 1e-9, 2, 3), each = 10)
+.frd_x <- exp(rnorm(40, sd = 0.5)) * rchisq(40, 4) / 4
+.frd_write("low", .frd_x, .frd_cov)
+.frd_cov_mid <- rep(c(1, 2, 2 + 1e-9, 3), each = 10)
+.frd_write("mid", exp(rnorm(40, sd = 0.5)) * rchisq(40, 4) / 4, .frd_cov_mid)
+.frd_x_na <- .frd_x
+.frd_x_na[c(5, 35)] <- NA
+.frd_fit_na <- .frd_write("na", .frd_x_na, .frd_cov)
+stopifnot(all(is.na(.frd_fit_na$scale[c(5, 35)])), all(is.finite(.frd_fit_na$scale[-c(5, 35)])))
+
+cat("  fitFDist rank-deficient trend fixtures complete.\n")

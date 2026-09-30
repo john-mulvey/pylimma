@@ -10,8 +10,8 @@
 #                                                      Lizhong Chen
 #
 # _natural_spline_basis() additionally ports the interior-knot shoving and the
-# linear extrapolation beyond the boundary knots from base R's splines package (which limma's fitFDist
-# calls via splines::ns and predict):
+# linear extrapolation beyond the boundary knots from base R's splines package
+# (which limma's fitFDist calls via splines::ns and predict):
 #   splines::ns  Copyright (C) R Core Team, Douglas M. Bates, William N.
 #                Venables; GPL (>= 2)
 # Python port: Copyright (C) 2026 John Mulvey
@@ -33,6 +33,7 @@ from scipy.optimize import brentq
 from scipy.special import polygamma
 from scipy.stats import f as f_dist
 
+from .lmfit import _qr_r_style
 from .utils import logmdigamma, trigamma_inverse
 
 # Pre-compute 128-point Gauss-Legendre quadrature nodes and weights
@@ -304,8 +305,6 @@ def _fit_spline_trend(e: np.ndarray, covariate: np.ndarray, splinedf: int) -> tu
     ValueError
         "Problem with covariate" when R's ``ns()`` would fail.
     """
-    n = len(e)
-
     # Create spline basis. Capture the knots so callers can re-evaluate
     # the basis at new covariate points (matching R's
     # `predict(design, newx=...)` in fitFDist.R:90-97).
@@ -317,27 +316,14 @@ def _fit_spline_trend(e: np.ndarray, covariate: np.ndarray, splinedf: int) -> tu
         # fitFDist.R: design <- try(ns(...)); if error, stop("Problem with covariate")
         raise ValueError("Problem with covariate") from err
 
-    # Fit linear model
-    q, r = linalg.qr(design, mode="economic")
-    rank = np.sum(np.abs(np.diag(r)) > 1e-10)
-
-    # Solve for coefficients
-    qty = q.T @ e
-    coef = linalg.solve_triangular(r[:rank, :rank], qty[:rank])
-
-    # Fitted values
-    fitted = design[:, :rank] @ coef
-
-    # Residual variance. With economic QR, effects has only `p` entries, so
-    # residual SS is ||e||^2 - ||qty||^2 (the portion of e outside the column
-    # space of design). Divide by n - rank (R's df.residual convention).
-    df_resid = n - rank
-    if df_resid > 0:
-        residual_ss = np.sum(e**2) - np.sum(qty**2)
-        # Guard against negative from floating-point noise near zero
-        residual_var = max(residual_ss, 0.0) / df_resid
-    else:
-        residual_var = 0.0
+    # R's lm.fit(design, e): dqrdc2 pivoting and rank (tol 1e-7); aliased
+    # coefficients are NA, and evar is mean(fit$effects[-(1:fit$rank)]^2)
+    q, r, pivot, rank = _qr_r_style(design)
+    effects = q.T @ e
+    coef = np.full(design.shape[1], np.nan)
+    coef[pivot[:rank]] = linalg.solve_triangular(r[:rank, :rank], effects[:rank])
+    fitted = q[:, :rank] @ effects[:rank]
+    residual_var = np.mean(effects[rank:] ** 2)
 
     return fitted, residual_var, coef, design, spline_knots
 
@@ -500,7 +486,7 @@ def fit_f_dist(
                 boundary_knots=spline_knots[0],
                 interior_knots=spline_knots[1],
             )
-            emean_full[~ok] = design_notok[:, : len(coef)] @ coef
+            emean_full[~ok] = design_notok @ coef
             emean = emean_full
 
     # Estimate scale and df2

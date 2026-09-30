@@ -5241,6 +5241,23 @@ class TestFitFDistKnotShovingParity:
             fit_f_dist(r["x"].values, df1=4, covariate=r["covariate"].values)
 
 
+class TestFitFDistRankDeficientTrendParity:
+    """Spline trend whose basis is numerically rank deficient.
+
+    Covariate values 1e-9 apart are distinct but alias two basis columns at
+    lm.fit's tolerance (1e-7); the fixtures assert R found the rank below the
+    number of columns. R's evar uses the effects beyond the rank, and the
+    aliased coefficient is NA, so excluded points (case ``na``) get NA scale.
+    """
+
+    @pytest.mark.parametrize("case", ["low", "mid", "na"])
+    def test_scale_and_df2(self, case):
+        r = load_r_csv_no_index(f"fit_f_dist_rank_deficient_{case}")
+        py = fit_f_dist(r["x"].values, df1=4, covariate=r["covariate"].values)
+        np.testing.assert_allclose(py["scale"], r["scale"].values, rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(py["df2"], r["df2"].iloc[0], rtol=1e-6)
+
+
 # =============================================================================
 # fitFDistUnequalDF1: branch-forcing parity
 # =============================================================================
