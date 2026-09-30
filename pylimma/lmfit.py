@@ -1033,6 +1033,17 @@ def _fit_genes(data, eawp: dict):
     return eawp.get("probes")
 
 
+def _design_names(design) -> list[str] | None:
+    """Column names carried by a design (R's colnames(design)): DataFrame
+    columns or patsy ``design_info.column_names``; None for a bare matrix."""
+    if isinstance(design, pd.DataFrame):
+        return [str(c) for c in design.columns]
+    column_names = getattr(getattr(design, "design_info", None), "column_names", None)
+    if column_names is not None:
+        return [str(c) for c in column_names]
+    return None
+
+
 def _numeric_design(design) -> np.ndarray:
     """Design matrix as float64, for functions that take a matrix only.
 
@@ -1102,15 +1113,7 @@ def _parse_design(
             names = None
         return np.asarray(dm), names
 
-    if isinstance(design, pd.DataFrame):
-        names = [str(c) for c in design.columns]
-    else:
-        di = getattr(design, "design_info", None)
-        if di is not None:
-            cn = getattr(di, "column_names", None)
-            if cn is not None:
-                names = [str(c) for c in cn]
-
+    names = _design_names(design)
     arr = np.asarray(design, dtype=np.float64)
     if arr.ndim == 1:
         arr = arr.reshape(-1, 1)

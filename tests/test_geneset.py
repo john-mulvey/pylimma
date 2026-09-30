@@ -484,3 +484,87 @@ def test_detection_p_values_raises_without_controls():
     x = np.random.default_rng(0).standard_exponential((10, 2))
     with pytest.raises(ValueError):
         detection_p_values(x, ["regular"] * 10, negctrl="negative")
+
+
+# -----------------------------------------------------------------------------
+# Character contrasts (R: which(contrast == colnames(design)) in .lmEffects
+# and camera.default)
+# -----------------------------------------------------------------------------
+
+
+def _named_design_data():
+    rng = np.random.default_rng(3)
+    n_genes, n_samples = 80, 10
+    y = rng.normal(size=(n_genes, n_samples))
+    group = np.repeat([0.0, 1.0], 5)
+    y[:10, group == 1] += 1.5
+    design = pd.DataFrame(
+        {"Intercept": 1.0, "groupB": group, "age": rng.normal(50, 5, n_samples)}
+    )
+    return y, design
+
+
+@pytest.mark.parametrize(
+    "fn_name, kwargs",
+    [
+        ("camera", {}),
+        ("fry", {}),
+        ("mroast", {"nrot": 199, "rng": 5}),
+        ("roast", {"nrot": 199, "rng": 5}),
+    ],
+)
+def test_character_contrast_matches_column_index(fn_name, kwargs):
+    """A coefficient name must select the same column as its index,
+    including a non-last column (the design-reordering branch)."""
+    import pylimma
+
+    y, design = _named_design_data()
+    index = np.arange(10) if fn_name == "roast" else {"set1": np.arange(10), "set2": np.arange(40, 60)}
+    fn = getattr(pylimma, fn_name)
+    by_name = fn(y, index, design, contrast="groupB", **kwargs)
+    by_index = fn(y, index, design, contrast=1, **kwargs)
+    if fn_name == "roast":
+        by_name, by_index = by_name["p_value"], by_index["p_value"]
+    pd.testing.assert_frame_equal(by_name, by_index)
+
+
+@pytest.mark.parametrize("fn_name", ["camera", "fry"])
+def test_character_contrast_not_found(fn_name):
+    """R stops when the name matches no column, including a design
+    without column names."""
+    import pylimma
+
+    y, design = _named_design_data()
+    fn = getattr(pylimma, fn_name)
+    with pytest.raises(ValueError, match="coef groupC not found"):
+        fn(y, {"set1": np.arange(10)}, design, contrast="groupC")
+    with pytest.raises(ValueError, match="coef groupB not found"):
+        fn(y, {"set1": np.arange(10)}, design.to_numpy(), contrast="groupB")
+
+
+def test_lm_effects_character_contrast_uses_first_entry_with_warning():
+    import pylimma
+
+    y, design = _named_design_data()
+    index = {"set1": np.arange(10)}
+    with pytest.warns(UserWarning, match="using only first entry for contrast"):
+        by_names = pylimma.fry(y, index, design, contrast=["groupB", "age"])
+    pd.testing.assert_frame_equal(by_names, pylimma.fry(y, index, design, contrast=1))
+
+
+def test_character_contrast_from_voom_design_on_anndata():
+    """voom(design=formula) stores a named design, so layer='voom_E' plus
+    a coefficient name works without passing the design again."""
+    ad = pytest.importorskip("anndata")
+    import pylimma
+
+    rng = np.random.default_rng(4)
+    counts = rng.poisson(20, (8, 60)).astype(float)
+    obs = pd.DataFrame({"group": pd.Categorical(np.repeat(["A", "B"], 4))}, index=[f"s{i}" for i in range(8)])
+    adata = ad.AnnData(X=counts, obs=obs)
+    pylimma.voom(adata, design="~ group")
+    index = {"set1": np.arange(10)}
+    pd.testing.assert_frame_equal(
+        pylimma.camera(adata, index, layer="voom_E", contrast="group[T.B]"),
+        pylimma.camera(adata, index, layer="voom_E", contrast=1),
+    )

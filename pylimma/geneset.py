@@ -48,7 +48,7 @@ import pandas as pd
 from scipy import linalg, stats
 
 from .classes import _elist_from_layer, _shape_error, get_eawp
-from .lmfit import _numeric_design, non_estimable
+from .lmfit import _design_names, _numeric_design, non_estimable
 from .squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_robustly, squeeze_var
 from .utils import (
     _zscore_t_bailey,
@@ -124,6 +124,34 @@ def ids2indices(
 # ---------------------------------------------------------------------------
 
 
+def _character_contrast(contrast, design_names, warn_multiple: bool):
+    """Resolve a coefficient-name contrast to a 0-based column index.
+
+    Port of R's ``which(contrast == colnames(design))`` in .lmEffects
+    (lmEffects.R:28-34) and camera.default (geneset-camera.R:102-105).
+    .lmEffects warns and keeps the first entry of a longer character
+    vector; camera does not check.
+    """
+    if not isinstance(contrast, str):
+        if warn_multiple and len(contrast) > 1:
+            warnings.warn("using only first entry for contrast", stacklevel=3)
+        contrast = contrast[0]
+    matches = [j for j, name in enumerate(design_names or []) if name == contrast]
+    if not matches:
+        raise ValueError(f"coef {contrast} not found")
+    return matches[0]
+
+
+def _is_character_contrast(contrast) -> bool:
+    if isinstance(contrast, str):
+        return True
+    return (
+        isinstance(contrast, (list, tuple, np.ndarray, pd.Index, pd.Series))
+        and len(contrast) > 0
+        and all(isinstance(c, str) for c in contrast)
+    )
+
+
 def _lm_effects(
     y,
     design: np.ndarray | None = None,
@@ -153,6 +181,7 @@ def _lm_effects(
         design = ea.get("design")
     if design is None:
         raise ValueError("design matrix not specified")
+    design_names = _design_names(design)
     design = _numeric_design(design)
     if design.ndim == 1:
         design = design.reshape(-1, 1)
@@ -165,6 +194,8 @@ def _lm_effects(
     # Default contrast: last column of design.
     if contrast is None:
         contrast = p - 1
+    elif _is_character_contrast(contrast):
+        contrast = _character_contrast(contrast, design_names, warn_multiple=True)
 
     # Reform design so that the contrast is the last coefficient.
     contrast_arr = np.atleast_1d(np.asarray(contrast))
@@ -657,9 +688,10 @@ def roast(
         as multiple sets and routed to :func:`mroast`.
     design : array_like, optional
         Design matrix. Defaults to ``y.design`` if available.
-    contrast : int or array_like, optional
-        Column index (0-based) or contrast vector. Defaults to the last
-        column of ``design``.
+    contrast : int, str or array_like, optional
+        Column index (0-based), coefficient name (matched against the
+        design's column names, as in R) or contrast vector. Defaults to
+        the last column of ``design``.
     geneid : str or array_like, optional
         Optional gene identifier vector (or column name in ``y.genes``).
     set_statistic : {"mean", "floormean", "mean50", "msq"}, default "mean"
@@ -1112,7 +1144,9 @@ def fry(
         Unnamed lists of sets are named ``set1``, ``set2``, ... (zero-padded
         as in R). None tests all genes as one set.
     design, contrast :
-        Design matrix and contrast (last column by default).
+        Design matrix and contrast (last column by default). ``contrast``
+        may be a 0-based column index, a coefficient name matched against
+        the design's column names (as in R) or a contrast vector.
     geneid : str or array_like, optional
         Gene ids for matching character sets: a column name of the gene
         annotation, or a vector of length nrow(y). Default: the row names
@@ -1271,6 +1305,10 @@ def camera(
 
     Parameters
     ----------
+    contrast : int, str or array_like, optional
+        0-based column index, coefficient name matched against the
+        design's column names (as in R) or contrast vector. Defaults to
+        the last column of ``design``.
     layer : str, optional
         AnnData only. Name of an ``adata.layers`` entry to use in place of
         ``adata.X`` (e.g. ``"voom_E"``). As in :func:`lm_fit`, a layer ending
@@ -1310,6 +1348,7 @@ def camera(
         design = ea.get("design")
     if design is None:
         raise ValueError("design matrix not specified")
+    design_names = _design_names(design)
     design = _numeric_design(design)
     if design.shape[0] != n:
         raise ValueError("row dimension of design matrix must match column dimension of data")
@@ -1358,6 +1397,8 @@ def camera(
     # Reform design so contrast is the last column.
     if contrast is None:
         contrast = p - 1
+    elif _is_character_contrast(contrast):
+        contrast = _character_contrast(contrast, design_names, warn_multiple=False)
     contrast_arr = np.atleast_1d(np.asarray(contrast))
     if contrast_arr.size == 1 and np.issubdtype(contrast_arr.dtype, np.integer):
         k = int(contrast_arr.item())
