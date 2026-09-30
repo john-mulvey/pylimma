@@ -855,6 +855,12 @@ def fit_f_dist_unequal_df1(
     - Uses maximum likelihood optimization instead of method of moments
     - Better handles small or varying df1 values
 
+    Deliberate divergence from limma 3.66.0: with exactly two informative
+    values and some zero prior weight (for example a missing ``x``), limma
+    returns ``scale = NaN`` because its prior-weight flag outlives the reset
+    of the weights; pylimma fits the two values without weights, as the
+    reset intends. See docs/validation/known_differences.rst.
+
     References
     ----------
     Smyth, G. K. and Chen, L. (2024). limma package source code.

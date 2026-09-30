@@ -171,6 +171,20 @@ re-centring never reaches the likelihood, which reads
 ``fit$coefficients``. pylimma applies the re-centring as the code
 intends.
 
+fit_f_dist_unequal_df1: two informative values with zero prior weights
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With exactly two informative variances, ``fitFDistUnequalDF1`` sets
+``prior.weights <- NULL`` to fit them without weights. But
+``PriorWeights <- !is.null(prior.weights)`` has already been computed, so
+if any prior weight existed - including the zero weights the function
+itself creates for missing ``x`` or ``df1 < 0.01`` - limma 3.66.0
+multiplies by ``NULL`` and returns ``scale = NaN``. pylimma clears the flag
+together with the weights. The reference is R's function with
+``PriorWeights <- !is.null(prior.weights)`` repeated after the reset;
+``tests/rigorous/test_fit_f_dist_unequal_df1.py`` checks that unpatched R
+returns NaN and that pylimma matches the patched function.
+
 Deliberate interface difference: EList design and weights in voom
 -----------------------------------------------------------------
 
