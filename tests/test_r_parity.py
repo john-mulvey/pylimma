@@ -5985,3 +5985,80 @@ class TestGlsSeriesDotsForwardingRParity:
         np.testing.assert_allclose(fit["coefficients"], r[:, 0:2], rtol=1e-6, atol=1e-12)
         np.testing.assert_allclose(fit["stdev_unscaled"], r[:, 2:4], rtol=1e-6)
         np.testing.assert_allclose(fit["sigma"], r[:, 4], rtol=1e-6)
+
+
+# =============================================================================
+# contrasts.fit with NA coefficients, singular designs and row subsets
+# =============================================================================
+
+
+class TestContrastsFitNACoefficientRParity:
+    """contrasts_fit on fits with an NA coefficient (a gene missing a whole
+    group), under the orthogonal (cell-means) and non-orthogonal (treatment)
+    standard-error formulas; on a singular design; and on a row subset
+    fit[0:3, :] (R's fit[1:3, ]). R sets NA coefficients to 0 with stdev
+    1e30, contrasts, then returns NA for contrasts whose stdev exceeds 1e20."""
+
+    GROUP = np.repeat([1, 2, 3], 3)
+
+    @classmethod
+    def _design(cls, kind: str) -> pd.DataFrame:
+        g = cls.GROUP
+        if kind == "cellmeans":
+            return pd.DataFrame({"A": (g == 1) * 1.0, "B": (g == 2) * 1.0, "C": (g == 3) * 1.0})
+        return pd.DataFrame({"Intercept": 1.0, "B": (g == 2) * 1.0, "C": (g == 3) * 1.0})
+
+    CONTRASTS = {
+        "cellmeans": np.array([[-1.0, -1.0], [1.0, 0.0], [0.0, 1.0]]),
+        "treatment": np.array([[0.0, 0.0], [-1.0, 0.0], [1.0, 1.0]]),
+    }
+
+    @staticmethod
+    def _assert_matches(fit, case: str) -> None:
+        cov = load_r_csv_no_index(f"cn_{case}_cov_coefficients").to_numpy(dtype=float)
+        np.testing.assert_allclose(np.asarray(fit["cov_coefficients"], dtype=float), cov, rtol=1e-6, atol=1e-12)
+        eb = e_bayes(fit)
+        for r_slot, py_slot in (("coefficients", "coefficients"), ("stdev_unscaled", "stdev_unscaled"), ("t", "t")):
+            r = load_r_csv_no_index(f"cn_{case}_{r_slot}").to_numpy(dtype=float)
+            np.testing.assert_allclose(np.asarray(eb[py_slot], dtype=float), r, rtol=1e-6, atol=1e-12)
+        _assert_log10_pvalues_close(load_r_csv_no_index(f"cn_{case}_p_value").to_numpy(dtype=float), eb["p_value"])
+
+    @staticmethod
+    def _y():
+        return load_r_csv_no_index("cn_y").to_numpy(dtype=float)
+
+    @pytest.mark.parametrize("kind", ["cellmeans", "treatment"])
+    def test_na_coefficient_matches_r(self, kind):
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(self._y(), self._design(kind))
+        assert np.isnan(fit["coefficients"][0, 1])  # gene 1 has no group-2 samples
+        cf = contrasts_fit(fit, contrasts=self.CONTRASTS[kind])
+        assert np.isnan(cf["coefficients"][0, 0]) and np.isfinite(cf["coefficients"][0, 1])
+        self._assert_matches(cf, f"na_{kind}")
+
+    def test_singular_design_matches_r(self):
+        import warnings as _w
+
+        g = self.GROUP
+        design = np.column_stack([np.ones(9), g == 2, g == 2, g == 3]).astype(float)
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(self._y()[2:], design)
+        contrasts = np.array([[0.0, 0.0], [0.0, 1.0], [0.0, 0.0], [1.0, -1.0]])
+        self._assert_matches(contrasts_fit(fit, contrasts=contrasts), "singular")
+        assert isinstance(load_r_csv_no_index("cn_singular_error")["r_error"].iloc[0], str)
+        with pytest.raises(ValueError):
+            contrasts_fit(fit, contrasts=np.array([[0.0], [0.0], [1.0], [0.0]]))
+
+    def test_row_subset_then_contrasts_matches_r(self):
+        import warnings as _w
+
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            fit = lm_fit(self._y(), self._design("treatment"))
+        subset = fit[0:3, :]
+        self._assert_matches(contrasts_fit(subset, contrasts=self.CONTRASTS["treatment"]), "subset")
+        self._assert_matches(contrasts_fit(subset, coefficients=["B", "C"]), "subset_coefficients")

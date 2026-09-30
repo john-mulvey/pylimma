@@ -3801,3 +3801,63 @@ write.csv(data.frame(.glt_gls$coefficients, .glt_gls$stdev.unscaled, sigma = .gl
                      correlation = .glt_gls$correlation), "R_gls_trim_gls.csv", row.names = FALSE)
 
 cat("  gls.series ... forwarding fixtures complete.\n")
+
+# =============================================================================
+# contrasts.fit on fits with NA coefficients, on singular designs, and on a
+# row subset fit[1:3, ]
+# =============================================================================
+cat("\nGenerating contrasts.fit NA-coefficient and subset fixtures...\n")
+
+set.seed(20261011)
+
+.cn_n <- 30
+.cn_grp <- rep(1:3, each = 3)
+.cn_y <- matrix(rnorm(.cn_n * 9), .cn_n, 9)
+.cn_y[1:6, 7:9] <- .cn_y[1:6, 7:9] + 2
+.cn_y[1, 4:6] <- NA        # group 2 missing entirely: NA coefficient
+.cn_y[2, c(1, 5, 9)] <- NA # scattered missing values, all coefficients estimable
+write.csv(.cn_y, "R_cn_y.csv", row.names = FALSE)
+
+.cn_designs <- list(
+  cellmeans = cbind(A = .cn_grp == 1, B = .cn_grp == 2, C = .cn_grp == 3) * 1,
+  treatment = cbind(Intercept = 1, B = (.cn_grp == 2) * 1, C = (.cn_grp == 3) * 1)
+)
+.cn_contrasts <- list(
+  cellmeans = cbind(BvsA = c(-1, 1, 0), CvsA = c(-1, 0, 1)),
+  treatment = cbind(CvsB = c(0, -1, 1), C = c(0, 0, 1))
+)
+.cn_write <- function(case, fit) {
+  eb <- eBayes(fit)
+  for (nm in c("coefficients", "stdev.unscaled", "t", "p.value")) {
+    write.csv(unname(as.matrix(eb[[nm]])), sprintf("R_cn_%s_%s.csv", case, gsub(".", "_", nm, fixed = TRUE)),
+              row.names = FALSE)
+  }
+  write.csv(unname(fit$cov.coefficients), sprintf("R_cn_%s_cov_coefficients.csv", case), row.names = FALSE)
+}
+for (.d in names(.cn_designs)) {
+  .fit <- suppressWarnings(lmFit(.cn_y, .cn_designs[[.d]]))
+  stopifnot(is.na(.fit$coefficients[1, 2]))
+  .cf <- contrasts.fit(.fit, .cn_contrasts[[.d]])
+  # NA coefficients are set to 0 with stdev 1e30 before contrasting, then
+  # contrasts whose stdev exceeds 1e20 are set back to NA: the contrast using
+  # the NA coefficient is NA, the other is finite
+  stopifnot(is.na(.cf$coefficients[1, 1]), is.na(.cf$stdev.unscaled[1, 1]),
+            is.finite(.cf$coefficients[1, 2]))
+  .cn_write(sprintf("na_%s", .d), .cf)
+}
+
+# Singular design: the third column duplicates the second
+.cn_d_sing <- cbind(1, .cn_grp == 2, .cn_grp == 2, .cn_grp == 3) * 1
+.cn_fit_sing <- suppressMessages(lmFit(.cn_y[3:30, ], .cn_d_sing))
+.cn_write("singular", contrasts.fit(.cn_fit_sing, cbind(c(0, 0, 0, 1), c(0, 1, 0, -1))))
+.cn_sing_err <- tryCatch({ contrasts.fit(.cn_fit_sing, cbind(c(0, 0, 1, 0))); NA_character_ },
+                         error = function(e) conditionMessage(e))
+stopifnot(!is.na(.cn_sing_err))
+write.csv(data.frame(r_error = .cn_sing_err), "R_cn_singular_error.csv", row.names = FALSE)
+
+# Row subset fit[1:3, ] then contrasts.fit, and eBayes on the three genes
+.cn_fit_tr <- suppressWarnings(lmFit(.cn_y, .cn_designs$treatment))
+.cn_write("subset", contrasts.fit(.cn_fit_tr[1:3, ], .cn_contrasts$treatment))
+.cn_write("subset_coefficients", contrasts.fit(.cn_fit_tr[1:3, ], coefficients = c("B", "C")))
+
+cat("  contrasts.fit NA-coefficient and subset fixtures complete.\n")
