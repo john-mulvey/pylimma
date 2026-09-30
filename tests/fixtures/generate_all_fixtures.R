@@ -3683,3 +3683,50 @@ stopifnot(!anyNA(.sm_errors$r_error))
 write.csv(.sm_errors, "R_sm_errors.csv", row.names = FALSE)
 
 cat("  selectModel fixtures complete.\n")
+
+# =============================================================================
+# camera with an estimated inter-gene correlation (inter.gene.cor = NA / NULL)
+# and allow.neg.cor
+# =============================================================================
+cat("\nGenerating camera estimated-correlation fixtures...\n")
+
+set.seed(20261009)
+
+.cam_n <- 200
+.cam_design <- cbind(1, rep(0:1, each = 4))
+.cam_y <- matrix(rnorm(.cam_n * 8), .cam_n, 8)
+# Anti-correlated pairs: genes 11-15 mirror genes 1-5, so the set's
+# estimated inter-gene correlation is negative
+.cam_y[11:15, ] <- -.cam_y[1:5, ] + matrix(rnorm(5 * 8, sd = 0.1), 5, 8)
+# Positively correlated set sharing a latent factor, with a group effect
+.cam_latent <- rnorm(8)
+.cam_y[21:35, ] <- .cam_y[21:35, ] + outer(rep(1, 15), 1.5 * .cam_latent)
+.cam_y[21:35, 5:8] <- .cam_y[21:35, 5:8] + 0.8
+write.csv(.cam_y, "R_cam_y.csv", row.names = FALSE)
+.cam_sets <- list(anti = c(1:5, 11:15), pos = 21:35, plain = 100:130, single = 150)
+write.csv(do.call(rbind, lapply(names(.cam_sets), function(nm) data.frame(set = nm, index = .cam_sets[[nm]]))),
+          "R_cam_sets.csv", row.names = FALSE)
+
+.cam_run <- function(...) camera(.cam_y, .cam_sets, .cam_design, sort = FALSE, ...)
+.cam_write <- function(case, tab) {
+  write.csv(data.frame(set = rownames(tab), tab, check.names = FALSE), sprintf("R_cam_%s.csv", case), row.names = FALSE)
+}
+.cam_cases <- list(
+  est_parametric = list(inter.gene.cor = NA),
+  est_parametric_neg = list(inter.gene.cor = NA, allow.neg.cor = TRUE),
+  est_ranks = list(inter.gene.cor = NA, use.ranks = TRUE),
+  est_ranks_neg = list(inter.gene.cor = NA, use.ranks = TRUE, allow.neg.cor = TRUE),
+  est_null = list(inter.gene.cor = NULL),
+  est_nondirectional = list(inter.gene.cor = NA, directional = FALSE)
+)
+.cam_out <- lapply(.cam_cases, function(args) suppressWarnings(do.call(.cam_run, args)))
+for (.nm in names(.cam_out)) .cam_write(.nm, .cam_out[[.nm]])
+stopifnot(
+  .cam_out$est_parametric["anti", "Correlation"] < 0,
+  is.na(.cam_out$est_parametric["single", "Correlation"]),
+  .cam_out$est_parametric["anti", "PValue"] != .cam_out$est_parametric_neg["anti", "PValue"],
+  .cam_out$est_ranks["anti", "PValue"] != .cam_out$est_ranks_neg["anti", "PValue"],
+  identical(.cam_out$est_null, .cam_out$est_parametric)
+)
+
+cat("  camera estimated-correlation fixtures complete.\n")

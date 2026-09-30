@@ -5834,3 +5834,60 @@ class TestSelectModelRParity:
             y[0, 0] = np.nan
         with pytest.raises(ValueError):
             select_model(y, designs, **kwargs)
+
+
+# =============================================================================
+# camera with an estimated inter-gene correlation and allow.neg.cor
+# =============================================================================
+
+
+class TestCameraEstimatedCorrelationRParity:
+    """camera with inter.gene.cor = NA / NULL estimates each set's correlation
+    (NA for a singleton); allow.neg.cor controls whether a negative estimate
+    is clamped, for both the parametric and the rank-based test. The fixture
+    includes an anti-correlated set so the clamp changes the result."""
+
+    DESIGN = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+
+    @staticmethod
+    def _sets():
+        rows = load_r_csv_no_index("cam_sets")
+        return {name: (block["index"].to_numpy() - 1).tolist() for name, block in rows.groupby("set", sort=False)}
+
+    @pytest.mark.parametrize(
+        "case, kwargs",
+        [
+            ("est_parametric", dict(inter_gene_cor=np.nan)),
+            ("est_parametric_neg", dict(inter_gene_cor=np.nan, allow_neg_cor=True)),
+            ("est_ranks", dict(inter_gene_cor=np.nan, use_ranks=True)),
+            ("est_ranks_neg", dict(inter_gene_cor=np.nan, use_ranks=True, allow_neg_cor=True)),
+            ("est_null", dict(inter_gene_cor=None)),
+            ("est_nondirectional", dict(inter_gene_cor=np.nan, directional=False)),
+        ],
+    )
+    def test_matches_r(self, case, kwargs):
+        import warnings as _w
+
+        from pylimma import camera
+
+        y = load_r_csv_no_index("cam_y").to_numpy(dtype=float)
+        r = load_r_csv_no_index(f"cam_{case}")
+        if case == "est_parametric":
+            assert r.set_index("set").loc["anti", "Correlation"] < 0
+        with _w.catch_warnings():
+            _w.simplefilter("ignore")
+            tab = camera(y, self._sets(), self.DESIGN, sort=False, **kwargs)
+        assert list(tab.index) == list(r["set"])
+        np.testing.assert_array_equal(tab["n_genes"], r["NGenes"])
+        np.testing.assert_allclose(tab["correlation"], r["Correlation"], rtol=1e-6)
+        if "Direction" in r.columns:
+            assert list(tab["direction"]) == list(r["Direction"])
+        _assert_log10_pvalues_close(r["PValue"], tab["p_value"])
+        _assert_log10_pvalues_close(r["FDR"], tab["fdr"])
+
+    def test_nondirectional_warns_like_r(self):
+        from pylimma import camera
+
+        y = load_r_csv_no_index("cam_y").to_numpy(dtype=float)
+        with pytest.warns(UserWarning, match="use_ranks|use.ranks"):
+            camera(y, self._sets(), self.DESIGN, sort=False, inter_gene_cor=np.nan, directional=False)
