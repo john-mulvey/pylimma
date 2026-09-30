@@ -120,6 +120,7 @@ cat(sprintf("  %d rows x %d cols\n", nrow(ts), ncol(ts)))
 writeLines(c(
     sprintf("generated_at: %s", format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")),
     sprintf("r_version: %s", R.version.string),
+    sprintf("bioconductor_version: %s", BiocManager::version()),
     sprintf("limma_version: %s", packageVersion("limma")),
     sprintf("edger_version: %s", packageVersion("edgeR")),
     sprintf("platform: %s-%s-%s", Sys.info()["sysname"],
