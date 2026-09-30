@@ -330,9 +330,9 @@ class TestEBayesRParity:
 
         # Compare on log scale - allow 1 order of magnitude difference
         result = compare_pvalues(
-            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
-        assert result["match"], f"p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+        assert result["match"], f"p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
 
     def test_basic_lods(self, data1):
         """Test B-statistics (lods) match R."""
@@ -397,10 +397,10 @@ class TestEBayesRParity:
 
         # F p-value (log scale)
         result_p = compare_pvalues(
-            r_global["F_p_value"].values, fit["F_p_value"], max_log10_diff=1.0
+            r_global["F_p_value"].values, fit["F_p_value"], max_log10_diff=1e-6
         )
         assert result_p["match"], (
-            f"F_p_value differs: max_log10_diff={result_p['max_log10_diff']:.2f}"
+            f"F_p_value differs: max_log10_diff={result_p['max_log10_diff']:.2e}"
         )
 
     def test_trend_s2_prior_is_array(self, data1):
@@ -465,10 +465,10 @@ class TestTreatRParity:
         fit = treat(fit, lfc=0.5)
 
         result = compare_pvalues(
-            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
         assert result["match"], (
-            f"treat p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+            f"treat p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
         )
 
     def test_lfc10_pvalues(self, data1):
@@ -478,10 +478,10 @@ class TestTreatRParity:
         fit = treat(fit, lfc=1.0)
 
         result = compare_pvalues(
-            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
         assert result["match"], (
-            f"treat lfc=1.0 p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+            f"treat lfc=1.0 p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
         )
 
     def test_upshot_t_statistics(self, data1):
@@ -500,10 +500,10 @@ class TestTreatRParity:
         fit = treat(fit, lfc=0.5, upshot=True)
 
         result = compare_pvalues(
-            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value_2"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
         assert result["match"], (
-            f"treat upshot p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+            f"treat upshot p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
         )
 
 
@@ -542,15 +542,15 @@ class TestTopTableRParity:
 
         # Compare p-values (log scale)
         result = compare_pvalues(
-            r_tt["P.Value"].values, py_tt["p_value"].values, max_log10_diff=1.0
+            r_tt["P.Value"].values, py_tt["p_value"].values, max_log10_diff=1e-6
         )
-        assert result["match"], f"P.Value differs: max_log10_diff={result['max_log10_diff']:.2f}"
+        assert result["match"], f"P.Value differs: max_log10_diff={result['max_log10_diff']:.2e}"
 
         # Compare adj.P.Value (log scale)
         result = compare_pvalues(
-            r_tt["adj.P.Val"].values, py_tt["adj_p_value"].values, max_log10_diff=1.0
+            r_tt["adj.P.Val"].values, py_tt["adj_p_value"].values, max_log10_diff=1e-6
         )
-        assert result["match"], f"adj.P.Val differs: max_log10_diff={result['max_log10_diff']:.2f}"
+        assert result["match"], f"adj.P.Val differs: max_log10_diff={result['max_log10_diff']:.2e}"
 
     def test_confint_columns(self, data1):
         """Test topTable confidence intervals match R."""
@@ -711,8 +711,8 @@ class TestMultiContrastRParity:
         assert result["match"], f"F differs: max_rel={result['max_rel_diff']:.2e}"
 
         # F p-value
-        result_p = compare_pvalues(r_stats["F_p"].values, fit["F_p_value"], max_log10_diff=1.0)
-        assert result_p["match"], f"F_p differs: max_log10_diff={result_p['max_log10_diff']:.2f}"
+        result_p = compare_pvalues(r_stats["F_p"].values, fit["F_p_value"], max_log10_diff=1e-6)
+        assert result_p["match"], f"F_p differs: max_log10_diff={result_p['max_log10_diff']:.2e}"
 
     def test_three_group_coefficients(self, data2):
         """Test multi-contrast coefficients match R."""
@@ -1254,10 +1254,10 @@ class TestTopTableEdgeCasesRParity:
 
         # Compare adjusted p-values
         result = compare_pvalues(
-            r_tt["adj.P.Val"].values, py_tt["adj_p_value"].values, max_log10_diff=1.0
+            r_tt["adj.P.Val"].values, py_tt["adj_p_value"].values, max_log10_diff=1e-6
         )
         assert result["match"], (
-            f"bonferroni p-values differ: max_log10_diff={result['max_log10_diff']:.2f}"
+            f"bonferroni p-values differ: max_log10_diff={result['max_log10_diff']:.2e}"
         )
 
     def test_no_adjustment(self, data1):
@@ -1442,9 +1442,9 @@ class TestContrastsEBayesRParity:
         assert result["match"], f"contrasts eBayes t differs: max_rel={result['max_rel_diff']:.2e}"
 
         # Compare p-values
-        result_p = compare_pvalues(r_eb["BvsA.1"].values, fit["p_value"][:, 0], max_log10_diff=1.0)
+        result_p = compare_pvalues(r_eb["BvsA.1"].values, fit["p_value"][:, 0], max_log10_diff=1e-6)
         assert result_p["match"], (
-            f"contrasts eBayes p differs: max_log10_diff={result_p['max_log10_diff']:.2f}"
+            f"contrasts eBayes p differs: max_log10_diff={result_p['max_log10_diff']:.2e}"
         )
 
 
@@ -1613,10 +1613,10 @@ class TestVoomRParity:
 
         # Compare p-values
         result_p = compare_pvalues(
-            r_stats["p_value"].values, fit["p_value"][:, 1], max_log10_diff=1.0
+            r_stats["p_value"].values, fit["p_value"][:, 1], max_log10_diff=1e-6
         )
         assert result_p["match"], (
-            f"voom pipeline p differs: max_log10_diff={result_p['max_log10_diff']:.2f}"
+            f"voom pipeline p differs: max_log10_diff={result_p['max_log10_diff']:.2e}"
         )
 
     def test_voom_no_replication_warning(self, voom_data):
@@ -4659,7 +4659,7 @@ class TestGoanaRParity:
         py = goana(de=de_list, gene_pathway=gp, universe=universe, trend=False)
         r = load_r_csv("goana_default").loc[py.index]
         for r_col, py_col in (("P.Up", "p_up"), ("P.Down", "p_down")):
-            res = compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1.0)
+            res = compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1e-6)
             assert res["match"], (
                 f"goana {py_col} differs: max_log10_diff={res['max_log10_diff']:.3e}"
             )
@@ -4704,7 +4704,7 @@ class TestKeggaRParity:
         py = kegga(de=de_list, gene_pathway=gp, pathway_names=pn, universe=universe, trend=False)
         r = load_r_csv("kegga_default").loc[py.index]
         for r_col, py_col in (("P.Up", "p_up"), ("P.Down", "p_down")):
-            res = compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1.0)
+            res = compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1e-6)
             assert res["match"], (
                 f"kegga {py_col} differs: max_log10_diff={res['max_log10_diff']:.3e}"
             )

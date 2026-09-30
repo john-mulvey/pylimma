@@ -83,8 +83,8 @@ def _assert_full_slot_parity(
     else:
         r_p_col = r_out["p_value"][:, coef_index]
     py_p_col = eb["p_value"][:, coef_index]
-    res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=0.5)
-    assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
+    res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=1e-6)
+    assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2e}"
 
     # s2_post (per-gene)
     res_s2post = compare_arrays(r_out["s2_post"], eb["s2_post"], rtol=rtol)
@@ -434,8 +434,8 @@ class TestRigorousTreat:
 
         r_p_col = r_out["p_value"][:, 1]
         py_p_col = eb["p_value"][:, 1]
-        res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=0.5)
-        assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
+        res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=1e-6)
+        assert res_p["match"], f"p_value differs: max_log10_diff={res_p['max_log10_diff']:.2e}"
         # s2_post tight
         res_s2post = compare_arrays(r_out["s2_post"], eb["s2_post"], rtol=1e-6)
         assert res_s2post["match"], f"s2_post differs: max_rel={res_s2post['max_rel_diff']:.2e}"
@@ -489,9 +489,9 @@ class TestRigorousTreat:
         res_t = compare_arrays(r_t, eb["t"], rtol=1e-8)
         assert res_t["match"], f"full t matrix differs: max_rel={res_t['max_rel_diff']:.2e}"
         # p-values can be deeply small; use log10
-        res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=0.5)
+        res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=1e-6)
         assert res_p["match"], (
-            f"full p_value matrix differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
+            f"full p_value matrix differs: max_log10_diff={res_p['max_log10_diff']:.2e}"
         )
 
     # ------------------------------------------------------------------
@@ -536,9 +536,9 @@ class TestRigorousTreat:
 
         res_t = compare_arrays(r_t, eb["t"], rtol=1e-8)
         assert res_t["match"], f"upshot t differs: max_rel={res_t['max_rel_diff']:.2e}"
-        res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=0.5)
+        res_p = compare_pvalues(r_p.ravel(), eb["p_value"].ravel(), max_log10_diff=1e-6)
         assert res_p["match"], (
-            f"upshot p_value differs: max_log10_diff={res_p['max_log10_diff']:.2f}"
+            f"upshot p_value differs: max_log10_diff={res_p['max_log10_diff']:.2e}"
         )
 
     # ------------------------------------------------------------------
@@ -577,8 +577,8 @@ class TestRigorousTreat:
 
         py_p_col = eb["p_value"][:, 1]
         r_p_col = r_out["p_value"][:, 1] if r_out["p_value"].ndim > 1 else r_out["p_value"]
-        res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=0.5)
-        assert res_p["match"], f"trend+robust p: max_log10_diff={res_p['max_log10_diff']:.2f}"
+        res_p = compare_pvalues(r_p_col, py_p_col, max_log10_diff=1e-6)
+        assert res_p["match"], f"trend+robust p: max_log10_diff={res_p['max_log10_diff']:.2e}"
 
         res_s2post = compare_arrays(r_out["s2_post"], eb["s2_post"], rtol=1e-6)
         assert res_s2post["match"], (

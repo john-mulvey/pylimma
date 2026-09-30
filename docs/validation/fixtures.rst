@@ -51,10 +51,9 @@ Output                                                Tolerance
 Deterministic statistics (see below)                  ``rtol=1e-6`` or tighter
                                                       (many tests use ``1e-8`` to
                                                       ``1e-12``)
-P-values                                              log10 scale: ``rtol=1e-6``
-                                                      in branch-forcing tests; older
-                                                      tests allow up to 2 orders of
-                                                      magnitude for very small values
+P-values                                              log10 scale: ``rtol=1e-6``, or
+                                                      an absolute log10 difference
+                                                      of ``1e-6``
 ``normexp_fit(method="saddle")`` parameters           ``rtol=1e-3`` (see
                                                       :doc:`known_differences`)
 ``normalize_vsn`` output                              ``rtol=5e-4`` (see

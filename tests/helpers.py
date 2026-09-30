@@ -184,7 +184,7 @@ def compare_arrays(
 def compare_pvalues(
     r_pvals: np.ndarray,
     py_pvals: np.ndarray,
-    max_log10_diff: float = 2.0,
+    max_log10_diff: float = 1e-6,
 ) -> dict[str, Any]:
     """
     Compare p-values on log10 scale.
@@ -199,8 +199,9 @@ def compare_pvalues(
     py_pvals : array
         Python p-values.
     max_log10_diff : float
-        Maximum allowed difference in log10(p-value). Default 2.0 means
-        p-values can differ by up to 2 orders of magnitude.
+        Maximum allowed absolute difference in log10(p-value). The default
+        1e-6 is for deterministic p-values; Monte-Carlo p-values pass a
+        looser documented threshold.
 
     Returns
     -------
@@ -452,32 +453,4 @@ def assert_close_to_reference(
     if diff > tol:
         raise AssertionError(
             f"{name}: Python={value:.6f}, R={reference:.6f}, diff={diff:.6f} > tol={tol}"
-        )
-
-
-def assert_pvalue_close(
-    value: float,
-    reference: float,
-    max_log10_diff: float = 1.0,
-    name: str = "p-value",
-) -> None:
-    """
-    Assert a p-value is close to reference on log10 scale.
-
-    Parameters
-    ----------
-    value : float
-        Python p-value.
-    reference : float
-        R reference p-value.
-    max_log10_diff : float
-        Maximum allowed difference in log10 scale.
-    name : str
-        Name for error message.
-    """
-    log_diff = abs(np.log10(max(value, 1e-300)) - np.log10(max(reference, 1e-300)))
-    if log_diff > max_log10_diff:
-        raise AssertionError(
-            f"{name}: Python={value:.2e}, R={reference:.2e}, "
-            f"log10_diff={log_diff:.2f} > {max_log10_diff}"
         )

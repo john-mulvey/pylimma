@@ -294,7 +294,7 @@ def test_camera_default_matches_r(geneset_data):
     cmp = compare_pvalues(
         r_sorted["PValue"].values,
         py_sorted["p_value"].values,
-        max_log10_diff=0.5,
+        max_log10_diff=1e-6,
     )
     assert cmp["match"], cmp
 
@@ -313,7 +313,7 @@ def test_camera_use_ranks_matches_r(geneset_data):
     cmp = compare_pvalues(
         r_sorted["PValue"].values,
         py_sorted["p_value"].values,
-        max_log10_diff=0.5,
+        max_log10_diff=1e-6,
     )
     assert cmp["match"], cmp
 
@@ -414,7 +414,7 @@ def test_gene_set_test_ranks_only_matches_r():
             nsim=999,
             rng=4,
         )
-        cmp = compare_pvalues(np.array([row["p"]]), np.array([py]), max_log10_diff=0.5)
+        cmp = compare_pvalues(np.array([row["p"]]), np.array([py]), max_log10_diff=1e-6)
         assert cmp["match"], f"alt={row['alt']}: py={py}, r={row['p']}"
 
 
