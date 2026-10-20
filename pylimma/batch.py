@@ -210,18 +210,10 @@ def remove_batch_effect(
 
     full_design = np.concatenate([design, X_batch], axis=1)
     fit = lm_fit(X, design=full_design, **lmfit_kwargs)
-    coef = np.asarray(fit["coefficients"], dtype=np.float64).copy()
-    # R's lmFit QR pivots out the trailing redundant column, so any NA lands
-    # in X_batch's slice and `beta[is.na(beta)] <- 0` correctly zeros the
-    # wrong-subtraction. pylimma.lm_fit's QR may pivot a preserved-design
-    # column instead, leaving a finite but algebraically-arbitrary value in
-    # X_batch. Mirror R's intent by zeroing the ENTIRE row across both slices
-    # whenever a NaN appears anywhere in that row's coefficients: if part of
-    # the linear combination is unidentified, none of the decomposition's
-    # batch-attribution can be trusted for that probe.
-    nan_row = np.any(np.isnan(coef), axis=1)
-    coef[nan_row, :] = 0.0
-    beta = coef[:, design.shape[1] :]
+    # R: beta <- fit$coefficients[, -(1:ncol(design))]; beta[is.na(beta)] <- 0.
+    # lm_fit pivots as R's lmFit does, so the NA coefficients are the same.
+    beta = np.asarray(fit["coefficients"], dtype=np.float64)[:, design.shape[1] :].copy()
+    beta[np.isnan(beta)] = 0.0
     corrected = X - beta @ X_batch.T
 
     return put_eawp(

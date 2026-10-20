@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `remove_batch_effect`: for a gene whose design-of-interest coefficient
+  is not estimable (e.g. missing values), the whole row of coefficients
+  was zeroed, so its batch effect was not removed; as R, only the
+  non-estimable batch coefficients are zeroed.
 - `vooma_by_group` fitted each group with an intercept-only design and
   ignored `block` and `correlation`; as R's `voomaByGroup`, each group now
   uses its rows of the design, its block and the correlation (weights

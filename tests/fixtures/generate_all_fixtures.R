@@ -5028,3 +5028,24 @@ stopifnot(isTRUE(all.equal(arrayWeights(.awd_el), arrayWeights(.awd_E))))
 stopifnot(!isTRUE(all.equal(arrayWeights(.awd_el), arrayWeights(.awd_E, .awd_design))))
 
 cat("  arrayWeights EList design slot checked.\n")
+
+# =============================================================================
+# removeBatchEffect zeroes only the NA batch coefficients
+# (beta[is.na(beta)] <- 0): a gene whose design-of-interest coefficient is
+# not estimable keeps its estimable batch effect
+# =============================================================================
+cat("\nGenerating removeBatchEffect NA-coefficient fixtures...\n")
+
+set.seed(20261109)
+
+.rbn_y <- matrix(rnorm(6 * 4, mean = 8), 6, 4)
+.rbn_y[3, 1:2] <- NA
+.rbn_y[5, 1] <- NA
+write.csv(.rbn_y, "R_rbn_y.csv", row.names = FALSE)
+.rbn_design <- cbind(1, c(0, 0, 1, 1))
+.rbn_fit <- suppressWarnings(lmFit(.rbn_y, cbind(.rbn_design, c(1, -1, 1, -1))))
+stopifnot(is.na(.rbn_fit$coefficients[3, 2]), !is.na(.rbn_fit$coefficients[3, 3]))
+write.csv(suppressWarnings(removeBatchEffect(.rbn_y, batch = c(1, 0, 1, 0), design = .rbn_design)),
+          "R_rbn_corrected.csv", row.names = FALSE)
+
+cat("  removeBatchEffect NA-coefficient fixtures complete.\n")

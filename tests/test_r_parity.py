@@ -6816,3 +6816,21 @@ def test_vooma_by_group_matches_r(case):
     )
     v = vooma_by_group(y, group=group, design=design, **kwargs)
     np.testing.assert_allclose(v["weights"], load_r_csv_no_index(f"vbg_{case}"), rtol=1e-6)
+
+
+# =============================================================================
+# remove_batch_effect zeroes only the NA batch coefficients, as R
+# =============================================================================
+
+
+def test_remove_batch_effect_keeps_estimable_batch_effect():
+    import warnings
+
+    y = load_r_csv_no_index("rbn_y").to_numpy(dtype=float)
+    design = np.column_stack([np.ones(4), [0.0, 0.0, 1.0, 1.0]])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)  # Partial NA coefficients
+        corrected = remove_batch_effect(y, batch=[1, 0, 1, 0], design=design)
+    np.testing.assert_allclose(
+        corrected, load_r_csv_no_index("rbn_corrected"), rtol=1e-6, atol=1e-12, equal_nan=True
+    )
