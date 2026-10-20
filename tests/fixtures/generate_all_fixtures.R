@@ -4625,3 +4625,24 @@ for (.dtf_method in c("hierarchical", "nestedF")) {
 }
 
 cat("  decideTests without F-statistics checked.\n")
+
+# =============================================================================
+# topTable(number=): capped at the number of rows, number < 1 returns an
+# empty data.frame, and a non-integer number is truncated by ord[1:number]
+# (both .topTableT and .topTableF)
+# =============================================================================
+cat("\nGenerating topTable number fixtures...\n")
+
+set.seed(20261023)
+
+.ttn_y <- matrix(rnorm(20 * 6), 20, 6)
+write.csv(.ttn_y, "R_ttn_y.csv", row.names = FALSE)
+.ttn_eb <- eBayes(lmFit(.ttn_y, cbind(1, rep(0:1, each = 3), c(0, 1, 0, 1, 0, 1))))
+.ttn_numbers <- c(-5, -1, 0, 0.5, 1.5, 2.5, 3, 25, Inf)
+write.csv(data.frame(
+  number = .ttn_numbers,
+  nrow_t = sapply(.ttn_numbers, function(n) nrow(topTable(.ttn_eb, coef = 2, number = n))),
+  nrow_f = sapply(.ttn_numbers, function(n) nrow(topTable(.ttn_eb, coef = 2:3, number = n)))
+), "R_ttn_nrow.csv", row.names = FALSE)
+
+cat("  topTable number fixtures complete.\n")

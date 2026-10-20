@@ -201,6 +201,11 @@ unaffected.
     that F-statistics are needed. ``generate_all_fixtures.R`` records the
     R behaviour.
 
+``top_table`` / ``top_table_f`` with ``number=NaN``
+    Raises "number must not be NaN" (R: "missing value where TRUE/FALSE
+    needed"). Other values of ``number`` follow R: capped at the number of
+    rows, an empty table below 1, and truncation of a non-integer.
+
 ``fit_gamma_intercept``
     Missing values in ``y`` or ``offset`` raise "y and offset must not
     contain missing values", and a Newton step that is 0 / 0 (an offset

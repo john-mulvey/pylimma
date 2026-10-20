@@ -1331,6 +1331,29 @@ class TestTopTableEdgeCasesRParity:
             f"topTable duplicated logFC differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
+    @pytest.mark.parametrize("row", range(9))
+    @pytest.mark.parametrize("path", ["t", "f"])
+    def test_number_row_count(self, row, path):
+        """R caps number at the row count, returns an empty data.frame when
+        number < 1 and truncates a non-integer number."""
+        y = load_r_csv_no_index("ttn_y").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), np.repeat([0, 1], 3), np.tile([0, 1], 3)])
+        fit = e_bayes(lm_fit(y, design))
+        r = load_r_csv_no_index("ttn_nrow").iloc[row]
+        coef = 1 if path == "t" else [1, 2]
+        tab = top_table(fit, coef=coef, number=float(r["number"]))
+        assert len(tab) == r[f"nrow_{path}"]
+        if len(tab) == 0:
+            assert tab.shape == (0, 0)
+
+    def test_number_nan_raises(self):
+        """R fails with "missing value where TRUE/FALSE needed"
+        (docs/validation/known_differences.rst)."""
+        y = load_r_csv_no_index("ttn_y").to_numpy(dtype=float)
+        fit = e_bayes(lm_fit(y, np.column_stack([np.ones(6), np.repeat([0, 1], 3)])))
+        with pytest.raises(ValueError, match="number must not be NaN"):
+            top_table(fit, coef=1, number=np.nan)
+
 
 class TestTopTreatRParity:
     """Test topTreat matches R."""

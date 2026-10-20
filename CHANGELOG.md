@@ -26,6 +26,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `decide_tests(method="hierarchical")` / `"nestedF"` on a fit without
   F-statistics (rank-deficient design) raises a `ValueError` explaining
   why, instead of `KeyError: 'F_p_value'`. R returns all zeros by accident.
+- `top_table(number=...)`: a negative `number` returned all but the last
+  `|number|` rows and a non-integer raised `TypeError`; as in R, `number`
+  below 1 now gives an empty table and a non-integer is truncated.
+  `number=NaN` raises a clear `ValueError` (R fails obscurely).
 - `fit_gamma_intercept` raises a clear `ValueError` for missing values, an
   undefined (0/0) Newton step, or an `offset` that is neither scalar nor the
   length of `y` (see `docs/validation/known_differences.rst`). An empty `y`

@@ -26,6 +26,17 @@ if TYPE_CHECKING:
     pass
 
 
+def _top_row_count(number: float, n_rows: int) -> int:
+    """Rows topTable returns: R caps ``number`` at the row count, returns an
+    empty table when it is below 1 and truncates it through ``ord[1:number]``.
+    R fails on NaN with "missing value where TRUE/FALSE needed"; pylimma
+    raises a clear error instead."""
+    if np.isnan(number):
+        raise ValueError("number must not be NaN")
+    number = min(number, n_rows)
+    return int(number) if number >= 1 else 0
+
+
 def _handle_duplicated_rownames(
     genes: list, genelist_df: pd.DataFrame | None
 ) -> tuple[list, pd.DataFrame | None]:
@@ -474,9 +485,10 @@ def _top_table_t(
     # Sort by primary column (uses absolute values for t and logFC)
     order = _get_sort_order(sort_by, data_dict, np.arange(len(log_fc)), use_abs=True)
 
-    # Limit number
-    if number < len(order):
-        order = order[:number]
+    n_top = _top_row_count(number, len(order))
+    if n_top == 0:
+        return pd.DataFrame()
+    order = order[:n_top]
 
     # Apply primary sort
     log_fc = log_fc[order]
@@ -774,8 +786,10 @@ def top_table_f(
     # Sort by primary column
     order = _get_sort_order(sort_by, f_stat, f_p_val, ave_expr, np.arange(len(f_stat)))
 
-    if number < len(order):
-        order = order[:number]
+    n_top = _top_row_count(number, len(order))
+    if n_top == 0:
+        return pd.DataFrame()
+    order = order[:n_top]
 
     # Apply primary sort
     coefficients = coefficients[order]
