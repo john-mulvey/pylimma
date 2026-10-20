@@ -4686,3 +4686,20 @@ stopifnot(all(is.infinite(.fm2$stdev) | is.nan(.fm2$stdev)))
 write.csv(data.frame(A = .fm2$A, M = .fm2$M, stdev = .fm2$stdev), "R_fm2.csv", row.names = FALSE)
 
 cat("  fitmixture 2-array fixtures complete.\n")
+
+# =============================================================================
+# classifyTestsF with one coefficient: sign(t) * (p < p.value), so a gene
+# with NA t gives NA
+# =============================================================================
+cat("\nGenerating classifyTestsF single-coefficient NA fixtures...\n")
+
+set.seed(20261025)
+
+.ctf_y <- matrix(rnorm(8 * 4, mean = 3), 8, 4)
+.ctf_y[3, ] <- NA
+write.csv(.ctf_y, "R_ctf_y.csv", row.names = FALSE)
+.ctf_res <- classifyTestsF(eBayes(lmFit(.ctf_y, matrix(1, 4, 1))))
+stopifnot(is.na(.ctf_res[3, 1]))
+write.csv(data.frame(result = as.vector(.ctf_res)), "R_ctf_result.csv", row.names = FALSE)
+
+cat("  classifyTestsF single-coefficient NA fixtures complete.\n")

@@ -55,7 +55,8 @@ def classify_tests_f(
     -------
     ndarray or tuple
         If fstat_only=True: tuple of (F-statistics, df1, df2)
-        If fstat_only=False: matrix of test results (-1=down, 0=not sig, 1=up)
+        If fstat_only=False: matrix of test results (-1=down, 0=not sig, 1=up);
+        a float array with NaN where R returns NA, otherwise integer.
 
     Notes
     -----
@@ -89,7 +90,7 @@ def classify_tests_f(
             return fstat, 1, df
         p = 2 * stats.t.sf(np.abs(tstat[:, 0]), df)
         result = np.sign(tstat[:, 0]) * (p < p_value)
-        return result.astype(int).reshape(-1, 1)
+        return _as_results(result.reshape(-1, 1))
 
     # Multiple coefficients: build the correlation matrix from the
     # explicit cor_matrix kwarg, otherwise derive it from the fit's

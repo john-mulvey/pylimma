@@ -6501,3 +6501,24 @@ def test_fitmixture_two_arrays_matches_r():
         np.testing.assert_allclose(fm[slot], r[slot], rtol=1e-6)
     assert not np.isfinite(r["stdev"]).any()
     assert not np.isfinite(fm["stdev"]).any()
+
+
+# =============================================================================
+# classify_tests_f with one coefficient: NA t gives NA, not INT_MIN
+# =============================================================================
+
+
+def test_classify_tests_f_single_coefficient_na_matches_r():
+    import warnings
+
+    from pylimma.decide_tests import classify_tests_f
+
+    y = load_r_csv_no_index("ctf_y").to_numpy(dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # nanmean of the all-NA row
+        fit = e_bayes(lm_fit(y, np.ones((4, 1))))
+    r = load_r_csv_no_index("ctf_result")["result"].to_numpy()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        result = classify_tests_f(fit)
+    np.testing.assert_array_equal(result[:, 0], r)

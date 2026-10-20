@@ -37,6 +37,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `classify_tests_f` with one coefficient returned -9223372036854775808
+  for a gene with NA t-statistic; it returns NaN (R's NA), as the
+  multi-coefficient path already did.
 - `fitmixture` with 2 arrays raised `ZeroDivisionError`; as in R, `A` and
   `M` are estimated and `stdev` is Inf or NaN (no residual degrees of
   freedom).
