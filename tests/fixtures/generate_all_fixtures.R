@@ -4918,3 +4918,28 @@ write.csv(data.frame(aw = arrayWeights(.aws_y, .aws_d, method = "genebygene")), 
           row.names = FALSE)
 
 cat("  arrayWeights saturated-gene fixtures complete.\n")
+
+# =============================================================================
+# Rank decisions use R's qr() (LINPACK dqrdc2, tolerance 1e-7 relative to the
+# column norms): a tiny-scale column and a near-collinear column are both
+# dropped by vooma's lm.fit and arrayWeights' design check
+# =============================================================================
+cat("\nGenerating rank-tolerance fixtures...\n")
+
+set.seed(20261103)
+
+.rtl_E <- matrix(rnorm(200 * 8), 200, 8)
+write.csv(.rtl_E, "R_rtl_E.csv", row.names = FALSE)
+.rtl_x <- rep(0:1, each = 4)
+.rtl_designs <- list(
+  tiny = cbind(1, .rtl_x * 3e-11),
+  collinear = cbind(1, .rtl_x, .rtl_x + 1e-8 * c(1, -1, 2, 0, 1, -2, 0, 1))
+)
+for (.rtl_case in names(.rtl_designs)) {
+  .rtl_d <- .rtl_designs[[.rtl_case]]
+  write.csv(.rtl_d, sprintf("R_rtl_design_%s.csv", .rtl_case), row.names = FALSE)
+  write.csv(vooma(.rtl_E, .rtl_d)$weights, sprintf("R_rtl_vooma_%s.csv", .rtl_case), row.names = FALSE)
+  write.csv(data.frame(aw = arrayWeights(.rtl_E, .rtl_d)), sprintf("R_rtl_aw_%s.csv", .rtl_case), row.names = FALSE)
+}
+
+cat("  rank-tolerance fixtures complete.\n")

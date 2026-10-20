@@ -6740,3 +6740,23 @@ def test_array_weights_genebygene_saturated_gene_skipped_quietly():
         warnings.simplefilter("error", RuntimeWarning)
         aw = array_weights(y, design, method="genebygene")
     np.testing.assert_allclose(aw, load_r_csv_no_index("aws_weights")["aw"], rtol=1e-6)
+
+
+# =============================================================================
+# Rank decisions follow R's qr(): a tiny-scale or near-collinear design column
+# is dropped as in R (vooma, array_weights)
+# =============================================================================
+
+
+@pytest.mark.parametrize("case", ["tiny", "collinear"])
+def test_rank_tolerance_matches_r(case):
+    from pylimma import array_weights, vooma
+
+    E = load_r_csv_no_index("rtl_E").to_numpy(dtype=float)
+    design = load_r_csv_no_index(f"rtl_design_{case}").to_numpy(dtype=float)
+    np.testing.assert_allclose(
+        vooma(E, design)["weights"], load_r_csv_no_index(f"rtl_vooma_{case}"), rtol=1e-6
+    )
+    np.testing.assert_allclose(
+        array_weights(E, design), load_r_csv_no_index(f"rtl_aw_{case}")["aw"], rtol=1e-6
+    )

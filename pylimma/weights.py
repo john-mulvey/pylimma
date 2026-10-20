@@ -248,8 +248,8 @@ def _array_weights_reml(
 
     # Initial unweighted fit to detect zero-variance genes and seed residuals.
     # Use full Q (narrays x narrays) so we can access the residual effects rows.
-    q_u_full, r_u = linalg.qr(design, mode="full")
-    rank_u = int(np.sum(np.abs(np.diag(r_u[:p, :])) > 1e-10))
+    # R: lm.fit(design, t(y)), whose QR is qr() (LINPACK dqrdc2, tol 1e-7)
+    q_u_full, _r_u, _pivot_u, rank_u = _qr_r_style(design)
     q_u = q_u_full[:, :p]  # first p cols = column space basis
     effects_u = q_u_full.T @ E.T  # (narrays, ngenes)
     effects_null = effects_u[rank_u:, :]  # residual effects
@@ -274,8 +274,8 @@ def _array_weights_reml(
             sw = np.sqrt(w)
             design_w = design * sw[:, np.newaxis]
             E_w = E * sw
-            q_full, r_it = linalg.qr(design_w, mode="full")
-            rank_it = int(np.sum(np.abs(np.diag(r_it[:p, :])) > 1e-10))
+            # R: lm.wfit(design, t(y), w)
+            q_full, r_it, pivot_it, rank_it = _qr_r_style(design_w)
             q_it = q_full[:, :p]
             effects = q_full.T @ E_w.T
             s2 = np.mean(effects[rank_it:, :] ** 2, axis=0)
@@ -284,7 +284,7 @@ def _array_weights_reml(
             beta = linalg.solve_triangular(
                 r_it[:rank_it, :rank_it], effects[:rank_it, :], lower=False
             )
-            residuals = (E.T - design @ beta).T
+            residuals = (E.T - design[:, pivot_it[:rank_it]] @ beta).T
             qr_factors = (q_it, rank_it)
 
         q, rank = qr_factors
@@ -417,10 +417,9 @@ def _array_weights_pr_wts_reml(
             y_w = E[g, :] * sw
 
             try:
-                q_full, r_it = linalg.qr(X_w, mode="full")
+                q_full, r_it, pivot_it, rank = _qr_r_style(X_w)
             except linalg.LinAlgError:
                 continue
-            rank = int(np.sum(np.abs(np.diag(r_it[:p, :])) > 1e-10))
             if rank < p:
                 # rank-deficient gene; skip rather than risk incompatible Q2
                 continue
@@ -431,7 +430,7 @@ def _array_weights_pr_wts_reml(
 
             # R: residuals are y - X beta on the original (unweighted) scale
             beta = linalg.solve_triangular(r_it[:rank, :rank], effects[:rank], lower=False)
-            resid = E[g, :] - design @ beta
+            resid = E[g, :] - design[:, pivot_it[:rank]] @ beta
 
             Q2 = np.zeros((n_samples, p2))
             j0 = 0
@@ -564,9 +563,8 @@ def array_weights(
         design = np.ones((n_samples, 1))
     design = np.asarray(design, dtype=np.float64)
 
-    # Reduce rank if not full rank
-    q, r, pivot = linalg.qr(design, pivoting=True)
-    p = np.sum(np.abs(np.diag(r)) > 1e-10)
+    # Reduce rank if not full rank (R: QR <- qr(design); design[, QR$pivot[1:p]])
+    _q, _r, pivot, p = _qr_r_style(design)
     if p < design.shape[1]:
         design = design[:, pivot[:p]]
 
@@ -617,9 +615,8 @@ def array_weights(
     else:
         # Center columns (make them sum to zero)
         var_design = var_design - np.mean(var_design, axis=0)
-        # Remove rank-deficient columns
-        q_v, r_v, pivot_v = linalg.qr(var_design, pivoting=True)
-        rank_v = np.sum(np.abs(np.diag(r_v)) > 1e-10)
+        # Remove rank-deficient columns (R: Z2[, QR$pivot[1:QR$rank]])
+        _q, _r, pivot_v, rank_v = _qr_r_style(var_design)
         var_design = var_design[:, pivot_v[:rank_v]]
 
     # Detect NA values
@@ -711,8 +708,8 @@ def array_weights_quick(
     res = y - coefficients @ design.T
 
     # Hat-matrix diagonal of the design itself (no intercept augmentation).
-    q, _r, _pivot = linalg.qr(design, pivoting=True, mode="economic")
-    rank = int(np.sum(np.abs(np.diag(_r)) > 1e-10))
+    # R's hat(design, intercept=FALSE) uses qr(design)
+    q, _r, _pivot, rank = _qr_r_style(design)
     q = q[:, :rank]
     h = np.sum(q**2, axis=1)
 

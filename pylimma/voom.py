@@ -27,7 +27,7 @@ from scipy import interpolate, linalg
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
-from .lmfit import _fit_genes, _numeric_design, _parse_design, lm_fit
+from .lmfit import _fit_genes, _numeric_design, _parse_design, _qr_r_style, lm_fit
 from .utils import choose_lowess_span
 
 
@@ -740,11 +740,9 @@ def vooma(
 
     # Fit linear model
     if block is None:
-        # Simple OLS fit
-        from scipy import linalg
-
-        q, r, pivot = linalg.qr(design, pivoting=True)
-        rank = np.sum(np.abs(np.diag(r)) > 1e-10)
+        # Simple OLS fit: R's lm.fit, whose QR is qr() (LINPACK dqrdc2,
+        # rank tolerance 1e-7 relative to the column norms)
+        q, _r, _pivot, rank = _qr_r_style(design)
         qty = q.T @ y.T
         fitted = (q[:, :rank] @ qty[:rank, :]).T
 
@@ -775,17 +773,14 @@ def vooma(
         np.fill_diagonal(cormatrix, 1.0)
 
         # Cholesky decomposition
-        from scipy import linalg
-
         chol_v = linalg.cholesky(cormatrix, lower=False)
 
         # Transform data and design
         z = linalg.solve_triangular(chol_v, y.T, trans="T")
         X = linalg.solve_triangular(chol_v, design, trans="T")
 
-        # Fit
-        q, r, pivot = linalg.qr(X, pivoting=True)
-        rank = np.sum(np.abs(np.diag(r)) > 1e-10)
+        # Fit (R's lm.fit on the transformed design)
+        q, _r, _pivot, rank = _qr_r_style(X)
         qtz = q.T @ z
         fitted_transformed = q[:, :rank] @ qtz[:rank, :]
         fitted = (chol_v.T @ fitted_transformed).T
