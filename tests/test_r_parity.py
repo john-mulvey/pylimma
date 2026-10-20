@@ -2043,6 +2043,22 @@ class TestDuplicateCorrelationRParity:
             dc["consensus_correlation"], r["consensus_correlation"].iloc[0], rtol=1e-6
         )
 
+    @pytest.mark.parametrize("row", range(6))
+    def test_trim(self, row):
+        """R's mean(arho, trim=): median for trim >= 0.5, mean for trim <= 0."""
+        from pylimma.dups import duplicate_correlation
+
+        y = load_r_csv_no_index("dcc_y").to_numpy(dtype=float)
+        design = np.zeros((12, 3))
+        design[np.arange(12), np.repeat(np.arange(3), 4)] = 1
+        r = load_r_csv_no_index("dct_consensus").iloc[row]
+        dc = duplicate_correlation(
+            y, design, block=np.repeat(np.arange(1, 5), 3), trim=float(r["trim"])
+        )
+        np.testing.assert_allclose(
+            dc["consensus_correlation"], r["consensus_correlation"], rtol=1e-6
+        )
+
 
 class TestVoomaLmFitRParity:
     """Test vooma_lm_fit matches R limma's voomaLmFit."""

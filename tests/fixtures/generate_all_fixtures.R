@@ -4646,3 +4646,19 @@ write.csv(data.frame(
 ), "R_ttn_nrow.csv", row.names = FALSE)
 
 cat("  topTable number fixtures complete.\n")
+
+# =============================================================================
+# duplicateCorrelation(trim=): the consensus is mean(arho, trim = trim), which
+# is the median for trim >= 0.5 and the plain mean for trim <= 0
+# (uses .dcc_y from the iteration-cap section)
+# =============================================================================
+cat("\nGenerating duplicateCorrelation trim fixtures...\n")
+
+.dct_trims <- c(-1, 0, 0.15, 0.4, 0.5, 0.6)
+write.csv(data.frame(
+  trim = .dct_trims,
+  consensus_correlation = sapply(.dct_trims, function(tr)
+    duplicateCorrelation(.dcc_y, .dcc_design, block = .dcc_block, trim = tr)$consensus.correlation)
+), "R_dct_consensus.csv", row.names = FALSE)
+
+cat("  duplicateCorrelation trim fixtures complete.\n")

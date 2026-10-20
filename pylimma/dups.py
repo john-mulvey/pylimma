@@ -26,6 +26,7 @@ import pandas as pd
 from scipy import linalg
 
 from .classes import EList, _is_anndata, get_eawp
+from .utils import _r_trimmed_mean
 
 
 def _mixed_model_2_fit(
@@ -631,7 +632,9 @@ def duplicate_correlation(
         Block indicator for correlated samples. If provided, ndups and
         spacing are ignored.
     trim : float, default 0.15
-        Trimmed mean proportion for consensus correlation.
+        Trimmed mean proportion for consensus correlation, as R's
+        ``mean(x, trim=)``: values >= 0.5 give the median, values <= 0 the
+        untrimmed mean.
     weights : ndarray, optional
         Observation weights. Even for AnnData input a 2-D
         matrix is genes x samples (the transpose of ``adata.layers``);
@@ -662,7 +665,6 @@ def duplicate_correlation(
     replicate spots for assessing differential expression in microarray
     experiments. Bioinformatics, 21, 2067-2075.
     """
-    from scipy.stats import trim_mean
 
     # Polymorphic input: ndarray / dict / EList / AnnData.
     eawp = get_eawp(M, layer=layer, weights_layer=weights_layer)
@@ -820,7 +822,7 @@ def duplicate_correlation(
     # Trimmed mean on z scale
     valid = np.isfinite(arho)
     if np.sum(valid) > 0:
-        mrho = np.tanh(trim_mean(arho[valid], trim))
+        mrho = np.tanh(_r_trimmed_mean(arho[valid], trim))
     else:
         mrho = 0.0
 

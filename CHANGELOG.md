@@ -37,6 +37,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `duplicate_correlation(trim=)` follows R's `mean(x, trim=)`: `trim=0.5`
+  returned NaN and larger or negative values raised; they now give the
+  median and the untrimmed mean respectively.
 - `top_table` with several coefficients no longer emits the
   "top_table_f is obsolete" `DeprecationWarning`; as in R, only a direct
   call to `top_table_f` does.

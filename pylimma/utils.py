@@ -325,8 +325,11 @@ def qqf(
 
 
 def _r_trimmed_mean(x: np.ndarray, trim: float) -> float:
-    """R's mean(x, trim=trim): the median when trim >= 0.5."""
+    """R's mean(x, trim=trim): the plain mean when trim <= 0, the median
+    when trim >= 0.5, otherwise floor(n * trim) values dropped at each end."""
     n = len(x)
+    if trim <= 0:
+        return float(np.mean(x))
     if trim >= 0.5:
         return float(np.median(x))
     lo = int(np.floor(n * trim))
