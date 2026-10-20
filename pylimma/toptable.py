@@ -273,7 +273,7 @@ def top_table(
         # translation when routing to .topTableF.
         if sort_by == "B":
             sort_by = "F"
-        return top_table_f(
+        return _top_table_f(
             fit,
             coef_idx=coef_idx,
             number=number,
@@ -610,10 +610,10 @@ def top_table_f(
     DataFrame
         Table of top genes ranked by F-statistic.
     """
-    fit, _adata, _adata_key = _resolve_fit_input(fit, key)
     # R topTableF.R:7 emits a deprecation message on every call. Mirror
     # it with DeprecationWarning so downstream tooling (pytest's
-    # warning capture, IDE linters) sees an equivalent signal.
+    # warning capture, IDE linters) sees an equivalent signal. top_table
+    # calls _top_table_f directly, as R's topTable calls .topTableF.
     import warnings as _warnings
 
     _warnings.warn(
@@ -622,6 +622,41 @@ def top_table_f(
         DeprecationWarning,
         stacklevel=2,
     )
+    return _top_table_f(
+        fit,
+        number,
+        genelist,
+        adjust_method,
+        sort_by,
+        p_value,
+        fc,
+        lfc,
+        coef_idx=coef_idx,
+        resort_by=resort_by,
+        key=key,
+        _genelist_explicit=_genelist_explicit,
+    )
+
+
+def _top_table_f(
+    fit: dict,
+    number: int = 10,
+    genelist=None,
+    adjust_method: str = "BH",
+    sort_by: str = "F",
+    p_value: float = 1.0,
+    fc: float | None = None,
+    lfc: float | None = None,
+    *,
+    coef_idx: list[int] | None = None,
+    resort_by: str | None = None,
+    key: str = "pylimma",
+    _genelist_explicit: bool | None = None,
+) -> pd.DataFrame:
+    """F-statistic top table without the obsolescence warning: the
+    port of R's internal ``.topTableF`` that ``top_table`` calls for
+    several coefficients. See :func:`top_table_f` for the arguments."""
+    fit, _adata, _adata_key = _resolve_fit_input(fit, key)
 
     # Resolve lfc from fc / lfc exactly as R does (toptable.R:33-39):
     # when fc is supplied, lfc is silently overridden with log2(fc) -

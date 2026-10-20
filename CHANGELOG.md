@@ -37,6 +37,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `top_table` with several coefficients no longer emits the
+  "top_table_f is obsolete" `DeprecationWarning`; as in R, only a direct
+  call to `top_table_f` does.
 - `e_bayes(proportion=1)` and `pred_fcm(prop_true_null_method="hist")` when
   the estimated proportion of true nulls is 0 returned `ZeroDivisionError`;
   lods are now Inf, as in R (including `pred_fcm(all_de=False)`, where the

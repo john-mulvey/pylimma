@@ -399,3 +399,23 @@ class TestTopTable:
         assert set(result["ID"]) == set(unique_genes)
         # Row index is integer 1..N (no rownames on the input)
         assert set(result.index) == set(range(1, 11))
+
+
+def test_multiple_coefficients_do_not_warn_obsolete():
+    """R's topTable reaches the F path through the internal .topTableF, which
+    has no obsolescence message; only the public topTableF prints one."""
+    import warnings
+
+    from pylimma.toptable import top_table_f
+
+    rng = np.random.default_rng(20261024)
+    design = np.column_stack([np.ones(6), np.repeat([0, 1], 3), np.tile([0, 1], 3)])
+    fit = e_bayes(lm_fit(rng.normal(size=(20, 6)), design))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", DeprecationWarning)
+        via_top_table = top_table(fit, coef=[0, 1, 2], number=5)
+    # top_table_f uses the stored F from all coefficients, so compare with
+    # top_table over all of them (fewer would recompute F, as R's fit[, coef]).
+    with pytest.warns(DeprecationWarning, match="top_table_f is obsolete"):
+        via_top_table_f = top_table_f(fit, number=5)
+    pd.testing.assert_frame_equal(via_top_table, via_top_table_f)
