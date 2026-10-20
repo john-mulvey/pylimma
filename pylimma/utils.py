@@ -324,6 +324,15 @@ def qqf(
     return {"x": x, "y": y}
 
 
+def _r_trimmed_mean(x: np.ndarray, trim: float) -> float:
+    """R's mean(x, trim=trim): the median when trim >= 0.5."""
+    n = len(x)
+    if trim >= 0.5:
+        return float(np.median(x))
+    lo = int(np.floor(n * trim))
+    return float(np.mean(np.sort(x)[lo : n - lo]))
+
+
 def choose_lowess_span(
     n: int = 1000,
     small_n: int = 50,

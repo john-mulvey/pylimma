@@ -34,7 +34,7 @@ from scipy.special import polygamma
 from scipy.stats import f as f_dist
 
 from .lmfit import _qr_r_style
-from .utils import loess_fit, logmdigamma, trigamma_inverse
+from .utils import _r_trimmed_mean, loess_fit, logmdigamma, trigamma_inverse
 
 # Pre-compute 128-point Gauss-Legendre quadrature nodes and weights
 _GAUSS_NODES, _GAUSS_WEIGHTS = np.polynomial.legendre.leggauss(128)
@@ -786,15 +786,6 @@ def fit_f_dist_robustly(
         "df2_outlier": df2_outlier,
         "df2_shrunk": df2_shrunk,
     }
-
-
-def _r_trimmed_mean(x: np.ndarray, trim: float) -> float:
-    """R's mean(x, trim=trim): the median when trim >= 0.5."""
-    n = len(x)
-    if trim >= 0.5:
-        return float(np.median(x))
-    lo = int(np.floor(n * trim))
-    return float(np.mean(np.sort(x)[lo : n - lo]))
 
 
 def _approx_rule2_ties_mean(x: np.ndarray, y: np.ndarray, xout: np.ndarray) -> np.ndarray:
