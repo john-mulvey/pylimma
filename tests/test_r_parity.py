@@ -6796,3 +6796,23 @@ def test_modify_weights_matches_r(case, status, values, multipliers):
 
     result = modify_weights(np.ones(4), status, values, multipliers)
     np.testing.assert_array_equal(result[:, 0], load_r_csv_no_index("mwt")[case])
+
+
+# =============================================================================
+# vooma_by_group: each group is fitted with its rows of the design, its block
+# and the correlation, as R's voomaByGroup
+# =============================================================================
+
+
+@pytest.mark.parametrize("case", ["design", "block", "singleton"])
+def test_vooma_by_group_matches_r(case):
+    from pylimma import vooma_by_group
+
+    y = load_r_csv_no_index("vbg_y").to_numpy(dtype=float)
+    design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    kwargs = {"block": np.repeat([1, 2, 3, 4], 2), "correlation": 0.4} if case == "block" else {}
+    group = (
+        np.array(["a", "b", "a", "b", "c", "b", "a", "b"]) if case == "singleton" else np.tile(["a", "b"], 4)
+    )
+    v = vooma_by_group(y, group=group, design=design, **kwargs)
+    np.testing.assert_allclose(v["weights"], load_r_csv_no_index(f"vbg_{case}"), rtol=1e-6)

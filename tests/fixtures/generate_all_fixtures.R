@@ -4977,3 +4977,34 @@ write.csv(data.frame(
 ), "R_mwt.csv", row.names = FALSE)
 
 cat("  modifyWeights fixtures complete.\n")
+
+# =============================================================================
+# voomaByGroup fits each group with its own rows of the design, block[i] and
+# the correlation (designi <- design[i, , drop = FALSE])
+# =============================================================================
+cat("\nGenerating voomaByGroup fixtures...\n")
+
+set.seed(20261104)
+
+.vbg_y <- matrix(rnorm(100 * 8, mean = 6), 100, 8)
+.vbg_y[1:10, 5:8] <- .vbg_y[1:10, 5:8] + 2
+write.csv(.vbg_y, "R_vbg_y.csv", row.names = FALSE)
+.vbg_group <- rep(c("a", "b"), 4)
+.vbg_design <- cbind(1, rep(0:1, each = 4))
+write.csv(voomaByGroup(.vbg_y, group = .vbg_group, design = .vbg_design)$weights, "R_vbg_design.csv",
+          row.names = FALSE)
+write.csv(voomaByGroup(.vbg_y, group = .vbg_group, design = .vbg_design, block = rep(1:4, each = 2),
+                       correlation = 0.4)$weights, "R_vbg_block.csv", row.names = FALSE)
+
+cat("  voomaByGroup fixtures complete.\n")
+
+# =============================================================================
+# voomaByGroup with a singleton level: its weights come from one vooma fit to
+# all samples (voomall)
+# =============================================================================
+cat("\nGenerating voomaByGroup singleton fixtures...\n")
+
+write.csv(voomaByGroup(.vbg_y, group = c("a", "b", "a", "b", "c", "b", "a", "b"), design = .vbg_design)$weights,
+          "R_vbg_singleton.csv", row.names = FALSE)
+
+cat("  voomaByGroup singleton fixtures complete.\n")

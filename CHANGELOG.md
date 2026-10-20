@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `vooma_by_group` fitted each group with an intercept-only design and
+  ignored `block` and `correlation`; as R's `voomaByGroup`, each group now
+  uses its rows of the design, its block and the correlation (weights
+  differed by up to ~13% when the design varies within a group).
 - `modify_weights` compared `str()` of status and values, so a float or
   logical status never matched (`"1.0"` vs `"1"`, `"True"` vs `"TRUE"`)
   and no weight was changed; both are now compared as R's

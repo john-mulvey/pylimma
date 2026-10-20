@@ -1334,26 +1334,32 @@ def vooma_by_group(
             design[group_arr == lev, j] = 1.0
     design = _numeric_design(design)
 
+    # Singleton levels take their weights from one fit to all samples (R's
+    # voomall, computed once before the loop).
+    if min(int(np.sum(group_arr == lev)) for lev in levels) == 1:
+        v_all = vooma(
+            {"E": E},
+            design=design,
+            block=block,
+            correlation=correlation,
+            span=span,
+            legacy_span=legacy_span,
+            plot=False,
+        )
+
     weights = np.empty_like(E)
     for lev in levels:
         mask = group_arr == lev
         if mask.sum() < 2:
-            # Singleton level: fall back to a global vooma fit.
-            v_all = vooma(
-                {"E": E},
-                design=design,
-                block=block,
-                correlation=correlation,
-                span=span,
-                legacy_span=legacy_span,
-                plot=False,
-            )
             weights[:, mask] = v_all["weights"][:, mask]
             continue
-        sub = {"E": E[:, mask]}
+        # R: vooma(y[, i], design = design[i, , drop = FALSE], block = block[i],
+        #          correlation = correlation)
         v = vooma(
-            sub,
-            design=np.ones((int(mask.sum()), 1)),
+            {"E": E[:, mask]},
+            design=design[mask, :],
+            block=None if block is None else np.asarray(block)[mask],
+            correlation=correlation,
             span=span,
             legacy_span=legacy_span,
             plot=False,
