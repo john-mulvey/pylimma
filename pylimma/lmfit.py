@@ -1389,6 +1389,11 @@ def lm_fit(
     # R's lmFit records the fitting method (lmfit.R:86); plotExons and
     # other diagnostics rely on it.
     fit["method"] = method
+    # The fit's genes are reduced by ndups / spacing above; record them for
+    # every method (mrlm does not return them) so the AnnData stale-fit check
+    # can reduce var_names the same way.
+    fit.setdefault("ndups", ndups)
+    fit.setdefault("spacing", spacing)
     # Propagate sample metadata: R's lmFit does fit$targets <- y$targets.
     # Copy so later edits to the EList do not reach into the stored fit
     # (R's copy-on-modify). Skipped for AnnData: the fit is stored next

@@ -45,6 +45,11 @@ written to ``adata.uns[key]`` (default ``key="pylimma"``):
    pl.e_bayes(adata, key="fit")
    results = pl.top_table(adata, coef=1, key="fit")   # DataFrame
 
+anndata copies ``adata.uns`` unchanged when genes are subset, reordered
+or renamed, so a stored fit is only used while ``adata.var_names`` still
+match the fitted genes; otherwise functions that read it raise an error,
+and ``lm_fit`` must be re-run on the changed object.
+
 EList workflow
 --------------
 

@@ -33,6 +33,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- A fit stored in `adata.uns` is only used while `adata.var_names` match
+  the fitted genes. After genes were subset, reordered or renamed,
+  `top_table`, `decide_tests`, `e_bayes`, `treat`, `contrasts_fit`, `genas`,
+  `goana`/`kegga` and `diff_splice` silently used the stale fit (rows for
+  genes not in the object, annotation attached to the wrong genes); they
+  now raise a `ValueError`. The vector-identifier workaround of
+  `goana`/`kegga`/`diff_splice` on such an object is removed.
 - `decide_tests(method="hierarchical")` / `"nestedF"` on a fit without
   F-statistics (rank-deficient design) raises a `ValueError` explaining
   why, instead of `KeyError: 'F_p_value'`. R returns all zeros by accident.

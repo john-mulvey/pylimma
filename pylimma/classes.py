@@ -1003,30 +1003,41 @@ def _resolve_fit_input(data, key: str):
             raise ValueError(
                 f"No fit results found in adata.uns[{key!r}]. Did you run lm_fit() first?"
             )
-        return _with_list_names(data.uns[key]), data, key
+        fit = data.uns[key]
+        if not _var_matches_fit(fit, data):
+            raise ValueError(
+                f"adata.var_names do not match the genes of the fit in adata.uns[{key!r}]: "
+                "genes were subset, reordered or renamed after fitting. Re-run "
+                "lm_fit on this object."
+            )
+        return _with_list_names(fit), data, key
     return _with_list_names(data), None, None
 
 
-VAR_MISMATCH_MESSAGE = (
-    "adata.var does not match the genes in the stored fit (genes were subset, "
-    "reordered or renamed after fitting), so its annotation cannot be used. "
-    "Pass the identifiers as a vector, or re-run lm_fit on this object."
-)
+def _fit_var(fit, adata) -> pd.DataFrame:
+    """adata.var rows for the fit's rows: reduced by R's uniquegenelist when
+    the fit has ndups > 1, as lmFit reduces y$probes."""
+    from .dups import unique_genelist  # dups imports this module
+
+    return unique_genelist(
+        adata.var, ndups=int(fit.get("ndups") or 1), spacing=int(fit.get("spacing") or 1)
+    )
 
 
 def _var_matches_fit(fit, adata) -> bool:
-    """True when adata.var describes the fit's rows, in order.
+    """True when the fit's rows are adata's genes, in order.
 
-    anndata copies adata.uns unchanged when genes are subset or reordered,
-    so a stored fit can outlive the var axis it was computed on. lm_fit
-    records var_names as fit["genes"]; adata.var is only used alongside
-    the fit when those names still match exactly.
+    anndata copies adata.uns unchanged when genes are subset, reordered or
+    renamed, so a stored fit can outlive the var axis it was computed on.
+    lm_fit records the var_names of _fit_var as fit["genes"]; a fit without
+    genes is checked by its row count.
     """
+    expected = [str(g) for g in _fit_var(fit, adata).index]
     genes = fit.get("genes")
     if genes is None:
-        return False
+        return np.shape(fit["coefficients"])[0] == len(expected)
     names = genes.index if isinstance(genes, pd.DataFrame) else genes
-    return [str(g) for g in names] == [str(g) for g in adata.var_names]
+    return [str(g) for g in names] == expected
 
 
 def _with_list_names(fit):

@@ -792,10 +792,10 @@ def test_fit_taken_from_reloaded_uns_by_hand_supports_name_lookup(wrap, tmp_path
 
 
 @pytest.mark.parametrize("change", ["subset", "reorder", "rename"])
-def test_goana_geneid_column_refuses_var_changed_after_fit(change):
-    """adata.uns is copied unchanged when genes are subset / reordered, so
-    a string geneid must not read an adata.var that no longer describes
-    the fitted genes; a vector geneid aligned to the fit still works."""
+def test_goana_refuses_var_changed_after_fit(change):
+    """adata.uns is copied unchanged when genes are subset / reordered /
+    renamed, so the stored fit no longer describes the object; goana raises
+    whatever geneid is (the stale-fit check in _resolve_fit_input)."""
     import pylimma
 
     adata = _de_adata()
@@ -812,9 +812,10 @@ def test_goana_geneid_column_refuses_var_changed_after_fit(change):
     else:
         changed = adata.copy()
         changed.var_names = [f"renamed{i}" for i in range(changed.n_vars)]
-    with pytest.raises(ValueError, match="does not match the genes in the stored fit"):
-        pylimma.goana(changed, gene_pathway=gp, geneid="symbol")
-    pd.testing.assert_frame_equal(pylimma.goana(changed, gene_pathway=gp, geneid=symbols), expected)
+    for geneid in ("symbol", symbols):
+        with pytest.raises(ValueError, match="do not match the genes of the fit"):
+            pylimma.goana(changed, gene_pathway=gp, geneid=geneid)
+    pd.testing.assert_frame_equal(pylimma.goana(adata, gene_pathway=gp, geneid="symbol"), expected)
 
 
 @pytest.mark.parametrize(
@@ -1080,3 +1081,77 @@ def test_masked_array_weights_in_array_weights():
         pylimma.array_weights(np.ma.masked_array(x, mask=mask), design),
         pylimma.array_weights(np.where(mask, np.nan, x), design),
     )
+
+
+# ---------------------------------------------------------------------------
+# A fit stored in adata.uns is only used while adata.var_names still match it
+# ---------------------------------------------------------------------------
+
+
+def _fitted_adata():
+    import anndata as ad
+
+    rng = np.random.default_rng(20261029)
+    adata = ad.AnnData(rng.normal(size=(8, 40)))
+    adata.var_names = [f"G{i}" for i in range(40)]
+    adata.obs["group"] = np.repeat(["a", "b"], 4)
+    pylimma.lm_fit(adata, "~ group")
+    pylimma.e_bayes(adata)
+    return adata
+
+
+_FIT_CONSUMERS = {
+    "e_bayes": lambda a: pylimma.e_bayes(a),
+    "treat": lambda a: pylimma.treat(a),
+    "contrasts_fit": lambda a: pylimma.contrasts_fit(a, coefficients=[1]),
+    "top_table": lambda a: pylimma.top_table(a, coef=1),
+    "top_table_genelist": lambda a: pylimma.top_table(a, coef=1, genelist=a.var),
+    "decide_tests": lambda a: pylimma.decide_tests(a),
+}
+
+
+@pytest.mark.parametrize("change", ["subset", "reorder", "rename"])
+@pytest.mark.parametrize("consumer", list(_FIT_CONSUMERS))
+def test_fit_consumers_refuse_var_changed_after_fit(consumer, change):
+    adata = _fitted_adata()
+    if change == "subset":
+        changed = adata[:, 10:13].copy()
+    elif change == "reorder":
+        changed = adata[:, ::-1].copy()
+    else:
+        changed = adata.copy()
+        changed.var_names = [f"renamed{i}" for i in range(changed.n_vars)]
+    with pytest.raises(ValueError, match="do not match the genes of the fit in adata.uns"):
+        _FIT_CONSUMERS[consumer](changed)
+    _FIT_CONSUMERS[consumer](adata)
+
+
+@pytest.mark.parametrize("method", ["ls", "robust"])
+def test_fit_consumers_accept_ndups_fit_on_unchanged_adata(method):
+    import warnings
+
+    import anndata as ad
+
+    rng = np.random.default_rng(20261029)
+    adata = ad.AnnData(rng.normal(size=(6, 40)))
+    adata.var_names = [f"s{i}" for i in range(40)]
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    with warnings.catch_warnings():
+        # robust + ndups: R's "Correlation cannot be combined with robust regression"
+        warnings.simplefilter("ignore", UserWarning)
+        pylimma.lm_fit(adata, design, ndups=2, correlation=0.3, method=method)
+    pylimma.e_bayes(adata)
+    assert len(pylimma.top_table(adata, coef=1, number=np.inf)) == 20
+
+
+def test_goana_ndups_fit_uses_unique_gene_rows_of_var():
+    """With ndups > 1 the fit has one row per gene; adata.var annotation is
+    reduced to those rows as R's uniquegenelist does."""
+    adata = _de_adata()
+    pylimma.lm_fit(adata, "~ group", ndups=2, correlation=0.2)
+    pylimma.e_bayes(adata)
+    symbols = adata.var["symbol"].to_numpy()
+    gp = _gene_pathway(symbols)
+    expected = pylimma.goana(MArrayLM(adata.uns["pylimma"]), gene_pathway=gp, geneid=symbols[::2])
+    pd.testing.assert_frame_equal(pylimma.goana(adata, gene_pathway=gp, geneid="symbol"), expected)
+

@@ -95,6 +95,8 @@ pl.e_bayes(adata)
 results = pl.top_table(adata, coef=1)     # returns a DataFrame
 ```
 
+A fit in `adata.uns` is only used while `adata.var_names` still match the fitted genes; after subsetting, reordering or renaming genes, re-run `lm_fit`.
+
 ## Examples
 
 The [`examples/`](examples/) directory contains tutorial notebooks organised by workflow. Each tutorial is self-contained, and together they cover the three input idioms (flat array/DataFrame, `EList`, and `AnnData`) across five workflows: microarray differential expression, bulk RNA-seq with voom, bulk MS proteomics, single-cell pseudobulk differential expression, and differential splicing. Side-by-side R-vs-Python notebooks are provided for the four datasets where parity to R limma is the explicit demonstration.

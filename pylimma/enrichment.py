@@ -68,11 +68,10 @@ import pandas as pd
 from scipy import stats
 
 from .classes import (
-    VAR_MISMATCH_MESSAGE,
     MArrayLM,
+    _fit_var,
     _is_anndata,
     _resolve_fit_input,
-    _var_matches_fit,
 )
 from .utils import p_adjust, tricube_moving_average
 
@@ -133,9 +132,9 @@ def goana(
         ``coef``, ``geneid`` and ``key`` for the MArrayLM branch. ``key``
         (default ``"pylimma"``) names the ``adata.uns`` entry holding the
         fit when ``de`` is an AnnData. For AnnData input a string
-        ``geneid`` is looked up in ``adata.var``, provided ``var_names``
-        still match the genes that were fitted (otherwise a ValueError is
-        raised; pass ``geneid`` as a vector instead).
+        ``geneid`` is looked up in ``adata.var``. The stored fit is only
+        used while ``var_names`` still match the genes that were fitted;
+        otherwise a ValueError is raised and ``lm_fit`` must be re-run.
     """
     if _is_dispatch_marraylm(de):
         return _goana_marraylm(
@@ -301,11 +300,9 @@ def _select_de_from_fit(
         col = geneid if isinstance(geneid, str) else geneid[0]
         if adata is not None:
             # AnnData: fit['genes'] only carries var_names, so column-name
-            # lookups go to adata.var - but only while it still describes
-            # the fitted genes.
-            if not _var_matches_fit(fit, adata):
-                raise ValueError(VAR_MISMATCH_MESSAGE)
-            genes = adata.var
+            # lookups go to adata.var, reduced to the fit's rows
+            # (_resolve_fit_input has checked that it still describes them).
+            genes = _fit_var(fit, adata)
         if not isinstance(genes, pd.DataFrame) or col not in genes.columns:
             raise ValueError(f"Column {col} not found in de$genes")
         universe = [str(v) for v in genes[col].values]

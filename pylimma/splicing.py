@@ -28,7 +28,7 @@ import pandas as pd
 from scipy.stats import f as f_dist
 from scipy.stats import t as t_dist
 
-from .classes import VAR_MISMATCH_MESSAGE, MArrayLM, _resolve_fit_input, _var_matches_fit
+from .classes import MArrayLM, _fit_var, _resolve_fit_input
 from .squeeze_var import squeeze_var
 from .utils import p_adjust
 
@@ -73,11 +73,10 @@ def diff_splice(
     ``exonid`` (column names of ``fit['genes']``, or row-aligned
     arrays). For AnnData-stored fits, ``geneid`` / ``exonid`` may also
     be column names of ``adata.var``, and the ``adata.var`` columns are
-    carried into the output. ``adata.var`` is only used while its
+    carried into the output. The stored fit is only used while
     ``var_names`` still match the genes that were fitted (``lm_fit``
-    records them as ``fit['genes']``). After a gene subset or reorder,
-    column-name identifiers raise a ValueError; vector identifiers still
-    work, without the ``adata.var`` annotation columns.
+    records them as ``fit['genes']``); after a gene subset, reorder or
+    rename a ValueError is raised and ``lm_fit`` must be re-run.
 
     The splice output has a different row count (genes with a single
     exon are dropped) from the input and carries a mix of per-exon and
@@ -104,22 +103,12 @@ def diff_splice(
     # so string lookups like ``geneid="gene"`` find ``adata.var["gene"]``
     # directly. On the AnnData path fit["genes"] is only the list of
     # var_names (lm_fit does not copy adata.var into the fit), which would
-    # otherwise fail a column-name lookup. adata.var is only trusted while
-    # its var_names still match the fitted genes.
+    # otherwise fail a column-name lookup. _resolve_fit_input has checked
+    # that adata.var still describes the fitted genes.
     n_exons = np.asarray(fit["coefficients"]).shape[0]
     use_var = _adata is not None and len(_adata.var.columns) > 0
-    if use_var and not _var_matches_fit(fit, _adata):
-        if isinstance(geneid, str) or isinstance(exonid, str):
-            raise ValueError(VAR_MISMATCH_MESSAGE)
-        warnings.warn(
-            "adata.var does not match the genes in the stored fit; its "
-            "annotation columns are not carried into the output.",
-            UserWarning,
-            stacklevel=2,
-        )
-        use_var = False
     if use_var:
-        exon_genes = _adata.var.copy()
+        exon_genes = _fit_var(fit, _adata).copy()
     else:
         exon_genes = fit.get("genes")
         if exon_genes is None:
