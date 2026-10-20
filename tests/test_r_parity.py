@@ -6774,3 +6774,25 @@ def test_remove_batch_effect_merges_numeric_labels():
     np.testing.assert_allclose(
         remove_batch_effect(y, batch=batch), load_r_csv_no_index("rbl_corrected"), rtol=1e-6, atol=1e-12
     )
+
+
+# =============================================================================
+# modify_weights compares as.character(status) with as.character(values)
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "case, status, values, multipliers",
+    [
+        ("double_status", np.array([0.0, 1.0, 0.0, 1.0]), [1], 0),
+        ("logical_status", np.array([True, False, True, False]), ["TRUE"], 0),
+        ("integer_status_double_value", np.array([0, 1, 0, 1]), [1.0], 0),
+        ("fraction_status", np.array([0.5, 0.1 + 0.2, 0.5, 2.0]), [0.3, 2], 0),
+        ("character_status", np.array(["gene", "ctrl", "gene", "blank"]), ["ctrl", "blank"], [0, 2]),
+    ],
+)
+def test_modify_weights_matches_r(case, status, values, multipliers):
+    from pylimma import modify_weights
+
+    result = modify_weights(np.ones(4), status, values, multipliers)
+    np.testing.assert_array_equal(result[:, 0], load_r_csv_no_index("mwt")[case])

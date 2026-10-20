@@ -27,6 +27,7 @@ from scipy import linalg
 
 from .classes import _shape_error, get_eawp
 from .lmfit import _qr_r_style
+from .utils import _r_as_character
 
 
 def _contr_sum(n: int) -> np.ndarray:
@@ -736,10 +737,12 @@ def modify_weights(
         Weights matrix of shape (n_features, n_arrays). 1-D inputs are
         promoted to a single-column matrix to mirror R's
         ``as.matrix(weights)``.
-    status : array_like of str
+    status : array_like
         Per-row status labels. Length must equal ``nrow(weights)``.
-    values : sequence of str
-        Status values to act on.
+    values : sequence
+        Status values to act on. As in R, ``status`` and ``values`` are
+        compared as R's ``as.character()`` renders them, so ``1.0`` matches
+        ``1`` and a logical ``True`` matches ``"TRUE"``.
     multipliers : float or sequence of float
         Multiplier for each value. A single multiplier is recycled to
         the length of ``values``.
@@ -750,12 +753,13 @@ def modify_weights(
         Updated weights matrix, same shape as the input (1-D inputs
         come back as a column matrix to match R).
     """
-    status = np.asarray([str(s) for s in status])
+    # R: as.character() on both status and values, then string equality
+    status = _r_as_character(status)
     weights = np.asarray(weights, dtype=np.float64)
     if weights.ndim == 1:
         weights = weights.reshape(-1, 1)
     weights = weights.copy()
-    values = [str(v) for v in values]
+    values = list(_r_as_character(values))
     multipliers = np.atleast_1d(np.asarray(multipliers, dtype=np.float64))
 
     if status.size != weights.shape[0]:

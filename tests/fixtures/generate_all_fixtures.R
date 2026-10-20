@@ -4959,3 +4959,21 @@ stopifnot(nlevels(as.factor(.rbl_batch)) == 2)
 write.csv(removeBatchEffect(.rbl_y, batch = .rbl_batch), "R_rbl_corrected.csv", row.names = FALSE)
 
 cat("  removeBatchEffect numeric-label fixtures complete.\n")
+
+# =============================================================================
+# modifyWeights compares as.character(status) with as.character(values), so a
+# double status 1 matches the value 1 and a logical status matches "TRUE"
+# =============================================================================
+cat("\nGenerating modifyWeights fixtures...\n")
+
+.mwt_w <- c(1, 1, 1, 1)
+write.csv(data.frame(
+  double_status = modifyWeights(.mwt_w, status = c(0, 1, 0, 1), values = 1, multipliers = 0),
+  logical_status = modifyWeights(.mwt_w, status = c(TRUE, FALSE, TRUE, FALSE), values = "TRUE", multipliers = 0),
+  integer_status_double_value = modifyWeights(.mwt_w, status = c(0L, 1L, 0L, 1L), values = 1.0, multipliers = 0),
+  fraction_status = modifyWeights(.mwt_w, status = c(0.5, 0.1 + 0.2, 0.5, 2), values = c(0.3, 2), multipliers = 0),
+  character_status = modifyWeights(.mwt_w, status = c("gene", "ctrl", "gene", "blank"), values = c("ctrl", "blank"),
+                                   multipliers = c(0, 2))
+), "R_mwt.csv", row.names = FALSE)
+
+cat("  modifyWeights fixtures complete.\n")

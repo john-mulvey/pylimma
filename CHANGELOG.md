@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `modify_weights` compared `str()` of status and values, so a float or
+  logical status never matched (`"1.0"` vs `"1"`, `"True"` vs `"TRUE"`)
+  and no weight was changed; both are now compared as R's
+  `as.character()` renders them.
 - `remove_batch_effect`: numeric batch values whose R labels coincide
   (0.3 and 0.1 + 0.2) are one level, as R's `as.factor()` merges them.
 - `vooma` and `array_weights` decide rank as R's `qr()` does (LINPACK
