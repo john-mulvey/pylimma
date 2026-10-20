@@ -34,7 +34,7 @@ import pandas as pd
 from scipy import linalg
 
 from .classes import MArrayLM, _is_anndata, as_matrix_weights, get_eawp
-from .dups import duplicate_correlation, unwrap_dups
+from .dups import duplicate_correlation, unique_genelist, unwrap_dups
 from .utils import _as_dense_array
 
 if TYPE_CHECKING:
@@ -1371,7 +1371,10 @@ def lm_fit(
         )
     fit["Amean"] = amean
     fit["design"] = design
-    fit["genes"] = _fit_genes(data, eawp)
+    # R lmfit.R:60: y$probes <- uniquegenelist(y$probes, ndups, spacing),
+    # one annotation row per fitted (unwrapped) row.
+    genes = _fit_genes(data, eawp)
+    fit["genes"] = None if genes is None else unique_genelist(genes, ndups=ndups, spacing=spacing)
     # Coefficient names from the design matrix. R's lm.series stores them
     # as colnames(fit$coefficients) (lmfit.R:125); pylimma stores
     # coefficients as a bare ndarray so we keep the names in a sidecar

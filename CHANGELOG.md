@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `lm_fit(ndups > 1)`: `fit["genes"]` kept one label per probe, so
+  `top_table` attached probe i's annotation to fitted gene i (wrong genes
+  for every row past the first); it is now `unique_genelist(genes, ndups,
+  spacing)`, as R's `lmFit`.
 - numpy masked arrays as expression data: the mask was ignored and the
   hidden values used as data; masked cells are now missing values (NaN),
   as R's NA.

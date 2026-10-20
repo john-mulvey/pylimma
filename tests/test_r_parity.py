@@ -6561,3 +6561,33 @@ def test_unique_genelist_keeps_row_names(spacing):
     result = unique_genelist(genes, ndups=2, spacing=spacing)
     assert list(result.index) == list(r["rowname"])
     assert list(result["sym"]) == list(r["sym"])
+
+
+# =============================================================================
+# lm_fit(ndups > 1): fit["genes"] is uniquegenelist(probes, ndups, spacing)
+# =============================================================================
+
+
+class TestLmFitNdupsGenesRParity:
+    DESIGN = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+
+    @pytest.mark.parametrize("spacing", [1, 2])
+    def test_elist_genes_match_fitted_rows(self, spacing):
+        y = load_r_csv_no_index("ndg_y").to_numpy(dtype=float)
+        genes = pd.DataFrame({"sym": [f"s{i}" for i in range(1, 41)]})
+        fit = e_bayes(
+            lm_fit(EList(E=y, genes=genes), self.DESIGN, ndups=2, spacing=spacing, correlation=0.3)
+        )
+        r = load_r_csv_no_index(f"ndg_spacing{spacing}")
+        assert list(fit["genes"]["sym"]) == list(r["sym"])
+        np.testing.assert_allclose(fit["t"][:, 1], r["t"], rtol=1e-6)
+
+    def test_anndata_genes_match_fitted_rows(self):
+        import anndata as ad
+
+        y = load_r_csv_no_index("ndg_y").to_numpy(dtype=float)
+        adata = ad.AnnData(y.T)
+        adata.var_names = [f"s{i}" for i in range(1, 41)]
+        lm_fit(adata, self.DESIGN, ndups=2, correlation=0.3)
+        r = load_r_csv_no_index("ndg_spacing1")
+        assert list(adata.uns["pylimma"]["genes"]) == list(r["sym"])

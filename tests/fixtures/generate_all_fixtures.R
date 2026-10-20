@@ -4757,3 +4757,26 @@ for (.ugl_spacing in 1:2) {
 }
 
 cat("  uniquegenelist row-name fixtures complete.\n")
+
+# =============================================================================
+# lmFit(ndups > 1): fit$genes is uniquegenelist(y$probes, ndups, spacing), so
+# annotation lines up with the fitted (unwrapped) rows
+# =============================================================================
+cat("\nGenerating lmFit ndups gene-annotation fixtures...\n")
+
+set.seed(20261028)
+
+.ndg_y <- matrix(rnorm(40 * 6), 40, 6)
+.ndg_y[c(33, 34), 4:6] <- .ndg_y[c(33, 34), 4:6] + 5
+write.csv(.ndg_y, "R_ndg_y.csv", row.names = FALSE)
+.ndg_design <- cbind(1, rep(0:1, each = 3))
+.ndg_genes <- data.frame(sym = paste0("s", 1:40))
+for (.ndg_spacing in 1:2) {
+  .ndg_fit <- eBayes(lmFit(new("EList", list(E = .ndg_y, genes = .ndg_genes)), .ndg_design,
+                           ndups = 2, spacing = .ndg_spacing, correlation = 0.3))
+  stopifnot(nrow(.ndg_fit$genes) == 20)
+  write.csv(data.frame(sym = .ndg_fit$genes$sym, t = .ndg_fit$t[, 2]),
+            sprintf("R_ndg_spacing%d.csv", .ndg_spacing), row.names = FALSE)
+}
+
+cat("  lmFit ndups gene-annotation fixtures complete.\n")
