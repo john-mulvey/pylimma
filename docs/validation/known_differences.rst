@@ -222,6 +222,10 @@ unaffected.
     to define contrasts" or "number of rows of matrices must match". As in
     R, a numeric NaN is not missing but a level of its own.
 
+``remove_batch_effect`` with ``batch`` / ``batch2`` / ``covariates`` of the wrong length
+    Raises "<argument> has <k> rows/values, but there are <n> samples"
+    (R: "number of rows of matrices must match (see arg 2)" from ``cbind``).
+
 ``top_table`` / ``top_table_f`` with ``number=NaN``
     Raises "number must not be NaN" (R: "missing value where TRUE/FALSE
     needed"). Other values of ``number`` follow R: capped at the number of

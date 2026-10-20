@@ -106,3 +106,30 @@ def test_numeric_nan_batch_is_a_level():
     np.testing.assert_allclose(
         corrected, pd.read_csv(FIXTURES / "R_rbm_nan_level.csv").to_numpy(), rtol=1e-6, atol=1e-12
     )
+
+
+def test_wsva_missing_values_raise():
+    """R's .lmEffects: "All y values must be finite and non-NA"."""
+    from pylimma import wsva
+
+    y = np.random.default_rng(1).normal(size=(10, 8))
+    y[1, 2] = np.nan
+    with pytest.raises(ValueError, match="^All y values must be finite and non-NA$"):
+        wsva(y, np.column_stack([np.ones(8), np.tile([0.0, 1.0], 4)]))
+
+
+@pytest.mark.parametrize(
+    "name, kwargs",
+    [
+        ("batch", {"batch": list("abababa")}),
+        ("batch2", {"batch": list("abababab"), "batch2": list("xyxyxyx")}),
+        ("covariates", {"covariates": np.arange(7.0)}),
+    ],
+)
+def test_wrong_length_batch_raises(name, kwargs):
+    """R stops in cbind ("number of rows of matrices must match")."""
+    from pylimma import remove_batch_effect
+
+    y = np.random.default_rng(1).normal(size=(10, 8))
+    with pytest.raises(ValueError, match=f"^{name} has 7 rows/values, but there are 8 samples$"):
+        remove_batch_effect(y, **kwargs)

@@ -211,6 +211,13 @@ def remove_batch_effect(
             cov = cov.reshape(-1, 1)
         cov = cov - cov.mean(axis=0, keepdims=True)
         parts.append(cov)
+    # R fails in cbind() ("number of rows of matrices must match"); a clearer
+    # error naming the argument.
+    for name, part in zip(("batch", "batch2", "covariates"), (batch, batch2, covariates)):
+        if part is not None and np.shape(part)[0] != X.shape[1]:
+            raise ValueError(
+                f"{name} has {np.shape(part)[0]} rows/values, but there are {X.shape[1]} samples"
+            )
     X_batch = np.concatenate(parts, axis=1) if parts else np.zeros((X.shape[1], 0))
 
     if group is not None and design is None:
@@ -291,6 +298,9 @@ def _lm_effects_residual(
         raise ValueError("No residual degrees of freedom")
 
     y = np.asarray(y, dtype=np.float64)
+    # lmEffects.R:12
+    if np.isnan(y).any():
+        raise ValueError("All y values must be finite and non-NA")
     X = np.asarray(design, dtype=np.float64)
 
     # Array weights: divide out via sqrt transform (lmEffects.R:94-99).

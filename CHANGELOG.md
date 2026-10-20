@@ -72,6 +72,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `wsva` with missing values raises R's "All y values must be finite and
+  non-NA" (was numpy's "SVD did not converge"), and `remove_batch_effect`
+  with a `batch`, `batch2` or `covariates` of the wrong length names the
+  argument (was a raw numpy concatenation error).
 - `remove_batch_effect` raises a clear `ValueError` for a missing `batch` /
   `batch2` label, where R fails; it treated the missing value as a batch of
   its own.

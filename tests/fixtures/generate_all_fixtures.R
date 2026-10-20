@@ -5100,3 +5100,22 @@ for (.rbm_b in list(c("a", NA, "a"), c("a", NA, "b"))) {
 write.csv(suppressMessages(removeBatchEffect(.rbm_y, batch = c(1, NaN, 1))), "R_rbm_nan_level.csv", row.names = FALSE)
 
 cat("  removeBatchEffect missing-label fixtures complete.\n")
+
+# =============================================================================
+# Input errors: wsva with NA in y stops in .lmEffects ("All y values must be
+# finite and non-NA"); removeBatchEffect with a batch of the wrong length
+# stops in cbind. pylimma raises the first verbatim and a clearer message
+# for the second. No CSV.
+# =============================================================================
+cat("\nChecking wsva / removeBatchEffect input errors...\n")
+
+.wie_y <- matrix(rnorm(10 * 8), 10, 8)
+.wie_y_na <- .wie_y
+.wie_y_na[2, 3] <- NA
+stopifnot(identical(tryCatch(wsva(.wie_y_na, cbind(1, rep(0:1, 4))), error = conditionMessage),
+                    "All y values must be finite and non-NA"))
+stopifnot(identical(tryCatch(suppressMessages(removeBatchEffect(.wie_y, batch = rep(c("a", "b"), 4)[1:7])),
+                             error = conditionMessage),
+                    "number of rows of matrices must match (see arg 2)"))
+
+cat("  wsva / removeBatchEffect input errors checked.\n")
