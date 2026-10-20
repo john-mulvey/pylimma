@@ -33,7 +33,13 @@ import numpy as np
 import pandas as pd
 from scipy import linalg
 
-from .classes import MArrayLM, _is_anndata, as_matrix_weights, get_eawp
+from .classes import (
+    MArrayLM,
+    _as_matrix_weights_with_flag,
+    _is_anndata,
+    as_matrix_weights,
+    get_eawp,
+)
 from .dups import duplicate_correlation, unique_genelist, unwrap_dups
 from .utils import _as_dense_array
 
@@ -275,24 +281,14 @@ def lm_series(
     # Get coefficient names
     coef_names = [f"x{i}" for i in range(n_coefs)]
 
-    # Normalise weight shape via R limma's asMatrixWeights logic;
-    # as_matrix_weights always returns a fresh copy, so the
-    # subsequent ``weights[weights <= 0] = np.nan`` is safe (R's
-    # copy-on-modify semantics leave the caller's weights unchanged).
-    # Track whether the input was array-weights-shaped (length-N
-    # vector or (1, N) row matrix) - mirrors R's `arrayweights`
-    # attribute (weights.R:74,83). lmfit.R:135 uses the attribute -
-    # NOT the value pattern - to choose the fast path. Without this
-    # flag, a (G, N) matrix with row-equal values would coincidentally
-    # take pylimma's fast path while R takes the slow path, giving
-    # ~19% drift in cov_coefficients (mirrors gls_series F1).
+    # Normalise weight shape via R limma's asMatrixWeights, which returns a
+    # fresh copy, so the subsequent ``weights[weights <= 0] = np.nan`` is
+    # safe (R's copy-on-modify semantics leave the caller's weights
+    # unchanged). lmfit.R:135 chooses the fast path from asMatrixWeights'
+    # `arrayweights` attribute - NOT the value pattern or the input shape.
     is_array_weights = False
     if weights is not None:
-        weights_in = np.asarray(weights)
-        is_array_weights = (weights_in.ndim == 1 and weights_in.size == n_samples) or (
-            weights_in.ndim == 2 and weights_in.shape == (1, n_samples)
-        )
-        weights = as_matrix_weights(weights, (n_genes, n_samples))
+        weights, is_array_weights = _as_matrix_weights_with_flag(weights, (n_genes, n_samples))
         weights[weights <= 0] = np.nan
         M = M.copy()
         M[~np.isfinite(weights)] = np.nan
@@ -811,20 +807,14 @@ def gls_series(
     if abs(correlation) >= 1:
         raise ValueError("correlation is 1 or -1, so the model is degenerate")
 
-    # Normalise weight shape through asMatrixWeights; helper returns
-    # a fresh copy so the subsequent NaN/zero writes are safe.
-    # Track whether the input was array-weights-shaped (length-N vector
-    # or (1, N) row matrix) - this mirrors R's `arrayweights` attribute
-    # set inside asMatrixWeights (weights.R:74,83). The attribute is
-    # stripped by unwrapdups (dups.R:14-16), and limma's fast/slow
-    # dispatch (lmfit.R:301) reads the attribute - not the value pattern.
+    # Normalise weight shape through asMatrixWeights, which returns a fresh
+    # copy so the subsequent NaN/zero writes are safe, and R's
+    # `arrayweights` attribute (weights.R:74,83). The attribute is stripped
+    # by unwrapdups (dups.R:14-16), and limma's fast/slow dispatch
+    # (lmfit.R:301) reads the attribute - not the value pattern.
     is_array_weights = False
     if weights is not None:
-        weights_in = np.asarray(weights)
-        is_array_weights = (weights_in.ndim == 1 and weights_in.size == n_arrays) or (
-            weights_in.ndim == 2 and weights_in.shape == (1, n_arrays)
-        )
-        weights = as_matrix_weights(weights, (n_genes, n_arrays))
+        weights, is_array_weights = _as_matrix_weights_with_flag(weights, (n_genes, n_arrays))
         weights[np.isnan(weights)] = 0
         M = M.copy()
         M[weights < 1e-15] = np.nan

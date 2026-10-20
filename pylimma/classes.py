@@ -93,10 +93,9 @@ def as_matrix_weights(
     R's ambiguity resolution.
 
     R also tags the output with ``attr(weights, "arrayweights") <- TRUE``
-    when it fills branches 2 or 5. pylimma does not propagate that
-    attribute because the ``lm_series`` / ``mrlm`` / ``gls_series`` fast-
-    path dispatchers value-check ``weights[0] == weights[i]`` at runtime
-    instead (see ``lmfit.py`` ``has_probe_weights`` branch).
+    when it fills branches 2 or 5; ``_as_matrix_weights_with_flag``
+    returns that flag, which ``lm_series`` / ``gls_series`` use to choose
+    their fast path as R does.
 
     Parameters
     ----------
@@ -113,6 +112,12 @@ def as_matrix_weights(
         Matrix of shape ``dim`` (or the input's 2-D shape if ``dim`` is
         ``None``), always a fresh copy.
     """
+    return _as_matrix_weights_with_flag(weights, dim)[0]
+
+
+def _as_matrix_weights_with_flag(weights, dim=None) -> tuple[np.ndarray, bool]:
+    """as_matrix_weights plus R's "arrayweights" attribute: True when the
+    weights were array weights broadcast down the rows (branches 2 and 5)."""
     arr = np.asarray(weights, dtype=np.float64)
     if arr.ndim == 0:
         arr = arr.reshape(1, 1)
@@ -123,7 +128,7 @@ def as_matrix_weights(
         raise ValueError("weights must be scalar, 1-D, or 2-D")
 
     if dim is None:
-        return arr.copy()
+        return arr.copy(), False
 
     if len(dim) < 2:
         raise ValueError("dim must be a length-2 shape")
@@ -135,24 +140,24 @@ def as_matrix_weights(
 
     # Full matrix already.
     if dw == target:
-        return arr.copy()
+        return arr.copy(), False
 
     if min(dw) != 1:
         raise _shape_error("weights", dw, target, "weights is of unexpected shape")
 
     # Row matrix of array weights: (1, N) with N == target[1] > 1.
     if dw[1] > 1 and dw[1] == target[1]:
-        return np.broadcast_to(arr, target).copy()
+        return np.broadcast_to(arr, target).copy(), True
 
     lw = int(np.prod(dw))
 
     # Scalar / length-G probe weights. Broadcast column-wise.
     if lw == 1 or lw == target[0]:
-        return np.broadcast_to(arr.reshape(-1, 1), target).copy()
+        return np.broadcast_to(arr.reshape(-1, 1), target).copy(), False
 
     # Length-N array weights. Broadcast row-wise.
     if lw == target[1]:
-        return np.broadcast_to(arr.reshape(1, -1), target).copy()
+        return np.broadcast_to(arr.reshape(1, -1), target).copy(), True
 
     raise ValueError("weights is of unexpected size")
 

@@ -9,6 +9,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `lm_fit` weights: whether weights are sample (array) weights now follows
+  R's `asMatrixWeights`. A one-gene fit with a 1 x N weight matrix is fitted
+  with per-observation weights (unweighted `cov_coefficients`, as R; was
+  ~19% off), and when there are as many genes as samples a length-N
+  vector is read as per-gene weights, as R (pylimma mixed both readings,
+  giving `sigma` up to ~25% off).
 - `lm_fit(adata, layer="voom_E")` (and other `*_E` layers) after samples
   were reordered or subset applied the design that `voom` / `vooma` stored
   in `adata.uns` row for row, i.e. to the wrong samples. The stored design

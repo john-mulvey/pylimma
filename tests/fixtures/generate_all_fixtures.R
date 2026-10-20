@@ -4803,3 +4803,37 @@ for (.vsi_case in c("reorder", "subset")) {
 }
 
 cat("  voom EList sample-subset fixtures complete.\n")
+
+# =============================================================================
+# asMatrixWeights decides whether weights are array weights (its
+# "arrayweights" attribute), which picks lm.series / gls.series' fast path:
+# a full-size matrix is never array weights (1 gene + 1 x N matrix), and with
+# ngenes == narrays a length-N vector is read as probe weights
+# =============================================================================
+cat("\nGenerating weight-shape fixtures...\n")
+
+set.seed(20261031)
+
+.wsh_y1 <- matrix(rnorm(4, 10), 1, 4)
+.wsh_d1 <- cbind(1, c(0, 0, 1, 1))
+.wsh_w <- c(1, 0.5, 2, 0.8)
+.wsh_y6 <- matrix(rnorm(36, 8), 6, 6)
+.wsh_d6 <- cbind(1, rep(0:1, each = 3))
+.wsh_w6 <- c(1.2, 0.8, 0.7, 1.1, 1.0, 1.3)
+write.csv(.wsh_y1, "R_wsh_y1.csv", row.names = FALSE)
+write.csv(.wsh_y6, "R_wsh_y6.csv", row.names = FALSE)
+.wsh_cases <- list(
+  one_gene_matrix = lmFit(.wsh_y1, .wsh_d1, weights = matrix(.wsh_w, 1)),
+  one_gene_vector = lmFit(.wsh_y1, .wsh_d1, weights = .wsh_w),
+  square_vector = lmFit(.wsh_y6, .wsh_d6, weights = .wsh_w6),
+  square_vector_block = lmFit(.wsh_y6, .wsh_d6, weights = .wsh_w6, block = rep(1:3, 2), correlation = 0.3)
+)
+stopifnot(isTRUE(all.equal(unname(.wsh_cases$one_gene_matrix$cov.coefficients), unname(solve(crossprod(.wsh_d1))))))
+for (.wsh_case in names(.wsh_cases)) {
+  .wsh_fit <- .wsh_cases[[.wsh_case]]
+  write.csv(data.frame(coefficients = .wsh_fit$coefficients, stdev_unscaled = .wsh_fit$stdev.unscaled,
+                       sigma = .wsh_fit$sigma), sprintf("R_wsh_%s.csv", .wsh_case), row.names = FALSE)
+  write.csv(.wsh_fit$cov.coefficients, sprintf("R_wsh_%s_cov.csv", .wsh_case), row.names = FALSE)
+}
+
+cat("  weight-shape fixtures complete.\n")

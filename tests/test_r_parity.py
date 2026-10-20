@@ -6644,3 +6644,40 @@ class TestVoomDesignFollowsSamplesRParity:
             sub = adata[[0, 1, 3]].copy()
         with pytest.raises(ValueError, match="sample names are not unique"):
             lm_fit(sub, layer="voom_E")
+
+
+# =============================================================================
+# Weight shapes follow R's asMatrixWeights, including its "arrayweights"
+# attribute that picks lm.series / gls.series' fast path
+# =============================================================================
+
+
+class TestWeightShapeRParity:
+    W = np.array([1.0, 0.5, 2.0, 0.8])
+    W6 = np.array([1.2, 0.8, 0.7, 1.1, 1.0, 1.3])
+
+    def _fit(self, case):
+        if case.startswith("one_gene"):
+            y = load_r_csv_no_index("wsh_y1").to_numpy(dtype=float)
+            design = np.column_stack([np.ones(4), [0.0, 0.0, 1.0, 1.0]])
+            weights = self.W[None, :] if case == "one_gene_matrix" else self.W
+            return lm_fit(y, design, weights=weights)
+        y = load_r_csv_no_index("wsh_y6").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+        if case == "square_vector_block":
+            return lm_fit(y, design, weights=self.W6, block=np.tile([1, 2, 3], 2), correlation=0.3)
+        return lm_fit(y, design, weights=self.W6)
+
+    @pytest.mark.parametrize(
+        "case", ["one_gene_matrix", "one_gene_vector", "square_vector", "square_vector_block"]
+    )
+    def test_matches_r(self, case):
+        fit = self._fit(case)
+        r = load_r_csv_no_index(f"wsh_{case}")
+        for slot in ("coefficients", "stdev_unscaled"):
+            cols = [c for c in r.columns if c.startswith(f"{slot}.")]
+            np.testing.assert_allclose(fit[slot], r[cols], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose(fit["sigma"], r["sigma"], rtol=1e-6)
+        np.testing.assert_allclose(
+            fit["cov_coefficients"], load_r_csv_no_index(f"wsh_{case}_cov"), rtol=1e-6, atol=1e-12
+        )
