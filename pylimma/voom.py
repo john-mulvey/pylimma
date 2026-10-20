@@ -484,6 +484,11 @@ def voom_with_quality_weights(
     weights estimated by array_weights(). This can improve power when some
     samples have higher technical variability than others.
 
+    The sample weights are passed to the second voom as array weights. R
+    passes them as a vector, which it reads as gene weights when the
+    number of genes equals the number of samples, so results differ from
+    R in that case only (docs/validation/known_differences.rst).
+
     Parameters
     ----------
     counts : ndarray
@@ -593,11 +598,14 @@ def voom_with_quality_weights(
         tol=tol,
     )
 
-    # Re-run voom with array weights, drawing the trend if plot=True
+    # Re-run voom with array weights, drawing the trend if plot=True. R
+    # passes aw as a vector, which asMatrixWeights reads as gene weights
+    # when n_genes == n_samples; a 1 x N row matrix is always array weights
+    # (deliberate difference, docs/validation/known_differences.rst).
     v = voom(
         counts_arr,
         design=design,
-        weights=aw,
+        weights=aw.reshape(1, -1),
         lib_size=lib_size,
         normalize_method=normalize_method,
         span=span,

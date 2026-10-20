@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `voom_with_quality_weights` with as many genes as samples: the sample
+  weights are always used as sample weights (R reads them as gene weights
+  in that case; documented in `known_differences.rst`).
 - `lm_fit` weights: whether weights are sample (array) weights now follows
   R's `asMatrixWeights`. A one-gene fit with a 1 x N weight matrix is fitted
   with per-observation weights (unweighted `cov_coefficients`, as R; was

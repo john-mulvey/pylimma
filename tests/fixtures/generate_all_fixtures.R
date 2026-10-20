@@ -4837,3 +4837,38 @@ for (.wsh_case in names(.wsh_cases)) {
 }
 
 cat("  weight-shape fixtures complete.\n")
+
+# =============================================================================
+# voomWithQualityWeights passes its sample weights to voom as a vector, which
+# asMatrixWeights reads as probe weights when ngenes == nsamples (an accident
+# in R). pylimma passes them as a row matrix, always array weights. Reference:
+# R's steps with that one change; it equals voomWithQualityWeights whenever
+# ngenes != nsamples (known_differences.rst)
+# =============================================================================
+cat("\nGenerating voomWithQualityWeights sample-weight fixtures...\n")
+
+set.seed(20261101)
+
+.vqw_intended <- function(counts, design) {
+  v <- voom(counts, design)
+  aw <- arrayWeights(v, design)
+  v <- voom(counts, design, weights = matrix(aw, 1))
+  aw <- arrayWeights(v, design)
+  v$weights <- t(aw * t(v$weights))
+  v$targets$sample.weights <- aw
+  v
+}
+.vqw_design <- cbind(1, rep(0:1, each = 3))
+.vqw_counts_rect <- matrix(rpois(30 * 6, 50), 30, 6)
+.vqw_counts_rect[, 2] <- .vqw_counts_rect[, 2] * rpois(30, 2)
+stopifnot(isTRUE(all.equal(.vqw_intended(.vqw_counts_rect, .vqw_design)$weights,
+                           voomWithQualityWeights(.vqw_counts_rect, .vqw_design)$weights)))
+.vqw_counts_square <- .vqw_counts_rect[1:6, ]
+write.csv(.vqw_counts_square, "R_vqw_counts_square.csv", row.names = FALSE)
+.vqw_square <- .vqw_intended(.vqw_counts_square, .vqw_design)
+stopifnot(!isTRUE(all.equal(.vqw_square$weights, voomWithQualityWeights(.vqw_counts_square, .vqw_design)$weights)))
+write.csv(.vqw_square$weights, "R_vqw_square_weights_intended.csv", row.names = FALSE)
+write.csv(data.frame(sample_weights = .vqw_square$targets$sample.weights), "R_vqw_square_sample_weights_intended.csv",
+          row.names = FALSE)
+
+cat("  voomWithQualityWeights sample-weight fixtures complete.\n")

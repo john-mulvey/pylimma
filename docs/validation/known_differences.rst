@@ -185,6 +185,20 @@ together with the weights. The reference is R's function with
 ``tests/rigorous/test_fit_f_dist_unequal_df1.py`` checks that unpatched R
 returns NaN and that pylimma matches the patched function.
 
+voom_with_quality_weights: sample weights when genes equal samples
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``voomWithQualityWeights`` passes the estimated sample weights to its
+second ``voom`` as a plain vector. ``asMatrixWeights`` reads a vector whose
+length equals the number of genes as gene (probe) weights before it
+considers array weights, so when there are exactly as many genes as
+samples R uses the sample weights as gene weights. pylimma passes them as
+a 1 x N row matrix, which is always read as array weights. The reference
+fixtures (``R_vqw_square_*_intended.csv``) come from R's steps with that
+one change; the fixture script checks that they reproduce
+``voomWithQualityWeights`` whenever the number of genes differs from the
+number of samples.
+
 Clear errors where R fails obscurely or behaves accidentally
 ------------------------------------------------------------
 

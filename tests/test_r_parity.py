@@ -6681,3 +6681,24 @@ class TestWeightShapeRParity:
         np.testing.assert_allclose(
             fit["cov_coefficients"], load_r_csv_no_index(f"wsh_{case}_cov"), rtol=1e-6, atol=1e-12
         )
+
+
+# =============================================================================
+# voom_with_quality_weights uses its sample weights as array weights even when
+# n_genes == n_samples (R reads them as gene weights there; known_differences)
+# =============================================================================
+
+
+def test_voom_with_quality_weights_square_counts_intended():
+    from pylimma import voom_with_quality_weights
+
+    counts = load_r_csv_no_index("vqw_counts_square").to_numpy(dtype=float)
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    v = voom_with_quality_weights(counts, design)
+    np.testing.assert_allclose(
+        v["sample_weights"], load_r_csv_no_index("vqw_square_sample_weights_intended")["sample_weights"],
+        rtol=1e-6,
+    )
+    np.testing.assert_allclose(
+        v["weights"], load_r_csv_no_index("vqw_square_weights_intended"), rtol=1e-6, atol=1e-12
+    )
