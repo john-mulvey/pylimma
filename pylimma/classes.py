@@ -659,7 +659,9 @@ def get_eawp(
     ----------
     obj : ndarray, DataFrame, dict, EList, or AnnData
         Expression data. Dict-with-'E' is accepted for backwards compatibility
-        and is treated identically to an EList.
+        and is treated identically to an EList. scipy.sparse, backed, lazy
+        and dask-held matrices are densified (R's as.matrix()); masked cells
+        of a numpy masked array are treated as missing values (NaN).
     layer : str, optional
         AnnData-only. Name of an adata.layers[...] entry to use in place of X.
     weights_layer : str, optional

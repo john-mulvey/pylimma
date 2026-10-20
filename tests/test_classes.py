@@ -1055,3 +1055,28 @@ def test_backed_sparse_anndata_matches_in_memory(fmt, fn, tmp_path):
         layer = "voom_E" if fn == "voom" else "batch_removed"
         np.testing.assert_array_equal(backed.layers[layer], in_memory.layers[layer])
     assert observed is None and expected is None
+
+
+@pytest.mark.parametrize(
+    "name", ["lm_fit", "lm_series", "normalize_quantiles", "normalize_median_values", "avereps"]
+)
+def test_masked_array_cells_are_missing_values(name):
+    """R has no masked arrays; a masked cell is treated as NA (NaN)."""
+    counts, design = _sparse_counts()
+    prepare, call = _SPARSE_CALLS[name]
+    x = prepare(counts)
+    mask = np.zeros(x.shape, dtype=bool)
+    mask[[0, 3, 7], [1, 4, 2]] = True
+    with_nan = np.where(mask, np.nan, x)
+    _assert_same_result(call(np.ma.masked_array(x, mask=mask), design), call(with_nan, design))
+
+
+def test_masked_array_weights_in_array_weights():
+    counts, design = _sparse_counts()
+    x = np.log2(counts + 1)
+    mask = np.zeros(x.shape, dtype=bool)
+    mask[2, 3] = True
+    np.testing.assert_array_equal(
+        pylimma.array_weights(np.ma.masked_array(x, mask=mask), design),
+        pylimma.array_weights(np.where(mask, np.nan, x), design),
+    )

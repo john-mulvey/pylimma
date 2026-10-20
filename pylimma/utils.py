@@ -330,7 +330,9 @@ def _as_dense_array(x, dtype=None) -> np.ndarray:
 
     scipy.sparse matrices, anndata backed or lazy datasets (``to_memory``)
     and dask arrays (``compute``) are loaded and densified first; a plain
-    np.asarray would turn them into a 0-d object array.
+    np.asarray would turn them into a 0-d object array. Masked cells of a
+    numpy masked array become NaN (R's NA); np.asarray would drop the mask
+    and use the hidden values.
     """
     if hasattr(x, "to_memory"):
         x = x.to_memory()
@@ -338,6 +340,8 @@ def _as_dense_array(x, dtype=None) -> np.ndarray:
         x = x.compute()
     if _scipy_sparse.issparse(x):
         x = x.toarray()
+    if isinstance(x, np.ma.MaskedArray):
+        x = np.ma.filled(x.astype(np.float64), np.nan)
     return np.asarray(x, dtype=dtype)
 
 
