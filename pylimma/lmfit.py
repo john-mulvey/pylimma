@@ -35,6 +35,7 @@ from scipy import linalg
 
 from .classes import MArrayLM, _is_anndata, as_matrix_weights, get_eawp
 from .dups import duplicate_correlation, unwrap_dups
+from .utils import _as_dense_array
 
 if TYPE_CHECKING:
     pass
@@ -265,7 +266,7 @@ def lm_series(
     # R lmfit.R:97: `M <- as.matrix(M)` silently coerces DataFrame and
     # similar containers. Mirror that so internal callers (and the
     # rigorous tests) don't trip over a downstream pd-vs-np mismatch.
-    M = np.asarray(M, dtype=np.float64)
+    M = _as_dense_array(M, np.float64)
     design = np.asarray(design, dtype=np.float64)
 
     n_genes, n_samples = M.shape
@@ -568,7 +569,7 @@ def mrlm(
     Huber, P. J. (1981). Robust Statistics. Wiley.
     Venables, W. N. & Ripley, B. D. (2002). Modern Applied Statistics with S.
     """
-    M = np.asarray(M, dtype=np.float64)
+    M = _as_dense_array(M, np.float64)
     n_genes, n_samples = M.shape
 
     # Check design
@@ -790,7 +791,7 @@ def gls_series(
     replicate spots for assessing differential expression in microarray
     experiments. Bioinformatics, 21, 2067-2075.
     """
-    M = np.asarray(M, dtype=np.float64)
+    M = _as_dense_array(M, np.float64)
     n_genes, n_arrays = M.shape
 
     # Check design

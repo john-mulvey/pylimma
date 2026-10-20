@@ -28,6 +28,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import pylimma
 from pylimma import EList, MArrayLM, get_eawp, put_eawp
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -969,3 +970,88 @@ def test_aver_arrays_anndata_mirrors_elist_method(weighted):
     pd.testing.assert_frame_equal(out.var, adata.var)
     np.testing.assert_array_equal(out.varm["loadings"], adata.varm["loadings"])
     assert out.uns["pylimma"]["genes"] == list(adata.var_names)
+
+
+# ---------------------------------------------------------------------------
+# Sparse, backed and lazy matrices are densified as R's as.matrix() does
+# (generate_all_fixtures.R checks R's lmFit / voom on a sparse Matrix)
+# ---------------------------------------------------------------------------
+
+
+def _assert_same_result(a, b):
+    if isinstance(a, dict):
+        assert a.keys() == b.keys()
+        for k in a:
+            _assert_same_result(a[k], b[k])
+    elif isinstance(a, pd.DataFrame):
+        pd.testing.assert_frame_equal(a, b)
+    elif isinstance(a, (np.ndarray, float, int)) or np.isscalar(a):
+        np.testing.assert_array_equal(np.asarray(a), np.asarray(b))
+    else:
+        assert type(a) is type(b)
+
+
+def _sparse_counts():
+    rng = np.random.default_rng(20261027)
+    counts = rng.poisson(5, size=(30, 6)) * rng.binomial(1, 0.6, size=(30, 6))
+    return counts.astype(float), np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+
+
+def _log2_counts(y):
+    return np.log2(y + 1)
+
+
+# name -> (dense input from counts, call on that input and the design)
+_SPARSE_CALLS = {
+    "lm_fit": (_log2_counts, lambda x, d: pylimma.lm_fit(x, d)),
+    "voom": (np.asarray, lambda x, d: pylimma.voom(x, d)),
+    "lm_series": (_log2_counts, lambda x, d: pylimma.lmfit.lm_series(x, d)),
+    "mrlm": (_log2_counts, lambda x, d: pylimma.mrlm(x, d)),
+    "normalize_quantiles": (np.asarray, lambda x, d: pylimma.normalize_quantiles(x)),
+    "normalize_median_values": (_log2_counts, lambda x, d: pylimma.normalize_median_values(x)),
+    "normalize_cyclic_loess": (_log2_counts, lambda x, d: pylimma.normalize_cyclic_loess(x)),
+    "aver_arrays": (np.asarray, lambda x, d: pylimma.aver_arrays(x, id=[1, 1, 2, 2, 3, 3])),
+    "avereps": (np.asarray, lambda x, d: pylimma.avereps(x, ID=np.repeat(np.arange(15), 2))),
+    "ave_dups": (np.asarray, lambda x, d: pylimma.ave_dups(x, ndups=2)),
+    "unwrap_dups": (np.asarray, lambda x, d: pylimma.unwrap_dups(x, ndups=2)),
+    "select_model": (_log2_counts, lambda x, d: pylimma.select_model(x, [d, d[:, :1]])),
+    "inter_gene_correlation": (_log2_counts, lambda x, d: pylimma.inter_gene_correlation(x, d)),
+    "fitmixture": (_log2_counts, lambda x, d: pylimma.fitmixture(x, np.linspace(0, 1, 6))),
+    "propexpr": (_log2_counts, lambda x, d: pylimma.propexpr(x, neg_x=np.ones((5, 6)))),
+    "bwss_matrix": (np.asarray, lambda x, d: pylimma.bwss_matrix(x)),
+}
+
+
+@pytest.mark.parametrize("name", list(_SPARSE_CALLS))
+def test_scipy_sparse_input_matches_dense(name):
+    import scipy.sparse as sp
+
+    counts, design = _sparse_counts()
+    prepare, call = _SPARSE_CALLS[name]
+    x = prepare(counts)
+    _assert_same_result(call(sp.csr_matrix(x), design), call(x, design))
+
+
+@pytest.mark.parametrize("fmt", ["csr", "csc"])
+@pytest.mark.parametrize("fn", ["lm_fit", "voom", "remove_batch_effect"])
+def test_backed_sparse_anndata_matches_in_memory(fmt, fn, tmp_path):
+    import anndata as ad
+    import scipy.sparse as sp
+
+    import pylimma
+
+    y, design = _sparse_counts()
+    path = tmp_path / "counts.h5ad"
+    to_sparse = sp.csr_matrix if fmt == "csr" else sp.csc_matrix
+    ad.AnnData(to_sparse(y.T)).write_h5ad(path)
+    in_memory = ad.read_h5ad(path)
+    backed = ad.read_h5ad(path, backed="r")
+    kwargs = {"batch": [1, 2, 1, 2, 1, 2]} if fn == "remove_batch_effect" else {"design": design}
+    expected = getattr(pylimma, fn)(in_memory, **kwargs)
+    observed = getattr(pylimma, fn)(backed, **kwargs)
+    if fn == "lm_fit":
+        _assert_same_result(dict(backed.uns["pylimma"]), dict(in_memory.uns["pylimma"]))
+    else:
+        layer = "voom_E" if fn == "voom" else "batch_removed"
+        np.testing.assert_array_equal(backed.layers[layer], in_memory.layers[layer])
+    assert observed is None and expected is None

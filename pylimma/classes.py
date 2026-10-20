@@ -41,6 +41,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from .utils import _as_dense_array
+
 # ----------------------------------------------------------------------------
 # Weight-shape dispatcher (port of R limma's asMatrixWeights)
 # ----------------------------------------------------------------------------
@@ -710,22 +712,13 @@ def get_eawp(
         )
 
     if _is_anndata(obj):
-        import scipy.sparse as _sp
-
-        def _densify(mat):
-            # scanpy workflows routinely store counts as scipy.sparse;
-            # np.asarray on sparse yields a 0-d object array, so
-            # densify explicitly first.
-            if _sp.issparse(mat):
-                mat = mat.toarray()
-            return np.asarray(mat, dtype=np.float64)
-
+        # X and layers may be scipy.sparse, backed, lazy or dask-held.
         adata = obj
         if layer is not None:
             mat = adata.layers[layer]
         else:
             mat = adata.X
-        y["exprs"] = _densify(mat).T
+        y["exprs"] = _as_dense_array(mat, np.float64).T
         # Capture adata.var / adata.obs as full DataFrames even when they
         # have zero annotation columns - the index still carries
         # var_names / obs_names, and consumers (top_table genelist,
@@ -753,13 +746,13 @@ def get_eawp(
                     f"weights_layer={weights_layer!r} not found in "
                     f"adata.layers (available: {list(adata.layers)})"
                 )
-            y["weights"] = _densify(adata.layers[weights_layer]).T
+            y["weights"] = _as_dense_array(adata.layers[weights_layer], np.float64).T
         if layer is not None and layer.endswith("_E"):
             stem = layer[:-2]
             if weights_layer is None:
                 weights_candidate = f"{stem}_weights"
                 if weights_candidate in adata.layers:
-                    y["weights"] = _densify(adata.layers[weights_candidate]).T
+                    y["weights"] = _as_dense_array(adata.layers[weights_candidate], np.float64).T
             uns_payload = adata.uns.get(stem)
             if isinstance(uns_payload, dict):
                 if uns_payload.get("design") is not None:
@@ -784,7 +777,7 @@ def get_eawp(
         if "exprs" in obj:
             y.update({k: obj.get(k) for k in y.keys() if k in obj})
             if y["exprs"] is not None:
-                y["exprs"] = np.asarray(y["exprs"], dtype=np.float64)
+                y["exprs"] = _as_dense_array(y["exprs"], np.float64)
                 if y["Amean"] is None:
                     y["Amean"] = np.nanmean(y["exprs"], axis=1)
             return y
@@ -824,7 +817,7 @@ def get_eawp(
         y["Amean"] = np.nanmean(y["exprs"], axis=1)
         return y
 
-    arr = np.asarray(obj)
+    arr = _as_dense_array(obj)
     if arr.ndim == 1:
         arr = arr.reshape(1, -1)
     if arr.ndim != 2:
@@ -838,7 +831,7 @@ def get_eawp(
 
 def _eawp_from_elist_like(obj) -> dict:
     """Extract EAWP dict from an EList or EList-shaped dict."""
-    exprs = np.asarray(obj["E"], dtype=np.float64)
+    exprs = _as_dense_array(obj["E"], np.float64)
     return {
         "exprs": exprs,
         "weights": obj.get("weights"),

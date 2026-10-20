@@ -13,7 +13,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import linalg
 
-from .utils import logcosh
+from .utils import _as_dense_array, logcosh
 
 
 def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
@@ -37,7 +37,7 @@ def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
     -------
     dict with keys ``A``, ``M``, ``stdev``.
     """
-    log2e = np.asarray(log2e, dtype=np.float64)
+    log2e = _as_dense_array(log2e, np.float64)
     if log2e.ndim == 1:
         log2e = log2e.reshape(-1, 1)
     mixprop = np.asarray(mixprop, dtype=np.float64)

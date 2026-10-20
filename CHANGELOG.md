@@ -40,6 +40,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- scipy.sparse expression matrices, and AnnData whose `X` or layer is
+  backed (`backed="r"`), lazy or dask-held, failed with "setting an
+  array element with a sequence" or "got 0D" in `lm_fit`, `voom`,
+  `remove_batch_effect`, the normalisation functions and others; they
+  are densified as R's `as.matrix()` does for a sparse `Matrix`.
 - `classify_tests_f` with one coefficient returned -9223372036854775808
   for a gene with NA t-statistic; it returns NaN (R's NA), as the
   multi-coefficient path already did.

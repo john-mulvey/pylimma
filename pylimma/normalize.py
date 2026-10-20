@@ -56,7 +56,7 @@ from scipy.stats import rankdata
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
-from .utils import choose_lowess_span
+from .utils import _as_dense_array, choose_lowess_span
 
 _VALID_METHODS = ("none", "scale", "quantile", "cyclicloess")
 
@@ -158,7 +158,7 @@ def normalize_median_values(x: np.ndarray) -> np.ndarray:
     Faithful port of R limma's ``normalizeMedianValues``
     (``limma/R/norm.R:523-533``).
     """
-    x = np.asarray(x, dtype=np.float64)
+    x = _as_dense_array(x, np.float64)
     if x.ndim == 1 or x.shape[1] == 1:
         return x
     cmed = np.log(np.nanmedian(x, axis=0))
@@ -174,7 +174,7 @@ def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
     (``limma/R/norm.R:468-509``). Handles missing values via
     interpolation.
     """
-    A = np.asarray(A, dtype=np.float64).copy()
+    A = _as_dense_array(A, np.float64).copy()
     if A.ndim == 1:
         return A
     n_rows, n_cols = A.shape
@@ -284,7 +284,7 @@ def normalize_cyclic_loess(
     """
     from .utils import loess_fit
 
-    x = np.asarray(x, dtype=np.float64).copy()
+    x = _as_dense_array(x, np.float64).copy()
     if x.ndim != 2:
         raise ValueError("normalize_cyclic_loess requires a 2D matrix")
 
@@ -1077,7 +1077,7 @@ def aver_arrays(
     if _is_anndata(x):
         return _aver_arrays_anndata(x, id=id, weights=weights)
 
-    arr = np.asarray(x)
+    arr = _as_dense_array(x)
     if arr.ndim < 2:
         raise ValueError("x must be a matrix")
 
@@ -1461,7 +1461,7 @@ def normalize_vsn(
     to users translating limma scripts. See ``docs/validation/known_differences.rst`` for the full
     discussion.
     """
-    x = np.asarray(x, dtype=np.float64)
+    x = _as_dense_array(x, np.float64)
     if x.ndim != 2:
         raise ValueError("x must be a 2-D matrix")
     n_rows, n_cols = x.shape

@@ -26,7 +26,7 @@ import pandas as pd
 from scipy import linalg
 
 from .classes import EList, _is_anndata, get_eawp
-from .utils import _r_trimmed_mean
+from .utils import _as_dense_array, _r_trimmed_mean
 
 
 def _mixed_model_2_fit(
@@ -282,7 +282,7 @@ def unwrap_dups(
     if ndups == 1:
         return M
 
-    M = np.asarray(M, dtype=np.float64)
+    M = _as_dense_array(M, np.float64)
     n_spots, n_arrays = M.shape
     n_groups = n_spots // ndups // spacing
 
@@ -375,7 +375,7 @@ def ave_dups(
     if ndups == 1:
         return x
 
-    x = np.asarray(x, dtype=np.float64)
+    x = _as_dense_array(x, np.float64)
     n_spots, n_arrays = x.shape
     n_groups = n_spots // ndups // spacing
 
@@ -490,7 +490,7 @@ def avereps(
                 "'No probe IDs' stop() when both ID and rownames(x) are NULL."
             )
 
-    arr = np.asarray(x, dtype=np.float64)
+    arr = _as_dense_array(x, np.float64)
     ID = np.asarray(ID)
 
     # Unique IDs in order of first appearance (matches R's

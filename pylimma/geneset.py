@@ -51,6 +51,7 @@ from .classes import _elist_from_layer, _shape_error, get_eawp
 from .lmfit import _design_names, _numeric_design, non_estimable
 from .squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_robustly, squeeze_var
 from .utils import (
+    _as_dense_array,
     _zscore_t_bailey,
     p_adjust,
     zscore_t,
@@ -1262,7 +1263,7 @@ def inter_gene_correlation(y: np.ndarray, design: np.ndarray) -> dict:
     Port of R limma's ``interGeneCorrelation``. Returns
     ``{"vif": ..., "correlation": ...}``.
     """
-    y = np.asarray(y, dtype=np.float64)
+    y = _as_dense_array(y, np.float64)
     design = _numeric_design(design)
     m = y.shape[0]
     Q, R = linalg.qr(design, mode="full")

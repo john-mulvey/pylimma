@@ -45,6 +45,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from scipy import sparse as _scipy_sparse
 from scipy import stats as _scipy_stats
 from scipy.special import digamma, polygamma
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
@@ -322,6 +323,22 @@ def qqf(
             warnings.warn("matplotlib not available for plotting")
 
     return {"x": x, "y": y}
+
+
+def _as_dense_array(x, dtype=None) -> np.ndarray:
+    """In-memory dense ndarray, as R's as.matrix() for a sparse Matrix.
+
+    scipy.sparse matrices, anndata backed or lazy datasets (``to_memory``)
+    and dask arrays (``compute``) are loaded and densified first; a plain
+    np.asarray would turn them into a 0-d object array.
+    """
+    if hasattr(x, "to_memory"):
+        x = x.to_memory()
+    if hasattr(x, "compute"):
+        x = x.compute()
+    if _scipy_sparse.issparse(x):
+        x = x.toarray()
+    return np.asarray(x, dtype=dtype)
 
 
 def _r_trimmed_mean(x: np.ndarray, trim: float) -> float:
@@ -1465,7 +1482,7 @@ def detection_p_values(
     ndarray
         Detection p-values with the same shape as ``x``.
     """
-    x = np.asarray(x, dtype=np.float64)
+    x = _as_dense_array(x, np.float64)
     if x.ndim == 1:
         x = x.reshape(-1, 1)
     status = np.asarray(status)
@@ -1764,7 +1781,7 @@ def propexpr(
     that identifies ``labels[0]`` ("negative") and optionally
     ``labels[1]`` ("regular") probes.
     """
-    x_mat = np.asarray(x, dtype=np.float64)
+    x_mat = _as_dense_array(x, np.float64)
     if neg_x is None:
         if status is None:
             raise ValueError(
@@ -1868,7 +1885,7 @@ def bwss_matrix(x) -> dict:
 
     Port of R limma's ``bwss.matrix(x)`` (``bwss.R``).
     """
-    x = np.asarray(x, dtype=np.float64)
+    x = _as_dense_array(x, np.float64)
     if x.ndim != 2:
         raise ValueError("x must be a 2-D matrix")
     counts = np.sum(~np.isnan(x), axis=0)

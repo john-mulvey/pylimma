@@ -4725,3 +4725,21 @@ write.csv(data.frame(id = .cov_cases$shuffled), "R_cov_shuffled_ids.csv", row.na
 stopifnot(min(cumOverlap(.cov_ids, .cov_ids)$p.value) < 1e-20)
 
 cat("  cumOverlap fixtures complete.\n")
+
+# =============================================================================
+# Sparse input: lmFit and voom coerce a sparse Matrix with as.matrix(), so the
+# results equal those for the dense matrix (no CSV: pylimma tests compare its
+# sparse and dense results directly)
+# =============================================================================
+cat("\nChecking sparse Matrix input...\n")
+
+set.seed(20261027)
+
+.spm_counts <- matrix(rpois(30 * 6, 5) * rbinom(30 * 6, 1, 0.6), 30, 6)
+.spm_design <- cbind(1, rep(0:1, each = 3))
+stopifnot(isTRUE(all.equal(lmFit(Matrix::Matrix(log2(.spm_counts + 1), sparse = TRUE), .spm_design)$coefficients,
+                           lmFit(log2(.spm_counts + 1), .spm_design)$coefficients)))
+stopifnot(isTRUE(all.equal(voom(Matrix::Matrix(.spm_counts, sparse = TRUE), .spm_design)$weights,
+                           voom(.spm_counts, .spm_design)$weights)))
+
+cat("  sparse Matrix input checked.\n")

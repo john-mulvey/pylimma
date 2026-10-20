@@ -15,6 +15,8 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 
+from .utils import _as_dense_array
+
 
 def select_model(
     y: np.ndarray,
@@ -58,7 +60,7 @@ def select_model(
     """
     from .lmfit import lm_fit
 
-    y = np.asarray(y, dtype=np.float64)
+    y = _as_dense_array(y, np.float64)
     if np.any(np.isnan(y)):
         raise ValueError("NAs not allowed")
     narrays = y.shape[1]
