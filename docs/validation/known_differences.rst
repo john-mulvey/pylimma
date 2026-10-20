@@ -229,8 +229,8 @@ unaffected.
     accepts other lengths (recycling a non-constant offset, ignoring the
     length of a constant one).
 
-Deliberate interface difference: EList design and weights in voom
------------------------------------------------------------------
+Deliberate interface difference: EList design and weights slots
+---------------------------------------------------------------
 
 R's ``voom`` and ``voomWithQualityWeights`` call ``as.matrix()`` on an
 ``EList`` input, which silently drops every slot except ``E``. pylimma's
@@ -238,5 +238,12 @@ R's ``voom`` and ``voomWithQualityWeights`` call ``as.matrix()`` on an
 ``voom_with_quality_weights`` its ``design`` slot, when the caller does
 not pass them explicitly, and emits a ``UserWarning`` each time so that
 code ported from R does not change results unnoticed. Passing
-``design=`` / ``weights=`` explicitly reproduces R exactly. ``vooma`` and
-``vooma_lm_fit`` already match R and do not warn.
+``design=`` / ``weights=`` explicitly reproduces R exactly. ``vooma``
+matches R.
+
+``vooma_lm_fit`` uses an EList's ``weights`` slot as ``prior_weights``
+throughout, again with a ``UserWarning``. R's ``voomaLmFit`` passes the
+EList to its first ``lmFit``, which falls back to ``y$weights``, and drops
+the slot for every later fit, so the slot affects only the initial fit.
+Because pylimma treats the slot as prior weights, ``sample_weights=True``
+with a weights slot raises an error, as it does with ``prior_weights=``.

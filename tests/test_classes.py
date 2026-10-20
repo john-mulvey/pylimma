@@ -1182,3 +1182,49 @@ def test_pass_through_layer_does_not_alias_x(name):
     _PASS_THROUGH_CALLS[name](adata)
     (layer,) = [k for k in adata.layers]
     assert not np.shares_memory(adata.layers[layer], adata.X)
+
+
+# ---------------------------------------------------------------------------
+# vooma_lm_fit uses an EList weights slot as prior weights, with a warning
+# (R's voomaLmFit uses it only in its first lmFit; known_differences.rst)
+# ---------------------------------------------------------------------------
+
+
+def _vooma_lm_fit_inputs():
+    rng = np.random.default_rng(20261105)
+    y = rng.normal(6, 1, size=(60, 6))
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    w = rng.uniform(0.5, 2.0, size=(60, 6))
+    return y, design, w
+
+
+def test_vooma_lm_fit_elist_weights_slot_is_prior_weights_with_warning():
+    y, design, w = _vooma_lm_fit_inputs()
+    with pytest.warns(UserWarning, match="using 'weights' from the EList's weights slot"):
+        from_slot = pylimma.vooma_lm_fit(EList(E=y, weights=w), design)
+    explicit = pylimma.vooma_lm_fit(y, design, prior_weights=w)
+    np.testing.assert_array_equal(from_slot["coefficients"], explicit["coefficients"])
+
+
+def test_vooma_lm_fit_dict_weights_slot_also_warns():
+    """voom / vooma return a plain dict for matrix input, pylimma's stand-in
+    for R's EList."""
+    y, design, w = _vooma_lm_fit_inputs()
+    with pytest.warns(UserWarning, match="using 'weights' from the EList's weights slot"):
+        pylimma.vooma_lm_fit({"E": y, "weights": w}, design)
+
+
+@pytest.mark.parametrize("container", ["elist", "anndata"])
+def test_vooma_lm_fit_input_weights_with_sample_weights_raises(container):
+    import anndata as ad
+
+    y, design, w = _vooma_lm_fit_inputs()
+    if container == "elist":
+        data, kwargs = EList(E=y, weights=w), {}
+    else:
+        data = ad.AnnData(y.T)
+        data.layers["vooma_E"] = y.T
+        data.layers["vooma_weights"] = w.T
+        kwargs = {"layer": "vooma_E"}
+    with pytest.raises(ValueError, match="input carries observation weights"):
+        pylimma.vooma_lm_fit(data, design, sample_weights=True, **kwargs)

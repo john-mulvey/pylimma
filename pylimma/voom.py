@@ -983,6 +983,25 @@ def vooma_lm_fit(
     if design is None and eawp.get("design") is not None:
         design = eawp["design"]
     if prior_weights is None and eawp.get("weights") is not None:
+        # R's voomaLmFit uses an EList weights slot only in its first lmFit
+        # (lmFit falls back to y$weights); pylimma uses it as prior weights
+        # throughout (docs/validation/known_differences.rst).
+        if sample_weights or var_design is not None or var_group is not None:
+            raise ValueError(
+                "Cannot estimate sample weights when the input carries observation "
+                "weights (an EList weights slot or AnnData weights layer), which "
+                "vooma_lm_fit uses as prior_weights; remove them to estimate sample "
+                "weights."
+            )
+        # An EList, or the plain dict voom / vooma return for matrix input
+        if isinstance(original_input, dict):
+            warnings.warn(
+                "pylimma's vooma_lm_fit is using 'weights' from the EList's weights "
+                "slot as prior_weights. R's voomaLmFit uses the slot only in its "
+                "first internal lmFit, so results differ from R; see "
+                "docs/validation/known_differences.rst.",
+                UserWarning,
+            )
         prior_weights = np.asarray(eawp["weights"], dtype=np.float64)
     n_genes, n_samples = y.shape
 

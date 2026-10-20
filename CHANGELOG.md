@@ -68,6 +68,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `vooma_lm_fit` warns when it uses an EList's `weights` slot as
+  `prior_weights` (R's `voomaLmFit` uses it only in its first fit), and
+  `sample_weights=True` with such a slot raises a `ValueError` naming the
+  slot.
 - A fit stored in `adata.uns` is only used while `adata.var_names` match
   the fitted genes. After genes were subset, reordered or renamed,
   `top_table`, `decide_tests`, `e_bayes`, `treat`, `contrasts_fit`, `genas`,
