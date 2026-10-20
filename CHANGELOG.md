@@ -7,6 +7,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ## [Unreleased]
 
+### Fixed
+
+- `e_bayes(proportion=1)` and `pred_fcm(prop_true_null_method="hist")` when
+  the estimated proportion of true nulls is 0 returned `ZeroDivisionError`;
+  lods are now Inf, as in R (including `pred_fcm(all_de=False)`, where the
+  probability of differential expression becomes 1).
+
 ## [0.2.0] - 2026-09-30
 
 A branch-by-branch audit against R limma 3.66.0. Every fix below is paired

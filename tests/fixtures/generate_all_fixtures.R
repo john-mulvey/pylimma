@@ -4504,3 +4504,37 @@ stopifnot(identical(.lcn_err, "the correlation must be set, see duplicateCorrela
 write.csv(.lcn_v$weights, "R_lcn_voom_weights.csv", row.names = FALSE)
 
 cat("  lmFit correlation = NULL fixtures complete.\n")
+
+# =============================================================================
+# eBayes(proportion = 1): log(proportion / (1 - proportion)) is Inf, so every
+# lods is Inf. predFCm reaches it when propTrueNull(method = "hist") is 0.
+# =============================================================================
+cat("\nGenerating eBayes proportion = 1 fixtures...\n")
+
+set.seed(20261020)
+
+.ep1_y <- matrix(rnorm(6 * 3, mean = rep(c(5, 10, 8, 11, 6, 7.5), 3), sd = 0.05), 6, 3)
+write.csv(.ep1_y, "R_ep1_y.csv", row.names = FALSE)
+.ep1_fit <- lmFit(.ep1_y, matrix(1, 3, 1))
+.ep1_lods <- eBayes(.ep1_fit, proportion = 1)$lods
+stopifnot(all(.ep1_lods == Inf))
+.ep1_eb <- eBayes(.ep1_fit, proportion = 0.01)
+stopifnot(propTrueNull(.ep1_eb$p.value[, 1], method = "hist") == 0)
+write.csv(data.frame(pred_fc = predFCm(.ep1_eb, coef = 1, prop.true.null.method = "hist")),
+          "R_ep1_predfcm_hist.csv", row.names = FALSE)
+
+cat("  eBayes proportion = 1 fixtures complete.\n")
+
+# =============================================================================
+# predFCm(all.de = FALSE) when propTrueNull is 0: p = 1, A = p / (1 - p) is
+# Inf, lods is Inf and probDE is set to 1 (uses .ep1_eb from the eBayes
+# proportion = 1 section)
+# =============================================================================
+cat("\nGenerating predFCm all.de = FALSE fixtures...\n")
+
+write.csv(data.frame(
+  indep = predFCm(.ep1_eb, coef = 1, all.de = FALSE, prop.true.null.method = "hist"),
+  dep = predFCm(.ep1_eb, coef = 1, var.indep.of.fc = FALSE, all.de = FALSE, prop.true.null.method = "hist")
+), "R_ep1_predfcm_notallde.csv", row.names = FALSE)
+
+cat("  predFCm all.de = FALSE fixtures complete.\n")

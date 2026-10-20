@@ -1117,6 +1117,40 @@ class TestEBayesProportionRParity:
         result = compare_arrays(r_stats["t_2"].values, fit["t"][:, 1], rtol=1e-6)
         assert result["match"], f"eBayes prop=0.5 t differs: max_rel={result['max_rel_diff']:.2e}"
 
+    def test_proportion_one_gives_infinite_lods(self):
+        """R: log(1 / (1 - 1)) is Inf, so every lods is Inf (no error)."""
+        y = load_r_csv_no_index("ep1_y").to_numpy(dtype=float)
+        fit = e_bayes(lm_fit(y, np.ones((3, 1))), proportion=1.0)
+        assert np.all(fit["lods"] == np.inf)
+
+    def test_pred_fcm_hist_with_zero_true_nulls(self):
+        """predFCm calls eBayes(proportion = 1) when propTrueNull(hist) is 0."""
+        from pylimma.ebayes import pred_fcm
+
+        y = load_r_csv_no_index("ep1_y").to_numpy(dtype=float)
+        fit = e_bayes(lm_fit(y, np.ones((3, 1))), proportion=0.01)
+        r = load_r_csv_no_index("ep1_predfcm_hist")["pred_fc"].to_numpy()
+        np.testing.assert_allclose(
+            pred_fcm(fit, coef=0, prop_true_null_method="hist"), r, rtol=1e-6, atol=1e-12
+        )
+
+    @pytest.mark.parametrize("indep", [True, False])
+    def test_pred_fcm_not_all_de_with_zero_true_nulls(self, indep):
+        """all.de = FALSE: A = p / (1 - p) is Inf, so probDE is set to 1."""
+        import warnings
+
+        from pylimma.ebayes import pred_fcm
+
+        y = load_r_csv_no_index("ep1_y").to_numpy(dtype=float)
+        fit = e_bayes(lm_fit(y, np.ones((3, 1))), proportion=0.01)
+        r = load_r_csv_no_index("ep1_predfcm_notallde")["indep" if indep else "dep"]
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", RuntimeWarning)
+            pfc = pred_fcm(
+                fit, coef=0, var_indep_of_fc=indep, all_de=False, prop_true_null_method="hist"
+            )
+        np.testing.assert_allclose(pfc, r, rtol=1e-6, atol=1e-12)
+
 
 class TestEBayesRobustRParity:
     """Test eBayes with robust=True matches R."""

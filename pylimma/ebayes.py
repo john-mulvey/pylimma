@@ -406,7 +406,11 @@ def e_bayes(
             * np.log((t2 + df_total[:, np.newaxis]) / (t2 / r + df_total[:, np.newaxis]))
         )
 
-    lods = np.log(proportion / (1 - proportion)) - np.log(r) / 2 + kernel
+    # numpy division so that proportion = 1 gives Inf lods, as in R, rather
+    # than Python's ZeroDivisionError.
+    with np.errstate(divide="ignore"):
+        prior_odds = np.divide(proportion, 1 - proportion)
+    lods = np.log(prior_odds) - np.log(r) / 2 + kernel
 
     # Update fit
     fit["df_prior"] = df_prior
@@ -783,7 +787,8 @@ def pred_fcm(
 
     coef = int(coef)
     p_col = fit["p_value"][:, coef]
-    p = 1.0 - prop_true_null(p_col, method=prop_true_null_method)
+    # numpy float so that p = 1 gives A = p / (1 - p) = Inf below, as in R.
+    p = np.float64(1.0) - prop_true_null(p_col, method=prop_true_null_method)
     if p == 0:
         p = 1e-8
     trend = np.asarray(fit["s2_prior"]).size > 1
@@ -800,13 +805,16 @@ def pred_fcm(
             v0 = 1e-8
         pfc = coef_col * v0 / (v0 + v * s2_post)
         if not all_de:
-            A = p / (1 - p)
-            B = np.sqrt(v * s2_post / (v * s2_post + v0))
-            C = np.exp(coef_col**2 * v0 / (2 * v**2 * s2_post**2 + 2 * v * v0 * s2_post))
-            lods = np.log(A * B * C)
-            prob_de = np.exp(lods) / (1 + np.exp(lods))
-            prob_de[lods > 700] = 1.0
-            pfc = pfc * prob_de
+            # p = 1 makes A and lods Inf and probDE Inf / Inf, reset to 1
+            # below as in R.
+            with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+                A = p / (1 - p)
+                B = np.sqrt(v * s2_post / (v * s2_post + v0))
+                C = np.exp(coef_col**2 * v0 / (2 * v**2 * s2_post**2 + 2 * v * v0 * s2_post))
+                lods = np.log(A * B * C)
+                prob_de = np.exp(lods) / (1 + np.exp(lods))
+                prob_de[lods > 700] = 1.0
+                pfc = pfc * prob_de
     else:
         b2 = coef_col**2 / s2_post
         v0 = fit_gamma_intercept(b2, offset=v)
@@ -814,11 +822,14 @@ def pred_fcm(
         v0 = np.minimum(v0, 1e-8)
         pfc = coef_col * v0 / (v0 + v)
         if not all_de:
-            A = p / (1 - p)
-            B = np.sqrt(v / (v + v0))
-            C = np.exp(coef_col**2 * v0 / (2 * v**2 * s2_post + 2 * v * v0 * s2_post))
-            lods = np.log(A * B * C)
-            prob_de = np.exp(lods) / (1 + np.exp(lods))
-            prob_de[lods > 700] = 1.0
-            pfc = pfc * prob_de
+            # p = 1 makes A and lods Inf and probDE Inf / Inf, reset to 1
+            # below as in R.
+            with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+                A = p / (1 - p)
+                B = np.sqrt(v / (v + v0))
+                C = np.exp(coef_col**2 * v0 / (2 * v**2 * s2_post + 2 * v * v0 * s2_post))
+                lods = np.log(A * B * C)
+                prob_de = np.exp(lods) / (1 + np.exp(lods))
+                prob_de[lods > 700] = 1.0
+                pfc = pfc * prob_de
     return pfc
