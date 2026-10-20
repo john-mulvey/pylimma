@@ -6464,3 +6464,16 @@ class TestFitGammaInterceptRParity:
         np.testing.assert_allclose(x, float(r["x"]), rtol=1e-6)
         warned = [str(w.message) for w in caught] == ["iteration limit maxit exceeded"]
         assert warned == bool(r["warned"]), [str(w.message) for w in caught]
+
+
+# =============================================================================
+# choose_lowess_span: R's double arithmetic, so n = 0 gives span 1
+# =============================================================================
+
+
+@pytest.mark.parametrize("row", range(7))
+def test_choose_lowess_span_matches_r(row):
+    from pylimma.utils import choose_lowess_span
+
+    r = load_r_csv_no_index("cls_span").iloc[row]
+    np.testing.assert_allclose(choose_lowess_span(int(r["n"])), r["span"], rtol=1e-6)

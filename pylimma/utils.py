@@ -364,7 +364,10 @@ def choose_lowess_span(
     float
         Recommended LOWESS span parameter.
     """
-    return min(min_span + (1 - min_span) * (small_n / n) ** power, 1.0)
+    # numpy division as R's double arithmetic: n = 0 gives Inf, clamped to 1.
+    with np.errstate(divide="ignore"):
+        ratio = np.divide(small_n, n)
+    return float(min(min_span + (1 - min_span) * ratio**power, 1.0))
 
 
 _LOWESS_THRESHOLD = 1e-7

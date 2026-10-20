@@ -37,6 +37,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `choose_lowess_span(n=0)` raised `ZeroDivisionError`; it returns 1, as
+  in R.
 - `duplicate_correlation(trim=)` follows R's `mean(x, trim=)`: `trim=0.5`
   returned NaN and larger or negative values raised; they now give the
   median and the untrimmed mean respectively.

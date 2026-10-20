@@ -4662,3 +4662,14 @@ write.csv(data.frame(
 ), "R_dct_consensus.csv", row.names = FALSE)
 
 cat("  duplicateCorrelation trim fixtures complete.\n")
+
+# =============================================================================
+# chooseLowessSpan: pmin(min.span + (1 - min.span) * (small.n / n)^power, 1)
+# in double arithmetic, so n = 0 gives Inf, clamped to 1
+# =============================================================================
+cat("\nGenerating chooseLowessSpan fixtures...\n")
+
+.cls_n <- c(0, 1, 10, 50, 100, 1000, 1e5)
+write.csv(data.frame(n = .cls_n, span = chooseLowessSpan(.cls_n)), "R_cls_span.csv", row.names = FALSE)
+
+cat("  chooseLowessSpan fixtures complete.\n")
