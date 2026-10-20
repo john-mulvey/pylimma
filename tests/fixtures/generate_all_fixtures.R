@@ -4603,3 +4603,25 @@ stopifnot(identical(tryCatch(fitGammaIntercept(c(0, 1), offset = c(0, 1)), error
                     "missing value where TRUE/FALSE needed"))
 
 cat("  fitGammaIntercept fixtures complete.\n")
+
+# =============================================================================
+# decideTests(method = "hierarchical" / "nestedF") without F-statistics.
+# eBayes computes F only for a full-rank design. With F.p.value NULL, R's
+# p.adjust(NULL) is numeric(0), so nothing is selected and the result is all
+# zero by accident; pylimma raises an error instead (known_differences.rst).
+# No CSV: this records the literal R behaviour.
+# =============================================================================
+cat("\nChecking decideTests without F-statistics...\n")
+
+set.seed(20261022)
+
+.dtf_y <- matrix(rnorm(30 * 6), 30, 6)
+.dtf_y[1:5, 4:6] <- .dtf_y[1:5, 4:6] + 4
+.dtf_design <- cbind(1, rep(0:1, each = 3), rep(0:1, each = 3))
+.dtf_eb <- eBayes(suppressMessages(lmFit(.dtf_y, .dtf_design)))
+stopifnot(is.null(.dtf_eb$F.p.value))
+for (.dtf_method in c("hierarchical", "nestedF")) {
+  stopifnot(all(decideTests(.dtf_eb, method = .dtf_method) == 0, na.rm = TRUE))
+}
+
+cat("  decideTests without F-statistics checked.\n")

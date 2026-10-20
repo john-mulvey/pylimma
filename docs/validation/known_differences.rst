@@ -194,6 +194,13 @@ accident (for example by recycling or by ``NULL`` propagation). pylimma
 raises a ``ValueError`` that names the problem instead. Valid inputs are
 unaffected.
 
+``decide_tests`` with ``method="hierarchical"`` or ``"nestedF"`` on a fit without F-statistics
+    ``e_bayes`` computes F only when the fit has a full-rank design. R's
+    ``decideTests`` then passes ``F.p.value = NULL`` to ``p.adjust()``,
+    selects nothing and returns all zeros; pylimma raises an error saying
+    that F-statistics are needed. ``generate_all_fixtures.R`` records the
+    R behaviour.
+
 ``fit_gamma_intercept``
     Missing values in ``y`` or ``offset`` raise "y and offset must not
     contain missing values", and a Newton step that is 0 / 0 (an offset

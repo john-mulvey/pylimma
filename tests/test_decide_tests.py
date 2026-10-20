@@ -1,6 +1,7 @@
 """Tests for pylimma decide_tests module."""
 
 import numpy as np
+import pytest
 
 from pylimma.contrasts import contrasts_fit, make_contrasts
 from pylimma.decide_tests import classify_tests_f, decide_tests
@@ -81,6 +82,20 @@ class TestDecideTests:
 
         result = decide_tests(fit)
         assert result.shape == (50, 1)
+
+    @pytest.mark.parametrize("method", ["hierarchical", "nestedF"])
+    def test_f_methods_without_f_statistics_raise(self, method):
+        """Rank-deficient design: e_bayes computes no F-statistics. R returns
+        an all-zero result by accident (generate_all_fixtures.R records it);
+        pylimma raises (docs/validation/known_differences.rst)."""
+        rng = np.random.default_rng(20261022)
+        group = np.repeat([0.0, 1.0], 3)
+        design = np.column_stack([np.ones(6), group, group])
+        with pytest.warns(UserWarning):
+            fit = e_bayes(lm_fit(rng.normal(size=(30, 6)), design))
+        assert "F_p_value" not in fit
+        with pytest.raises(ValueError, match="needs F-statistics"):
+            decide_tests(fit, method=method)
 
 
 class TestClassifyTestsF:

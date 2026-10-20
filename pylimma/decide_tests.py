@@ -271,6 +271,10 @@ def decide_tests(
     branch that computes Simes p-values itself. pylimma uses
     ``ngenes = nrow(p)`` in both cases, which is what the surrounding
     code intends; results match R's function with that one line added.
+
+    For a fit without F-statistics (``e_bayes`` computes them only for a
+    full-rank design), ``method="hierarchical"`` or ``"nestedF"`` raises a
+    ``ValueError``; R returns all zeros by accident.
     """
     method = _match_arg(method, _DECIDE_METHODS, "method")
     adjust_method = _match_arg(adjust_method, _ADJUST_METHODS, "adjust.method")
@@ -331,6 +335,14 @@ def decide_tests(
         is_de = np.where(observed, (p < p_value).astype(np.float64), np.nan)
         results = _sign_times(is_de, coef)
     else:
+        # R silently returns all zeros here (p.adjust(NULL) selects nothing);
+        # pylimma raises instead (docs/validation/known_differences.rst).
+        if fit.get("F_p_value") is None:
+            raise ValueError(
+                f'method="{method}" needs F-statistics, but the fit has no '
+                "F_p_value: e_bayes computes F only when the fit has a "
+                "full-rank design"
+            )
         f_p_value = np.asarray(fit["F_p_value"], dtype=np.float64)
         if np.isnan(f_p_value).any():
             if method == "hierarchical":
