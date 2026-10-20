@@ -48,7 +48,10 @@ written to ``adata.uns[key]`` (default ``key="pylimma"``):
 anndata copies ``adata.uns`` unchanged when genes are subset, reordered
 or renamed, so a stored fit is only used while ``adata.var_names`` still
 match the fitted genes; otherwise functions that read it raise an error,
-and ``lm_fit`` must be re-run on the changed object.
+and ``lm_fit`` must be re-run on the changed object. The design that
+``voom`` / ``vooma`` store in ``adata.uns`` follows the samples instead:
+after ``adata[idx, :]``, ``lm_fit(adata, layer="voom_E")`` uses the design
+rows of the remaining samples, as R's ``v[, idx]`` does.
 
 EList workflow
 --------------

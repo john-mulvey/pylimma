@@ -6591,3 +6591,56 @@ class TestLmFitNdupsGenesRParity:
         lm_fit(adata, self.DESIGN, ndups=2, correlation=0.3)
         r = load_r_csv_no_index("ndg_spacing1")
         assert list(adata.uns["pylimma"]["genes"]) == list(r["sym"])
+
+
+# =============================================================================
+# voom design stored in adata.uns follows the samples, as R's v[, idx]
+# =============================================================================
+
+
+class TestVoomDesignFollowsSamplesRParity:
+    IDX = {"reorder": [7, 0, 1, 2, 3, 4, 5, 6], "subset": [0, 1, 4, 5, 6]}
+
+    @staticmethod
+    def _voomed(formula):
+        import anndata as ad
+
+        from pylimma import voom
+
+        counts = load_r_csv_no_index("vsi_counts").to_numpy(dtype=float)
+        adata = ad.AnnData(counts.T)
+        adata.obs_names = [f"s{i}" for i in range(8)]
+        adata.obs["group"] = np.repeat(["a", "b"], 4)
+        design = "~ group" if formula else np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        voom(adata, design)
+        return adata
+
+    @pytest.mark.parametrize("formula", [False, True])
+    @pytest.mark.parametrize("case", ["reorder", "subset"])
+    def test_lm_fit_on_sample_subset(self, case, formula):
+        sub = self._voomed(formula)[self.IDX[case]].copy()
+        lm_fit(sub, layer="voom_E")
+        fit = sub.uns["pylimma"]
+        r = load_r_csv_no_index(f"vsi_{case}")
+        np.testing.assert_allclose(
+            fit["coefficients"], r[["coefficients.x1", "coefficients.x2"]], rtol=1e-6, atol=1e-12
+        )
+        np.testing.assert_allclose(fit["sigma"], r["sigma"], rtol=1e-6)
+
+    def test_renamed_samples_raise(self):
+        renamed = self._voomed(False).copy()
+        renamed.obs_names = [f"t{i}" for i in range(8)]
+        with pytest.raises(ValueError, match="not in the design stored in adata.uns.*renamed"):
+            lm_fit(renamed, layer="voom_E")
+
+    def test_non_unique_sample_names_raise_after_reorder(self):
+        import warnings
+
+        adata = self._voomed(False)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # anndata: obs_names not unique
+            adata.obs_names = ["a", "b", "a", "c", "d", "e", "f", "g"]
+            adata.uns["voom"]["obs_names"] = list(adata.obs_names)
+            sub = adata[[0, 1, 3]].copy()
+        with pytest.raises(ValueError, match="sample names are not unique"):
+            lm_fit(sub, layer="voom_E")

@@ -4780,3 +4780,26 @@ for (.ndg_spacing in 1:2) {
 }
 
 cat("  lmFit ndups gene-annotation fixtures complete.\n")
+
+# =============================================================================
+# Subsetting a voom EList by samples, v[, idx], subsets the design rows with
+# the samples; lmFit(v[, idx]) then fits the matching design
+# =============================================================================
+cat("\nGenerating voom EList sample-subset fixtures...\n")
+
+set.seed(20261030)
+
+.vsi_counts <- matrix(rpois(50 * 8, 30), 50, 8)
+.vsi_counts[1:10, 5:8] <- .vsi_counts[1:10, 5:8] * 3
+write.csv(.vsi_counts, "R_vsi_counts.csv", row.names = FALSE)
+.vsi_v <- voom(.vsi_counts, cbind(1, rep(0:1, each = 4)))
+for (.vsi_case in c("reorder", "subset")) {
+  .vsi_idx <- if (.vsi_case == "reorder") c(8, 1:7) else c(1, 2, 5, 6, 7)
+  .vsi_sub <- .vsi_v[, .vsi_idx]
+  stopifnot(identical(unname(.vsi_sub$design), unname(.vsi_v$design[.vsi_idx, , drop = FALSE])))
+  .vsi_fit <- lmFit(.vsi_sub)
+  write.csv(data.frame(coefficients = .vsi_fit$coefficients, sigma = .vsi_fit$sigma),
+            sprintf("R_vsi_%s.csv", .vsi_case), row.names = FALSE)
+}
+
+cat("  voom EList sample-subset fixtures complete.\n")

@@ -758,7 +758,7 @@ def get_eawp(
             uns_payload = adata.uns.get(stem)
             if isinstance(uns_payload, dict):
                 if uns_payload.get("design") is not None:
-                    y["design"] = uns_payload["design"]
+                    y["design"] = _stored_design_for_obs(uns_payload, adata, stem)
         return y
 
     if isinstance(obj, EList):
@@ -829,6 +829,40 @@ def get_eawp(
     y["exprs"] = arr.astype(np.float64, copy=False)
     y["Amean"] = np.nanmean(y["exprs"], axis=1)
     return y
+
+
+def _stored_design_for_obs(uns_payload: dict, adata, stem: str):
+    """The design voom/vooma stored in adata.uns[stem], with its rows in the
+    order of adata.obs_names.
+
+    anndata copies adata.uns unchanged when samples are subset or reordered;
+    R's v[, idx] subsets the design rows with the samples. put_eawp records
+    the obs_names the design was written for, so its rows can follow them.
+    """
+    design = uns_payload["design"]
+    stored = uns_payload.get("obs_names")
+    current = [str(name) for name in adata.obs_names]
+    if stored is None or [str(name) for name in stored] == current:
+        return design
+    stored = [str(name) for name in stored]
+    if len(set(stored)) < len(stored) or len(set(current)) < len(current):
+        raise ValueError(
+            f"sample names are not unique, so the design stored in adata.uns[{stem!r}] "
+            "cannot be matched to the samples after a subset or reorder; pass "
+            "design= explicitly."
+        )
+    row_of = {name: i for i, name in enumerate(stored)}
+    missing = [name for name in current if name not in row_of]
+    if missing:
+        raise ValueError(
+            f"adata.obs_names include samples that are not in the design stored in "
+            f"adata.uns[{stem!r}] (e.g. {missing[0]!r}; were samples renamed?); "
+            "pass design= explicitly."
+        )
+    rows = [row_of[name] for name in current]
+    if isinstance(design, pd.DataFrame):
+        return design.iloc[rows]
+    return np.asarray(design)[rows]
 
 
 def _eawp_from_elist_like(obj) -> dict:
@@ -956,6 +990,9 @@ def put_eawp(
             and v is not None
             and not (k == "weights" and weights_layer is not None)
         }
+        if "design" in uns_payload:
+            # The samples the design rows belong to (see _stored_design_for_obs).
+            uns_payload["obs_names"] = [str(name) for name in adata.obs_names]
         if uns_payload:
             adata.uns[uns_key] = uns_payload
         return None

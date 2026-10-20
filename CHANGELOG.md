@@ -9,6 +9,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `lm_fit(adata, layer="voom_E")` (and other `*_E` layers) after samples
+  were reordered or subset applied the design that `voom` / `vooma` stored
+  in `adata.uns` row for row, i.e. to the wrong samples. The stored design
+  now follows `adata.obs_names`, as R's `v[, idx]` subsets the design;
+  a sample missing from it (e.g. renamed samples) or non-unique sample
+  names raise a `ValueError` asking for `design=`.
 - `lm_fit(ndups > 1)`: `fit["genes"]` kept one label per probe, so
   `top_table` attached probe i's annotation to fitted gene i (wrong genes
   for every row past the first); it is now `unique_genelist(genes, ndups,
