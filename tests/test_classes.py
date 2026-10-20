@@ -1155,3 +1155,30 @@ def test_goana_ndups_fit_uses_unique_gene_rows_of_var():
     expected = pylimma.goana(MArrayLM(adata.uns["pylimma"]), gene_pathway=gp, geneid=symbols[::2])
     pd.testing.assert_frame_equal(pylimma.goana(adata, gene_pathway=gp, geneid="symbol"), expected)
 
+
+# ---------------------------------------------------------------------------
+# Results never share memory with the input (R's copy-on-modify)
+# ---------------------------------------------------------------------------
+
+_PASS_THROUGH_CALLS = {
+    "normalize_none": lambda x: pylimma.normalize_between_arrays(x, method="none"),
+    "remove_batch_effect_no_batch": lambda x: pylimma.remove_batch_effect(x),
+}
+
+
+@pytest.mark.parametrize("name", list(_PASS_THROUGH_CALLS))
+def test_pass_through_result_does_not_alias_matrix_input(name):
+    x = np.random.default_rng(1).normal(size=(10, 4))
+    result = _PASS_THROUGH_CALLS[name](x)
+    np.testing.assert_array_equal(result, x)
+    assert not np.shares_memory(result, x)
+
+
+@pytest.mark.parametrize("name", list(_PASS_THROUGH_CALLS))
+def test_pass_through_layer_does_not_alias_x(name):
+    import anndata as ad
+
+    adata = ad.AnnData(np.random.default_rng(1).normal(size=(4, 10)))
+    _PASS_THROUGH_CALLS[name](adata)
+    (layer,) = [k for k in adata.layers]
+    assert not np.shares_memory(adata.layers[layer], adata.X)

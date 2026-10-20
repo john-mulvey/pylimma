@@ -173,8 +173,10 @@ def remove_batch_effect(
     X = np.asarray(eawp["exprs"], dtype=np.float64)
 
     if batch is None and batch2 is None and covariates is None:
+        # A copy, so the result never shares memory with the input (R's
+        # copy-on-modify); get_eawp does not copy.
         return put_eawp(
-            {"E": X},
+            {"E": X.copy()},
             original_input,
             out_layer=out_layer,
             weights_layer=None,

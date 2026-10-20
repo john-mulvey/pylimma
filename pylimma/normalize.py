@@ -127,7 +127,9 @@ def normalize_between_arrays(
         )
 
     if method == "none":
-        normalized = arr
+        # A copy, so the result never shares memory with the input (R's
+        # copy-on-modify); get_eawp does not copy.
+        normalized = arr.copy()
     elif method == "scale":
         normalized = normalize_median_values(arr)
     elif method == "quantile":
