@@ -85,7 +85,7 @@ def _factor_levels(factor) -> tuple[np.ndarray, np.ndarray]:
     return levels, str_values
 
 
-def _sum_to_zero_design(factor) -> np.ndarray:
+def _sum_to_zero_design(factor, name: str = "batch") -> np.ndarray:
     """Build R-equivalent ``model.matrix(~factor)[,-1]`` with
     ``contrasts = contr.sum`` applied to the factor.
 
@@ -99,7 +99,10 @@ def _sum_to_zero_design(factor) -> np.ndarray:
     n = len(str_values)
     K = len(levels)
     if K < 2:
-        return np.zeros((n, 0), dtype=np.float64)
+        # R: contr.sum(levels(batch)) stops on a one-level factor
+        raise ValueError(
+            f"{name} has a single level: not enough degrees of freedom to define contrasts"
+        )
     X = np.zeros((n, K - 1), dtype=np.float64)
     for j, lev in enumerate(levels[:-1]):
         X[str_values == lev, j] = 1.0
@@ -135,7 +138,8 @@ def remove_batch_effect(
         Expression matrix (genes x samples) or wrapper.
     batch : array-like, optional
         Factor of batch labels. Coded with sum-to-zero contrasts before
-        entering the design.
+        entering the design, so it needs at least two levels (as R, a
+        single level raises an error).
     batch2 : array-like, optional
         Second batch factor, treated the same way as ``batch``.
     covariates : ndarray, optional
@@ -184,7 +188,7 @@ def remove_batch_effect(
     if batch is not None:
         parts.append(_sum_to_zero_design(batch))
     if batch2 is not None:
-        parts.append(_sum_to_zero_design(batch2))
+        parts.append(_sum_to_zero_design(batch2, "batch2"))
     if covariates is not None:
         cov = np.asarray(covariates, dtype=np.float64)
         if cov.ndim == 1:

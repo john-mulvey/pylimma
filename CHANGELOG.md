@@ -72,6 +72,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `remove_batch_effect` with a single-level `batch` or `batch2` raises a
+  `ValueError`, as R's `contr.sum` does; it silently returned the data
+  unchanged.
 - `array_weights` warns when it uses an EList's `design` slot, which R's
   `arrayWeights` documents but its code ignores.
 - `vooma_lm_fit` warns when it uses an EList's `weights` slot as

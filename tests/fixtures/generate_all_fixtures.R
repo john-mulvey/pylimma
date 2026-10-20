@@ -5049,3 +5049,18 @@ write.csv(suppressWarnings(removeBatchEffect(.rbn_y, batch = c(1, 0, 1, 0), desi
           "R_rbn_corrected.csv", row.names = FALSE)
 
 cat("  removeBatchEffect NA-coefficient fixtures complete.\n")
+
+# =============================================================================
+# removeBatchEffect with a single-level batch or batch2: contr.sum stops
+# ("not enough degrees of freedom to define contrasts"). No CSV.
+# =============================================================================
+cat("\nChecking removeBatchEffect single-level batch...\n")
+
+.rb1_y <- matrix(rnorm(5 * 3), 5, 3)
+for (.rb1_args in list(list(batch = c("a", "a", "a")), list(batch = c(1, 2, 1), batch2 = c("x", "x", "x")))) {
+  .rb1_err <- tryCatch({ do.call(removeBatchEffect, c(list(.rb1_y), .rb1_args)); NA_character_ },
+                       error = function(e) conditionMessage(e))
+  stopifnot(identical(.rb1_err, "not enough degrees of freedom to define contrasts"))
+}
+
+cat("  removeBatchEffect single-level batch checked.\n")
