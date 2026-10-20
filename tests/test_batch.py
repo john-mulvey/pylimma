@@ -66,3 +66,17 @@ def test_single_level_batch_raises(name, kwargs):
         ValueError, match=f"^{name} has a single level: not enough degrees of freedom to define contrasts$"
     ):
         remove_batch_effect(y, **kwargs)
+
+
+@pytest.mark.parametrize("weight_by_sd", [False, True])
+def test_wsva_rank_deficient_design_raises(weight_by_sd):
+    """R's .lmEffects stops: "design must be full column rank"
+    (generate_all_fixtures.R)."""
+    from pylimma import wsva
+
+    y = np.random.default_rng(20261110).normal(size=(10, 8))
+    g1 = np.tile([0.0, 1.0], 4)
+    g2 = np.tile([0.0, 0.0, 1.0, 1.0], 2)
+    design = np.column_stack([np.ones(8), g1, g2, g1 + g2])
+    with pytest.raises(ValueError, match="design must be full column rank"):
+        wsva(y, design, weight_by_sd=weight_by_sd)

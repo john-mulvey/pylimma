@@ -30,7 +30,7 @@ import numpy as np
 import pandas as pd
 
 from .classes import _shape_error, get_eawp, put_eawp
-from .lmfit import _numeric_design, lm_fit
+from .lmfit import _numeric_design, _qr_r_style, lm_fit
 from .utils import _r_as_character
 
 
@@ -306,6 +306,11 @@ def _lm_effects_residual(
             y = solve_triangular(R_chol.T, y.T, lower=True).T
             X = solve_triangular(R_chol.T, X, lower=True)
 
+    # lmEffects.R:120-121: qrX <- qr(X); stop if not full column rank
+    qrx_q, _r, _pivot, rank = _qr_r_style(X)
+    if rank < p:
+        raise ValueError("design must be full column rank")
+
     # Per-observation weights: per-gene QR loop (lmEffects.R:131-150).
     if weights is not None:
         w_mat = np.asarray(weights, dtype=np.float64)
@@ -325,9 +330,9 @@ def _lm_effects_residual(
             effects[g] = Q_g.T @ wy
         return effects[:, p:]  # drop contrast columns, keep residual block
 
-    # Common path: single QR of (possibly transformed) X.
-    Q, _ = qr(X, mode="full")
-    residual = Q[:, p:].T @ y.T
+    # Common path: R's qr.qty(qrX, t(y)) with the qrX checked above (full
+    # rank, so its columns are in their original order).
+    residual = qrx_q[:, p:].T @ y.T
     return residual.T  # (n_genes, n - p)
 
 

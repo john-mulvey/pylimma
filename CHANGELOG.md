@@ -72,6 +72,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `wsva` with a design that is not of full column rank raises R's "design
+  must be full column rank" error; it returned meaningless surrogate
+  variables.
 - `remove_batch_effect` with a single-level `batch` or `batch2` raises a
   `ValueError`, as R's `contr.sum` does; it silently returned the data
   unchanged.

@@ -5064,3 +5064,20 @@ for (.rb1_args in list(list(batch = c("a", "a", "a")), list(batch = c(1, 2, 1), 
 }
 
 cat("  removeBatchEffect single-level batch checked.\n")
+
+# =============================================================================
+# wsva stops for a rank-deficient design (.lmEffects: "design must be full
+# column rank"). No CSV.
+# =============================================================================
+cat("\nChecking wsva rank-deficient design...\n")
+
+set.seed(20261110)
+
+.wrd_y <- matrix(rnorm(10 * 8), 10, 8)
+.wrd_g1 <- c(0, 1, 0, 1, 0, 1, 0, 1)
+.wrd_g2 <- c(0, 0, 1, 1, 0, 0, 1, 1)
+.wrd_err <- tryCatch({ wsva(.wrd_y, cbind(1, .wrd_g1, .wrd_g2, .wrd_g1 + .wrd_g2)); NA_character_ },
+                     error = function(e) conditionMessage(e))
+stopifnot(identical(.wrd_err, "design must be full column rank"))
+
+cat("  wsva rank-deficient design checked.\n")
