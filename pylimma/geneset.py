@@ -2059,6 +2059,37 @@ def romer(
 # ---------------------------------------------------------------------------
 
 
+def _subscript_rows(index, statistics) -> np.ndarray:
+    """0-based rows of statistics[index] as R subscripts a vector (used by
+    geneSetTest and rankSumTestWithCorrelation): a logical index gives its TRUE
+    positions, an integer index the positions as given, a character index the
+    position of each name (repeats count). Names come from a pandas Series."""
+    if isinstance(index, str):
+        index = [index]
+    elif not isinstance(index, (np.ndarray, pd.Series, pd.Index, pd.Categorical, list, tuple)):
+        index = list(index)
+    arr = np.atleast_1d(np.asarray(index))
+    if arr.dtype.kind == "b":
+        return np.flatnonzero(arr)
+    if not _is_character(arr):
+        return arr.astype(np.int64)
+    names = _index_ids(statistics.index) if isinstance(statistics, pd.Series) else None
+    if names is None:
+        raise ValueError(
+            "a character gene set needs names on statistics: pass a pandas Series "
+            "indexed by gene ID"
+        )
+    position = {}
+    for k, name in enumerate(names):
+        position.setdefault(name, k)
+    members = _id_strings(arr)
+    missing = [name for name in members if name not in position]
+    if missing:
+        # R: statistics[name] is NA for an unknown name, giving an NA p-value
+        raise ValueError(f"gene set member {missing[0]!r} is not among the names of statistics")
+    return np.array([position[name] for name in members], dtype=np.int64)
+
+
 def rank_sum_test_with_correlation(
     index,
     statistics: np.ndarray,
@@ -2079,7 +2110,7 @@ def rank_sum_test_with_correlation(
     stats_arr = np.asarray(statistics, dtype=np.float64)
     n = stats_arr.size
     r = stats.rankdata(stats_arr, method="average")
-    idx = np.asarray(index, dtype=np.int64)
+    idx = _subscript_rows(index, statistics)
     r1 = r[idx]
     n1 = r1.size
     n2 = n - n1
@@ -2156,6 +2187,7 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
     if type_lower not in ("auto", "t", "f"):
         raise ValueError(f"type '{type}' not recognized. Must be 'auto', 't' or 'f'.")
 
+    idx = _subscript_rows(index, statistics)
     stats_arr = np.asarray(statistics, dtype=np.float64)
     allsamesign = bool(np.all(stats_arr >= 0) or np.all(stats_arr <= 0))
     if type_lower == "auto":
@@ -2167,8 +2199,6 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
     if alternative == "down":
         stats_arr = -stats_arr
         alternative = "up"
-
-    idx = np.asarray(index, dtype=np.int64)
 
     if ranks_only:
         pvals = rank_sum_test_with_correlation(index=idx, statistics=stats_arr, df=np.inf)

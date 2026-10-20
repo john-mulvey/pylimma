@@ -6959,3 +6959,48 @@ class TestGeneSetIndexFollowUps:
             romer(self._y(), {"a": ["g1", "g2"]}, self.DESIGN, nrot=9)
         with pytest.raises(ValueError, match="pandas Series"):
             camera_pr(np.arange(20.0), {"a": ["g1", "g2"]})
+
+
+# =============================================================================
+# gene_set_test / rank_sum_test_with_correlation / wilcox_gst subscript the
+# statistics as R's statistics[index]
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "case, index",
+    [
+        ("character", ["g1", "g2", "g3", "g12"]),
+        ("character_repeat", ["g1", "g2", "g2", "g12"]),
+        ("logical", np.isin(np.arange(30), [0, 1, 2, 3, 4, 11])),
+    ],
+)
+def test_gene_set_test_index_matches_r(case, index):
+    from pylimma import gene_set_test, rank_sum_test_with_correlation, wilcox_gst
+
+    t = load_r_csv_no_index("gst_t")["t"].to_numpy()
+    stat = pd.Series(t, index=[f"g{i}" for i in range(1, 31)])
+    r = load_r_csv_no_index("gst_index").set_index("case").loc[case]
+    assert compare_pvalues([r["gst"]], [gene_set_test(index, stat)])["match"]
+    assert compare_pvalues([r["rank_less"]], [rank_sum_test_with_correlation(index, stat)["less"]])["match"]
+    assert compare_pvalues([r["wilcox"]], [wilcox_gst(index, stat)])["match"]
+
+
+def test_gene_set_test_character_index_needs_matching_names():
+    from pylimma import gene_set_test
+
+    t = load_r_csv_no_index("gst_t")["t"].to_numpy()
+    with pytest.raises(ValueError, match="names"):
+        gene_set_test(["g1", "g2"], t)
+    with pytest.raises(ValueError, match="not among the names of statistics"):
+        gene_set_test(["g1", "nope"], pd.Series(t, index=[f"g{i}" for i in range(1, 31)]))
+
+
+def test_gene_set_test_range_index_is_not_names():
+    """A Series with a default RangeIndex has no gene names: a character
+    set raises rather than matching the labels '0', '1', ...."""
+    from pylimma import gene_set_test
+
+    stat = pd.Series(np.random.default_rng(1).normal(size=20))
+    with pytest.raises(ValueError, match="needs names on statistics"):
+        gene_set_test(["1", "2"], stat)

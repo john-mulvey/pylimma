@@ -230,7 +230,11 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     A set given as gene IDs needs IDs to match against: the row names of
     ``y`` (``adata.var_names``, a DataFrame index) or ``geneid=``. Without
     them pylimma raises an error; R matches against ``NULL`` row names and
-    silently tests an empty set.
+    silently tests an empty set. Likewise ``gene_set_test``,
+    ``wilcox_gst`` and ``rank_sum_test_with_correlation`` select a character
+    set by the names of ``statistics`` (a pandas Series) and raise an error
+    for a name that is not among them, where R's ``statistics[name]`` is NA
+    and the p-value silently NA.
 
 ``top_table`` / ``top_table_f`` with ``number=NaN``
     Raises "number must not be NaN" (R: "missing value where TRUE/FALSE

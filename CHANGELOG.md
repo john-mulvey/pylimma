@@ -112,6 +112,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `gene_set_test`, `wilcox_gst` and `rank_sum_test_with_correlation` subscript
+  the statistics as R's `statistics[index]`: a set of gene IDs selects by the
+  names of a pandas Series (was `int('g1')`), and a boolean mask its True
+  positions (was read as positions 0/1, giving wrong p-values).
 - Gene sets in `roast`, `mroast`, `fry`, `camera` and `camera_pr` are resolved
   as R does: a set of gene IDs selects every row whose ID is in it (`roast`
   and `mroast` raised `int('g1')` errors and ignored `geneid`; `camera`

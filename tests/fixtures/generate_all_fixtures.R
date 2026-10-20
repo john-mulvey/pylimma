@@ -5150,3 +5150,30 @@ write.csv(cameraPR(.gsi_t, list(m = .gsi_mask, a = .gsi_sets$a), sort = FALSE), 
 write.csv(data.frame(set = rownames(.gsi_mr), NGenes = .gsi_mr$NGenes), "R_gsi_mroast_ngenes.csv", row.names = FALSE)
 
 cat("  gene-set index fixtures complete.\n")
+
+# =============================================================================
+# geneSetTest / rankSumTestWithCorrelation subscript statistics[index]: a
+# character index selects by name (repeats count), a logical index its TRUE
+# positions
+# =============================================================================
+cat("\nGenerating geneSetTest index fixtures...\n")
+
+set.seed(20261113)
+
+.gst_t <- setNames(rnorm(30), paste0("g", 1:30))
+.gst_t[1:5] <- .gst_t[1:5] + 1.5
+write.csv(data.frame(t = unname(.gst_t)), "R_gst_t.csv", row.names = FALSE)
+.gst_mask <- seq_len(30) %in% c(1:5, 12)
+write.csv(data.frame(
+  case = c("character", "character_repeat", "logical"),
+  gst = c(geneSetTest(c("g1", "g2", "g3", "g12"), .gst_t),
+          geneSetTest(c("g1", "g2", "g2", "g12"), .gst_t),
+          geneSetTest(.gst_mask, .gst_t)),
+  rank_less = c(rankSumTestWithCorrelation(c("g1", "g2", "g3", "g12"), .gst_t)["less"],
+                rankSumTestWithCorrelation(c("g1", "g2", "g2", "g12"), .gst_t)["less"],
+                rankSumTestWithCorrelation(.gst_mask, .gst_t)["less"]),
+  wilcox = c(wilcoxGST(c("g1", "g2", "g3", "g12"), .gst_t), wilcoxGST(c("g1", "g2", "g2", "g12"), .gst_t),
+             wilcoxGST(.gst_mask, .gst_t))
+), "R_gst_index.csv", row.names = FALSE)
+
+cat("  geneSetTest index fixtures complete.\n")
