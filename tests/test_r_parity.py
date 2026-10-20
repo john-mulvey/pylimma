@@ -6834,3 +6834,128 @@ def test_remove_batch_effect_keeps_estimable_batch_effect():
     np.testing.assert_allclose(
         corrected, load_r_csv_no_index("rbn_corrected"), rtol=1e-6, atol=1e-12, equal_nan=True
     )
+
+
+# =============================================================================
+# Gene-set index rules: character sets are which(geneid %in% set), logical
+# sets their TRUE rows, data-frame sets (id, weight) matched by id
+# =============================================================================
+
+
+class TestGeneSetIndexRParity:
+    @staticmethod
+    def _data():
+        frame = load_r_csv_no_index("gsi_y")
+        ids = frame.pop("id").to_numpy()
+        return pd.DataFrame(frame.to_numpy(dtype=float), index=ids), np.column_stack(
+            [np.ones(6), np.repeat([0.0, 1.0], 3)]
+        )
+
+    SETS = {"a": ["g1", "g2", "g3", "g5", "nope"], "b": [f"g{i}" for i in range(20, 31)]}
+    MASK = np.isin(np.arange(40), [0, 1, 2, 3, 4, 5, 14])
+
+    def test_camera_character_sets(self):
+        from pylimma import camera
+
+        y, design = self._data()
+        r = load_r_csv("gsi_camera_character")
+        tab = camera(y, self.SETS, design, sort=False)
+        np.testing.assert_array_equal(tab["n_genes"], r["NGenes"])
+        assert compare_pvalues(r["PValue"].to_numpy(), tab["p_value"].to_numpy())["match"]
+
+    def test_camera_logical_set(self):
+        from pylimma import camera
+
+        y, design = self._data()
+        r = load_r_csv("gsi_camera_logical")
+        tab = camera(y, {"m": self.MASK}, design)
+        assert tab["n_genes"].iloc[0] == r["NGenes"].iloc[0]
+        assert compare_pvalues(r["PValue"].to_numpy(), tab["p_value"].to_numpy())["match"]
+
+    def test_camera_pr_logical_and_character_sets(self):
+        from pylimma import camera_pr
+
+        y, _ = self._data()
+        stat = pd.Series(load_r_csv_no_index("gsi_t")["t"].to_numpy(), index=y.index)
+        r = load_r_csv("gsi_camerapr")
+        tab = camera_pr(stat, {"m": self.MASK, "a": self.SETS["a"]}, sort=False)
+        np.testing.assert_array_equal(tab["n_genes"], r["NGenes"])
+        assert compare_pvalues(r["PValue"].to_numpy(), tab["p_value"].to_numpy())["match"]
+
+    def test_mroast_character_and_weighted_sets(self):
+        """NGenes against R; the character / data-frame sets select the same
+        rows as the equivalent integer sets (identical results, same seed)."""
+        from pylimma import mroast
+
+        y, design = self._data()
+        weighted = pd.DataFrame({"id": ["g7", "g1", "g3"], "w": [1.0, 2.0, -1.0]})
+        tab = mroast(y, {"a": self.SETS["a"], "w": weighted}, design, nrot=99, sort="none", rng=1)
+        r = load_r_csv_no_index("gsi_mroast_ngenes")
+        np.testing.assert_array_equal(tab["n_genes"], r["NGenes"])
+        by_position = mroast(
+            y,
+            {"a": [0, 1, 2, 4, 11], "w": pd.DataFrame({"id": [0, 2, 6, 11], "w": [2.0, -1.0, 1.0, -1.0]})},
+            design,
+            nrot=99,
+            sort="none",
+            rng=1,
+        )
+        pd.testing.assert_frame_equal(tab, by_position)
+
+    def test_roast_character_set_geneid_and_python_set(self):
+        from pylimma import roast
+
+        y, design = self._data()
+        expected = roast(y, [0, 1, 2, 4, 11], design, nrot=99, rng=1)
+        for kwargs in (
+            {"index": self.SETS["a"]},
+            {"index": set(self.SETS["a"])},
+            {"index": (g for g in self.SETS["a"])},
+            {"index": self.SETS["a"], "geneid": y.index.to_numpy()},
+        ):
+            result = roast(y, design=design, nrot=99, rng=1, **kwargs)
+            assert result["ngenes_in_set"] == 5
+            pd.testing.assert_frame_equal(result["p_value"], expected["p_value"])
+
+    def test_character_set_without_gene_ids_raises(self):
+        from pylimma import camera, fry, mroast, roast
+
+        y, design = self._data()
+        for fn in (roast, mroast, fry, camera):
+            with pytest.raises(ValueError, match="needs gene IDs"):
+                fn(y.to_numpy(), self.SETS["a"], design)
+
+
+class TestGeneSetIndexFollowUps:
+    """Follow-ups to the shared gene-set resolver (code review)."""
+
+    DESIGN = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+
+    @staticmethod
+    def _y(index=None):
+        y = np.random.default_rng(5).normal(size=(20, 6))
+        return pd.DataFrame(y, index=index if index is not None else [f"g{i}" for i in range(1, 21)])
+
+    def test_fry_geneid_column_without_annotation_raises_clearly(self):
+        from pylimma import fry
+
+        with pytest.raises(ValueError, match="is not a column of the gene annotation"):
+            fry(self._y().to_numpy(), ["g1", "g2"], self.DESIGN, geneid="symbol")
+
+    def test_default_range_index_is_not_gene_ids(self):
+        """A default RangeIndex holds no gene names: a character set raises
+        instead of matching the labels '0', '1', ...."""
+        from pylimma import camera, roast
+
+        y = self._y(index=pd.RangeIndex(20))
+        for fn in (roast, camera):
+            with pytest.raises(ValueError, match="needs gene IDs"):
+                fn(y, ["5", "6", "7"], self.DESIGN)
+
+    def test_no_gene_id_messages_name_the_remedy(self):
+        from pylimma import camera_pr, romer
+
+        with pytest.raises(ValueError, match="romer.*positions or a boolean mask"):
+            romer(self._y(), {"a": ["g1", "g2"]}, self.DESIGN, nrot=9)
+        with pytest.raises(ValueError, match="pandas Series"):
+            camera_pr(np.arange(20.0), {"a": ["g1", "g2"]})

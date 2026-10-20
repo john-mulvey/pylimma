@@ -52,6 +52,7 @@ from .lmfit import _design_names, _numeric_design, non_estimable
 from .squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_robustly, squeeze_var
 from .utils import (
     _as_dense_array,
+    _r_as_character,
     _zscore_t_bailey,
     p_adjust,
     zscore_t,
@@ -643,16 +644,86 @@ def _prep_roast_inputs(
     return Effects, ngenes, df_residual, var_prior_out, df_prior_out, var_post
 
 
-def _resolve_set_index(idx, ngenes):
-    """Convert a gene-set selector to a NumPy int array of 0-based positions."""
-    if idx is None:
+_NO_GENE_IDS = (
+    "a character gene set needs gene IDs: row names of y, adata.var_names or "
+    "geneid= (R would silently match nothing)"
+)
+
+
+def _id_strings(values) -> np.ndarray:
+    """Gene IDs as R's as.character() labels (bytes decoded)."""
+    return _r_as_character(np.asarray(values, dtype=object)).astype(str)
+
+
+def _index_ids(index):
+    """Gene IDs from a pandas index (row names), or None for a default
+    RangeIndex, which holds positions rather than names."""
+    if index is None or isinstance(index, pd.RangeIndex):
+        return None
+    return _id_strings(index)
+
+
+def _resolve_geneid(ea: dict, geneid, ngenes: int):
+    """Gene IDs for matching character gene sets, as R's roast / mroast / fry:
+    geneid=None gives the row names of y, a single string names a column of
+    the gene annotation, otherwise a vector of length nrow(y). None when y
+    has no row names."""
+    probes = ea.get("probes")
+    if geneid is None:
+        return _index_ids(getattr(probes, "index", None))
+    geneid = _id_strings(np.atleast_1d(np.asarray(geneid, dtype=object)))
+    if geneid.size == 1:
+        if probes is None or geneid[0] not in getattr(probes, "columns", ()):
+            raise ValueError(f"geneid {geneid[0]!r} is not a column of the gene annotation")
+        return _id_strings(probes[geneid[0]])
+    if geneid.size != ngenes:
+        raise ValueError("geneid vector should be of length nrow(y)")
+    return geneid
+
+
+def _set_rows(iset, geneid, ngenes: int, no_ids_message: str = _NO_GENE_IDS) -> np.ndarray:
+    """0-based rows of one gene set, as R resolves index[[i]] in roast, mroast,
+    fry, camera and cameraPR: a character (or factor) set is
+    which(geneid %in% set), every row whose ID is in the set; a logical set
+    its TRUE rows; an integer set the rows as given. Any iterable of IDs
+    (set, dict keys, generator) is accepted. no_ids_message is the error for
+    a character set when there are no gene IDs."""
+    if iset is None:
         return np.arange(ngenes, dtype=np.int64)
-    arr = np.asarray(idx)
-    if arr.ndim == 0:
-        arr = arr.reshape(1)
+    if isinstance(iset, (str, bytes)):
+        iset = [iset]
+    elif not isinstance(iset, (np.ndarray, pd.Series, pd.Index, pd.Categorical, list, tuple)):
+        iset = list(iset)
+    arr = np.atleast_1d(np.asarray(iset))
+    if isinstance(iset, pd.Categorical) or isinstance(getattr(iset, "dtype", None), pd.CategoricalDtype):
+        arr = arr.astype(str)
     if arr.dtype.kind == "b":
-        return np.where(arr)[0].astype(np.int64)
-    return arr.astype(np.int64, copy=True)
+        return np.flatnonzero(arr)
+    if _is_character(arr):
+        if geneid is None:
+            raise ValueError(no_ids_message)
+        return np.flatnonzero(np.isin(geneid, _id_strings(arr)))
+    return arr.astype(np.int64)
+
+
+def _weighted_set_rows(iset: pd.DataFrame, geneid, label) -> tuple[np.ndarray, np.ndarray]:
+    """Rows and per-gene weights of a data-frame gene set (ids, weights), as
+    R's mroast and .fryEffects: character ids are matched to geneid with
+    match(), so rows follow geneid; numeric ids are rows as given."""
+    if iset.shape[1] < 2 or not pd.api.types.is_numeric_dtype(iset.iloc[:, 1]):
+        raise ValueError(f"index {label} is a data.frame but doesn't contain gene weights")
+    weights = iset.iloc[:, 1].to_numpy(dtype=np.float64)
+    ids = iset.iloc[:, 0]
+    if isinstance(ids.dtype, pd.CategoricalDtype) or _is_character(np.asarray(ids)):
+        ids = ids.astype(str).to_numpy()
+        if len(set(ids)) != len(ids):
+            raise ValueError(f"Duplicate gene ids in set {label}")
+        if geneid is None:
+            raise ValueError(_NO_GENE_IDS)
+        position = {gid: k for k, gid in enumerate(ids)}
+        rows = np.array([g for g, gid in enumerate(geneid) if gid in position], dtype=np.int64)
+        return rows, weights[[position[geneid[g]] for g in rows]]
+    return ids.to_numpy(dtype=np.int64), weights
 
 
 def roast(
@@ -761,8 +832,8 @@ def roast(
         y, design, contrast, gene_weights, var_prior, df_prior, covariate, lmfit_kwargs
     )
 
-    # Subset to gene set
-    idx = _resolve_set_index(index, ngenes)
+    # Subset to gene set (R: character sets are which(geneid %in% index))
+    idx = _set_rows(index, _resolve_geneid(get_eawp(y), geneid, ngenes), ngenes)
     Effects_set = Effects[idx, :]
     vp_set = vp[idx] if np.ndim(vp) and np.size(vp) > 1 else vp
     dp_set = dp[idx] if np.ndim(dp) and np.size(dp) > 1 else dp
@@ -849,26 +920,12 @@ def mroast(
         y, design, contrast, gene_weights, var_prior, df_prior, covariate, lmfit_kwargs
     )
 
-    # Normalise index to a dict of label -> 0-based int index array.
-    if index is None:
-        index = {"set1": np.arange(ngenes, dtype=np.int64)}
-    elif isinstance(index, dict):
-        pass
-    elif (
-        isinstance(index, list)
-        and len(index)
-        and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
-    ):
-        index = {f"set{i + 1}": v for i, v in enumerate(index)}
-    else:
-        index = {"set1": index}
-
+    index = _normalise_index(index, ngenes)
     names = list(index.keys())
     if len(set(names)) != len(names):
         raise ValueError("Gene sets don't have unique names")
     nsets = len(index)
-    if nsets == 0:
-        raise ValueError("index is empty")
+    geneid = _resolve_geneid(get_eawp(y), geneid, ngenes)
 
     if gene_weights is not None:
         gw_full = np.asarray(gene_weights, dtype=np.float64).copy()
@@ -882,12 +939,15 @@ def mroast(
     NGenes = np.zeros(nsets, dtype=np.int64)
 
     for i, name in enumerate(names):
-        g = _resolve_set_index(index[name], ngenes)
+        if isinstance(index[name], pd.DataFrame):
+            g, gw_i = _weighted_set_rows(index[name], geneid, name)
+        else:
+            g = _set_rows(index[name], geneid, ngenes)
+            gw_i = gw_full[g] if gw_full is not None else None
         E = Effects[g, :]
         vp_i = vp[g] if np.ndim(vp) and np.size(vp) > 1 else vp
         dp_i = dp[g] if np.ndim(dp) and np.size(dp) > 1 else dp
         vpost_i = var_post[g] if np.ndim(var_post) and np.size(var_post) > 1 else var_post
-        gw_i = gw_full[g] if gw_full is not None else None
 
         out = _roast_effects(
             E,
@@ -1034,36 +1094,10 @@ def _fry_effects(
     for i, nm in enumerate(names):
         iset = index[nm]
         if isinstance(iset, pd.DataFrame):
-            if iset.shape[1] > 1 and pd.api.types.is_numeric_dtype(iset.iloc[:, 1]):
-                iw = iset.iloc[:, 1].to_numpy(dtype=np.float64)
-                ids = np.asarray(iset.iloc[:, 0])
-                if isinstance(iset.iloc[:, 0].dtype, pd.CategoricalDtype):
-                    ids = ids.astype(str)
-                if _is_character(ids):
-                    ids = ids.astype(str)
-                    if len(set(ids)) != len(ids):
-                        raise ValueError(f"Duplicate gene ids in set {i + 1}")
-                    position = {gid: k for k, gid in enumerate(ids)}
-                    matches = [(g, position[gid]) for g, gid in enumerate(geneid_arr) if gid in position]
-                    inset = np.array([g for g, _ in matches], dtype=np.int64)
-                    iw = iw[[k for _, k in matches]]
-                    EffectsSet = effects[inset, :]
-                else:
-                    EffectsSet = effects[ids.astype(np.int64), :]
-                EffectsSet = iw[:, np.newaxis] * EffectsSet
-            else:
-                raise ValueError(f"index {i + 1} is a data.frame but doesn't contain gene weights")
+            members, iw = _weighted_set_rows(iset, geneid_arr, i + 1)
+            EffectsSet = iw[:, np.newaxis] * effects[members, :]
         else:
-            members = np.atleast_1d(np.asarray(iset))
-            if isinstance(iset, pd.Categorical) or _is_character(members):
-                keep = set(members.astype(str))
-                members = (
-                    np.zeros(0, dtype=np.int64)
-                    if geneid_arr is None
-                    else np.flatnonzero([gid in keep for gid in geneid_arr])
-                )
-            else:
-                members = _resolve_set_index(members, G)
+            members = _set_rows(iset, geneid_arr, G)
             EffectsSet = effects[members, :]
             if gene_weights is not None:
                 EffectsSet = gene_weights[members][:, np.newaxis] * EffectsSet
@@ -1238,16 +1272,7 @@ def fry(
 
         Effects = Effects / np.sqrt(s2_robust)[:, np.newaxis]
 
-    probes = ea.get("probes")
-    if geneid is None:
-        geneid = None if probes is None else np.asarray(probes.index).astype(str)
-    else:
-        geneid = np.atleast_1d(np.asarray(geneid)).astype(str)
-        if geneid.size == 1:
-            geneid = np.asarray(probes[geneid[0]]).astype(str)
-        elif geneid.size != ngenes:
-            raise ValueError("geneid vector should be of length nrow(y)")
-
+    geneid = _resolve_geneid(ea, geneid, ngenes)
     return _fry_effects(Effects, index, geneid=geneid, gene_weights=gene_weights, sort=sort)
 
 
@@ -1326,9 +1351,7 @@ def camera(
     ea = get_eawp(y)
     y_mat = ea["exprs"]
     G, n = y_mat.shape
-    ID = None
-    if ea.get("probes") is not None and hasattr(ea["probes"], "index"):
-        ID = list(ea["probes"].index)
+    ID = _resolve_geneid(ea, None, G)
     if G < 3:
         raise ValueError("Too few genes in dataset: need at least 3")
 
@@ -1468,12 +1491,8 @@ def camera(
     Up = np.zeros(nsets)
     names = list(index.keys())
     for i, nm in enumerate(names):
-        iset = index[nm]
-        iset = np.asarray(iset)
-        if iset.dtype.kind in ("U", "S", "O") and ID is not None:
-            iset = np.array([ID.index(s) for s in iset if s in ID], dtype=np.int64)
-        else:
-            iset = iset.astype(np.int64, copy=False)
+        # R: if(is.character(iset)) iset <- which(ID %in% iset)
+        iset = _set_rows(index[nm], ID, G)
         StatInSet = Stat[iset]
         m = iset.size
         m2 = G - m
@@ -1584,7 +1603,7 @@ def camera_pr(
     ID = None
     stat_arr: np.ndarray
     if isinstance(statistic, pd.Series):
-        ID = list(statistic.index)
+        ID = _index_ids(statistic.index)
         stat_arr = statistic.values.astype(np.float64)
     else:
         stat_arr = np.asarray(statistic, dtype=np.float64)
@@ -1638,11 +1657,11 @@ def camera_pr(
     Up = np.zeros(nsets)
     names = list(index.keys())
     for i, nm in enumerate(names):
-        iset = np.asarray(index[nm])
-        if iset.dtype.kind in ("U", "S", "O") and ID is not None:
-            iset = np.array([ID.index(s) for s in iset if s in ID], dtype=np.int64)
-        else:
-            iset = iset.astype(np.int64, copy=False)
+        # R: if(is.character(iset)) iset <- which(ID %in% iset)
+        iset = _set_rows(
+            index[nm], ID, G,
+            "a character gene set needs names on statistic: pass a pandas Series indexed by gene ID",
+        )
         StatInSet = stat_arr[iset]
         m = iset.size
         NGenes[i] = m
@@ -1778,10 +1797,10 @@ def romer(
     if nsets == 0:
         raise ValueError("index is empty")
     set_names = list(index.keys())
-    SetSizes = np.array(
-        [_resolve_set_index(index[nm], ngenes).size for nm in set_names],
-        dtype=np.int64,
-    )
+    # R's romer indexes positionally and does not match gene IDs
+    no_ids = "romer's index takes positions or a boolean mask, not gene IDs (as R's romer)"
+    set_rows = {nm: _set_rows(index[nm], None, ngenes, no_ids) for nm in set_names}
+    SetSizes = np.array([set_rows[nm].size for nm in set_names], dtype=np.int64)
 
     if design is None:
         raise ValueError("design matrix not specified")
@@ -1900,10 +1919,10 @@ def romer(
         )
 
     # Pre-compute per-gene-set membership structure (AllIndices, Set)
-    all_indices = np.concatenate([_resolve_set_index(index[nm], ngenes) for nm in set_names])
+    all_indices = np.concatenate([set_rows[nm] for nm in set_names])
     Set_vec = np.concatenate(
         [
-            np.full(_resolve_set_index(index[nm], ngenes).size, si, dtype=np.int64)
+            np.full(set_rows[nm].size, si, dtype=np.int64)
             for si, nm in enumerate(set_names)
         ]
     )
@@ -1989,7 +2008,7 @@ def romer(
         s_rank_up = np.zeros(nsets)
         s_rank_down = np.zeros(nsets)
         for i, nm in enumerate(set_names):
-            iset = _resolve_set_index(index[nm], ngenes)
+            iset = set_rows[nm]
             mh = _mean_half(s_r[iset], m_half[i])
             s_rank_up[i] = mh[1]
             s_rank_down[i] = mh[0]
@@ -2010,7 +2029,7 @@ def romer(
             s_abs_r2 = _rank_r(np.abs(modtr))
 
             for j, nm in enumerate(set_names):
-                iset = _resolve_set_index(index[nm], ngenes)
+                iset = set_rows[nm]
                 mh2 = _mean_half(s_r2[iset], m_half[j])
                 s_up_2 = mh2[1]
                 s_down_2 = mh2[0]

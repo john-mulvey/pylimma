@@ -226,6 +226,12 @@ unaffected.
     Raises "<argument> has <k> rows/values, but there are <n> samples"
     (R: "number of rows of matrices must match (see arg 2)" from ``cbind``).
 
+Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``, ``camera_pr``, ``romer``)
+    A set given as gene IDs needs IDs to match against: the row names of
+    ``y`` (``adata.var_names``, a DataFrame index) or ``geneid=``. Without
+    them pylimma raises an error; R matches against ``NULL`` row names and
+    silently tests an empty set.
+
 ``top_table`` / ``top_table_f`` with ``number=NaN``
     Raises "number must not be NaN" (R: "missing value where TRUE/FALSE
     needed"). Other values of ``number`` follow R: capped at the number of

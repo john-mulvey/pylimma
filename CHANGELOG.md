@@ -112,6 +112,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- Gene sets in `roast`, `mroast`, `fry`, `camera` and `camera_pr` are resolved
+  as R does: a set of gene IDs selects every row whose ID is in it (`roast`
+  and `mroast` raised `int('g1')` errors and ignored `geneid`; `camera`
+  matched only the first row of a duplicated ID), a boolean mask selects its
+  True rows (`camera`/`camera_pr` treated it as positions 0/1), and `mroast`
+  accepts (id, weight) data-frame sets. Python `set`s, dict keys and
+  generators of IDs are accepted.
 - `unique_genelist` on a DataFrame reset the row index; it keeps the
   selected rows' names, as R's `uniquegenelist`.
 - `normalize_between_arrays(method="none")` and `remove_batch_effect`

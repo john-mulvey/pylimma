@@ -361,6 +361,8 @@ def _r_as_character(values) -> np.ndarray:
     def one(v):
         if v is None:
             return None
+        if isinstance(v, (bytes, np.bytes_)):
+            return v.decode()
         if isinstance(v, (bool, np.bool_)):
             return "TRUE" if v else "FALSE"
         if isinstance(v, (int, float, np.integer, np.floating)):

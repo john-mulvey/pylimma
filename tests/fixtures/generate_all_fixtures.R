@@ -5119,3 +5119,34 @@ stopifnot(identical(tryCatch(suppressMessages(removeBatchEffect(.wie_y, batch = 
                     "number of rows of matrices must match (see arg 2)"))
 
 cat("  wsva / removeBatchEffect input errors checked.\n")
+
+# =============================================================================
+# Gene-set index rules: a character set is which(geneid %in% set) (every row
+# whose ID is in the set, so duplicated IDs all count), a logical set its TRUE
+# rows; camera / cameraPR / mroast resolve sets this way
+# =============================================================================
+cat("\nGenerating gene-set index fixtures...\n")
+
+set.seed(20261112)
+
+.gsi_y <- matrix(rnorm(40 * 6), 40, 6)
+.gsi_y[1:8, 4:6] <- .gsi_y[1:8, 4:6] + 1.5
+.gsi_ids <- paste0("g", 1:40)
+.gsi_ids[12] <- "g3"   # duplicated ID: row 12 is also "g3"
+rownames(.gsi_y) <- .gsi_ids
+write.csv(data.frame(id = .gsi_ids, .gsi_y), "R_gsi_y.csv", row.names = FALSE)
+.gsi_d <- cbind(1, rep(0:1, each = 3))
+.gsi_sets <- list(a = c("g1", "g2", "g3", "g5", "nope"), b = paste0("g", 20:30))
+stopifnot(identical(which(.gsi_ids %in% .gsi_sets$a), c(1L, 2L, 3L, 5L, 12L)))
+write.csv(camera(.gsi_y, .gsi_sets, .gsi_d, sort = FALSE), "R_gsi_camera_character.csv")
+.gsi_mask <- seq_len(40) %in% c(1:6, 15)
+write.csv(camera(.gsi_y, list(m = .gsi_mask), .gsi_d), "R_gsi_camera_logical.csv")
+.gsi_t <- setNames(rnorm(40), .gsi_ids)
+.gsi_t[1:6] <- .gsi_t[1:6] + 2
+write.csv(data.frame(t = unname(.gsi_t)), "R_gsi_t.csv", row.names = FALSE)
+write.csv(cameraPR(.gsi_t, list(m = .gsi_mask, a = .gsi_sets$a), sort = FALSE), "R_gsi_camerapr.csv")
+.gsi_mr <- mroast(.gsi_y, list(a = .gsi_sets$a, w = data.frame(id = c("g7", "g1", "g3"), w = c(1, 2, -1))),
+                  .gsi_d, nrot = 99, sort = "none")
+write.csv(data.frame(set = rownames(.gsi_mr), NGenes = .gsi_mr$NGenes), "R_gsi_mroast_ngenes.csv", row.names = FALSE)
+
+cat("  gene-set index fixtures complete.\n")
