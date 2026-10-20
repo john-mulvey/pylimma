@@ -4743,3 +4743,17 @@ stopifnot(isTRUE(all.equal(voom(Matrix::Matrix(.spm_counts, sparse = TRUE), .spm
                            voom(.spm_counts, .spm_design)$weights)))
 
 cat("  sparse Matrix input checked.\n")
+
+# =============================================================================
+# uniquegenelist on a data.frame keeps the row names of the rows it selects
+# =============================================================================
+cat("\nGenerating uniquegenelist row-name fixtures...\n")
+
+.ugl_genes <- data.frame(sym = paste0("s", 1:8), row.names = paste0("p", 1:8))
+for (.ugl_spacing in 1:2) {
+  .ugl <- uniquegenelist(.ugl_genes, ndups = 2, spacing = .ugl_spacing)
+  write.csv(data.frame(rowname = rownames(.ugl), sym = .ugl$sym),
+            sprintf("R_ugl_spacing%d.csv", .ugl_spacing), row.names = FALSE)
+}
+
+cat("  uniquegenelist row-name fixtures complete.\n")

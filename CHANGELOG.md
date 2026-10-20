@@ -43,6 +43,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `unique_genelist` on a DataFrame reset the row index; it keeps the
+  selected rows' names, as R's `uniquegenelist`.
 - scipy.sparse expression matrices, and AnnData whose `X` or layer is
   backed (`backed="r"`), lazy or dask-held, failed with "setting an
   array element with a sequence" or "got 0D" in `lm_fit`, `voom`,

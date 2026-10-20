@@ -6544,3 +6544,20 @@ def test_cum_overlap_matches_r(case):
         assert result["match"], f"{slot}: max log10 diff {result['max_log10_diff']:.2e}"
     assert co["n_min"] == r_min["n_min"]
     assert compare_pvalues([r_min["p_min"]], [co["p_min"]])["match"]
+
+
+# =============================================================================
+# unique_genelist keeps the row names of a DataFrame, as R's
+# genelist[i, , drop = FALSE]
+# =============================================================================
+
+
+@pytest.mark.parametrize("spacing", [1, 2])
+def test_unique_genelist_keeps_row_names(spacing):
+    from pylimma.dups import unique_genelist
+
+    genes = pd.DataFrame({"sym": [f"s{i}" for i in range(1, 9)]}, index=[f"p{i}" for i in range(1, 9)])
+    r = load_r_csv_no_index(f"ugl_spacing{spacing}")
+    result = unique_genelist(genes, ndups=2, spacing=spacing)
+    assert list(result.index) == list(r["rowname"])
+    assert list(result["sym"]) == list(r["sym"])

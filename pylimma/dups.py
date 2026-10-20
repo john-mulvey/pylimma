@@ -334,7 +334,8 @@ def unique_genelist(
     keep_idx = unwrapped[:, 0].astype(int)
 
     if isinstance(genelist, pd.DataFrame):
-        return genelist.iloc[keep_idx].reset_index(drop=True)
+        # R's genelist[i, , drop = FALSE] keeps the selected rows' names.
+        return genelist.iloc[keep_idx]
     elif isinstance(genelist, (list, tuple)):
         return [genelist[i] for i in keep_idx]
     else:
