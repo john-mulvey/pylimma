@@ -7,6 +7,15 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ## [Unreleased]
 
+### Changed results
+
+- `duplicate_correlation` (and so `lm_fit(block=..., correlation=None)`,
+  `voom(block=...)`): the per-gene REML fit allowed one iteration fewer than
+  `statmod::glmgam.fit`, which runs up to `maxit + 1`. Genes whose fit hits
+  the cap now match R; because the consensus correlation is a trimmed mean
+  over genes, every gene's t-statistic in a blocked fit can shift (up to
+  ~1e-2 relative on proteomics data with missing values).
+
 ### Fixed
 
 - `e_bayes(proportion=1)` and `pred_fcm(prop_true_null_method="hist")` when

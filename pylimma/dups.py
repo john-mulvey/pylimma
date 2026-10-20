@@ -179,7 +179,7 @@ def _glmgam_fit(
     tol : float
         Convergence tolerance on inner product of score and step.
     maxit : int
-        Maximum outer iterations.
+        Iteration limit; as in R, up to ``maxit + 1`` iterations run.
     """
     X = np.atleast_2d(X)
     n, p = X.shape
@@ -201,7 +201,9 @@ def _glmgam_fit(
     I_p = np.eye(p)
     lambda_ = 0.0  # set on first iteration
 
-    for iteration in range(1, maxit + 1):
+    # R breaks on `iter > maxit` after the convergence test, so up to
+    # maxit + 1 iterations run.
+    for iteration in range(1, maxit + 2):
         v = mu**2
         v = np.maximum(v, np.max(v) / 1e3)
         XVX = X.T @ (X / v[:, np.newaxis])
@@ -241,8 +243,6 @@ def _glmgam_fit(
         if lev == 1:
             lambda_ /= 10.0
         if dl @ dbeta < tol or (np.max(mu) > 0 and dev / np.max(mu) < 1e-15):
-            break
-        if iteration >= maxit:
             break
 
     return beta

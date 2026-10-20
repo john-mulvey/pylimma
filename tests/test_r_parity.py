@@ -2003,6 +2003,23 @@ class TestDuplicateCorrelationRParity:
             atol=1e-12,
         ), "Consensus differs from R"
 
+    def test_gene_at_iteration_cap(self):
+        """statmod::glmgam.fit allows maxit + 1 iterations; the fixture has a
+        gene whose REML estimate still changes between maxit 20 and 21."""
+        from pylimma.dups import duplicate_correlation
+
+        y = load_r_csv_no_index("dcc_y").to_numpy(dtype=float)
+        design = np.zeros((12, 3))
+        design[np.arange(12), np.repeat(np.arange(3), 4)] = 1
+        dc = duplicate_correlation(y, design, block=np.repeat(np.arange(1, 5), 3))
+        r = load_r_csv_no_index("dcc_dupcor")
+        np.testing.assert_allclose(
+            dc["atanh_correlations"], r["atanh_correlations"], rtol=1e-6, atol=1e-12
+        )
+        np.testing.assert_allclose(
+            dc["consensus_correlation"], r["consensus_correlation"].iloc[0], rtol=1e-6
+        )
+
 
 class TestVoomaLmFitRParity:
     """Test vooma_lm_fit matches R limma's voomaLmFit."""

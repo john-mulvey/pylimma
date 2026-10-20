@@ -4538,3 +4538,30 @@ write.csv(data.frame(
 ), "R_ep1_predfcm_notallde.csv", row.names = FALSE)
 
 cat("  predFCm all.de = FALSE fixtures complete.\n")
+
+# =============================================================================
+# duplicateCorrelation when a gene's REML fit hits the iteration cap:
+# statmod::glmgam.fit breaks on iter > maxit, so it runs maxit + 1 iterations
+# =============================================================================
+cat("\nGenerating duplicateCorrelation iteration-cap fixtures...\n")
+
+set.seed(20261021)
+
+.dcc_y <- matrix(rnorm(200 * 12), 200, 12)
+write.csv(.dcc_y, "R_dcc_y.csv", row.names = FALSE)
+.dcc_design <- matrix(0, 12, 3)
+.dcc_design[cbind(1:12, rep(1:3, each = 4))] <- 1
+.dcc_block <- rep(1:4, each = 3)
+.dcc_Z <- model.matrix(~ 0 + factor(.dcc_block))
+.dcc_atanh <- function(g, maxit) {
+  v <- statmod::mixedModel2Fit(.dcc_y[g, ], .dcc_design, .dcc_Z, only.varcomp = TRUE, maxit = maxit)$varcomp
+  atanh(v[2] / sum(v))
+}
+# at least one gene's estimate depends on the cap, so the fixture exercises it
+stopifnot(any(sapply(1:200, function(g) abs(.dcc_atanh(g, 20) - .dcc_atanh(g, 21)) > 1e-8)))
+.dcc <- duplicateCorrelation(.dcc_y, .dcc_design, block = .dcc_block)
+write.csv(data.frame(atanh_correlations = .dcc$atanh.correlations,
+                     consensus_correlation = .dcc$consensus.correlation),
+          "R_dcc_dupcor.csv", row.names = FALSE)
+
+cat("  duplicateCorrelation iteration-cap fixtures complete.\n")
