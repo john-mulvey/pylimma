@@ -4872,3 +4872,49 @@ write.csv(data.frame(sample_weights = .vqw_square$targets$sample.weights), "R_vq
           row.names = FALSE)
 
 cat("  voomWithQualityWeights sample-weight fixtures complete.\n")
+
+# =============================================================================
+# arrayWeights(method = "genebygene") when missing values leave a gene's
+# design rank-deficient: lm.wfit pivots (dqrdc2) and hat(fit$qr) uses the
+# first rank columns of Q only
+# =============================================================================
+cat("\nGenerating arrayWeights gene-by-gene rank-deficient fixtures...\n")
+
+set.seed(20261102)
+
+.awg_y <- matrix(rnorm(40 * 6), 40, 6)
+# design 1: intercept + group; NA in both group-0 samples -> last column redundant
+.awg_d1 <- cbind(1, c(0, 0, 1, 1, 1, 1))
+# design 2: intercept + two indicators; NA in both "b" samples -> middle column all zero
+.awg_d2 <- cbind(1, c(0, 1, 1, 0, 0, 0), c(0, 0, 0, 1, 1, 0))
+.awg_y1 <- .awg_y
+.awg_y1[c(3, 9, 20), 1:2] <- NA
+.awg_y2 <- .awg_y
+.awg_y2[c(1, 9, 20), 2:3] <- NA
+write.csv(.awg_y1, "R_awg_y1.csv", row.names = FALSE)
+write.csv(.awg_y2, "R_awg_y2.csv", row.names = FALSE)
+stopifnot(qr(.awg_d2[-(2:3), ])$rank == 2)
+write.csv(data.frame(
+  d1 = arrayWeights(.awg_y1, .awg_d1, method = "genebygene"),
+  d2 = arrayWeights(.awg_y2, .awg_d2, method = "genebygene")
+), "R_awg_weights.csv", row.names = FALSE)
+
+cat("  arrayWeights gene-by-gene rank-deficient fixtures complete.\n")
+
+# =============================================================================
+# arrayWeights(method = "genebygene") skips a gene whose observed design is
+# saturated (residual df < 2) before using its residual variance
+# =============================================================================
+cat("\nGenerating arrayWeights saturated-gene fixtures...\n")
+
+set.seed(20261108)
+
+.aws_y <- matrix(rnorm(30 * 6), 30, 6)
+.aws_y[4, c(1, 3, 5)] <- NA
+write.csv(.aws_y, "R_aws_y.csv", row.names = FALSE)
+.aws_d <- cbind(1, c(0, 1, 0, 1, 0, 0), c(0, 0, 0, 1, 0, 1))
+stopifnot(qr(.aws_d[c(2, 4, 6), ])$rank == 3)
+write.csv(data.frame(aw = arrayWeights(.aws_y, .aws_d, method = "genebygene")), "R_aws_weights.csv",
+          row.names = FALSE)
+
+cat("  arrayWeights saturated-gene fixtures complete.\n")

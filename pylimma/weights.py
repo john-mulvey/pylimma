@@ -26,6 +26,7 @@ import numpy as np
 from scipy import linalg
 
 from .classes import _shape_error, get_eawp
+from .lmfit import _qr_r_style
 
 
 def _contr_sum(n: int) -> np.ndarray:
@@ -133,79 +134,17 @@ def _array_weights_gene_by_gene(
         # Handle missing values
         if np.any(np.isnan(y)):
             obs = np.isfinite(y)
-            n_obs = np.sum(obs)
-            if n_obs <= 2:
+            if np.sum(obs) <= 2:
                 continue
-
-            X = design[obs, :]
-            y_obs = y[obs]
-            w_obs = w[obs]
-
-            # Weighted least squares fit
-            sqrt_w = np.sqrt(w_obs)
-            X_w = X * sqrt_w[:, np.newaxis]
-            y_w = y_obs * sqrt_w
-
-            try:
-                # Use full QR decomposition to get residual effects
-                q, r = linalg.qr(X_w, mode="full")
-                r_diag = np.diag(r[: X_w.shape[1], :])
-                rank = np.sum(np.abs(r_diag) > 1e-10)
-                df_resid = n_obs - rank
-                if df_resid < 2:
-                    continue
-
-                qty = q.T @ y_w
-
-                # Hat values from economic Q
-                q_econ = q[:, : X_w.shape[1]]
-                h1 = np.zeros(n_samples)
-                h1[obs] = 1 - np.sum(q_econ**2, axis=1)
-
-                # Weighted squared residuals
-                resid_effects = qty[:rank]
-                fitted = q[:, :rank] @ resid_effects
-                resid = (y_w - fitted) / sqrt_w
-
-                d = np.zeros(n_samples)
-                d[obs] = w_obs * resid**2
-
-                # Residual variance from effects beyond the fitted
-                effects = qty[rank:]
-                s2 = np.mean(effects**2)
-            except (np.linalg.LinAlgError, ValueError):
+            h1_obs, d_obs, s2, df_resid = _wls_leverage_fit(design[obs, :], y[obs], w[obs])
+            if df_resid < 2:
                 continue
+            h1 = np.zeros(n_samples)
+            d = np.zeros(n_samples)
+            h1[obs] = h1_obs
+            d[obs] = d_obs
         else:
-            # No missing values - fit all at once
-            sqrt_w = np.sqrt(w)
-            X_w = design * sqrt_w[:, np.newaxis]
-            y_w = y * sqrt_w
-
-            try:
-                # Use full QR decomposition
-                q, r = linalg.qr(X_w, mode="full")
-                r_diag = np.diag(r[: design.shape[1], :])
-                rank = np.sum(np.abs(r_diag) > 1e-10)
-                df_resid = n_samples - rank
-                if df_resid < 2:
-                    continue
-
-                qty = q.T @ y_w
-
-                # Hat values from economic Q
-                q_econ = q[:, : design.shape[1]]
-                h1 = 1 - np.sum(q_econ**2, axis=1)
-
-                # Residuals
-                fitted = q[:, :rank] @ qty[:rank]
-                resid = (y_w - fitted) / sqrt_w
-                d = w * resid**2
-
-                # Residual variance
-                effects = qty[rank:]
-                s2 = np.mean(effects**2)
-            except (np.linalg.LinAlgError, ValueError):
-                continue
+            h1, d, s2, _ = _wls_leverage_fit(design, y, w)
 
         if s2 < 1e-15:
             continue
@@ -234,6 +173,26 @@ def _array_weights_gene_by_gene(
             print(f"{i + 1} {aw.min():.6g} {aw.max():.6g}")
 
     return aw
+
+
+def _wls_leverage_fit(X: np.ndarray, y: np.ndarray, w: np.ndarray):
+    """R's lm.wfit(X, y, w) as .arrayWeightsGeneByGene uses it.
+
+    Returns 1 - hat(fit$qr), w * residuals^2, the residual mean square
+    mean(fit$effects[-(1:rank)]^2) and the residual df. The QR is R's
+    (LINPACK dqrdc2 pivoting, rank tolerance 1e-7), so with a rank-deficient
+    X only the first rank columns of Q span the fit.
+    """
+    sqrt_w = np.sqrt(w)
+    q, _r, _pivot, rank = _qr_r_style(X * sqrt_w[:, np.newaxis])
+    effects = q.T @ (y * sqrt_w)
+    q_fit = q[:, :rank]
+    residuals = (y * sqrt_w - q_fit @ effects[:rank]) / sqrt_w
+    h1 = 1 - np.sum(q_fit**2, axis=1)
+    df_residual = len(y) - rank
+    # The caller skips genes with df_residual < 2 before using s2.
+    s2 = np.mean(effects[rank:] ** 2) if df_residual > 0 else np.nan
+    return h1, w * residuals**2, s2, df_residual
 
 
 def _array_weights_reml(

@@ -9,6 +9,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `array_weights(method="genebygene")` (and `method="auto"` with missing
+  values): when missing values left a gene's design rank-deficient, the
+  leverages and residuals came from an unpivoted QR and all design
+  columns, giving weights up to ~3% off R or all NaN; the per-gene fit now
+  uses R's pivoted QR (`lm.wfit`), and hat values its first `rank` columns.
 - `voom_with_quality_weights` with as many genes as samples: the sample
   weights are always used as sample weights (R reads them as gene weights
   in that case; documented in `known_differences.rst`).

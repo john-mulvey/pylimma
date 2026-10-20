@@ -6702,3 +6702,41 @@ def test_voom_with_quality_weights_square_counts_intended():
     np.testing.assert_allclose(
         v["weights"], load_r_csv_no_index("vqw_square_weights_intended"), rtol=1e-6, atol=1e-12
     )
+
+
+# =============================================================================
+# array_weights(method="genebygene") with rank-deficient genes: lm.wfit's
+# pivoted QR and hat values from the first rank columns of Q
+# =============================================================================
+
+
+@pytest.mark.parametrize("case", ["d1", "d2"])
+def test_array_weights_genebygene_rank_deficient_genes(case):
+    import warnings
+
+    from pylimma import array_weights
+
+    designs = {
+        "d1": np.column_stack([np.ones(6), [0, 0, 1, 1, 1, 1]]),
+        "d2": np.column_stack([np.ones(6), [0, 1, 1, 0, 0, 0], [0, 0, 0, 1, 1, 0]]),
+    }
+    y = load_r_csv_no_index(f"awg_y{case[1]}").to_numpy(dtype=float)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        aw = array_weights(y, designs[case].astype(float), method="genebygene")
+    np.testing.assert_allclose(aw, load_r_csv_no_index("awg_weights")[case], rtol=1e-6)
+
+
+def test_array_weights_genebygene_saturated_gene_skipped_quietly():
+    """A gene whose observed design is saturated is skipped (residual df < 2)
+    without computing a residual variance from no effects."""
+    import warnings
+
+    from pylimma import array_weights
+
+    y = load_r_csv_no_index("aws_y").to_numpy(dtype=float)
+    design = np.column_stack([np.ones(6), [0, 1, 0, 1, 0, 0], [0, 0, 0, 1, 0, 1]]).astype(float)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        aw = array_weights(y, design, method="genebygene")
+    np.testing.assert_allclose(aw, load_r_csv_no_index("aws_weights")["aw"], rtol=1e-6)
