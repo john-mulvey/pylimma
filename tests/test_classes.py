@@ -323,8 +323,10 @@ def test_array_weights_equivalence_across_inputs():
     counts, design = _test_counts()
     v = voom(counts, design)  # dict
 
-    aw_dict = array_weights(v)
-    aw_elist = array_weights(EList({"E": v["E"], "weights": v["weights"], "design": design}))
+    with pytest.warns(UserWarning, match="using 'design' from the EList's design slot"):
+        aw_dict = array_weights(v)
+    with pytest.warns(UserWarning, match="using 'design' from the EList's design slot"):
+        aw_elist = array_weights(EList({"E": v["E"], "weights": v["weights"], "design": design}))
     aw_arr = array_weights(v["E"], design=design, weights=v["weights"])
 
     adata = AnnData(X=v["E"].T)
@@ -1228,3 +1230,21 @@ def test_vooma_lm_fit_input_weights_with_sample_weights_raises(container):
         kwargs = {"layer": "vooma_E"}
     with pytest.raises(ValueError, match="input carries observation weights"):
         pylimma.vooma_lm_fit(data, design, sample_weights=True, **kwargs)
+
+
+# ---------------------------------------------------------------------------
+# array_weights uses an EList design slot, as arrayWeights.Rd documents (R's
+# code omits it), with a warning (known_differences.rst)
+# ---------------------------------------------------------------------------
+
+
+def test_array_weights_elist_design_slot_used_with_warning():
+    rng = np.random.default_rng(20261106)
+    E = rng.normal(size=(50, 6))
+    E[:10, 3:] += 3
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    with pytest.warns(UserWarning, match="using 'design' from the EList's design slot"):
+        from_slot = pylimma.array_weights(EList(E=E, design=design))
+    np.testing.assert_array_equal(from_slot, pylimma.array_weights(E, design))
+    with pytest.warns(UserWarning, match="using 'design' from the EList's design slot"):
+        pylimma.array_weights({"E": E, "design": design})

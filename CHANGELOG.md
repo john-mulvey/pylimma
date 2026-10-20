@@ -68,6 +68,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `array_weights` warns when it uses an EList's `design` slot, which R's
+  `arrayWeights` documents but its code ignores.
 - `vooma_lm_fit` warns when it uses an EList's `weights` slot as
   `prior_weights` (R's `voomaLmFit` uses it only in its first fit), and
   `sample_weights=True` with such a slot raises a `ValueError` naming the

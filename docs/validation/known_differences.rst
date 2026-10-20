@@ -247,3 +247,10 @@ EList to its first ``lmFit``, which falls back to ``y$weights``, and drops
 the slot for every later fit, so the slot affects only the initial fit.
 Because pylimma treats the slot as prior weights, ``sample_weights=True``
 with a weights slot raises an error, as it does with ``prior_weights=``.
+
+``array_weights`` uses an EList's ``design`` slot when ``design=`` is not
+given, with a ``UserWarning``. R's ``arrayWeights`` documentation says the
+design is "extracted from the data object if available", and its
+``getEAWP`` call returns it, but the code never reads it and uses an
+intercept-only design. pylimma follows the documentation;
+``generate_all_fixtures.R`` records R's literal behaviour.

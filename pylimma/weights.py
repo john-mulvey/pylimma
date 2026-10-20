@@ -22,6 +22,8 @@ Implements functions to estimate sample-specific quality weights:
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from scipy import linalg
 
@@ -501,7 +503,8 @@ def array_weights(
         Typically the output from voom().
     design : ndarray, optional
         Design matrix for the linear model. If None, taken from object
-        or defaults to intercept-only.
+        (as R documents; R's code ignores an EList design slot, so a
+        UserWarning is emitted) or defaults to intercept-only.
     weights : ndarray, optional
         Prior observation weights. If None, taken from object.
         Even for AnnData input a 2-D
@@ -547,7 +550,19 @@ def array_weights(
     n_genes, n_samples = E.shape
 
     # Pick up design/weights from the input object if not passed explicitly.
+    # arrayWeights.Rd documents this for design too, but R's code never reads
+    # y$design; pylimma follows the documentation and warns
+    # (docs/validation/known_differences.rst).
     if design is None and eawp.get("design") is not None:
+        # An EList, or the plain dict voom / vooma return for matrix input
+        if isinstance(object, dict):
+            warnings.warn(
+                "pylimma's array_weights is using 'design' from the EList's design "
+                "slot, as R's arrayWeights documentation describes; R's code "
+                "ignores the slot and uses an intercept-only design. Pass design= "
+                "explicitly to choose.",
+                UserWarning,
+            )
         design = np.asarray(eawp["design"], dtype=np.float64)
     if weights is None and eawp.get("weights") is not None:
         weights = np.asarray(eawp["weights"], dtype=np.float64)
@@ -695,8 +710,6 @@ def array_weights_quick(
     y = np.asarray(get_eawp(y, layer=layer)["exprs"], dtype=np.float64)
 
     if fit.get("weights") is not None:
-        import warnings
-
         warnings.warn(
             "spot quality weights found but not taken into account",
             UserWarning,

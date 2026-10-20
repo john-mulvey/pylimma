@@ -5008,3 +5008,23 @@ write.csv(voomaByGroup(.vbg_y, group = c("a", "b", "a", "b", "c", "b", "a", "b")
           "R_vbg_singleton.csv", row.names = FALSE)
 
 cat("  voomaByGroup singleton fixtures complete.\n")
+
+# =============================================================================
+# arrayWeights.Rd: design is "extracted from the data object if available",
+# but the code never reads y$design (an omission in R). pylimma follows the
+# documentation (known_differences.rst); this records the literal behaviour.
+# No CSV.
+# =============================================================================
+cat("\nChecking arrayWeights with an EList design slot...\n")
+
+set.seed(20261106)
+
+.awd_E <- matrix(rnorm(50 * 6), 50, 6)
+.awd_E[1:10, 4:6] <- .awd_E[1:10, 4:6] + 3
+.awd_design <- cbind(1, rep(0:1, each = 3))
+.awd_el <- new("EList", list(E = .awd_E, design = .awd_design))
+stopifnot(!is.null(getEAWP(.awd_el)$design))
+stopifnot(isTRUE(all.equal(arrayWeights(.awd_el), arrayWeights(.awd_E))))
+stopifnot(!isTRUE(all.equal(arrayWeights(.awd_el), arrayWeights(.awd_E, .awd_design))))
+
+cat("  arrayWeights EList design slot checked.\n")
