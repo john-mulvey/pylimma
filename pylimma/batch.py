@@ -31,6 +31,7 @@ import pandas as pd
 
 from .classes import _shape_error, get_eawp, put_eawp
 from .lmfit import _numeric_design, lm_fit
+from .utils import _r_as_character
 
 
 def _factor_levels(factor) -> tuple[np.ndarray, np.ndarray]:
@@ -72,15 +73,10 @@ def _factor_levels(factor) -> tuple[np.ndarray, np.ndarray]:
     if np.issubdtype(arr.dtype, np.number):
         unique_sorted = np.sort(np.unique(arr))
 
-        # R's `as.character(numeric)` formatting: integers render without
-        # decimals, floats use R's default (effectively Python's default too)
-        def _render(x):
-            if float(x).is_integer():
-                return str(int(x))
-            return str(x)
-
-        levels = np.array([_render(v) for v in unique_sorted])
-        str_values = np.array([_render(v) for v in arr])
+        # R's `as.character(numeric)` labels; values whose labels coincide
+        # (0.3 and 0.1 + 0.2) form one level, as as.factor() merges them
+        levels = np.array(list(dict.fromkeys(_r_as_character(unique_sorted))))
+        str_values = _r_as_character(arr)
         return levels, str_values
 
     # Character / object: alphabetical

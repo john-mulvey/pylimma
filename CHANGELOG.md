@@ -9,6 +9,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `remove_batch_effect`: numeric batch values whose R labels coincide
+  (0.3 and 0.1 + 0.2) are one level, as R's `as.factor()` merges them.
 - `vooma` and `array_weights` decide rank as R's `qr()` does (LINPACK
   pivoting, tolerance 1e-7 relative to each column's norm) instead of an
   absolute 1e-10 cutoff on the diagonal of the QR factor. Designs with a

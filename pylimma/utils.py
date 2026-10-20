@@ -345,6 +345,38 @@ def _as_dense_array(x, dtype=None) -> np.ndarray:
     return np.asarray(x, dtype=dtype)
 
 
+def _r_as_character(values) -> np.ndarray:
+    """Element-wise strings as R's as.character() gives them for the values
+    that matter when comparing labels: logicals are "TRUE" / "FALSE", whole
+    numbers have no decimals ("1", not "1.0"), other doubles have up to 15
+    significant digits ("0.3" for 0.1 + 0.2) and non-finite doubles are
+    "NaN", "Inf" and "-Inf". Strings are unchanged; None (R's NA) stays None,
+    which never compares equal. Returns an object array.
+
+    An approximation: R chooses scientific notation when it is shorter
+    (1e5 is "1e+05" in R, "100000" here) and has further edge cases for
+    doubles; both sides of a comparison should go through this helper.
+    """
+
+    def one(v):
+        if v is None:
+            return None
+        if isinstance(v, (bool, np.bool_)):
+            return "TRUE" if v else "FALSE"
+        if isinstance(v, (int, float, np.integer, np.floating)):
+            v = float(v)
+            if np.isnan(v):
+                return "NaN"
+            if np.isinf(v):
+                return "Inf" if v > 0 else "-Inf"
+            if v.is_integer():
+                return str(int(v))
+            return format(v, ".15g")
+        return str(v)
+
+    return np.array([one(v) for v in np.asarray(values, dtype=object).ravel()], dtype=object)
+
+
 def _r_trimmed_mean(x: np.ndarray, trim: float) -> float:
     """R's mean(x, trim=trim): the plain mean when trim <= 0, the median
     when trim >= 0.5, otherwise floor(n * trim) values dropped at each end."""

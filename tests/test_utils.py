@@ -271,3 +271,11 @@ class TestLoessFit:
 
         with pytest.raises(ValueError, match="different lengths"):
             loess_fit(y, x)
+
+
+def test_r_as_character_matches_r():
+    """R: as.character(c(1, 0.5, 0.1 + 0.2, NaN, Inf, -Inf, TRUE)); NA (None) stays missing."""
+    from pylimma.utils import _r_as_character
+
+    result = _r_as_character([1.0, 0.5, 0.1 + 0.2, np.nan, np.inf, -np.inf, True, None, "a"])
+    assert list(result) == ["1", "0.5", "0.3", "NaN", "Inf", "-Inf", "TRUE", None, "a"]

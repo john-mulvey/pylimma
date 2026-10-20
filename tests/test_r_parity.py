@@ -6760,3 +6760,17 @@ def test_rank_tolerance_matches_r(case):
     np.testing.assert_allclose(
         array_weights(E, design), load_r_csv_no_index(f"rtl_aw_{case}")["aw"], rtol=1e-6
     )
+
+
+# =============================================================================
+# remove_batch_effect: numeric batch values with the same as.character()
+# label form one level, as R's as.factor()
+# =============================================================================
+
+
+def test_remove_batch_effect_merges_numeric_labels():
+    y = load_r_csv_no_index("rbl_y").to_numpy(dtype=float)
+    batch = np.array([0.3, 0.1 + 0.2, 0.3, 0.1 + 0.2, 1.0, 1.0])
+    np.testing.assert_allclose(
+        remove_batch_effect(y, batch=batch), load_r_csv_no_index("rbl_corrected"), rtol=1e-6, atol=1e-12
+    )

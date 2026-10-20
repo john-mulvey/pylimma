@@ -4943,3 +4943,19 @@ for (.rtl_case in names(.rtl_designs)) {
 }
 
 cat("  rank-tolerance fixtures complete.\n")
+
+# =============================================================================
+# Numeric batch labels: as.factor() merges values whose as.character() labels
+# coincide (0.3 and 0.1 + 0.2 are one level, "0.3")
+# =============================================================================
+cat("\nGenerating removeBatchEffect numeric-label fixtures...\n")
+
+set.seed(20261107)
+
+.rbl_y <- matrix(rnorm(20 * 6), 20, 6)
+write.csv(.rbl_y, "R_rbl_y.csv", row.names = FALSE)
+.rbl_batch <- c(0.3, 0.1 + 0.2, 0.3, 0.1 + 0.2, 1, 1)
+stopifnot(nlevels(as.factor(.rbl_batch)) == 2)
+write.csv(removeBatchEffect(.rbl_y, batch = .rbl_batch), "R_rbl_corrected.csv", row.names = FALSE)
+
+cat("  removeBatchEffect numeric-label fixtures complete.\n")
