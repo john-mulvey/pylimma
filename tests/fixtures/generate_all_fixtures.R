@@ -5081,3 +5081,22 @@ set.seed(20261110)
 stopifnot(identical(.wrd_err, "design must be full column rank"))
 
 cat("  wsva rank-deficient design checked.\n")
+
+# =============================================================================
+# removeBatchEffect with a missing batch label: as.factor() leaves NA out of
+# the levels, so R stops (contr.sum, or a row mismatch from model.matrix);
+# pylimma raises a clear error (known_differences.rst). A numeric NaN is a
+# level ("NaN") and runs.
+# =============================================================================
+cat("\nGenerating removeBatchEffect missing-label fixtures...\n")
+
+set.seed(20261111)
+
+.rbm_y <- matrix(rnorm(5 * 3), 5, 3)
+write.csv(.rbm_y, "R_rbm_y.csv", row.names = FALSE)
+for (.rbm_b in list(c("a", NA, "a"), c("a", NA, "b"))) {
+  stopifnot(inherits(tryCatch(suppressMessages(removeBatchEffect(.rbm_y, batch = .rbm_b)), error = identity), "error"))
+}
+write.csv(suppressMessages(removeBatchEffect(.rbm_y, batch = c(1, NaN, 1))), "R_rbm_nan_level.csv", row.names = FALSE)
+
+cat("  removeBatchEffect missing-label fixtures complete.\n")

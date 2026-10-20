@@ -72,6 +72,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `remove_batch_effect` raises a clear `ValueError` for a missing `batch` /
+  `batch2` label, where R fails; it treated the missing value as a batch of
+  its own.
 - `wsva` with a design that is not of full column rank raises R's "design
   must be full column rank" error; it returned meaningless surrogate
   variables.

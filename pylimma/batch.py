@@ -85,6 +85,17 @@ def _factor_levels(factor) -> tuple[np.ndarray, np.ndarray]:
     return levels, str_values
 
 
+def _has_missing_label(factor) -> bool:
+    """True when a factor has a missing label (None, pandas NA, categorical
+    NaN). A numeric NaN is not missing: R's as.factor makes it a level."""
+    if isinstance(factor, pd.Categorical) or isinstance(getattr(factor, "dtype", None), pd.CategoricalDtype):
+        return bool(pd.isna(factor).any())
+    arr = np.asarray(factor)
+    if arr.dtype == bool or np.issubdtype(arr.dtype, np.number):
+        return False
+    return bool(pd.isna(arr).any())
+
+
 def _sum_to_zero_design(factor, name: str = "batch") -> np.ndarray:
     """Build R-equivalent ``model.matrix(~factor)[,-1]`` with
     ``contrasts = contr.sum`` applied to the factor.
@@ -95,6 +106,10 @@ def _sum_to_zero_design(factor, name: str = "batch") -> np.ndarray:
     levels get a 1 in their column and the last level gets -1 across all
     columns. Intercept is dropped.
     """
+    if _has_missing_label(factor):
+        # R's as.factor leaves NA out of the levels and removeBatchEffect then
+        # stops (contr.sum, or a row mismatch); a clear error instead.
+        raise ValueError(f"{name} contains missing labels; give every sample a {name} label")
     levels, str_values = _factor_levels(factor)
     n = len(str_values)
     K = len(levels)
@@ -139,7 +154,8 @@ def remove_batch_effect(
     batch : array-like, optional
         Factor of batch labels. Coded with sum-to-zero contrasts before
         entering the design, so it needs at least two levels (as R, a
-        single level raises an error).
+        single level raises an error) and no missing labels (R fails; a
+        numeric NaN is a level of its own, as in R).
     batch2 : array-like, optional
         Second batch factor, treated the same way as ``batch``.
     covariates : ndarray, optional

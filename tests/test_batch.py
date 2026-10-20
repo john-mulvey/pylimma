@@ -80,3 +80,29 @@ def test_wsva_rank_deficient_design_raises(weight_by_sd):
     design = np.column_stack([np.ones(8), g1, g2, g1 + g2])
     with pytest.raises(ValueError, match="design must be full column rank"):
         wsva(y, design, weight_by_sd=weight_by_sd)
+
+
+@pytest.mark.parametrize(
+    "batch",
+    [["a", None, "a"], ["a", None, "b"], pd.Categorical(["a", np.nan, "b"]), pd.array(["a", pd.NA, "b"])],
+)
+def test_missing_batch_label_raises(batch):
+    """R's as.factor leaves NA out of the levels and R then stops
+    (generate_all_fixtures.R); pylimma raises a clear error."""
+    from pylimma import remove_batch_effect
+
+    y = pd.read_csv(FIXTURES / "R_rbm_y.csv").to_numpy()
+    with pytest.raises(ValueError, match="batch contains missing labels"):
+        remove_batch_effect(y, batch=batch)
+
+
+def test_numeric_nan_batch_is_a_level():
+    """As in R, a numeric NaN is a level of its own ("NaN")."""
+    from pylimma import remove_batch_effect
+
+    y = pd.read_csv(FIXTURES / "R_rbm_y.csv").to_numpy()
+    with pytest.warns(UserWarning, match="design matrix of interest not specified"):
+        corrected = remove_batch_effect(y, batch=[1.0, np.nan, 1.0])
+    np.testing.assert_allclose(
+        corrected, pd.read_csv(FIXTURES / "R_rbm_nan_level.csv").to_numpy(), rtol=1e-6, atol=1e-12
+    )
