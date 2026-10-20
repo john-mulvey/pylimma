@@ -41,6 +41,7 @@ Internal helper functions used throughout the package.
 from __future__ import annotations
 
 import sys
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -1795,12 +1796,25 @@ def fit_gamma_intercept(y, offset=0.0, maxit: int = 1000) -> float:
 
     Port of R limma's ``fitGammaIntercept`` (``fitGammaIntercept.R``).
     Iterative root-find on
-    ``sum(y / (offset + x)) - n = 0``.
+    ``sum(y / (offset + x)) - n = 0``. As in R, up to ``maxit + 1`` updates
+    run and a warning is issued when the limit is reached; inputs with no
+    root (e.g. all-zero ``y``) run to the limit and return ``-inf``.
+
+    An empty ``y`` gives ``nan``, as in R. Unlike R, missing values and an
+    undefined (0 / 0) Newton step raise a ``ValueError``, and ``offset`` must
+    be a scalar or have the same length as ``y``.
     """
     y = np.asarray(y, dtype=np.float64)
+    offset = np.asarray(offset, dtype=np.float64)
+    if y.size == 0:
+        # R: mean(numeric(0)) - offset through the constant-offset shortcut
+        return float("nan")
+    if np.isnan(y).any() or np.isnan(offset).any():
+        raise ValueError("y and offset must not contain missing values")
+    if offset.size not in (1, y.size):
+        raise ValueError("offset must be a scalar or have the same length as y")
     if np.any(y < 0):
         raise ValueError("negative y not permitted")
-    offset = np.asarray(offset, dtype=np.float64)
     if np.any(offset < 0):
         raise ValueError("offsets must be positive")
 
@@ -1810,17 +1824,26 @@ def fit_gamma_intercept(y, offset=0.0, maxit: int = 1000) -> float:
 
     n = y.size
     x = 0.0
-    for _ in range(maxit):
-        denom = offset + x
-        Q = float(np.sum(y / denom))
-        dQ = float(np.sum(y / denom**2))
-        if dQ == 0:
-            break
-        dif = (Q - n) / dQ
-        x = x + dif
-        if abs(dif) < 1e-8:
-            break
-    return x
+    iteration = 0
+    # IEEE arithmetic as in R: with no root, dif becomes -Inf and x stays there.
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        while True:
+            iteration += 1
+            Q = np.sum(y / (offset + x))
+            dQ = np.sum(y / (offset + x) ** 2)
+            dif = (Q - n) / dQ
+            if np.isnan(dif):
+                # R stops here with "missing value where TRUE/FALSE needed"
+                raise ValueError(
+                    "Newton step is undefined (0/0): an offset of zero where y is zero"
+                )
+            x = x + dif
+            if abs(dif) < 1e-8:
+                break
+            if iteration > maxit:
+                warnings.warn("iteration limit maxit exceeded")
+                break
+    return float(x)
 
 
 def bwss_matrix(x) -> dict:

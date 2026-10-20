@@ -6391,3 +6391,37 @@ class TestLmFitCorrelationNoneParity:
         v = voom(counts, self.DESIGN, block=self.BLOCK)
         r = load_r_csv_no_index("lcn_voom_weights").to_numpy(dtype=float)
         np.testing.assert_allclose(v["weights"], r, rtol=1e-6)
+
+
+# =============================================================================
+# fit_gamma_intercept: R's iteration control and its -Inf for inputs with no
+# root
+# =============================================================================
+
+
+class TestFitGammaInterceptRParity:
+    """R tests convergence and then iter > maxit, so maxit + 1 updates run,
+    warning "iteration limit maxit exceeded" when the limit is reached."""
+
+    Y = np.array([0.5, 1.2, 3.0, 0.1, 2.2, 4.0])
+    OFFSET = np.array([0.3, 0.5, 0.8, 1.0, 1.5, 2.0])
+    INPUTS = {
+        "maxit": (Y, OFFSET),
+        "zero_y": (np.zeros(3), np.array([1.0, 2.0, 3.0])),
+        "no_root": (np.array([0.0, 0.0, 0.0, 5.0]), np.array([1.0, 2.0, 3.0, 4.0])),
+    }
+
+    @pytest.mark.parametrize("row", range(6))
+    def test_matches_r(self, row):
+        import warnings
+
+        from pylimma.utils import fit_gamma_intercept
+
+        r = load_r_csv_no_index("fgi").iloc[row]
+        y, offset = self.INPUTS[r["case"]]
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            x = fit_gamma_intercept(y, offset=offset, maxit=int(r["maxit"]))
+        np.testing.assert_allclose(x, float(r["x"]), rtol=1e-6)
+        warned = [str(w.message) for w in caught] == ["iteration limit maxit exceeded"]
+        assert warned == bool(r["warned"]), [str(w.message) for w in caught]

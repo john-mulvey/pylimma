@@ -4565,3 +4565,41 @@ write.csv(data.frame(atanh_correlations = .dcc$atanh.correlations,
           "R_dcc_dupcor.csv", row.names = FALSE)
 
 cat("  duplicateCorrelation iteration-cap fixtures complete.\n")
+
+# =============================================================================
+# fitGammaIntercept iteration control: the loop tests convergence, then
+# iter > maxit (so maxit + 1 updates run), warning when the limit is hit;
+# inputs with no root run to the limit and return -Inf
+# =============================================================================
+cat("\nGenerating fitGammaIntercept fixtures...\n")
+
+.fgi_y <- c(0.5, 1.2, 3.0, 0.1, 2.2, 4.0)
+.fgi_offset <- c(0.3, 0.5, 0.8, 1.0, 1.5, 2.0)
+.fgi_run <- function(case, y, offset, maxit) {
+  warned <- FALSE
+  x <- withCallingHandlers(fitGammaIntercept(y, offset = offset, maxit = maxit), warning = function(w) {
+    stopifnot(identical(conditionMessage(w), "iteration limit maxit exceeded"))
+    warned <<- TRUE
+    invokeRestart("muffleWarning")
+  })
+  data.frame(case = case, maxit = maxit, x = x, warned = warned)
+}
+.fgi <- rbind(
+  .fgi_run("maxit", .fgi_y, .fgi_offset, 0),
+  .fgi_run("maxit", .fgi_y, .fgi_offset, 1),
+  .fgi_run("maxit", .fgi_y, .fgi_offset, 2),
+  .fgi_run("maxit", .fgi_y, .fgi_offset, 1000),
+  .fgi_run("zero_y", c(0, 0, 0), c(1, 2, 3), 1000),
+  .fgi_run("no_root", c(0, 0, 0, 5), c(1, 2, 3, 4), 1000)
+)
+stopifnot(.fgi$warned == c(TRUE, TRUE, TRUE, FALSE, TRUE, TRUE), .fgi$x[5:6] == -Inf)
+write.csv(.fgi, "R_fgi.csv", row.names = FALSE)
+# Empty y with a scalar offset: the constant-offset shortcut gives
+# mean(numeric(0)) - offset, NaN with no warning
+stopifnot(is.nan(withCallingHandlers(fitGammaIntercept(numeric(0)), warning = function(w) stop(w))))
+# A 0 / 0 Newton step (zero offset where y is zero) stops R obscurely;
+# pylimma raises a clear error (known_differences.rst)
+stopifnot(identical(tryCatch(fitGammaIntercept(c(0, 1), offset = c(0, 1)), error = conditionMessage),
+                    "missing value where TRUE/FALSE needed"))
+
+cat("  fitGammaIntercept fixtures complete.\n")

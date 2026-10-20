@@ -185,6 +185,24 @@ together with the weights. The reference is R's function with
 ``tests/rigorous/test_fit_f_dist_unequal_df1.py`` checks that unpatched R
 returns NaN and that pylimma matches the patched function.
 
+Clear errors where R fails obscurely or behaves accidentally
+------------------------------------------------------------
+
+For some invalid or degenerate inputs, R limma either stops with a
+message from deep inside the computation or returns a result produced by
+accident (for example by recycling or by ``NULL`` propagation). pylimma
+raises a ``ValueError`` that names the problem instead. Valid inputs are
+unaffected.
+
+``fit_gamma_intercept``
+    Missing values in ``y`` or ``offset`` raise "y and offset must not
+    contain missing values", and a Newton step that is 0 / 0 (an offset
+    of zero where ``y`` is zero) raises "Newton step is undefined"; R
+    stops with "missing value where TRUE/FALSE needed" in both cases.
+    ``offset`` must be a scalar or have the same length as ``y``; R
+    accepts other lengths (recycling a non-constant offset, ignoring the
+    length of a constant one).
+
 Deliberate interface difference: EList design and weights in voom
 -----------------------------------------------------------------
 

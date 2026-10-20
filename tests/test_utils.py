@@ -8,6 +8,7 @@ import pytest
 
 from pylimma.utils import (
     choose_lowess_span,
+    fit_gamma_intercept,
     loess_fit,
     logmdigamma,
     p_adjust,
@@ -160,6 +161,39 @@ class TestQQF:
         y = np.array([1.0, 2.0, np.nan, 3.0, 4.0])
         result = qqf(y, df1=5, df2=20, plot_it=False)
         assert len(result["x"]) == 4
+
+
+class TestFitGammaInterceptValidation:
+    """Inputs where R fails or behaves accidentally get a clear error
+    (docs/validation/known_differences.rst)."""
+
+    @pytest.mark.parametrize(
+        "y, offset",
+        [([1.0, np.nan, 2.0], [0.5, 1.0, 1.5]), ([1.0, 2.0, 3.0], [0.5, np.nan, 1.5])],
+    )
+    def test_missing_values_raise(self, y, offset):
+        # R stops with "missing value where TRUE/FALSE needed"
+        with pytest.raises(ValueError, match="y and offset must not contain missing values"):
+            fit_gamma_intercept(y, offset=offset)
+
+    def test_empty_y_gives_nan(self):
+        # R: mean(numeric(0)) - offset through the constant-offset shortcut
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            assert np.isnan(fit_gamma_intercept([], offset=1.0))
+
+    def test_undefined_newton_step_raises(self):
+        # 0 / 0 where the offset and y are both zero; R stops with
+        # "missing value where TRUE/FALSE needed"
+        with pytest.raises(ValueError, match="Newton step is undefined"):
+            fit_gamma_intercept([0.0, 1.0], offset=[0.0, 1.0])
+
+    def test_offset_length_mismatch_raises(self):
+        # R silently recycles offset
+        with pytest.raises(ValueError, match="offset must be a scalar or have the same length as y"):
+            fit_gamma_intercept([1.0, 2.0, 3.0, 4.0], offset=[0.5, 1.0])
 
 
 class TestChooseLowessSpan:

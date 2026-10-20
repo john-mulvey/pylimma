@@ -1,0 +1,7 @@
+"case","maxit","x","warned"
+"maxit",0,0.314431735215381,TRUE
+"maxit",1,0.598682647402772,TRUE
+"maxit",2,0.702368733531973,TRUE
+"maxit",1000,0.71096084379724,FALSE
+"zero_y",1000,-Inf,TRUE
+"no_root",1000,-Inf,TRUE

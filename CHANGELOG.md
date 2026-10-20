@@ -15,6 +15,18 @@ minor version (0.x.0) may change results or behaviour; a patch version
   the cap now match R; because the consensus correlation is a trimmed mean
   over genes, every gene's t-statistic in a blocked fit can shift (up to
   ~1e-2 relative on proteomics data with missing values).
+- `fit_gamma_intercept` (used by `pred_fcm` and `genas`) follows R's
+  iteration control: up to `maxit + 1` updates and a warning "iteration
+  limit maxit exceeded" when the limit is reached. Results change only for
+  fits that hit the limit; inputs with no root (e.g. all-zero `y`) now give
+  `-inf` with the warning instead of `0.0` or a huge finite number.
+
+### Changed behaviour
+
+- `fit_gamma_intercept` raises a clear `ValueError` for missing values, an
+  undefined (0/0) Newton step, or an `offset` that is neither scalar nor the
+  length of `y` (see `docs/validation/known_differences.rst`). An empty `y`
+  gives NaN, as in R.
 
 ### Fixed
 
