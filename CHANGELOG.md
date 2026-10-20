@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `cum_overlap`: p-values below ~1e-16 were lost (computed as
+  `1 - cdf`), so `p_value`, `p_min` and `n_min` were wrong for strongly
+  concordant lists; they now use the upper tail directly, as R.
 - `duplicate_correlation` (and so `lm_fit(block=..., correlation=None)`,
   `voom(block=...)`): the per-gene REML fit allowed one iteration fewer than
   `statmod::glmgam.fit`, which runs up to `maxit + 1`. Genes whose fit hits

@@ -1730,8 +1730,9 @@ def cum_overlap(ol1, ol2) -> dict:
 
     i = np.arange(1, ngenes + 1, dtype=np.int64)
     # phyper(noverlap - 0.5, m=i, n=ngenes - i, k=i, lower.tail=FALSE)
-    # = 1 - P(X <= noverlap - 1) under hypergeometric(good=i, bad=ngenes-i, drawn=i).
-    p = 1.0 - _stats.hypergeom.cdf(np.maximum(noverlap - 1, -1), ngenes, i, i)
+    # = P(X > noverlap - 1) under hypergeometric(good=i, bad=ngenes-i, drawn=i).
+    # The upper tail directly, as R: 1 - cdf loses everything below ~1e-16.
+    p = _stats.hypergeom.sf(np.maximum(noverlap - 1, -1), ngenes, i, i)
 
     p_b = p * i
     nmin = int(np.argmin(p_b))

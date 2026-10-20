@@ -4703,3 +4703,25 @@ stopifnot(is.na(.ctf_res[3, 1]))
 write.csv(data.frame(result = as.vector(.ctf_res)), "R_ctf_result.csv", row.names = FALSE)
 
 cat("  classifyTestsF single-coefficient NA fixtures complete.\n")
+
+# =============================================================================
+# cumOverlap: upper-tail phyper(lower.tail = FALSE) keeps p-values below
+# 1e-16, which decide n.min and p.min for concordant lists
+# =============================================================================
+cat("\nGenerating cumOverlap fixtures...\n")
+
+set.seed(20261026)
+
+.cov_ids <- paste0("g", 1:100)
+.cov_cases <- list(identical = .cov_ids, shuffled = c(sample(.cov_ids[1:30]), sample(.cov_ids[31:100])))
+for (.cov_case in names(.cov_cases)) {
+  .cov <- cumOverlap(.cov_ids, .cov_cases[[.cov_case]])
+  write.csv(data.frame(n_overlap = .cov$n.overlap, p_value = .cov$p.value, adj_p_value = .cov$adj.p.value),
+            sprintf("R_cov_%s.csv", .cov_case), row.names = FALSE)
+  write.csv(data.frame(n_min = .cov$n.min, p_min = .cov$p.min),
+            sprintf("R_cov_%s_min.csv", .cov_case), row.names = FALSE)
+}
+write.csv(data.frame(id = .cov_cases$shuffled), "R_cov_shuffled_ids.csv", row.names = FALSE)
+stopifnot(min(cumOverlap(.cov_ids, .cov_ids)$p.value) < 1e-20)
+
+cat("  cumOverlap fixtures complete.\n")

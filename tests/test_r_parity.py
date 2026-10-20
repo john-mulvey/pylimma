@@ -6522,3 +6522,25 @@ def test_classify_tests_f_single_coefficient_na_matches_r():
         warnings.simplefilter("error", RuntimeWarning)
         result = classify_tests_f(fit)
     np.testing.assert_array_equal(result[:, 0], r)
+
+
+# =============================================================================
+# cum_overlap: R's upper-tail phyper keeps p-values far below 1e-16
+# =============================================================================
+
+
+@pytest.mark.parametrize("case", ["identical", "shuffled"])
+def test_cum_overlap_matches_r(case):
+    from pylimma.utils import cum_overlap
+
+    ids = [f"g{i}" for i in range(1, 101)]
+    other = ids if case == "identical" else list(load_r_csv_no_index("cov_shuffled_ids")["id"])
+    co = cum_overlap(ids, other)
+    r = load_r_csv_no_index(f"cov_{case}")
+    r_min = load_r_csv_no_index(f"cov_{case}_min").iloc[0]
+    np.testing.assert_array_equal(co["n_overlap"], r["n_overlap"])
+    for slot in ("p_value", "adj_p_value"):
+        result = compare_pvalues(r[slot].to_numpy(), co[slot])
+        assert result["match"], f"{slot}: max log10 diff {result['max_log10_diff']:.2e}"
+    assert co["n_min"] == r_min["n_min"]
+    assert compare_pvalues([r_min["p_min"]], [co["p_min"]])["match"]
