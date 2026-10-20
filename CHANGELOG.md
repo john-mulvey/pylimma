@@ -37,6 +37,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `fitmixture` with 2 arrays raised `ZeroDivisionError`; as in R, `A` and
+  `M` are estimated and `stdev` is Inf or NaN (no residual degrees of
+  freedom).
 - `choose_lowess_span(n=0)` raised `ZeroDivisionError`; it returns 1, as
   in R.
 - `duplicate_correlation(trim=)` follows R's `mean(x, trim=)`: `trim=0.5`

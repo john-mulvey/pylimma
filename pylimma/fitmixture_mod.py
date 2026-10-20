@@ -53,6 +53,13 @@ def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
     b = np.log(start[0, :]) - np.log(start[1, :])
 
     z = np.log(y)
+
+    def residual_stdev(mu):
+        # R's double arithmetic: with 2 arrays narrays / 0 is Inf, so the
+        # stdev is Inf, or NaN where the residuals are exactly 0.
+        with np.errstate(divide="ignore", invalid="ignore"):
+            return np.sqrt(np.divide(narrays, narrays - 2) * np.mean((z - mu) ** 2, axis=1))
+
     pm = np.ones(nprobes)[:, None] @ (2 * mixprop - 1)[None, :]
 
     sold = None
@@ -61,7 +68,7 @@ def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
         a = np.mean(z - mub, axis=1)
         mu = a[:, None] + mub
         if trace:
-            s = np.sqrt(narrays / (narrays - 2) * np.mean((z - mu) ** 2, axis=1))
+            s = residual_stdev(mu)
             if sold is not None:
                 print("stdev changes", np.percentile(sold - s, [0, 25, 50, 75, 100]))
             sold = s
@@ -76,6 +83,6 @@ def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
     mub = logcosh(b / 2)[:, None] + np.log(1 + np.tanh(b / 2)[:, None] * pm)
     a = np.mean(z - mub, axis=1)
     mu = a[:, None] + mub
-    s = np.sqrt(narrays / (narrays - 2) * np.mean((z - mu) ** 2, axis=1))
+    s = residual_stdev(mu)
     l2 = np.log(2.0)
     return {"A": a / l2, "M": b / l2, "stdev": s / l2}

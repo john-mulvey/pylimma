@@ -4673,3 +4673,16 @@ cat("\nGenerating chooseLowessSpan fixtures...\n")
 write.csv(data.frame(n = .cls_n, span = chooseLowessSpan(.cls_n)), "R_cls_span.csv", row.names = FALSE)
 
 cat("  chooseLowessSpan fixtures complete.\n")
+
+# =============================================================================
+# fitmixture with 2 arrays: narrays / (narrays - 2) is Inf in R's double
+# arithmetic, so stdev is Inf or NaN (0 * Inf) while A and M are estimated
+# =============================================================================
+cat("\nGenerating fitmixture 2-array fixtures...\n")
+
+.fm2_y <- matrix(c(5, 6, 4, 5.5, 5.2, 4.8), 3, 2)
+.fm2 <- fitmixture(.fm2_y, mixprop = c(1, 0.5))
+stopifnot(all(is.infinite(.fm2$stdev) | is.nan(.fm2$stdev)))
+write.csv(data.frame(A = .fm2$A, M = .fm2$M, stdev = .fm2$stdev), "R_fm2.csv", row.names = FALSE)
+
+cat("  fitmixture 2-array fixtures complete.\n")

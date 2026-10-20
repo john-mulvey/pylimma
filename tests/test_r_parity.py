@@ -6477,3 +6477,27 @@ def test_choose_lowess_span_matches_r(row):
 
     r = load_r_csv_no_index("cls_span").iloc[row]
     np.testing.assert_allclose(choose_lowess_span(int(r["n"])), r["span"], rtol=1e-6)
+
+
+# =============================================================================
+# fitmixture with 2 arrays: stdev is Inf / NaN in R, not an error
+# =============================================================================
+
+
+def test_fitmixture_two_arrays_matches_r():
+    """With 2 arrays the fit is exact, so the stdev is Inf or NaN (Inf * 0)
+    in R; which one depends on whether rounding leaves a residual of exactly
+    zero, so only non-finiteness is compared."""
+    import warnings
+
+    from pylimma.fitmixture_mod import fitmixture
+
+    y = np.array([[5.0, 5.5], [6.0, 5.2], [4.0, 4.8]])
+    r = load_r_csv_no_index("fm2")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        fm = fitmixture(y, [1.0, 0.5])
+    for slot in ("A", "M"):
+        np.testing.assert_allclose(fm[slot], r[slot], rtol=1e-6)
+    assert not np.isfinite(r["stdev"]).any()
+    assert not np.isfinite(fm["stdev"]).any()
