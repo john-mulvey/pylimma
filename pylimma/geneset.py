@@ -2260,9 +2260,8 @@ def top_romer(x, n: int = 10, alternative: str = "up"):
     Extract the top gene sets from :func:`romer` output.
 
     Port of R limma's ``topRomer`` (``geneset-romer.R``). ``x`` is
-    expected to be a DataFrame (or similar tabular object) with
-    ``Up`` / ``Down`` / ``Mixed`` / ``NGenes`` columns, matching
-    :func:`romer`'s return schema.
+    :func:`romer`'s result: a DataFrame with ``n_genes`` / ``up`` /
+    ``down`` / ``mixed`` columns (R's NGenes, Up, Down, Mixed).
     """
     import pandas as pd
 
@@ -2274,14 +2273,14 @@ def top_romer(x, n: int = 10, alternative: str = "up"):
     n = min(n, x.shape[0])
     # R's order() is stable; mergesort is the numpy equivalent.
     if alternative == "up":
-        sort_keys = [x["Up"].values, x["Mixed"].values, -x["NGenes"].values]
+        sort_keys = [x["up"].values, x["mixed"].values, -x["n_genes"].values]
     elif alternative == "down":
-        sort_keys = [x["Down"].values, x["Mixed"].values, -x["NGenes"].values]
+        sort_keys = [x["down"].values, x["mixed"].values, -x["n_genes"].values]
     else:  # mixed
         sort_keys = [
-            x["Mixed"].values,
-            np.minimum(x["Up"].values, x["Down"].values),
-            -x["NGenes"].values,
+            x["mixed"].values,
+            np.minimum(x["up"].values, x["down"].values),
+            -x["n_genes"].values,
         ]
     # lexsort sorts by last key primarily; invert order so first key has highest priority.
     order = np.lexsort(tuple(reversed(sort_keys)))

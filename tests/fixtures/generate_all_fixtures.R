@@ -5284,3 +5284,19 @@ write.csv(.cds_cam, "R_cds_camera.csv")
 write.csv(.cds_pr, "R_cds_camerapr.csv")
 
 cat("  camera degenerate-set fixtures complete.\n")
+
+# =============================================================================
+# topRomer orders a romer table by Up / Down / Mixed with ties broken by
+# Mixed (or min(Up, Down)) and then -NGenes
+# =============================================================================
+cat("\nGenerating topRomer fixtures...\n")
+
+.trm <- cbind(NGenes = c(5, 12, 8, 12, 3), Up = c(0.01, 0.2, 0.01, 0.05, 0.2),
+              Down = c(0.9, 0.3, 0.5, 0.01, 0.01), Mixed = c(0.02, 0.1, 0.02, 0.03, 0.4))
+rownames(.trm) <- paste0("s", 1:5)
+write.csv(.trm, "R_trm_table.csv")
+write.csv(data.frame(alternative = rep(c("up", "down", "mixed"), each = 3),
+                     set = c(rownames(topRomer(.trm, 3, "up")), rownames(topRomer(.trm, 3, "down")),
+                             rownames(topRomer(.trm, 3, "mixed")))), "R_trm_order.csv", row.names = FALSE)
+
+cat("  topRomer fixtures complete.\n")

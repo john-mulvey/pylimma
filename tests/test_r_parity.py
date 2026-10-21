@@ -7184,3 +7184,15 @@ def test_camera_ranks_empty_set_is_nan():
     for result in (tab, tab_pr):
         assert np.isfinite(result.loc["one", "p_value"])
         assert np.isnan(result.loc["none", "p_value"])
+
+
+@pytest.mark.parametrize("alternative", ["up", "down", "mixed"])
+def test_top_romer_matches_r(alternative):
+    """top_romer reads romer's columns (n_genes, up, down, mixed)."""
+    from pylimma import top_romer
+
+    r_table = load_r_csv("trm_table")
+    table = r_table.rename(columns={"NGenes": "n_genes", "Up": "up", "Down": "down", "Mixed": "mixed"})
+    r = load_r_csv_no_index("trm_order")
+    expected = list(r.loc[r["alternative"] == alternative, "set"])
+    assert list(top_romer(table, n=3, alternative=alternative).index) == expected
