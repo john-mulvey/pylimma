@@ -5411,3 +5411,21 @@ stopifnot(.kpn_res["path:hsa00010", "Pathway"] == "Glycolysis", is.na(.kpn_res["
 write.csv(.kpn_res, "R_kpn_kegga.csv")
 
 cat("  kegga pathway.names fixtures complete.\n")
+
+# =============================================================================
+# topGO / topKEGG order by P, N and name; a missing name sorts last, and so
+# does a missing p-value (pmin gives NA)
+# =============================================================================
+cat("\nGenerating topGO / topKEGG NA-name fixtures...\n")
+
+.tna <- data.frame(Term = c("b term", NA, "a term", NA, "c term", "d term"), Ont = "BP",
+                   N = c(5, 5, 5, 3, 5, 2), Up = 1, Down = 0,
+                   P.Up = c(0.01, 0.01, 0.01, 0.01, 0.2, 1e-10), P.Down = c(1, 1, 1, 1, 1, NA),
+                   row.names = paste0("GO:", 1:6))
+write.csv(.tna, "R_tna_table.csv")
+write.csv(data.frame(set = rownames(topGO(.tna))), "R_tna_topgo.csv", row.names = FALSE)
+.tna_kegg <- data.frame(Pathway = .tna$Term, .tna[, c("N", "Up", "Down", "P.Up", "P.Down")],
+                        row.names = paste0("path:", 1:6))
+write.csv(data.frame(set = rownames(topKEGG(.tna_kegg))), "R_tna_topkegg.csv", row.names = FALSE)
+
+cat("  topGO / topKEGG NA-name fixtures complete.\n")

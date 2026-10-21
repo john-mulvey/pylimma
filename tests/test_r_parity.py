@@ -4828,6 +4828,30 @@ class TestKeggaRParity:
                 assert sv.endswith("...")
 
 
+class TestTopGoKeggOrderRParity:
+    """R orders by P, N and then the name, with a missing name last."""
+
+    def _table(self):
+        return load_r_csv("tna_table").rename(
+            columns={"Term": "term", "Ont": "ontology", "N": "n", "Up": "up", "Down": "down",
+                     "P.Up": "p_up", "P.Down": "p_down"}
+        )
+
+    def test_top_go_missing_term(self):
+        from pylimma import top_go
+
+        expected = pd.read_csv(FIXTURES_DIR / "R_tna_topgo.csv")["set"].tolist()
+        assert list(top_go(self._table()).index) == expected
+
+    def test_top_kegg_missing_pathway(self):
+        from pylimma import top_kegg
+
+        table = self._table().drop(columns="ontology").rename(columns={"term": "pathway"})
+        table.index = [f"path:{i}" for i in range(1, 7)]
+        expected = pd.read_csv(FIXTURES_DIR / "R_tna_topkegg.csv")["set"].tolist()
+        assert list(top_kegg(table).index) == expected
+
+
 class TestGoanaTrendRParity:
     def test_per_gene_probability(self):
         from pylimma import goana_trend

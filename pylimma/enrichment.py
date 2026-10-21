@@ -849,6 +849,16 @@ def _kegga_default(
 # ---------------------------------------------------------------------------
 
 
+def _order_p_n_name(P, N, names) -> np.ndarray:
+    """R's ``order(P, N, name)``: stable, with missing values last. Names
+    compare by code point, as R in the C locale (R's order follows the
+    user's locale; known_differences.rst)."""
+    keys = pd.DataFrame(
+        {"p": np.asarray(P), "n": np.asarray(N), "name": np.asarray(names, dtype=object)}
+    )
+    return keys.sort_values(["p", "n", "name"], kind="stable", na_position="last").index.to_numpy()
+
+
 def top_go(
     results, ontology=("BP", "CC", "MF"), sort=None, number=20, truncate_term=None, p_value=1.0
 ) -> pd.DataFrame:
@@ -899,18 +909,14 @@ def top_go(
     if len(p_cols) == 1:
         P = results[p_cols[0]].to_numpy(dtype=np.float64)
     else:
-        P = results[p_cols].min(axis=1).to_numpy(dtype=np.float64)
+        P = results[p_cols].min(axis=1, skipna=False).to_numpy(dtype=np.float64)  # R's pmin
 
     if p_value < 1:
         number = min(number, int(np.sum(P <= p_value)))
     if number < 1:
         return results.iloc[0:0]
 
-    N_arr = results["n"].to_numpy()
-    Term_arr = results["term"].to_numpy()
-    # R: order(P, results$N, results$Term) - stable multi-key sort.
-    order = np.lexsort((Term_arr, N_arr, P))
-    keep = order[:number]
+    keep = _order_p_n_name(P, results["n"], results["term"])[:number]
     tab = results.iloc[keep].copy()
 
     if truncate_term is not None:
@@ -964,17 +970,14 @@ def top_kegg(results, sort=None, number=20, truncate_path=None, p_value=1.0) -> 
     if len(p_cols) == 1:
         P = results[p_cols[0]].to_numpy(dtype=np.float64)
     else:
-        P = results[p_cols].min(axis=1).to_numpy(dtype=np.float64)
+        P = results[p_cols].min(axis=1, skipna=False).to_numpy(dtype=np.float64)  # R's pmin
 
     if p_value < 1:
         number = min(number, int(np.sum(P <= p_value)))
     if number < 1:
         return results.iloc[0:0]
 
-    N_arr = results["n"].to_numpy()
-    Path_arr = results["pathway"].to_numpy()
-    order = np.lexsort((Path_arr, N_arr, P))
-    keep = order[:number]
+    keep = _order_p_n_name(P, results["n"], results["pathway"])[:number]
     tab = results.iloc[keep].copy()
 
     if truncate_path is not None:

@@ -221,6 +221,15 @@ silicon) the same call gives values such as 0.999 or 0.5. pylimma compares
 exactly rounded means (``math.fsum``), so ties are always exact and the
 result does not depend on the platform; it agrees with R on Linux.
 
+``top_go`` / ``top_kegg``: order of names tied on p-value and size
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Rows tied on both p-value and number of genes are ordered by term or
+pathway name. R's ``order()`` compares text with the collation of the
+user's locale (in ``en_GB``: apoptosis, Apoptosis, b, Wnt signaling);
+pylimma compares by code point (Apoptosis, Wnt signaling, apoptosis, b),
+as R does in the ``C`` locale, so the order is the same on every machine.
+
 Clear errors where R fails obscurely or behaves accidentally
 ------------------------------------------------------------
 

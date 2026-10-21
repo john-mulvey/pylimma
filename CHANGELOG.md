@@ -232,6 +232,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
   in `pathway_names` (R's `match`; it took the last), and a row with a
   missing name is dropped, so that pathway's name is NA (it was the text
   "nan").
+- `top_go` / `top_kegg` sort a missing term or pathway name last among
+  ties, as R's `order`; they raised `TypeError`.
 
 ## [0.2.0] - 2026-09-30
 
