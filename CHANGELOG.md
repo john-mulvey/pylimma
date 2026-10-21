@@ -119,6 +119,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- An empty list of gene sets raises R's "index is empty" in `mroast`, `fry`,
+  `camera`, `camera_pr` and `romer` (it ran as a phantom empty set, or
+  raised `ZeroDivisionError`). All gene-set functions now share one set
+  normalisation; with ten or more unnamed sets, `camera`, `camera_pr` and
+  `romer` zero-pad the names (`set01`) as `mroast` and `fry` do.
 - `ids2indices` follows R's `which(identifiers %in% x)`: a duplicated
   identifier gives all its positions (was the first only) and a repeated
   member is counted once (was repeated); a list of sets, a single ID,

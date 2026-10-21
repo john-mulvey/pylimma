@@ -568,3 +568,24 @@ def test_character_contrast_from_voom_design_on_anndata():
         pylimma.camera(adata, index, layer="voom_E", contrast="group[T.B]"),
         pylimma.camera(adata, index, layer="voom_E", contrast=1),
     )
+
+
+@pytest.mark.parametrize("fn_name", ["mroast", "fry", "camera", "romer"])
+@pytest.mark.parametrize("empty", [[], {}])
+def test_empty_index_raises(fn_name, empty):
+    """R: list() as index stops with "index is empty" in mroast, fry, camera
+    and romer."""
+    import pylimma
+
+    rng = np.random.default_rng(1)
+    y = rng.normal(size=(20, 6))
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    with pytest.raises(ValueError, match="^index is empty$"):
+        getattr(pylimma, fn_name)(y, empty, design)
+
+
+def test_camera_pr_empty_index_raises():
+    import pylimma
+
+    with pytest.raises(ValueError, match="^index is empty$"):
+        pylimma.camera_pr(np.random.default_rng(1).normal(size=20), [])

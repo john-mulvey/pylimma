@@ -6936,6 +6936,16 @@ class TestGeneSetIndexFollowUps:
         y = np.random.default_rng(5).normal(size=(20, 6))
         return pd.DataFrame(y, index=index if index is not None else [f"g{i}" for i in range(1, 21)])
 
+    def test_roast_dispatches_weighted_data_frame_to_mroast(self):
+        """R's roast sends any list, a data.frame included, to mroast."""
+        from pylimma import mroast, roast
+
+        weighted = pd.DataFrame({"id": ["g1", "g2", "g3"], "w": [1.0, 1.0, 2.0]})
+        via_roast = roast(self._y(), weighted, self.DESIGN, nrot=99, rng=1)
+        via_mroast = mroast(self._y(), {"set1": weighted}, self.DESIGN, nrot=99, rng=1)
+        pd.testing.assert_frame_equal(via_roast, via_mroast)
+        assert via_roast["n_genes"].iloc[0] == 3
+
     def test_fry_geneid_column_without_annotation_raises_clearly(self):
         from pylimma import fry
 
@@ -6959,6 +6969,14 @@ class TestGeneSetIndexFollowUps:
             romer(self._y(), {"a": ["g1", "g2"]}, self.DESIGN, nrot=9)
         with pytest.raises(ValueError, match="pandas Series"):
             camera_pr(np.arange(20.0), {"a": ["g1", "g2"]})
+
+    def test_bytes_ids_are_ids(self):
+        from pylimma import camera
+
+        y = self._y(index=[f"g{i}".encode() for i in range(1, 21)])
+        by_bytes = camera(y, [b"g1", b"g2", b"g3"], self.DESIGN)
+        by_str = camera(self._y(), ["g1", "g2", "g3"], self.DESIGN)
+        np.testing.assert_allclose(by_bytes["p_value"], by_str["p_value"])
 
 
 # =============================================================================

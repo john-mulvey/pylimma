@@ -98,9 +98,7 @@ def ids2indices(
     # R: if(!is.list(gene.sets)) gene.sets <- list(Set1=gene.sets). A Python
     # list holding any collection is R's unnamed list of sets (a string in it
     # is a one-member set); a list of plain IDs is one set.
-    if isinstance(gene_sets, (list, tuple)) and any(
-        not isinstance(x, str) and hasattr(x, "__iter__") for x in gene_sets
-    ):
+    if _is_list_of_sets(gene_sets):
         gene_sets = dict(zip(_unnamed_set_names(len(gene_sets)), gene_sets))
     elif not isinstance(gene_sets, dict):
         gene_sets = {"Set1": gene_sets}
@@ -800,11 +798,8 @@ def roast(
     """
     y = _elist_from_layer(y, layer, weights_layer)
     # If index is a list of sets, dispatch to mroast
-    if isinstance(index, dict) or (
-        isinstance(index, list)
-        and len(index)
-        and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
-    ):
+    # R: if(is.list(index)) return(mroast(...)), a data.frame included
+    if isinstance(index, (dict, pd.DataFrame)) or _is_list_of_sets(index):
         return mroast(
             y,
             index=index,
@@ -1050,22 +1045,26 @@ def _is_character(values: np.ndarray) -> bool:
     return values.dtype.kind in ("U", "S", "O")
 
 
-def _normalise_index(index, ngenes: int) -> dict:
-    """R's index handling at the top of ``.fryEffects``."""
+def _is_list_of_sets(index) -> bool:
+    """A Python list or tuple holding any collection is R's (unnamed) list of
+    gene sets, a string in it a one-member set; a list of plain IDs or
+    positions is a single set."""
+    return isinstance(index, (list, tuple)) and any(
+        not isinstance(x, (str, bytes)) and hasattr(x, "__iter__") for x in index
+    )
+
+
+def _normalise_index(index, ngenes: int, single_name: str = "set1") -> dict:
+    """R's index handling at the top of mroast, .fryEffects, camera, cameraPR
+    and romer: NULL is all genes, a non-list one set, list() an error."""
     if index is None:
-        return {"set1": np.arange(ngenes)}
-    if isinstance(index, pd.DataFrame) or not isinstance(index, (dict, list)):
-        index = {"set1": index}
-    elif isinstance(index, list) and not (
-        index and all(hasattr(s, "__len__") and not isinstance(s, str) for s in index)
-    ):
-        # A flat list is a single set (R: !is.list(index)).
-        index = {"set1": index}
-    nsets = len(index)
-    if nsets == 0:
+        return {single_name: np.arange(ngenes)}
+    if isinstance(index, (dict, list, tuple)) and len(index) == 0:
         raise ValueError("index is empty")
-    if isinstance(index, list):
-        index = dict(zip(_unnamed_set_names(nsets), index))
+    if _is_list_of_sets(index):
+        return dict(zip(_unnamed_set_names(len(index)), index))
+    if not isinstance(index, dict):
+        return {single_name: index}
     return index
 
 
@@ -1360,18 +1359,8 @@ def camera(
     if G < 3:
         raise ValueError("Too few genes in dataset: need at least 3")
 
-    if not isinstance(index, dict):
-        if (
-            isinstance(index, list)
-            and len(index)
-            and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
-        ):
-            index = {f"set{i + 1}": v for i, v in enumerate(index)}
-        else:
-            index = {"set1": index}
+    index = _normalise_index(index, G)
     nsets = len(index)
-    if nsets == 0:
-        raise ValueError("index is empty")
 
     if design is None:
         design = ea.get("design")
@@ -1619,15 +1608,7 @@ def camera_pr(
     if G < 3:
         raise ValueError("Too few genes in dataset: need at least 3")
 
-    if not isinstance(index, dict):
-        if (
-            isinstance(index, list)
-            and len(index)
-            and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
-        ):
-            index = {f"set{i + 1}": v for i, v in enumerate(index)}
-        else:
-            index = {"set1": index}
+    index = _normalise_index(index, G)
     nsets = len(index)
 
     # inter_gene_cor handling
@@ -1790,18 +1771,9 @@ def romer(
     y_mat = ea["exprs"].copy()
     ngenes, n = y_mat.shape
 
-    if not isinstance(index, dict):
-        if (
-            isinstance(index, list)
-            and len(index)
-            and all(hasattr(x, "__len__") and not isinstance(x, str) for x in index)
-        ):
-            index = {f"set{i + 1}": v for i, v in enumerate(index)}
-        else:
-            index = {"set": index}
+    # R romer: if(!is.list(index)) index <- list(set=index)
+    index = _normalise_index(index, ngenes, single_name="set")
     nsets = len(index)
-    if nsets == 0:
-        raise ValueError("index is empty")
     set_names = list(index.keys())
     # R's romer indexes positionally and does not match gene IDs
     no_ids = "romer's index takes positions or a boolean mask, not gene IDs (as R's romer)"
