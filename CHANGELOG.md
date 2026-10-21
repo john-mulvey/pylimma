@@ -136,6 +136,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `romer` reforms the design for a contrast with `contrast_as_coef`, as R:
+  an all-zero contrast raises R's "contrast is all zero" (it returned a
+  table), a contrast matrix tests its last column (raised a shape error),
+  and a float column number such as `1.0` works.
 - `top_romer` raised `KeyError('Up')` on every `romer` result; it reads
   `romer`'s `n_genes` / `up` / `down` / `mixed` columns.
 - `camera` / `camera_pr` with a set of all genes or of no genes raised

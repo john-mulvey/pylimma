@@ -49,6 +49,7 @@ import pandas as pd
 from scipy import linalg, stats
 
 from .classes import _elist_from_layer, _shape_error, get_eawp
+from .contrasts import contrast_as_coef
 from .lmfit import _design_names, _numeric_design, _qr_r_style, non_estimable
 from .squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_robustly, squeeze_var
 from .utils import (
@@ -1859,19 +1860,20 @@ def romer(
     if contrast is None:
         contrast = p - 1
 
+    # R: a single contrast is round()ed and moved last; otherwise
+    # contrastAsCoef(design, contrast, first=FALSE)$design (which stops for an
+    # all-zero contrast and makes a contrast matrix's last column the tested one)
     contrast_arr = np.atleast_1d(np.asarray(contrast))
-    if contrast_arr.size == 1 and np.issubdtype(contrast_arr.dtype, np.integer):
-        k = int(contrast_arr.item())
+    if contrast_arr.size == 1:
+        k = int(np.round(contrast_arr.item()))
         if k < p - 1:
             keep = [j for j in range(p) if j != k]
             design = np.column_stack([design[:, keep], design[:, k : k + 1]])
     else:
-        contrast_vec = np.asarray(contrast, dtype=np.float64)
-        Q_c, R_c = linalg.qr(contrast_vec.reshape(-1, 1), mode="full")
-        rotated = design @ Q_c
-        if np.sign(R_c[0, 0]) < 0:
-            rotated[:, 0] = -rotated[:, 0]
-        design = np.column_stack([rotated[:, 1:], rotated[:, 0:1]])
+        design = np.asarray(
+            contrast_as_coef(design, contrast_arr.astype(np.float64), first=False)["design"],
+            dtype=np.float64,
+        )
 
     if array_weights is not None:
         aw = np.asarray(array_weights, dtype=np.float64)

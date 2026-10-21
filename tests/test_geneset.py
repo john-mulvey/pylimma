@@ -685,3 +685,22 @@ def test_non_finite_nrot_raises(bad):
     y, design = _x204_data()
     with pytest.raises(ValueError, match="^nrot must be a whole number$"):
         pylimma.roast(y, np.arange(5), design, nrot=bad)
+
+
+def test_romer_contrast_vector_and_matrix():
+    """R's romer reforms the design with contrastAsCoef(first=FALSE): a
+    contrast matrix tests its last column (R: diag(2) gives the same table
+    as c(0, 1)), a zero contrast stops with "contrast is all zero"."""
+    import pylimma
+
+    y = np.random.default_rng(1).normal(size=(20, 6))
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    index = {"a": np.arange(5)}
+    by_matrix = pylimma.romer(y, index, design, contrast=np.eye(2), nrot=99, rng=1)
+    by_vector = pylimma.romer(y, index, design, contrast=np.array([0.0, 1.0]), nrot=99, rng=1)
+    by_column = pylimma.romer(y, index, design, contrast=1, nrot=99, rng=1)
+    pd.testing.assert_frame_equal(by_matrix, by_vector)
+    pd.testing.assert_frame_equal(by_vector, by_column)
+    assert pylimma.romer(y, index, design, contrast=1.0, nrot=99, rng=1).equals(by_column)
+    with pytest.raises(ValueError, match="contrast is all zero"):
+        pylimma.romer(y, index, design, contrast=np.array([0.0, 0.0]), nrot=99)
