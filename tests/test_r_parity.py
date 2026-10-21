@@ -5157,6 +5157,17 @@ class TestNormalizeVSNRParity:
         cmp = compare_arrays(ref, py, rtol=1e-6, atol=1e-12)
         assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
 
+    def test_all_missing_rows_left_out_of_the_fit_against_r(self):
+        from pylimma import normalize_vsn
+
+        x = pd.read_csv(FIXTURES_DIR / "R_vsa_input.csv").values.astype(float)
+        ref = pd.read_csv(FIXTURES_DIR / "R_vsa_output.csv").values.astype(float)
+        with pytest.warns(UserWarning, match="4 rows were removed since they contained only NA"):
+            py = normalize_vsn(x)
+        np.testing.assert_array_equal(np.isnan(py), np.isnan(ref))
+        cmp = compare_arrays(ref[~np.isnan(ref)], py[~np.isnan(py)], rtol=1e-6, atol=1e-12)
+        assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
+
     def test_transform_at_r_params_matches_r_to_machine_precision(self):
         """Validate the transform / hoffset / log2-rescale code path is
         a bit-faithful port of vsn::vsn2trsf + vsnMatrix's hoffset

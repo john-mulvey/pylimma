@@ -1358,6 +1358,8 @@ def _vsn_lts_select(hy, lts_quantile):
     rows whose sum of squared residuals is within the ``lts_quantile``
     quantile; slice 1 (the lowest intensities) is kept whole.
     """
+    # normalize_vsn leaves all-NA rows out of the fit, so hmean is NaN only
+    # when this is called directly; the NaN handling mirrors vsnLTS
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", RuntimeWarning)  # all-NA rows
         hmean = np.nanmean(hy, axis=1)
@@ -1450,6 +1452,11 @@ def normalize_vsn(
     the result matches R's ``normalizeVSN`` to rounding error. The
     transform (``_vsn_trsf`` plus the ``hoffset`` formula) is a direct
     port of ``vsn::vsn2trsf``.
+
+    As in vsn, rows that are all missing are left out of the fit with a
+    warning and stay NaN in the output. If no row has a non-missing value,
+    pylimma raises a ValueError; R fails with "Elements of argument
+    'Sstrat' must be in ascending order".
     """
     x = _as_dense_array(x, np.float64)
     if x.ndim != 2:
@@ -1478,19 +1485,30 @@ def normalize_vsn(
     # R: pstartHeuristic, a = 0 and b = 1 for every column
     pstart = np.concatenate([np.zeros(n_cols), np.ones(n_cols)])
 
-    # vsnLTS loop: ML on the active rows, then trim to the best 90% by
-    # squared row residual within hmean-rank quintile.
-    whsel = np.arange(n_rows)
+    # R: vsnSample leaves the rows that are all NA out of the fit
+    all_missing = np.isnan(x).all(axis=1)
+    if all_missing.any():
+        warnings.warn(
+            f"{all_missing.sum()} rows were removed since they contained only NA elements.",
+            stacklevel=2,
+        )
+        if all_missing.all():
+            raise ValueError("no row of x has a non-missing value")
+    fit_x = x[~all_missing]
+
+    # vsnLTS loop: ML fit on the selected rows, then reselect the rows from
+    # the residuals of all the fitted rows (_vsn_lts_select).
+    whsel = np.arange(fit_x.shape[0])
     rsv_par = pstart
     iter_par = pstart
     for it in range(cvg_niter):
-        sub = x if it == 0 else x[whsel]
+        sub = fit_x if it == 0 else fit_x[whsel]
         rsv_par, _fail = _vsn_ml_fit(sub, iter_par, factr=factr, pgtol=pgtol, maxit=maxit)
         iter_par = rsv_par  # warm-start the next iteration (matches R)
         if abs(lts_quantile - 1.0) < np.sqrt(np.finfo(float).eps):
             break
-        # Apply current params to the FULL data and re-trim.
-        hy = _vsn_trsf(x, rsv_par)
+        # Apply current params to all the fitted rows and re-trim.
+        hy = _vsn_trsf(fit_x, rsv_par)
         whsel = _vsn_lts_select(hy, lts_quantile)
 
     # hoffset: per-stratum offset applied so that arrays sit on a common

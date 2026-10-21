@@ -5693,3 +5693,19 @@ stopifnot(.vsv_fails(.vsv_x), .vsv_fails(.vsv_big[0, ]),
           .vsv_fails(.vsv_big, optimpar = list(cvg.niter = 0L)),
           .vsv_fails(.vsv_big, optimpar = list(cvg.niter = 2.5)),
           .vsv_fails(.vsv_inf), .vsv_fails(matrix(0, 100, 4)), .vsv_fails(matrix(5, 100, 4)))
+
+# =============================================================================
+# normalizeVSN (vsn:::vsnSample) leaves rows that are all NA out of the fit,
+# with a warning; an all-NA matrix then fails obscurely (pylimma raises)
+# =============================================================================
+set.seed(14)
+.vsa_x <- exp(runif(120, 3, 10) + matrix(rnorm(480, 0, 0.2), 120)) %*% diag(exp(rnorm(4, 0, 0.2))) +
+  matrix(rnorm(480, 0, 20), 120)
+.vsa_x[sample(length(.vsa_x), 40)] <- NA
+.vsa_x[c(5, 60, 61, 118), ] <- NA
+write.csv(.vsa_x, "R_vsa_input.csv", row.names = FALSE)
+.vsa_warning <- tryCatch(normalizeVSN(.vsa_x), warning = conditionMessage)
+stopifnot(identical(.vsa_warning, "4 rows were removed since they contained only NA elements."))
+write.csv(suppressWarnings(normalizeVSN(.vsa_x)), "R_vsa_output.csv", row.names = FALSE)
+stopifnot(inherits(try(suppressWarnings(normalizeVSN(matrix(NA_real_, 100, 4))), silent = TRUE),
+                   "try-error"))

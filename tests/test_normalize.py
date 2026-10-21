@@ -46,3 +46,9 @@ class TestNormalizeVSNInput:
         for x in (infinite, -infinite, np.zeros((100, 4)), np.full((100, 4), 5.0)):
             with pytest.raises(ValueError, match="needs finite values"):
                 normalize_vsn(x)
+
+    def test_all_missing_matrix_raises(self):
+        # R fails with "Elements of argument 'Sstrat' must be in ascending order"
+        with pytest.warns(UserWarning, match="100 rows were removed"):
+            with pytest.raises(ValueError, match="no row of x has a non-missing value"):
+                normalize_vsn(np.full((100, 4), np.nan))

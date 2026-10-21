@@ -123,6 +123,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
   and an all-missing slice selects nothing. Rows with missing values were
   kept, giving output up to ~0.1 log2 units off R for data with missing
   values; slice boundaries moved a few rows between slices.
+- `normalize_vsn` leaves rows that are all missing out of the fit, with
+  vsn's warning ("N rows were removed since they contained only NA
+  elements."); they stay NaN in the output. They were ranked last in the
+  robust selection, shifting its slice boundaries. An all-missing matrix
+  raises an error.
 
 ### Changed behaviour
 

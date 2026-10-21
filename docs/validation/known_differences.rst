@@ -346,6 +346,12 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     silently use treatment contrasts. Without contrasts (``~ 0 + o``) both
     give one indicator column per level, and no error is raised.
 
+``normalize_vsn`` with no non-missing value
+    Raises "no row of x has a non-missing value" after vsn's warning that
+    the all-missing rows were removed. R's ``normalizeVSN`` fails with
+    "Elements of argument 'Sstrat' must be in ascending order".
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 Deliberate interface difference: EList design and weights slots
 ---------------------------------------------------------------
 
