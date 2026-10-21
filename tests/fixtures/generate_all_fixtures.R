@@ -5200,3 +5200,26 @@ write.csv(do.call(rbind, lapply(names(.i2i), function(case) {
 })), "R_i2i.csv", row.names = FALSE)
 
 cat("  ids2indices fixtures complete.\n")
+
+# =============================================================================
+# interGeneCorrelation: vif <- m * mean(colMeans(y)^2) after scaling each
+# gene's residual effects, i.e. averaging across genes; rank from qr(design);
+# an all-zero gene gives NaN (0/0)
+# =============================================================================
+cat("\nGenerating interGeneCorrelation fixtures...\n")
+
+set.seed(20261114)
+
+.igc_y <- matrix(rnorm(25 * 8), 25, 8) + rnorm(8)   # shared sample effect: positive correlation
+write.csv(.igc_y, "R_igc_y.csv", row.names = FALSE)
+.igc_d <- cbind(1, rep(0:1, each = 4))
+.igc_d_rd <- cbind(.igc_d, 2 * .igc_d[, 2])
+.igc_y_zero <- .igc_y
+.igc_y_zero[3, ] <- 0
+.igc <- list(full = interGeneCorrelation(.igc_y, .igc_d), rank_deficient = interGeneCorrelation(.igc_y, .igc_d_rd),
+             zero_gene = interGeneCorrelation(.igc_y_zero, .igc_d))
+stopifnot(isTRUE(all.equal(.igc$full, .igc$rank_deficient)), is.nan(.igc$zero_gene$vif))
+write.csv(data.frame(case = names(.igc), vif = sapply(.igc, `[[`, "vif"), correlation = sapply(.igc, `[[`, "correlation")),
+          "R_igc.csv", row.names = FALSE)
+
+cat("  interGeneCorrelation fixtures complete.\n")

@@ -48,7 +48,7 @@ import pandas as pd
 from scipy import linalg, stats
 
 from .classes import _elist_from_layer, _shape_error, get_eawp
-from .lmfit import _design_names, _numeric_design, non_estimable
+from .lmfit import _design_names, _numeric_design, _qr_r_style, non_estimable
 from .squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_robustly, squeeze_var
 from .utils import (
     _as_dense_array,
@@ -1298,18 +1298,16 @@ def inter_gene_correlation(y: np.ndarray, design: np.ndarray) -> dict:
     y = _as_dense_array(y, np.float64)
     design = _numeric_design(design)
     m = y.shape[0]
-    Q, R = linalg.qr(design, mode="full")
-    rank = int(np.sum(np.abs(np.diag(R)) > 1e-10))
-    # R: y <- qr.qty(qrdesign, t(y))[-(1:rank),] -> residual rows of Q^T y^T
-    resid = (Q.T @ y.T)[rank:, :]
-    # resid has shape (n - rank, m). R: y <- t(y) / sqrt(colMeans(y^2))
-    # colMeans along dim=1 of resid gives per-gene mean of residuals^2.
-    col_means = np.mean(resid**2, axis=0)
-    col_means = np.where(col_means > 0, col_means, 1e-300)
-    ny = resid / np.sqrt(col_means)  # shape (n-rank, m)
-    # vif = m * mean(colMeans(y)^2); here colMeans on ny is along axis=0
-    # but after t() -> t() in R, it's the mean across residual rows per gene.
-    vif = m * float(np.mean(np.mean(ny, axis=0) ** 2))
+    # R: qrdesign <- qr(design); y <- qr.qty(qrdesign, t(y))[-(1:rank), ]
+    Q, _R, _pivot, rank = _qr_r_style(design)
+    resid = (Q.T @ y.T)[rank:, :]  # (n - rank) x genes
+    # R: y <- t(y) / sqrt(colMeans(y^2)) scales each gene's residual effects
+    # (an all-zero gene gives 0/0 = NaN, as in R)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ny = resid / np.sqrt(np.mean(resid**2, axis=0))
+    # R: vif <- m * mean(colMeans(y)^2), colMeans of the genes x residuals
+    # matrix, i.e. the mean across genes for each residual dimension
+    vif = m * float(np.mean(np.mean(ny, axis=1) ** 2))
     correlation = (vif - 1) / (m - 1)
     return {"vif": vif, "correlation": correlation}
 

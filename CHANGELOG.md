@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `inter_gene_correlation` averaged the scaled residual effects over the
+  wrong axis, so `vif` and `correlation` were wrong for any data (e.g. vif
+  0.672 vs R 0.349); it now matches R's `interGeneCorrelation`, including
+  R's rank rule and NaN for an all-zero gene.
 - `remove_batch_effect`: for a gene whose design-of-interest coefficient
   is not estimable (e.g. missing values), the whole row of coefficients
   was zeroed, so its batch effect was not removed; as R, only the

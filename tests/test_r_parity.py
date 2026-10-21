@@ -7040,3 +7040,28 @@ def test_ids2indices_accepts_python_iterables():
     expected = {"Set1": [0, 2]}
     for gene_set in ({"a", "c"}, {"a": 1, "c": 2}.keys(), (g for g in ["a", "c"])):
         assert {k: list(v) for k, v in ids2indices(gene_set, ids).items()} == expected
+
+
+# =============================================================================
+# inter_gene_correlation: R's interGeneCorrelation
+# =============================================================================
+
+
+@pytest.mark.parametrize("case", ["full", "rank_deficient", "zero_gene"])
+def test_inter_gene_correlation_matches_r(case):
+    import warnings
+
+    from pylimma import inter_gene_correlation
+
+    y = load_r_csv_no_index("igc_y").to_numpy(dtype=float)
+    design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    if case == "rank_deficient":
+        design = np.column_stack([design, 2 * design[:, 1]])
+    if case == "zero_gene":
+        y[2, :] = 0.0
+    r = load_r_csv_no_index("igc").set_index("case").loc[case]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # 0/0 for the all-zero gene, as R
+        out = inter_gene_correlation(y, design)
+    np.testing.assert_allclose(out["vif"], r["vif"], rtol=1e-6, equal_nan=True)
+    np.testing.assert_allclose(out["correlation"], r["correlation"], rtol=1e-6, equal_nan=True)
