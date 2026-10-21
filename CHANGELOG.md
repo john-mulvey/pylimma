@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `roast` / `mroast`: an empty set, a NaN gene weight or a negative
+  `df_prior` gave small finite p-values (an empty set was even sorted
+  first); as in R, the NaN propagates to NaN p-values, active proportions
+  and FDR, and `mroast` sorts such sets last.
 - `camera(trend_var=True)` with array weights computed the variance trend's
   average expression from the unweighted data; as R, it uses the data
   scaled by the square-root weights (p-values differed by up to ~3%).

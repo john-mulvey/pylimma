@@ -7098,3 +7098,51 @@ def test_camera_weighted_trend_matches_r():
     )
     r = load_r_csv("cwt_camera")
     assert compare_pvalues(r["PValue"].to_numpy(), tab["p_value"].to_numpy())["match"]
+
+
+# =============================================================================
+# roast / mroast propagate NaN as R does (empty set, NaN gene weight,
+# negative df_prior)
+# =============================================================================
+
+
+class TestRoastNaNPropagationRParity:
+    DESIGN = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+
+    @staticmethod
+    def _y():
+        return load_r_csv_no_index("rna_y").to_numpy(dtype=float)
+
+    def test_mroast_empty_set_is_nan_and_sorted_last(self):
+        import warnings
+
+        from pylimma import mroast
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # mean of an empty set, as R's NaN
+            tab = mroast(self._y(), {"A": np.arange(5), "C": np.array([], dtype=int), "B": np.arange(5, 10)},
+                         self.DESIGN, nrot=99, rng=1)
+        r = load_r_csv_no_index("rna_mroast")
+        assert list(tab.index) == list(r["set"])
+        np.testing.assert_array_equal(tab["n_genes"], r["NGenes"])
+        np.testing.assert_array_equal(np.isnan(tab["p_value"]), r["PValue_na"])
+        np.testing.assert_array_equal(np.isnan(tab["fdr"]), r["FDR_na"])
+
+    @pytest.mark.parametrize("case", ["gene_weight_na", "df_prior_negative"])
+    def test_roast_nan_p_values(self, case):
+        import warnings
+
+        from pylimma import roast
+
+        kwargs = (
+            {"gene_weights": np.array([1.0, np.nan, 1.0, 1.0, 1.0])}
+            if case == "gene_weight_na"
+            else {"var_prior": 1.0, "df_prior": -3.0}
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # sqrt of a negative, as R
+            out = roast(self._y(), np.arange(5), self.DESIGN, nrot=99, rng=1, **kwargs)["p_value"]
+        r = load_r_csv_no_index("rna_roast")
+        r = r[r["case"] == case]
+        np.testing.assert_array_equal(np.isnan(out["p_value"]), r["p_value_na"])
+        np.testing.assert_allclose(out["active_prop"], r["active_prop"], equal_nan=True)

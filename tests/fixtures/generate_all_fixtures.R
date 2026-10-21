@@ -5241,3 +5241,27 @@ write.csv(.cwt_y, "R_cwt_y.csv", row.names = FALSE)
 write.csv(camera(.cwt_y, .cwt_sets, .cwt_d, weights = .cwt_w, trend.var = TRUE, sort = FALSE), "R_cwt_camera.csv")
 
 cat("  camera weighted trend fixtures complete.\n")
+
+# =============================================================================
+# roast / mroast propagate NA: an empty set, a NA gene weight or a negative
+# df.prior give NA statistics, so sum(statrot > statobs) and the p-values are
+# NA; mroast sorts such sets last. Only the NA pattern and NGenes are
+# recorded (the finite p-values depend on the rotations).
+# =============================================================================
+cat("\nGenerating roast NA-propagation fixtures...\n")
+
+set.seed(20261116)
+
+.rna_y <- matrix(rnorm(20 * 6), 20, 6)
+write.csv(.rna_y, "R_rna_y.csv", row.names = FALSE)
+.rna_d <- cbind(1, rep(0:1, each = 3))
+.rna_mr <- mroast(.rna_y, list(A = 1:5, C = integer(0), B = 6:10), .rna_d, nrot = 99)
+.rna_gw <- roast(.rna_y, 1:5, .rna_d, gene.weights = c(1, NA, 1, 1, 1), nrot = 99)$p.value
+.rna_df <- suppressWarnings(roast(.rna_y, 1:5, .rna_d, var.prior = 1, df.prior = -3, nrot = 99))$p.value
+write.csv(data.frame(set = rownames(.rna_mr), NGenes = .rna_mr$NGenes, PValue_na = is.na(.rna_mr$PValue),
+                     FDR_na = is.na(.rna_mr$FDR)), "R_rna_mroast.csv", row.names = FALSE)
+write.csv(data.frame(case = rep(c("gene_weight_na", "df_prior_negative"), each = 4),
+                     active_prop = c(.rna_gw$Active.Prop, .rna_df$Active.Prop),
+                     p_value_na = c(is.na(.rna_gw$P.Value), is.na(.rna_df$P.Value))), "R_rna_roast.csv", row.names = FALSE)
+
+cat("  roast NA-propagation fixtures complete.\n")

@@ -342,6 +342,21 @@ def _lm_effects(
 _SQRT2 = np.sqrt(2.0)
 
 
+def _r_sum_greater(values, threshold) -> float:
+    """R's sum(values > threshold): NaN when any value or the threshold is
+    NaN (R's NA comparison), otherwise the count."""
+    values = np.asarray(values, dtype=np.float64)
+    if np.isnan(threshold) or np.isnan(values).any():
+        return np.nan
+    return float(np.sum(values > threshold))
+
+
+def _r_mean_greater(values, threshold) -> float:
+    """R's mean(values > threshold): NaN for an empty set or any NaN."""
+    values = np.asarray(values, dtype=np.float64)
+    return _r_sum_greater(values, threshold) / values.size if values.size else np.nan
+
+
 def _roast_effects(
     effects: np.ndarray,
     gene_weights: np.ndarray | None,
@@ -380,13 +395,16 @@ def _roast_effects(
 
     # Active proportions
     if gene_weights is None:
-        a1 = float(np.mean(modt > _SQRT2))
-        a2 = float(np.mean(modt < -_SQRT2))
+        a1 = _r_mean_greater(modt, _SQRT2)
+        a2 = _r_mean_greater(-modt, _SQRT2)
     else:
         s = np.sign(gene_weights)
         ss = float(np.sum(np.abs(s)))
-        a1 = float(np.sum(s * modt > _SQRT2)) / ss if ss > 0 else 0.0
-        a2 = float(np.sum(s * modt < -_SQRT2)) / ss if ss > 0 else 0.0
+        # all-zero weights give 0 (R: 0/0 = NaN, see R_QUIRKS S-06); a NaN
+        # weight gives NaN, as R
+        nonzero = ss > 0 or np.isnan(ss)
+        a1 = _r_sum_greater(s * modt, _SQRT2) / ss if nonzero else 0.0
+        a2 = _r_sum_greater(-s * modt, _SQRT2) / ss if nonzero else 0.0
 
     # Observed set statistics
     statobs = np.zeros(4)
@@ -448,7 +466,8 @@ def _roast_effects(
     nroti = int(np.ceil(nrot / nchunk))
     overshoot = nchunk * nroti - nrot
 
-    count = np.zeros(4, dtype=np.int64)
+    # float, so that a NA comparison can make a count NaN as in R
+    count = np.zeros(4)
     FinDf = np.isfinite(np.asarray(df_prior, dtype=np.float64))
     FinDf = np.atleast_1d(FinDf)
     df_prior_arr = np.atleast_1d(np.asarray(df_prior, dtype=np.float64))
@@ -525,9 +544,9 @@ def _roast_effects(
             statrot[:, 0] = -m_r
             statrot[:, 1] = m_r
             statrot[:, 3] = np.mean(np.abs(modtr), axis=0)
-            count[0] += int(np.sum(statrot[:, 0] > statobs[0]) + np.sum(statrot[:, 1] > statobs[0]))
-            count[1] += int(np.sum(statrot[:, 0] > statobs[1]) + np.sum(statrot[:, 1] > statobs[1]))
-            count[3] += int(np.sum(statrot[:, 3] > statobs[3]))
+            count[0] += _r_sum_greater(statrot[:, 0], statobs[0]) + _r_sum_greater(statrot[:, 1], statobs[0])
+            count[1] += _r_sum_greater(statrot[:, 0], statobs[1]) + _r_sum_greater(statrot[:, 1], statobs[1])
+            count[3] += _r_sum_greater(statrot[:, 3], statobs[3])
 
         elif set_statistic == "floormean":
             amodtr = np.maximum(np.abs(modtr), chimed)
@@ -540,10 +559,10 @@ def _roast_effects(
             statrot[ub, 2] = statrot[ub, 1]
             statrot[~ub, 2] = statrot[~ub, 0]
             statrot[:, 3] = np.mean(amodtr, axis=0)
-            count[0] += int(np.sum(statrot[:, 0] > statobs[0]) + np.sum(statrot[:, 1] > statobs[0]))
-            count[1] += int(np.sum(statrot[:, 0] > statobs[1]) + np.sum(statrot[:, 1] > statobs[1]))
-            count[2] += int(np.sum(statrot[:, 2] > statobs[2]))
-            count[3] += int(np.sum(statrot[:, 3] > statobs[3]))
+            count[0] += _r_sum_greater(statrot[:, 0], statobs[0]) + _r_sum_greater(statrot[:, 1], statobs[0])
+            count[1] += _r_sum_greater(statrot[:, 0], statobs[1]) + _r_sum_greater(statrot[:, 1], statobs[1])
+            count[2] += _r_sum_greater(statrot[:, 2], statobs[2])
+            count[3] += _r_sum_greater(statrot[:, 3], statobs[3])
 
         elif set_statistic == "mean50":
             if gene_weights is not None:
@@ -555,10 +574,10 @@ def _roast_effects(
                 statrot[r, 2] = max(statrot[r, 0], statrot[r, 1])
                 s_sorted = np.sort(np.abs(modtr[:, r]))
                 statrot[r, 3] = np.mean(s_sorted[half2_loc - 1 : nset])
-            count[0] += int(np.sum(statrot[:, 0] > statobs[0]) + np.sum(statrot[:, 1] > statobs[0]))
-            count[1] += int(np.sum(statrot[:, 0] > statobs[1]) + np.sum(statrot[:, 1] > statobs[1]))
-            count[2] += int(np.sum(statrot[:, 2] > statobs[2]))
-            count[3] += int(np.sum(statrot[:, 3] > statobs[3]))
+            count[0] += _r_sum_greater(statrot[:, 0], statobs[0]) + _r_sum_greater(statrot[:, 1], statobs[0])
+            count[1] += _r_sum_greater(statrot[:, 0], statobs[1]) + _r_sum_greater(statrot[:, 1], statobs[1])
+            count[2] += _r_sum_greater(statrot[:, 2], statobs[2])
+            count[3] += _r_sum_greater(statrot[:, 3], statobs[3])
 
         elif set_statistic == "msq":
             if gene_weights is not None:
@@ -570,13 +589,13 @@ def _roast_effects(
             statrot[ub, 2] = statrot[ub, 1]
             statrot[~ub, 2] = statrot[~ub, 0]
             statrot[:, 3] = np.mean(modtr**2, axis=0)
-            count[0] += int(np.sum(statrot[:, 0] > statobs[0]) + np.sum(statrot[:, 1] > statobs[0]))
-            count[1] += int(np.sum(statrot[:, 0] > statobs[1]) + np.sum(statrot[:, 1] > statobs[1]))
-            count[2] += int(np.sum(statrot[:, 2] > statobs[2]))
-            count[3] += int(np.sum(statrot[:, 3] > statobs[3]))
+            count[0] += _r_sum_greater(statrot[:, 0], statobs[0]) + _r_sum_greater(statrot[:, 1], statobs[0])
+            count[1] += _r_sum_greater(statrot[:, 0], statobs[1]) + _r_sum_greater(statrot[:, 1], statobs[1])
+            count[2] += _r_sum_greater(statrot[:, 2], statobs[2])
+            count[3] += _r_sum_greater(statrot[:, 3], statobs[3])
 
     if set_statistic == "mean":
-        count[2] = int(min(count[0], count[1]))
+        count[2] = np.min(count[:2])  # R's min(): NA if either is NA
 
     # Denominators: (2,2,1,1)*nrot + 1
     denom = np.array([2 * nrot + 1, 2 * nrot + 1, nrot + 1, nrot + 1], dtype=np.float64)
@@ -584,7 +603,7 @@ def _roast_effects(
 
     # Assemble data.frame-like output matching R:
     # rows: Down, Up, UpOrDown, Mixed; cols: Active.Prop, P.Value
-    active = np.array([a2, a1, max(a1, a2), a1 + a2])
+    active = np.array([a2, a1, np.max([a1, a2]), a1 + a2])
     pvals = p
     out_df = pd.DataFrame(
         {"active_prop": active, "p_value": pvals},
