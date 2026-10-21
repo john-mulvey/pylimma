@@ -5124,6 +5124,29 @@ class TestNormalizeVSNRParity:
         cmp = compare_arrays(ref[~np.isnan(ref)], py[~np.isnan(py)], rtol=1e-6, atol=1e-12)
         assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
 
+    def test_lts_row_selection_matches_r(self):
+        """vsnLTS's selection: NA rvar dropped outside slice 1, right-closed
+        slices of average ranks (ties, a rank on a slice edge, an all-NA row)."""
+        from pylimma.normalize import _vsn_lts_select
+
+        hy = pd.read_csv(FIXTURES_DIR / "R_vsl_hy.csv").values.astype(float)
+        r_rows = pd.read_csv(FIXTURES_DIR / "R_vsl_whsel.csv")["row"].values - 1
+        np.testing.assert_array_equal(_vsn_lts_select(hy, 0.9), r_rows)
+        # all ranks equal: R's cut() puts them in slice 3, which is trimmed
+        assert _vsn_lts_select(np.array([[1.0, np.nan, 2.0]]), 0.9).size == 0
+        tied = np.array([[1.0, 2.0], [1.0, 2.0]])
+        np.testing.assert_array_equal(_vsn_lts_select(tied, 0.9), [0, 1])
+
+    def test_missing_values_lts_fit_against_r(self):
+        from pylimma import normalize_vsn
+
+        x = pd.read_csv(FIXTURES_DIR / "R_vsl_input.csv").values.astype(float)
+        ref = pd.read_csv(FIXTURES_DIR / "R_vsl_output.csv").values.astype(float)
+        py = normalize_vsn(x)
+        np.testing.assert_array_equal(np.isnan(py), np.isnan(ref))
+        cmp = compare_arrays(ref[~np.isnan(ref)], py[~np.isnan(py)], rtol=1e-6, atol=1e-12)
+        assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
+
     def test_transform_at_r_params_matches_r_to_machine_precision(self):
         """Validate the transform / hoffset / log2-rescale code path is
         a bit-faithful port of vsn::vsn2trsf + vsnMatrix's hoffset

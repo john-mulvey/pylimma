@@ -1232,11 +1232,12 @@ def _aver_arrays_anndata(adata, id=None, weights=None):
 # scipy.optimize.minimize(method="L-BFGS-B") with vsn's start (b = 1) and
 # memory (lmm = 5), which follows R's path to the same optimum.
 #
-# LTS robustification. After each ML fit, residuals are computed for ALL
-# rows; rows are split into 5 hmean-rank quintiles and within each (slice,
-# stratum) cell, only rows with squared-residual below the 90th percentile
-# are kept for the next iteration (slice 1, the lowest-intensity rows,
-# is exempt and always kept whole). Up to 7 iterations.
+# LTS robustification. After each ML fit, residuals are computed for every
+# row in the fit; rows are split into 5 slices by the rank of their mean and
+# within each slice only rows whose sum of squared residuals is within the
+# lts_quantile quantile are kept for the next iteration. A row with a
+# missing value has no sum and is dropped; slice 1 (the lowest-intensity
+# rows) is exempt and always kept whole. Up to 7 iterations.
 
 
 def _vsn_neg_loglik_and_grad(par, y_full, valid_full):
@@ -1339,49 +1340,40 @@ def _vsn_trsf(y, par):
 
 def _vsn_lts_select(hy, lts_quantile):
     """
-    Robust trimming after an ML fit: split rows into 5 quintile slices by
-    hmean rank, drop rows whose squared-residual is above the per-slice
-    quantile (slice 1 is exempt). Single-stratum version.
+    Robust trimming after an ML fit (vsn:::vsnLTS, one stratum): split rows
+    into 5 slices by the rank of their mean and keep, in each slice, the
+    rows whose sum of squared residuals is within the ``lts_quantile``
+    quantile; slice 1 (the lowest intensities) is kept whole.
     """
-    hmean = np.nanmean(hy, axis=1)
-    rvar = np.nansum((hy - hmean[:, np.newaxis]) ** 2, axis=1)
-    n_rows = hy.shape[0]
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)  # all-NA rows
+        hmean = np.nanmean(hy, axis=1)
+    # R: rowSums without na.rm, so a row with a missing value has rvar NA
+    rvar = np.sum((hy - hmean[:, np.newaxis]) ** 2, axis=1)
 
-    # rank(hmean, na.last=TRUE): NaNs go to the highest ranks.
+    # R: rank(hmean, na.last=TRUE), average ranks for ties, NaN ranked last
     finite = ~np.isnan(hmean)
-    finite_idx = np.where(finite)[0]
-    nan_idx = np.where(~finite)[0]
-    finite_sort = finite_idx[np.argsort(hmean[finite_idx], kind="stable")]
-    sorted_all = np.concatenate([finite_sort, nan_idx])
-    rank = np.empty(n_rows, dtype=np.float64)
-    rank[sorted_all] = np.arange(1, n_rows + 1, dtype=np.float64)
+    rank = np.empty(hmean.size)
+    rank[finite] = rankdata(hmean[finite])
+    rank[~finite] = finite.sum() + np.arange(1, (~finite).sum() + 1)
 
-    # cut(rank, breaks=5) -> 5 equal-width bins on the rank scale [1..n].
-    n_slices = 5
-    edges = np.linspace(1.0, float(n_rows), n_slices + 1)
-    # cut(..., right=TRUE, include.lowest=FALSE by default for cut):
-    # bin k contains rank in (edges[k-1], edges[k]], with the lowest
-    # value getting the lowest bin (cut's default attaches the lower
-    # boundary to bin 1).
-    slice_ = np.digitize(rank, edges[1:-1], right=False)
-    slice_ = np.clip(slice_, 0, n_slices - 1)
+    # R: cut(rank, breaks=5), five equal-width right-closed intervals; the
+    # outer breaks are widened, so only the four inner ones matter. When all
+    # ranks are equal, R spreads the breaks over rank +- rank/1000 (slice 3)
+    low, high = rank.min(), rank.max()
+    if low == high:
+        low, high = low - low / 1000, high + high / 1000
+    edges = np.linspace(low, high, 6)
+    slice_ = np.digitize(rank, edges[1:-1], right=True)
 
-    # Per-slice quantile of rvar.
-    keep = np.zeros(n_rows, dtype=bool)
-    for s in range(n_slices):
+    # R: which(rvar <= quantile(rvar, na.rm=TRUE) per slice | slice == 1);
+    # NA rvar and an all-NA slice (quantile NA) select nothing
+    keep = slice_ == 0
+    for s in range(1, 5):
         in_slice = slice_ == s
-        if not np.any(in_slice):
-            continue
-        if s == 0:
-            keep |= in_slice  # slice 1 always kept (exempt)
-            continue
-        slice_rvar = rvar[in_slice]
-        finite_rvar = slice_rvar[~np.isnan(slice_rvar)]
-        if finite_rvar.size == 0:
-            keep |= in_slice
-            continue
-        threshold = np.quantile(finite_rvar, lts_quantile)
-        keep |= in_slice & (rvar <= threshold)
+        slice_rvar = rvar[in_slice & ~np.isnan(rvar)]
+        if slice_rvar.size:
+            keep |= in_slice & (rvar <= np.quantile(slice_rvar, lts_quantile))
     return np.where(keep)[0]
 
 

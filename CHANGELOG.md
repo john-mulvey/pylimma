@@ -117,6 +117,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   documented as an accepted difference), and data with many missing
   values no longer runs away to a worse optimum (up to 1.8 log2 units off
   R).
+- `normalize_vsn` selects the rows for each robust (LTS) refit as vsn
+  does: a row with a missing value is left out (outside the lowest
+  intensity slice), slices are right-closed intervals of average ranks,
+  and an all-missing slice selects nothing. Rows with missing values were
+  kept, giving output up to ~0.1 log2 units off R for data with missing
+  values; slice boundaries moved a few rows between slices.
 
 ### Changed behaviour
 

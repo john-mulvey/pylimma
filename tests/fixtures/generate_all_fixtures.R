@@ -5640,3 +5640,32 @@ set.seed(55)
 .vso_x[1:100, 2] <- NA
 write.csv(.vso_x, "R_vso_input.csv", row.names = FALSE)
 write.csv(normalizeVSN(.vso_x, lts.quantile = 1), "R_vso_ml.csv", row.names = FALSE)
+
+# =============================================================================
+# vsn's LTS row selection (vsn:::vsnLTS, one stratum): rows with a missing
+# value have rvar NA and are dropped outside slice 1; slices come from
+# cut(rank(hmean), breaks = 5), right-closed, with average ranks for ties
+# =============================================================================
+set.seed(11)
+.vsl_hy <- matrix(rnorm(501 * 4, mean = rep(seq(5, 12, length.out = 501), 4)), 501)
+.vsl_hy[sample(length(.vsl_hy), 300)] <- NA
+.vsl_hy[2:3, ] <- .vsl_hy[1, ]  # tied row means
+.vsl_hy[4, ] <- NA              # all missing: hmean NaN, ranked last
+write.csv(.vsl_hy, "R_vsl_hy.csv", row.names = FALSE)
+.vsl_hmean <- suppressWarnings(rowMeans(.vsl_hy, na.rm = TRUE))
+.vsl_rvar <- rowSums((.vsl_hy - .vsl_hmean)^2)
+.vsl_slice <- cut(rank(.vsl_hmean, na.last = TRUE), breaks = 5L)
+.vsl_q <- tapply(.vsl_rvar, list(.vsl_slice, rep(1L, 501)), quantile, probs = 0.9, na.rm = TRUE)
+.vsl_whsel <- which((.vsl_rvar <= .vsl_q[cbind(as.integer(.vsl_slice), 1L)]) | (as.integer(.vsl_slice) == 1L))
+write.csv(data.frame(row = .vsl_whsel), "R_vsl_whsel.csv", row.names = FALSE)
+# all ranks equal: cut() puts them in slice 3, so a single row with a missing
+# value is dropped
+stopifnot(identical(as.integer(cut(rank(5), breaks = 5L)), 3L),
+          identical(as.integer(cut(rank(c(2, 2)), breaks = 5L)), c(3L, 3L)))
+# end to end with missing values scattered over all arrays
+set.seed(12)
+.vsl_x <- exp(runif(300, 3, 10) + matrix(rnorm(1500, 0, 0.2), 300)) %*% diag(exp(rnorm(5, 0, 0.2))) +
+  matrix(rnorm(1500, 0, 20), 300)
+.vsl_x[sample(length(.vsl_x), 300)] <- NA
+write.csv(.vsl_x, "R_vsl_input.csv", row.names = FALSE)
+write.csv(normalizeVSN(.vsl_x), "R_vsl_output.csv", row.names = FALSE)
