@@ -5709,3 +5709,10 @@ stopifnot(identical(.vsa_warning, "4 rows were removed since they contained only
 write.csv(suppressWarnings(normalizeVSN(.vsa_x)), "R_vsa_output.csv", row.names = FALSE)
 stopifnot(inherits(try(suppressWarnings(normalizeVSN(matrix(NA_real_, 100, 4))), silent = TRUE),
                    "try-error"))
+
+# =============================================================================
+# normalizeBetweenArrays(method = "vsn") points to normalizeVSN
+# =============================================================================
+stopifnot(identical(tryCatch(normalizeBetweenArrays(matrix(1:8, 4), method = "vsn"),
+                             error = conditionMessage),
+                    "vsn method no longer supported. Please use normalizeVSN instead."))

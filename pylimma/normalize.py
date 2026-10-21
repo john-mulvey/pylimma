@@ -120,6 +120,9 @@ def normalize_between_arrays(
     if method is None:
         method = "quantile"
 
+    # R: if(method=="vsn") stop("vsn method no longer supported. ...")
+    if method == "vsn":
+        raise ValueError("vsn method no longer supported. Please use normalize_vsn instead.")
     if method not in _VALID_METHODS:
         raise ValueError(
             f"method '{method}' not applicable to single-channel data. "

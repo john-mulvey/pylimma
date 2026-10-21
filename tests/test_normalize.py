@@ -4,7 +4,7 @@ cases is recorded in tests/fixtures/generate_all_fixtures.R)."""
 import numpy as np
 import pytest
 
-from pylimma import normalize_vsn
+from pylimma import normalize_between_arrays, normalize_vsn
 
 
 @pytest.fixture
@@ -52,3 +52,8 @@ class TestNormalizeVSNInput:
         with pytest.warns(UserWarning, match="100 rows were removed"):
             with pytest.raises(ValueError, match="no row of x has a non-missing value"):
                 normalize_vsn(np.full((100, 4), np.nan))
+
+
+def test_normalize_between_arrays_vsn_points_to_normalize_vsn(intensities):
+    with pytest.raises(ValueError, match="Please use normalize_vsn instead"):
+        normalize_between_arrays(intensities, method="vsn")

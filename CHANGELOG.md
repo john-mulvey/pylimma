@@ -343,6 +343,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   expressions; as R's named character vector, the keys of a dict or the
   index of a Series (other than a default RangeIndex) are the column names
   (an empty name falls back to the expression). A single string is one contrast, not one per character.
+- `normalize_between_arrays(method="vsn")` says, as R does, that the
+  method is no longer supported and to use `normalize_vsn` instead; it
+  said the method was not applicable to single-channel data.
 
 ### Documentation and examples
 
