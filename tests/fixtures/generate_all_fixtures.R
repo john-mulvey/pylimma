@@ -5318,3 +5318,23 @@ write.csv(camera(.gsr_y, list(a = 1:6, b = 7:15), .gsr_d, sort = FALSE), "R_gsr_
 write.csv(fry(.gsr_y, list(a = 1:6, b = 7:15), .gsr_d, sort = "none"), "R_gsr_fry.csv")
 
 cat("  gene-set rank-tolerance fixtures complete.\n")
+
+# =============================================================================
+# goana / kegga: a single gene ID is one DE set; a data.frame de is an error
+# =============================================================================
+cat("\nGenerating enrichment de-input checks...\n")
+
+.ed_single <- kegga("gene001", universe = goana_universe, gene.pathway = kegga_gp, pathway.names = kegga_pn)
+stopifnot(identical(.ed_single, kegga(list(DE = "gene001"), universe = goana_universe,
+                                      gene.pathway = kegga_gp, pathway.names = kegga_pn)))
+.ed_df <- tryCatch(kegga(data.frame(x = de_up), universe = goana_universe, gene.pathway = kegga_gp,
+                         pathway.names = kegga_pn), error = conditionMessage)
+stopifnot(identical(.ed_df, "de should be a list of character vectors. It should not be a data.frame."))
+.ed_null <- tryCatch(kegga(NULL, universe = goana_universe, gene.pathway = kegga_gp, pathway.names = kegga_pn),
+                     error = conditionMessage)
+stopifnot(identical(.ed_null, "components of de should be vectors"))
+.ed_list <- kegga(list(c("gene001", "gene002"), "gene003"), universe = goana_universe, gene.pathway = kegga_gp,
+                  pathway.names = kegga_pn)
+stopifnot(identical(colnames(.ed_list), c("Pathway", "N", "DE1", "DE2", "P.DE1", "P.DE2")))
+
+cat("  enrichment de-input checks complete.\n")

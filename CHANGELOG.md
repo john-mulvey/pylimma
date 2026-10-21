@@ -200,6 +200,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   the estimated proportion of true nulls is 0 returned `ZeroDivisionError`;
   lods are now Inf, as in R (including `pred_fcm(all_de=False)`, where the
   probability of differential expression becomes 1).
+- `goana` / `kegga` take a single gene ID as `de` (one set, as R; it
+  raised) and a list of gene-ID lists as unnamed sets `DE1`, `DE2`, ...
+  (it raised, or merged them into one set), and raise R's errors for a
+  DataFrame `de` (its column labels were read as gene IDs) and for a
+  `None` set (tested as the gene "None"). A dict view of IDs is one set
+  (it was read as a single ID).
 
 ## [0.2.0] - 2026-09-30
 

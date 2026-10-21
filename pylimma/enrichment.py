@@ -73,6 +73,7 @@ from .classes import (
     _is_anndata,
     _resolve_fit_input,
 )
+from .geneset import _is_list_of_sets
 from .utils import p_adjust, tricube_moving_average
 
 # ---------------------------------------------------------------------------
@@ -102,7 +103,10 @@ def goana(
     Parameters
     ----------
     de : MArrayLM, AnnData, dict-of-vectors, or 1-D vector of gene IDs
-        Differentially-expressed genes. When a fit object is supplied,
+        Differentially-expressed genes. A vector (or a single gene ID) is
+        one set named ``"DE"``, a list of vectors is several sets named
+        ``"DE1"``, ``"DE2"``, ... and a DataFrame raises, as in R. When a fit
+        object is supplied,
         the up- and down-regulated gene sets are derived internally
         (BH adjustment at level ``fdr``).
     gene_pathway : DataFrame
@@ -454,36 +458,37 @@ def _ensure_de_lists(de) -> dict[str, np.ndarray]:
 
     Mirrors goana.R:160-179 and kegga.R:93-112.
     """
+    if isinstance(de, pd.DataFrame):
+        raise ValueError("de should be a list of character vectors. It should not be a data.frame.")
     if isinstance(de, dict):
         names = list(de.keys())
         sets = list(de.values())
-    elif hasattr(de, "__iter__") and not isinstance(de, (str, bytes)):
-        names = ["DE"]
-        sets = [list(de)]
+    elif _is_list_of_sets(de):
+        # R's unnamed list of sets: named DE1, DE2, ... below.
+        names = [None] * len(de)
+        sets = list(de)
     else:
-        raise ValueError("components of de should be vectors")
+        # R: de <- list(DE = de), so a single gene ID is a set of one.
+        names = ["DE"]
+        sets = [de]
 
-    out: dict[str, np.ndarray] = {}
+    gene_sets: list[np.ndarray] = []
     cleaned_names: list[str] = []
     for nm, vec in zip(names, sets):
         if isinstance(vec, pd.DataFrame):
             raise ValueError(
                 "de should be a list of character vectors. It should not be a data.frame."
             )
-        try:
-            arr = np.asarray(vec).ravel()
-        except Exception as e:
-            raise ValueError("components of de should be vectors") from e
-        # Unique-stable, R semantics: order of first appearance, cast to str.
-        seen = set()
-        uniq = []
-        for v in arr:
-            sv = str(v)
-            if sv not in seen:
-                seen.add(sv)
-                uniq.append(sv)
+        if vec is None:
+            raise ValueError("components of de should be vectors")
+        array_like = (str, bytes, np.ndarray, pd.Series, pd.Index)
+        if not isinstance(vec, array_like) and hasattr(vec, "__iter__"):
+            # Python sets, dict views and generators, as well as lists.
+            vec = list(vec)
+        arr = np.asarray(vec, dtype=object).ravel()
+        # R: unique(as.character(...)), in order of first appearance.
+        gene_sets.append(np.array(list(dict.fromkeys(str(v) for v in arr)), dtype=object))
         cleaned_names.append("" if nm is None else str(nm).strip())
-        out[nm] = np.array(uniq, dtype=object)
 
     # Replace empty / NA-like names with DE<i> and disambiguate duplicates.
     final_names: list[str] = []
@@ -508,8 +513,7 @@ def _ensure_de_lists(de) -> dict[str, np.ndarray]:
         else:
             disambiguated.append(nm)
 
-    keyed = {dn: out[on] for dn, on in zip(disambiguated, list(out.keys()))}
-    return keyed
+    return dict(zip(disambiguated, gene_sets))
 
 
 def _normalise_universe(universe, prior_prob, covariate, gene_pathway_first_col):
