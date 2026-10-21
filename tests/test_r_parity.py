@@ -7146,3 +7146,41 @@ class TestRoastNaNPropagationRParity:
         r = r[r["case"] == case]
         np.testing.assert_array_equal(np.isnan(out["p_value"]), r["p_value_na"])
         np.testing.assert_allclose(out["active_prop"], r["active_prop"], equal_nan=True)
+
+
+def test_camera_degenerate_sets_give_nan_rows():
+    """A set of all genes or of no genes: R's double arithmetic gives a NaN
+    p-value row."""
+    import warnings
+
+    from pylimma import camera, camera_pr
+
+    y = load_r_csv_no_index("cds_y").to_numpy(dtype=float)
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        tab = camera(y, {"all": np.arange(20), "none": np.array([], dtype=int), "some": np.arange(5)},
+                     design, sort=False)
+        tab_pr = camera_pr(y[:, 0], {"all": np.arange(20), "some": np.arange(5)}, sort=False)
+    for result, name in ((tab, "cds_camera"), (tab_pr, "cds_camerapr")):
+        r = load_r_csv(name)
+        np.testing.assert_array_equal(result["n_genes"], r["NGenes"])
+        np.testing.assert_array_equal(np.isnan(result["p_value"]), r["PValue"].isna())
+        finite = r["PValue"].notna().to_numpy()
+        assert compare_pvalues(r["PValue"].to_numpy()[finite], result["p_value"].to_numpy()[finite])["match"]
+
+
+def test_camera_ranks_empty_set_is_nan():
+    """use_ranks: an empty set gives a NaN row like the parametric path (R
+    stops with "missing value where TRUE/FALSE needed"); a one-gene set gives
+    R's finite p-value."""
+    from pylimma import camera, camera_pr
+
+    y = load_r_csv_no_index("cds_y").to_numpy(dtype=float)
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    sets = {"one": np.array([4]), "none": np.array([], dtype=int)}
+    tab = camera(y, sets, design, use_ranks=True, inter_gene_cor=None, sort=False)
+    tab_pr = camera_pr(y[:, 0], sets, use_ranks=True, sort=False)
+    for result in (tab, tab_pr):
+        assert np.isfinite(result.loc["one", "p_value"])
+        assert np.isnan(result.loc["none", "p_value"])

@@ -1508,8 +1508,10 @@ def camera(
         # R: if(is.character(iset)) iset <- which(ID %in% iset)
         iset = _set_rows(index[nm], ID, G)
         StatInSet = Stat[iset]
-        m = iset.size
-        m2 = G - m
+        # numpy floats: a set of no genes or of all genes gives Inf / NaN as
+        # R's double arithmetic does, not ZeroDivisionError
+        m = np.float64(iset.size)
+        m2 = np.float64(G) - m
         if fixed_cor:
             corr = inter_gene_cor if np.ndim(inter_gene_cor) == 0 else inter_gene_cor[i]
             vif = 1 + (m - 1) * corr
@@ -1524,7 +1526,10 @@ def camera(
 
         NGenes[i] = m
         Correlation[i] = corr
-        if use_ranks:
+        if use_ranks and m == 0:
+            # an empty set: NaN as in the parametric path (R stops here)
+            Down[i] = Up[i] = np.nan
+        elif use_ranks:
             corr_use = max(0, corr) if not allow_neg_cor else corr
             pv = rank_sum_test_with_correlation(
                 iset, statistics=Stat, correlation=corr_use, df=df_camera
@@ -1534,10 +1539,11 @@ def camera(
         else:
             if not allow_neg_cor:
                 vif = max(1, vif)
-            meanStatInSet = float(np.mean(StatInSet))
-            delta = G / m2 * (meanStatInSet - meanStat)
-            varStatPooled = ((G - 1) * varStat - delta**2 * m * m2 / G) / (G - 2)
-            two_sample_t = delta / np.sqrt(varStatPooled * (vif / m + 1.0 / m2))
+            with np.errstate(divide="ignore", invalid="ignore"):
+                meanStatInSet = np.mean(StatInSet) if StatInSet.size else np.nan
+                delta = G / m2 * (meanStatInSet - meanStat)
+                varStatPooled = ((G - 1) * varStat - delta**2 * m * m2 / G) / (G - 2)
+                two_sample_t = delta / np.sqrt(varStatPooled * (vif / m + 1.0 / m2))
             if np.isinf(df_camera):
                 Down[i] = stats.norm.cdf(two_sample_t)
                 Up[i] = stats.norm.sf(two_sample_t)
@@ -1669,9 +1675,12 @@ def camera_pr(
             "a character gene set needs names on statistic: pass a pandas Series indexed by gene ID",
         )
         StatInSet = stat_arr[iset]
-        m = iset.size
+        m = np.float64(iset.size)  # numpy float, as R's doubles
         NGenes[i] = m
-        if use_ranks:
+        if use_ranks and m == 0:
+            # an empty set: NaN as in the parametric path (R stops here)
+            Down[i] = Up[i] = np.nan
+        elif use_ranks:
             pv = rank_sum_test_with_correlation(
                 iset, statistics=stat_arr, correlation=igc_arr[i], df=df_camera
             )
@@ -1679,11 +1688,12 @@ def camera_pr(
             Up[i] = pv["greater"]
         else:
             vif = 1 + (m - 1) * igc_arr[i]
-            m2 = G - m
-            meanStatInSet = float(np.mean(StatInSet))
-            delta = G / m2 * (meanStatInSet - meanStat)
-            varStatPooled = ((G - 1) * varStat - delta**2 * m * m2 / G) / (G - 2)
-            two_sample_t = delta / np.sqrt(varStatPooled * (vif / m + 1.0 / m2))
+            m2 = np.float64(G) - m
+            with np.errstate(divide="ignore", invalid="ignore"):
+                meanStatInSet = np.mean(StatInSet) if StatInSet.size else np.nan
+                delta = G / m2 * (meanStatInSet - meanStat)
+                varStatPooled = ((G - 1) * varStat - delta**2 * m * m2 / G) / (G - 2)
+                two_sample_t = delta / np.sqrt(varStatPooled * (vif / m + 1.0 / m2))
             if np.isinf(df_camera):
                 Down[i] = stats.norm.cdf(two_sample_t)
                 Up[i] = stats.norm.sf(two_sample_t)

@@ -123,6 +123,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `camera` / `camera_pr` with a set of all genes or of no genes raised
+  `ZeroDivisionError`; as in R, that set's row has NaN p-values.
 - An empty list of gene sets raises R's "index is empty" in `mroast`, `fry`,
   `camera`, `camera_pr` and `romer` (it ran as a phantom empty set, or
   raised `ZeroDivisionError`). All gene-set functions now share one set

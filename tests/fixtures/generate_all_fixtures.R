@@ -5265,3 +5265,22 @@ write.csv(data.frame(case = rep(c("gene_weight_na", "df_prior_negative"), each =
                      p_value_na = c(is.na(.rna_gw$P.Value), is.na(.rna_df$P.Value))), "R_rna_roast.csv", row.names = FALSE)
 
 cat("  roast NA-propagation fixtures complete.\n")
+
+# =============================================================================
+# camera / cameraPR with a set of all genes (m2 = 0) or no genes (m = 0):
+# double arithmetic gives a NaN p-value row, not an error
+# =============================================================================
+cat("\nGenerating camera degenerate-set fixtures...\n")
+
+set.seed(20261117)
+
+.cds_y <- matrix(rnorm(20 * 6), 20, 6)
+write.csv(.cds_y, "R_cds_y.csv", row.names = FALSE)
+.cds_d <- cbind(1, rep(0:1, each = 3))
+.cds_cam <- camera(.cds_y, list(all = 1:20, none = integer(0), some = 1:5), .cds_d, sort = FALSE)
+.cds_pr <- cameraPR(.cds_y[, 1], list(all = 1:20, some = 1:5), sort = FALSE)
+stopifnot(is.na(.cds_cam["all", "PValue"]), is.na(.cds_cam["none", "PValue"]), is.na(.cds_pr["all", "PValue"]))
+write.csv(.cds_cam, "R_cds_camera.csv")
+write.csv(.cds_pr, "R_cds_camerapr.csv")
+
+cat("  camera degenerate-set fixtures complete.\n")
