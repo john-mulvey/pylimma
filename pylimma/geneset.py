@@ -1307,6 +1307,13 @@ def fry(
 # ---------------------------------------------------------------------------
 
 
+def _check_finite_y(y: np.ndarray) -> None:
+    """camera / romer: R stops in its Fortran QR ("NA/NaN/Inf in foreign
+    function call"); raise R's .lmEffects wording instead."""
+    if not np.isfinite(y).all():
+        raise ValueError("All y values must be finite and non-NA")
+
+
 def inter_gene_correlation(y: np.ndarray, design: np.ndarray) -> dict:
     """
     Variance-inflation factor and inter-gene correlation.
@@ -1374,6 +1381,7 @@ def camera(
 
     ea = get_eawp(y)
     y_mat = ea["exprs"]
+    _check_finite_y(y_mat)
     G, n = y_mat.shape
     ID = _resolve_geneid(ea, None, G)
     if G < 3:
@@ -1799,6 +1807,7 @@ def romer(
 
     ea = get_eawp(y)
     y_mat = ea["exprs"].copy()
+    _check_finite_y(y_mat)
     ngenes, n = y_mat.shape
 
     # R romer: if(!is.list(index)) index <- list(set=index)

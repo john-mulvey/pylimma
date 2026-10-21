@@ -602,3 +602,17 @@ def test_gene_set_test_simulation_ties_are_exact(alternative):
     p = pylimma.gene_set_test(np.arange(20), stat, alternative=alternative, type="t",
                               ranks_only=False, nsim=999, rng=1)
     assert p == 1.0
+
+
+@pytest.mark.parametrize("fn_name", ["camera", "romer"])
+@pytest.mark.parametrize("bad", [np.nan, np.inf])
+def test_non_finite_y_raises(fn_name, bad):
+    """R's camera / romer stop with "NA/NaN/Inf in foreign function call";
+    pylimma raises R's .lmEffects wording."""
+    import pylimma
+
+    y = np.random.default_rng(1).normal(size=(20, 6))
+    y[1, 1] = bad
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    with pytest.raises(ValueError, match="^All y values must be finite and non-NA$"):
+        getattr(pylimma, fn_name)(y, {"a": np.arange(5)}, design)

@@ -248,6 +248,11 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     for a name that is not among them, where R's ``statistics[name]`` is NA
     and the p-value silently NA.
 
+``camera`` / ``romer`` with missing or infinite values
+    Raise "All y values must be finite and non-NA" (the wording of R's
+    ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign
+    function call".
+
 ``top_table`` / ``top_table_f`` with ``number=NaN``
     Raises "number must not be NaN" (R: "missing value where TRUE/FALSE
     needed"). Other values of ``number`` follow R: capped at the number of

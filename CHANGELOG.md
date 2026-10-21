@@ -86,6 +86,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `camera` and `romer` raise "All y values must be finite and non-NA" for
+  missing or infinite values, as R errors; they returned NaN or arbitrary
+  p-values.
 - `wsva` with missing values raises R's "All y values must be finite and
   non-NA" (was numpy's "SVD did not converge"), and `remove_batch_effect`
   with a `batch`, `batch2` or `covariates` of the wrong length names the
