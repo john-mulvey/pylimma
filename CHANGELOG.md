@@ -221,6 +221,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
   returned numbers; `cvg_niter=0` returned the data transformed at the
   starting values, never fitted.
 
+### Added
+
+- `normalize_vsn(cvg_eps=)`, vsn's `optimpar$cvg.eps`: the robust (LTS)
+  iterations stop once the transformed data have changed by less than
+  `cvg_eps` three times in a row. The default 0 runs all `cvg_niter`
+  iterations, as before and as in R.
+
 ### Fixed
 
 - `camera`, `romer` and the gene-set effects behind `roast` / `mroast` /

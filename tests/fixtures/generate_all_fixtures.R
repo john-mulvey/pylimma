@@ -5640,6 +5640,8 @@ set.seed(55)
 .vso_x[1:100, 2] <- NA
 write.csv(.vso_x, "R_vso_input.csv", row.names = FALSE)
 write.csv(normalizeVSN(.vso_x, lts.quantile = 1), "R_vso_ml.csv", row.names = FALSE)
+# optimpar cvg.eps stops the LTS iterations early (4 of 7 here)
+write.csv(normalizeVSN(.vso_x, optimpar = list(cvg.eps = 1e-2)), "R_vso_cvg.csv", row.names = FALSE)
 
 # =============================================================================
 # vsn's LTS row selection (vsn:::vsnLTS, one stratum): rows with a missing

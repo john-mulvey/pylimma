@@ -1408,6 +1408,7 @@ def normalize_vsn(
     pgtol: float = 2e-4,
     maxit: int = 60000,
     min_data_points_per_stratum: int = 42,
+    cvg_eps: float = 0.0,
 ) -> np.ndarray:
     """
     Variance-stabilising normalisation (vsn).
@@ -1440,6 +1441,11 @@ def normalize_vsn(
     min_data_points_per_stratum : int, default 42
         Fewest rows for which the parameters are estimated (R's
         ``minDataPointsPerStratum``); fewer rows raise a ValueError.
+    cvg_eps : float, default 0
+        Convergence threshold for the LTS iterations (R's
+        ``optimpar$cvg.eps``): they stop once the transformed data have
+        changed by less than ``cvg_eps`` in three iterations in a row.
+        ``0`` runs all ``cvg_niter`` iterations.
 
     Returns
     -------
@@ -1477,7 +1483,7 @@ def normalize_vsn(
     # R: validityVsnInput, on lts.quantile and the optimpar settings
     if not 0.5 <= lts_quantile <= 1:
         raise ValueError(f"lts_quantile must be a number between 0.5 and 1, not {lts_quantile}")
-    for name, value in (("factr", factr), ("pgtol", pgtol)):
+    for name, value in (("factr", factr), ("pgtol", pgtol), ("cvg_eps", cvg_eps)):
         if not value >= 0:
             raise ValueError(f"{name} must be a number of 0 or more, not {value}")
     int_max = np.iinfo(np.int32).max
@@ -1502,6 +1508,8 @@ def normalize_vsn(
     # vsnLTS loop: ML fit on the selected rows, then reselect the rows from
     # the residuals of all the fitted rows (_vsn_lts_select).
     whsel = np.arange(fit_x.shape[0])
+    old_hy = np.inf
+    n_converged = 0
     rsv_par = pstart
     iter_par = pstart
     for it in range(cvg_niter):
@@ -1513,6 +1521,12 @@ def normalize_vsn(
         # Apply current params to all the fitted rows and re-trim.
         hy = _vsn_trsf(fit_x, rsv_par)
         whsel = _vsn_lts_select(hy, lts_quantile)
+        # R: convergence check, three changes in a row below cvg.eps
+        if cvg_eps > 0:
+            n_converged = n_converged + 1 if np.nanmax(np.abs(hy - old_hy)) < cvg_eps else 0
+            if n_converged >= 3:
+                break
+            old_hy = hy
 
     # hoffset: per-stratum offset applied so that arrays sit on a common
     # log2 scale. R/vsn: hoffset = log2(2 * scalingFactorTransformation

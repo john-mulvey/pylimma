@@ -5124,6 +5124,18 @@ class TestNormalizeVSNRParity:
         cmp = compare_arrays(ref[~np.isnan(ref)], py[~np.isnan(py)], rtol=1e-6, atol=1e-12)
         assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
 
+    def test_cvg_eps_stops_the_lts_iterations_as_r(self):
+        """optimpar cvg.eps: R stops after 4 of the 7 LTS iterations here,
+        which moves the result by about 4% from the full run."""
+        from pylimma import normalize_vsn
+
+        x = pd.read_csv(FIXTURES_DIR / "R_vso_input.csv").values.astype(float)
+        ref = pd.read_csv(FIXTURES_DIR / "R_vso_cvg.csv").values.astype(float)
+        py = normalize_vsn(x, cvg_eps=1e-2)
+        np.testing.assert_array_equal(np.isnan(py), np.isnan(ref))
+        cmp = compare_arrays(ref[~np.isnan(ref)], py[~np.isnan(py)], rtol=1e-6, atol=1e-12)
+        assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
+
     def test_lts_row_selection_matches_r(self):
         """vsnLTS's selection: NA rvar dropped outside slice 1, right-closed
         slices of average ranks (ties, a rank on a slice edge, an all-NA row)."""
