@@ -137,6 +137,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   undefined (0/0) Newton step, or an `offset` that is neither scalar nor the
   length of `y` (see `docs/validation/known_differences.rst`). An empty `y`
   gives NaN, as in R.
+- `goana` / `kegga` raise `NotImplementedError` for `prior_prob` (R:
+  `null.prob`), as they do for `covariate`: R then uses Wallenius'
+  noncentral hypergeometric test (BiasedUrn), which is not yet ported, and
+  pylimma silently ignored `prior_prob`. As in R, `covariate` and
+  `prior_prob` are ignored with a warning when `universe` is not given
+  (`covariate` raised), and `covariate` is ignored when no gene is DE.
 
 ### Fixed
 

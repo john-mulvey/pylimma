@@ -31,14 +31,16 @@ The port covers the database-free path. Two differences from R limma:
    ``getGeneKEGGLinks`` and ``getKEGGPathwayNames`` helpers, which exist
    in R only to fetch from the KEGG REST API, are not ported.
 
-2. **The bias-corrected test is not yet ported.** R's ``trend=TRUE``
-   path performs Wallenius' noncentral hypergeometric test via
-   ``BiasedUrn::pWNCHypergeo`` / ``dWNCHypergeo`` for length /
-   abundance bias correction. pylimma raises ``NotImplementedError``
-   whenever ``trend`` is truthy or a covariate is supplied to a
-   ``*.default`` method, rather than silently falling back to the plain
-   hypergeometric test, which would give plausible-looking but wrong
-   results.
+2. **The bias-corrected test is not yet ported.** R's ``trend=TRUE``,
+   ``covariate`` and ``null.prob`` paths perform Wallenius' noncentral
+   hypergeometric test via ``BiasedUrn::pWNCHypergeo`` /
+   ``dWNCHypergeo`` for length / abundance bias correction. pylimma
+   raises ``NotImplementedError`` whenever ``trend`` is truthy or a
+   ``covariate`` or ``prior_prob`` would be used, rather than silently
+   falling back to the plain hypergeometric test, which would give
+   plausible-looking but wrong results. As in R, ``covariate`` and
+   ``prior_prob`` are ignored (with a warning) when ``universe`` is not
+   given, and a ``covariate`` is ignored when no gene is DE.
 
 The plain-hypergeometric branch (``trend=False``) ports verbatim and is
 numerically validated against R limma fixtures.
@@ -119,11 +121,15 @@ def goana(
     species : str, optional
         Accepted for R-API compatibility; ignored without GO.db.
     prior_prob : sequence of float, optional
-        Per-gene null DE probability (R name: ``null.prob``).
+        Per-gene null DE probability (R name: ``null.prob``), aligned to
+        the universe. Not yet supported (it selects Wallenius' test):
+        raises ``NotImplementedError``. Ignored, with a warning, when
+        ``universe`` is not given.
     covariate : sequence of float, optional
-        Covariate values aligned to the universe; if supplied,
-        ``trend`` becomes implicit and ``goana_trend`` is run. Not yet
-        supported: raises ``NotImplementedError``.
+        Covariate values aligned to the universe, from which
+        ``goana_trend`` computes ``prior_prob``. Not yet supported:
+        raises ``NotImplementedError``. Ignored, with a warning, when
+        ``universe`` is not given or no gene is DE.
     plot : bool, default False
         Forwarded to ``goana_trend`` when applicable.
     fdr : float, default 0.05
@@ -627,6 +633,24 @@ def _normalise_gene_pathway(gene_pathway, *, optional_extra_cols=False):
     return df
 
 
+def _check_null_prob(de_lists, prior_prob, covariate) -> None:
+    """Raise for the Wallenius test that a null probability selects.
+
+    R computes ``null.prob`` from a covariate with ``goanaTrend`` unless no
+    gene is DE (message "No DE genes", then the plain test), and a
+    ``null.prob`` switches the test to Wallenius' noncentral
+    hypergeometric distribution (``BiasedUrn``), which is not yet ported.
+    """
+    if covariate is not None and not any(genes.size for genes in de_lists.values()):
+        warnings.warn("No DE genes")
+        return
+    if prior_prob is not None or covariate is not None:
+        raise NotImplementedError(
+            "prior_prob and covariate need Wallenius' noncentral hypergeometric "
+            "test, which requires the BiasedUrn port; see pylimma roadmap."
+        )
+
+
 def _hypergeometric_pvalues(
     S_counts: np.ndarray, S_N: np.ndarray, nde: np.ndarray, NGenes: int
 ) -> np.ndarray:
@@ -658,10 +682,6 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
         raise NotImplementedError(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
-    if covariate is not None:
-        raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; see pylimma roadmap."
-        )
 
     # gene_pathway with optional ontology (col 3) + term (col 4) for
     # the goana output.
@@ -680,7 +700,7 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
             prior_prob = None
             covariate = None
     # R: "Make universe and set of all annotated genes agree".
-    universe, prior_prob, _covariate = _normalise_universe(
+    universe, prior_prob, covariate = _normalise_universe(
         universe, prior_prob, covariate, gp["gene_id"], restrict=True
     )
     NGenes = universe.size
@@ -696,6 +716,7 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
     gp_in_universe = gp[gp["gene_id"].isin(universe_set)].reset_index(drop=True)
     if gp_in_universe.empty:
         raise ValueError("Pathways do not overlap with universe")
+    _check_null_prob(de_lists, prior_prob, covariate)
 
     # Build incidence matrix in R's column order: N, then one column per
     # DE list. ``rowsum(X, group, reorder=FALSE)`` in pandas is a groupby
@@ -749,10 +770,6 @@ def _kegga_default(
         raise NotImplementedError(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
-    if covariate is not None:
-        raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; see pylimma roadmap."
-        )
 
     de_lists = _ensure_de_lists(de)
     gp = _normalise_gene_pathway(gene_pathway, optional_extra_cols=False)
@@ -779,7 +796,7 @@ def _kegga_default(
             covariate = None
     elif len(universe) == 0:
         raise ValueError("No genes in universe")
-    universe, prior_prob, _covariate = _normalise_universe(
+    universe, prior_prob, covariate = _normalise_universe(
         universe, prior_prob, covariate, gp["gene_id"], restrict=restrict_universe
     )
     NGenes = universe.size
@@ -793,6 +810,7 @@ def _kegga_default(
     gp_in_universe = gp[gp["gene_id"].isin(universe_set)].reset_index(drop=True)
     if gp_in_universe.empty:
         raise ValueError("Pathways do not overlap with universe")
+    _check_null_prob(de_lists, prior_prob, covariate)
 
     set_names = list(de_lists.keys())
     columns = ["N"] + set_names

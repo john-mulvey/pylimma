@@ -92,3 +92,36 @@ def test_kegga_fit_passes_restrict_universe():
         pylimma.kegga(fit, gp, pathway_names=pn, restrict_universe=True),
         pylimma.kegga({"Up": up, "Down": down}, gp, pathway_names=pn, universe=genes, restrict_universe=True),
     )
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_covariate_and_prior_ignored_without_universe(fn_name):
+    """R: "Ignoring covariate and null.prob because universe not set", then
+    the plain hypergeometric test."""
+    gp, _, _ = _kegga_inputs()
+    fn = getattr(pylimma, fn_name)
+    with pytest.warns(UserWarning, match="universe not set"):
+        ignored = fn(["gene001", "gene002"], gp, covariate=[1.0, 2.0, 3.0], prior_prob=[0.1, 0.2, 0.3])
+    pd.testing.assert_frame_equal(ignored, fn(["gene001", "gene002"], gp))
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_covariate_without_de_genes_is_dropped(fn_name):
+    """R: with no DE gene in the universe, goanaTrend is not run ("No DE
+    genes") and the plain test is used."""
+    gp, _, universe = _kegga_inputs()
+    fn = getattr(pylimma, fn_name)
+    covariate = [i / 200 for i in range(1, 201)]
+    with pytest.warns(UserWarning, match="No DE genes"):
+        dropped = fn("not_a_gene", gp, universe=universe, covariate=covariate)
+    pd.testing.assert_frame_equal(dropped, fn("not_a_gene", gp, universe=universe))
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+@pytest.mark.parametrize("arg", ["prior_prob", "covariate"])
+def test_null_prob_needs_wallenius(fn_name, arg):
+    """R switches to Wallenius' noncentral hypergeometric test (BiasedUrn),
+    which is not ported; pylimma ignored prior_prob."""
+    gp, _, universe = _kegga_inputs()
+    with pytest.raises(NotImplementedError, match="BiasedUrn"):
+        getattr(pylimma, fn_name)(["gene001"], gp, universe=universe, **{arg: [i / 200 for i in range(1, 201)]})

@@ -5355,3 +5355,26 @@ write.csv(kegga(goana_de_list, universe = goana_universe, restrict.universe = TR
 stopifnot(identical(.kr_empty, "No genes in universe"))
 
 cat("  kegga restrict.universe fixtures complete.\n")
+
+# =============================================================================
+# goana / kegga: null.prob and covariate are ignored (with a message) when
+# universe is not set, and a covariate is dropped when no gene is DE;
+# otherwise null.prob switches to Wallenius' test (not ported to pylimma)
+# =============================================================================
+cat("\nGenerating enrichment null.prob checks...\n")
+
+.np_plain <- kegga(de_up, gene.pathway = kegga_gp, pathway.names = kegga_pn)
+stopifnot(identical(suppressMessages(kegga(de_up, gene.pathway = kegga_gp, pathway.names = kegga_pn,
+                                           covariate = 1:3, null.prob = 1:3)), .np_plain))
+.np_cov <- seq_along(goana_universe) / 200
+stopifnot(identical(
+  suppressMessages(kegga("not_a_gene", universe = goana_universe, covariate = .np_cov,
+                         gene.pathway = kegga_gp, pathway.names = kegga_pn)),
+  kegga("not_a_gene", universe = goana_universe, gene.pathway = kegga_gp, pathway.names = kegga_pn)))
+.np_wallenius <- kegga(de_up, universe = goana_universe, null.prob = .np_cov,
+                       gene.pathway = kegga_gp, pathway.names = kegga_pn)
+stopifnot(!isTRUE(all.equal(.np_wallenius$P.DE,
+                            kegga(de_up, universe = goana_universe, gene.pathway = kegga_gp,
+                                  pathway.names = kegga_pn)$P.DE)))
+
+cat("  enrichment null.prob checks complete.\n")
