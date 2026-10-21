@@ -5556,3 +5556,15 @@ stopifnot(identical(squeezeVar(1.5, 5), list(var.post = 1.5, var.prior = 1.5, df
 .eft <- expand.grid(f = c(50, 400, 1000, 1e8), df1 = c(3, 6), df2 = c(50, 1e3, 1e5, 1e6))
 .eft$log_sf <- pf(.eft$f, .eft$df1, .eft$df2, lower.tail = FALSE, log.p = TRUE)
 write.csv(.eft, "R_eft_pf.csv", row.names = FALSE)
+
+# =============================================================================
+# makeContrasts takes the levels of a factor, not its values
+# =============================================================================
+.mcl <- makeContrasts(B - A, C - B, levels = factor(c("A", "B", "C", "A"), levels = c("C", "A", "B")))
+write.csv(.mcl, "R_mcl_factor.csv")
+# no parameter names: unnamed matrix, numeric levels, numeric factor levels
+stopifnot(inherits(try(makeContrasts(B - A, levels = matrix(0, 2, 2)), silent = TRUE), "try-error"),
+          inherits(try(makeContrasts(B - A, levels = c(1, 2)), silent = TRUE), "try-error"),
+          inherits(try(makeContrasts(B - A, levels = factor(c(1, 2))), silent = TRUE), "try-error"))
+# duplicated level names: the last copy gets the indicator (pylimma raises)
+stopifnot(identical(unname(makeContrasts(A, levels = c("A", "B", "A"))[, 1]), c(0, 0, 1)))

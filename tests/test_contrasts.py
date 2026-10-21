@@ -76,6 +76,33 @@ class TestMakeContrasts:
         np.testing.assert_allclose(cm["AvsRest"].values, [1, -0.5, -0.5])
 
 
+class TestMakeContrastsLevels:
+    """Parameter names taken from levels, as R's makeContrasts reads them."""
+
+    def test_single_string_is_one_level(self):
+        cm = make_contrasts("2*AB", levels="AB")
+        assert list(cm.index) == ["AB"]
+        np.testing.assert_array_equal(cm.values, [[2.0]])
+
+    def test_design_matrix_without_names_raises(self):
+        # R fails with "argument is of length zero"; pylimma used to invent x0, x1
+        with pytest.raises(ValueError, match="levels must be the parameter names"):
+            make_contrasts("x1-x0", levels=np.eye(2))
+
+    def test_numeric_levels_raise(self):
+        with pytest.raises(ValueError, match="levels must be the parameter names"):
+            make_contrasts("B-A", levels=[1, 2])
+
+    def test_numeric_categories_are_not_valid_names(self):
+        with pytest.raises(ValueError, match="names: 1, 2"):
+            make_contrasts("B-A", levels=pd.Categorical([1, 2]))
+
+    def test_duplicated_levels_raise(self):
+        # R silently gives the indicator to the last copy only
+        with pytest.raises(ValueError, match="duplicated: A"):
+            make_contrasts("A", levels=["A", "B", "A"])
+
+
 class TestContrastsFit:
     """Tests for contrasts_fit function."""
 

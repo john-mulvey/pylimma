@@ -107,6 +107,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - The far F tail behind `fit_f_dist_robustly`'s outlier p-values is exact
   for large `df2`: its series stopped at 1,000 terms, so at `df2 = 1e6`
   a log tail probability of R's -1185.08 came out as -1185.17.
+- `make_contrasts` with a categorical (`pd.Categorical` or a categorical
+  Series) as `levels` used its values, giving repeated rows; as R's
+  `levels(factor)`, it uses the categories in category order.
 
 ### Changed behaviour
 
@@ -167,6 +170,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
   out-of-range `index_de` positions (a negative position counted from the
   end, a fraction was truncated and an out-of-range one raised
   `IndexError`).
+- `make_contrasts` raises a clear error for levels that are not names: a
+  design matrix without column names (previously given invented names
+  `x0`, `x1`, ...) and numeric values. Duplicated level names raise an
+  error (R gives the indicator to the last copy only). A single string is
+  one level, not one level per character.
 
 ### Fixed
 

@@ -318,6 +318,14 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     Raises "number must not be NaN", as ``top_table`` does (R: "missing
     value where TRUE/FALSE needed"). Other values of ``number`` follow R.
 
+``make_contrasts`` with levels that are not names, or duplicated names
+    ``levels`` must give the parameter names: a list of strings, a
+    categorical or a design matrix with column names. A matrix without
+    column names or numeric values raise an error (R: "argument is of
+    length zero"). Duplicated names raise an error; R assigns the
+    indicator to the last copy only, so the other copies get zero in every
+    contrast. ``generate_all_fixtures.R`` records the R behaviour.
+
 Deliberate interface difference: EList design and weights slots
 ---------------------------------------------------------------
 

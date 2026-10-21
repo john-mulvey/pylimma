@@ -18,6 +18,7 @@ Implements:
 from __future__ import annotations
 
 import warnings
+from collections import Counter
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -25,6 +26,8 @@ import pandas as pd
 from scipy import linalg
 
 from .classes import MArrayLM, _resolve_fit_input
+from .lmfit import _design_names
+from .utils import _r_as_character
 
 if TYPE_CHECKING:
     pass
@@ -159,11 +162,15 @@ def make_contrasts(
     contrasts : list of str, optional
         Alternative way to pass contrasts as a list (R parity).
         Cannot be used together with positional contrasts.
-    levels : list of str, ndarray, or DataFrame
+    levels : list of str, categorical or design matrix
         Coefficient names. Can be:
-        - List of coefficient names
-        - Design matrix (column names extracted)
-        - Factor (levels extracted)
+        - List of coefficient names (a single string is one name)
+        - Categorical (``pd.Categorical`` or a categorical Series): its
+          categories, as R's ``levels(factor)``
+        - Design matrix with column names (DataFrame or patsy
+          ``DesignMatrix``)
+        A matrix without column names, non-string names and duplicated
+        names raise a ValueError.
     **named_contrasts : str
         Named contrast expressions. The keyword becomes the column name,
         the value is the expression. E.g., TreatmentVsControl="B-A".
@@ -204,18 +211,7 @@ def make_contrasts(
     ['A', 'B', 'C'], the expression "B-A" evaluates to [0, 1, 0] - [1, 0, 0]
     = [-1, 1, 0].
     """
-    # Extract level names
-    if isinstance(levels, pd.DataFrame):
-        levels = list(levels.columns)
-    elif isinstance(levels, np.ndarray):
-        if hasattr(levels, "columns"):
-            levels = list(levels.columns)
-        elif levels.ndim == 2:
-            levels = [f"x{i}" for i in range(levels.shape[1])]
-        else:
-            levels = list(levels)
-    else:
-        levels = list(levels)
+    levels = _contrast_levels(levels)
 
     # Handle R's "(Intercept)" naming
     if levels and levels[0] == "(Intercept)":
@@ -224,6 +220,10 @@ def make_contrasts(
     n = len(levels)
     if n < 1:
         raise ValueError("No levels to construct contrasts from")
+    # R gives the indicator to the last copy of a duplicated name only
+    duplicated = sorted(lev for lev, count in Counter(levels).items() if count > 1)
+    if duplicated:
+        raise ValueError(f"levels must be unique; duplicated: {', '.join(duplicated)}")
 
     # Validate level names are valid Python identifiers (R parity)
     invalid = [lev for lev in levels if not lev.isidentifier()]
@@ -271,6 +271,26 @@ def make_contrasts(
 
     # Return as DataFrame with named rows and columns
     return pd.DataFrame(contrast_matrix, index=levels, columns=contrast_names)
+
+
+def _contrast_levels(levels) -> list[str]:
+    """Parameter names from ``levels``, as R's makeContrasts reads them."""
+    if isinstance(levels, str):
+        return [levels]
+    # R: if(is.factor(levels)) levels <- levels(levels)
+    if isinstance(getattr(levels, "dtype", None), pd.CategoricalDtype):
+        return list(_r_as_character(levels.dtype.categories))
+    # R: if(!is.character(levels)) levels <- colnames(levels)
+    names = _design_names(levels)
+    if names is not None:
+        return names
+    values = np.asarray(levels, dtype=object)
+    if values.ndim != 1 or not all(isinstance(v, str) for v in values):
+        raise ValueError(
+            "levels must be the parameter names: a list of strings, a categorical "
+            "or a design matrix with column names"
+        )
+    return list(values)
 
 
 def contrasts_fit(

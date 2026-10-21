@@ -1038,6 +1038,16 @@ class TestMakeContrastsRParity:
             f"makeContrasts intercept differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
+    def test_factor_levels_are_the_categories(self):
+        """A categorical gives its categories, in category order (R: levels(factor))."""
+        r_cont = load_r_csv("mcl_factor")
+        levels = pd.Categorical(["A", "B", "C", "A"], categories=["C", "A", "B"])
+
+        for given in (levels, pd.Series(levels)):
+            py_cont = make_contrasts("B - A", "C - B", levels=given)
+            assert list(py_cont.index) == list(r_cont.index)
+            np.testing.assert_array_equal(py_cont.values, r_cont.values)
+
 
 class TestModelMatrixRParity:
     """Test model_matrix matches R's model.matrix."""
