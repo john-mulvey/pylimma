@@ -103,6 +103,47 @@ class TestMakeContrastsLevels:
             make_contrasts("A", levels=["A", "B", "A"])
 
 
+class TestMakeContrastsExpressions:
+    """Contrasts are R arithmetic on the levels; anything else raises."""
+
+    def test_unknown_name_raises(self):
+        # R finds an unrelated object (stats::D) and fails obscurely
+        with pytest.raises(ValueError, match="'D' is not one of the levels"):
+            make_contrasts("B-D", levels=["A", "B"])
+
+    def test_r_constants_and_functions_raise(self):
+        with pytest.raises(ValueError, match="'pi' is not one of the levels"):
+            make_contrasts("B-A*pi", levels=["A", "B"])
+        with pytest.raises(ValueError, match="'mean' is not one of the levels"):
+            make_contrasts("mean(A)", levels=["A", "B"])
+
+    def test_other_syntax_raises(self):
+        for expr in ("A %% 2", "A, B", "A[0]", "A == B"):
+            with pytest.raises(ValueError, match="unsupported syntax"):
+                make_contrasts(expr, levels=["A", "B"])
+
+    def test_malformed_expression_raises(self):
+        for expr in ("A B", "A-", "", "(A", "A // B", "A(B)"):
+            with pytest.raises(ValueError, match="Could not evaluate contrast expression"):
+                make_contrasts(expr, levels=["A", "B"])
+
+    def test_expression_over_several_lines_raises(self):
+        # R evaluates only the last line: "A + B\n- C" is -C
+        with pytest.raises(ValueError, match="spans several lines"):
+            make_contrasts("A + B\n- C", levels=["A", "B", "C"])
+
+    def test_non_string_expression_raises(self):
+        # R accepts makeContrasts(B = 1, ...) and fills the column with ones
+        for kwargs in ({"B": 1}, {"contrasts": ["B-A", None]}):
+            with pytest.raises(ValueError, match="must be strings"):
+                make_contrasts(levels=["A", "B"], **kwargs)
+
+    def test_number_alone_fills_the_column(self):
+        # R: cm[, j] <- 2 recycles to every level
+        cm = make_contrasts("2", levels=["A", "B"])
+        np.testing.assert_array_equal(cm["2"].values, [2.0, 2.0])
+
+
 class TestContrastsFit:
     """Tests for contrasts_fit function."""
 

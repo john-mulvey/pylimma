@@ -1,0 +1,23 @@
+"name","valid"
+"_x",FALSE
+".5a",FALSE
+"a b",FALSE
+"if",FALSE
+"TRUE",FALSE
+"..1",TRUE
+".a",TRUE
+"...",TRUE
+"A_b",TRUE
+"in",FALSE
+"T",TRUE
+"Inf",FALSE
+"NA",FALSE
+"NA_real_",FALSE
+"a-b",FALSE
+"1a",FALSE
+"a.1",TRUE
+".",TRUE
+"A.x",TRUE
+"function",FALSE
+"while.",TRUE
+"x__.",TRUE

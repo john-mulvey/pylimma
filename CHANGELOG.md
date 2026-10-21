@@ -175,6 +175,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   `x0`, `x1`, ...) and numeric values. Duplicated level names raise an
   error (R gives the indicator to the last copy only). A single string is
   one level, not one level per character.
+- `make_contrasts` rejects level names that R rejects, such as `_x`, and
+  contrast expressions are limited to R arithmetic on the levels and
+  numbers (`+ - * / ^` and brackets); other names, function calls and
+  other Python syntax raise a clear error.
 
 ### Fixed
 
@@ -288,6 +292,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `squeeze_var`, `fit_f_dist`, `fit_f_dist_robustly` and
   `fit_f_dist_unequal_df1` take a single variance as a length-1 vector, as
   R does; a Python scalar raised `TypeError`.
+- `make_contrasts` accepts every level name that R accepts (any name equal
+  to its `make.names()`), including dotted names such as `WT.Ctrl` (as in
+  the limma User's Guide) and Python keywords such as `not` or `True`,
+  which raised errors or, for `None`/`True`, evaluated to Python constants.
+  `^` is a power as in R (it was Python's XOR), and R number forms such as
+  `2L` and `0x1F` work.
 
 ## [0.2.0] - 2026-09-30
 

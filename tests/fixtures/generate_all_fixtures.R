@@ -5568,3 +5568,33 @@ stopifnot(inherits(try(makeContrasts(B - A, levels = matrix(0, 2, 2)), silent = 
           inherits(try(makeContrasts(B - A, levels = factor(c(1, 2))), silent = TRUE), "try-error"))
 # duplicated level names: the last copy gets the indicator (pylimma raises)
 stopifnot(identical(unname(makeContrasts(A, levels = c("A", "B", "A"))[, 1]), c(0, 0, 1)))
+
+# =============================================================================
+# makeContrasts expressions: any syntactically valid level name (dots, Python
+# keywords), R number forms, ^ / ** and R operator precedence, IEEE arithmetic
+# =============================================================================
+.mce_levels <- c("WT.Ctrl", "KO.Ctrl", "not", "True", "lambda", ".a", "if.")
+.mce_contrasts <- c("WT.Ctrl-KO.Ctrl", "not-True", "(lambda+.a)/2-if.", "2^-1*WT.Ctrl",
+                    "-.a^2+3**2*not", "1e-1*True+.5*KO.Ctrl-2L*if.", "WT.Ctrl - (KO.Ctrl - not)/0x2",
+                    "2^3^-1*lambda", "--True", "1/0*True", "not*(-8)^(1/3)", "if. - KO.Ctrl*10^400")
+write.csv(makeContrasts(contrasts = .mce_contrasts, levels = .mce_levels), "R_mce_matrix.csv")
+# the syntactic-name rule: name == make.names(name)
+.mce_names <- c("_x", ".5a", "a b", "if", "TRUE", "..1", ".a", "...", "A_b", "in", "T", "Inf", "NA",
+                "NA_real_", "a-b", "1a", "a.1", ".", "A.x", "function", "while.", "x__.")
+write.csv(data.frame(name = .mce_names, valid = .mce_names == make.names(.mce_names)),
+          "R_mce_names.csv", row.names = FALSE)
+# R evaluates the contrast in the R session, so other names resolve there (pylimma
+# raises): pi and functions work; an unknown name finds an unrelated object
+# ... and ..1 pass make.names() but are reserved for the dots arguments, so R
+# cannot evaluate them (pylimma rejects them as level names)
+stopifnot(inherits(try(makeContrasts(contrasts = "... - A", levels = c("A", "...")), silent = TRUE),
+                   "try-error"),
+          inherits(try(makeContrasts(contrasts = "..1 - A", levels = c("A", "..1")), silent = TRUE),
+                   "try-error"))
+# an expression over several lines parses as several expressions and R keeps the
+# last one only (pylimma raises)
+stopifnot(identical(unname(makeContrasts(contrasts = "A + B\n- C", levels = c("A", "B", "C"))[, 1]),
+                    c(0, 0, -1)))
+stopifnot(all.equal(unname(makeContrasts(B - A * pi, levels = c("A", "B"))[, 1]), c(-pi, 1)),
+          identical(unname(makeContrasts(mean(c(A, B)), levels = c("A", "B"))[, 1]), c(0.5, 0.5)),
+          inherits(try(makeContrasts(B - D, levels = c("A", "B")), silent = TRUE), "try-error"))

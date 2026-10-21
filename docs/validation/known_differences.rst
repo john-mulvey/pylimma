@@ -326,6 +326,22 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     indicator to the last copy only, so the other copies get zero in every
     contrast. ``generate_all_fixtures.R`` records the R behaviour.
 
+``make_contrasts`` with names other than the levels
+    Contrast expressions may use the level names, numbers, ``+ - * / ^``
+    and brackets; any other name or a function call raises an error naming
+    it. R evaluates the expression in the R session, so ``pi`` and R
+    functions such as ``mean(c(A, B))`` work, and a name that is not a
+    level resolves to whatever object of that name R finds (``B - D``
+    fails with "non-numeric argument to binary operator" because ``D`` is
+    ``stats::D``). A contrast given as a number rather than a string
+    (``make_contrasts(B=1, ...)``) raises an error; R fills the column with
+    the number. The level names ``...`` and ``..1`` raise an error: they
+    pass ``make.names()``, but R cannot evaluate them ("'...' used in an
+    incorrect context"). An expression over several lines raises an error;
+    R parses each line as its own expression and keeps only the last
+    (``"A + B\n- C"`` is ``-C``). ``generate_all_fixtures.R`` records the R
+    behaviour.
+
 Deliberate interface difference: EList design and weights slots
 ---------------------------------------------------------------
 

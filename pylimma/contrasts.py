@@ -17,6 +17,7 @@ Implements:
 
 from __future__ import annotations
 
+import re
 import warnings
 from collections import Counter
 from typing import TYPE_CHECKING
@@ -31,6 +32,23 @@ from .utils import _r_as_character
 
 if TYPE_CHECKING:
     pass
+
+# R's reserved words (?Reserved), to which make.names() appends a dot
+_R_RESERVED = frozenset(
+    "if else repeat while function for in next break TRUE FALSE NULL Inf NaN NA "
+    "NA_integer_ NA_real_ NA_complex_ NA_character_".split()
+)
+# Also reserved, for the dots arguments, though make.names() keeps them
+_R_DOTS = r"\.\.(?:\.|\d+)"
+# An R name: a letter, or a dot not followed by a digit, then letters, digits,
+# dots and underscores
+_R_NAME = r"(?:[^\W\d_]|\.(?!\d))[\w.]*"
+# One token of a contrast expression: an R number (1, 1.5, .5, 1e-3, 2L, 0x1F),
+# an R name, or an arithmetic operator or bracket (** is R's other spelling of ^)
+_CONTRAST_TOKEN = re.compile(
+    r"\s*(?:(?P<number>0[xX][0-9a-fA-F]+L?|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?L?)"
+    rf"|(?P<name>{_R_NAME})|(?P<op>\*\*|[-+*/^()]))"
+)
 
 
 def model_matrix(
@@ -210,6 +228,17 @@ def make_contrasts(
     level name is bound to an indicator vector. For example, with levels
     ['A', 'B', 'C'], the expression "B-A" evaluates to [0, 1, 0] - [1, 0, 0]
     = [-1, 1, 0].
+
+    As in R, level names must be syntactically valid R names (equal to
+    their ``make.names()``), so ``"WT.Ctrl"`` and Python keywords such as
+    ``"not"`` are allowed, but ``"_x"``, ``"if"`` and the dots names
+    ``"..."`` and ``"..1"`` are not. Expressions are strings and follow R
+    arithmetic: ``^`` (or ``**``) is a power, numbers may be written as in
+    R (``1e-3``, ``.5``, ``2L``) and ``1/0`` is ``inf``. R evaluates the
+    expression in the R session, so R constants and functions (``pi``,
+    ``mean()``) also work there; pylimma supports only the level names,
+    numbers, ``+ - * / ^`` and brackets, and raises a ValueError for
+    anything else.
     """
     levels = _contrast_levels(levels)
 
@@ -225,17 +254,19 @@ def make_contrasts(
     if duplicated:
         raise ValueError(f"levels must be unique; duplicated: {', '.join(duplicated)}")
 
-    # Validate level names are valid Python identifiers (R parity)
-    invalid = [lev for lev in levels if not lev.isidentifier()]
+    # R: notvalid <- (levels != make.names(levels))
+    invalid = [lev for lev in levels if not _is_syntactic_name(lev)]
     if invalid:
         raise ValueError(
-            f"Level names must be valid Python identifiers. Invalid names: {', '.join(invalid)}"
+            "The levels must be syntactically valid names in R, see help(make.names). "
+            f"Non-valid names: {', '.join(invalid)}"
         )
 
-    # Create indicator vectors for each level
-    indicators = {lev: np.zeros(n) for lev in levels}
-    for i, lev in enumerate(levels):
-        indicators[lev][i] = 1.0
+    # Each level is an indicator vector, bound to a placeholder name so that
+    # level names need not be Python identifiers
+    placeholders = {lev: f"_level{i}" for i, lev in enumerate(levels)}
+    identity = np.eye(n)
+    indicators = {placeholders[lev]: identity[i] for i, lev in enumerate(levels)}
 
     # Handle contrasts= parameter (R parity)
     if contrasts is not None:
@@ -262,15 +293,78 @@ def make_contrasts(
     for j, (name, expr) in enumerate(all_contrasts):
         contrast_names.append(name)
 
-        # Evaluate the expression
+        if not isinstance(expr, str):
+            raise ValueError(f"Contrast expressions must be strings such as 'B-A', not {expr!r}")
+        python_expr, numbers = _contrast_as_python(expr, placeholders)
         try:
-            result = eval(expr, {"__builtins__": {}}, indicators)
+            # R arithmetic on doubles: 1/0 is Inf and (-8)^(1/3) is NaN, silently
+            with np.errstate(all="ignore"):
+                result = eval(python_expr, {"__builtins__": {}}, {**indicators, **numbers})
             contrast_matrix[:, j] = np.asarray(result)
         except Exception as e:
             raise ValueError(f"Could not evaluate contrast expression '{expr}': {e}")
 
     # Return as DataFrame with named rows and columns
     return pd.DataFrame(contrast_matrix, index=levels, columns=contrast_names)
+
+
+def _is_syntactic_name(name: str) -> bool:
+    """R: name == make.names(name), except the dots names ``...`` and ``..1``.
+
+    R cannot evaluate those as variables ("'...' used in an incorrect context").
+    """
+    return (
+        re.fullmatch(_R_NAME, name) is not None
+        and name not in _R_RESERVED
+        and re.fullmatch(_R_DOTS, name) is None
+    )
+
+
+def _contrast_as_python(
+    expr: str, placeholders: dict[str, str]
+) -> tuple[str, dict[str, np.float64]]:
+    """Translate an R contrast expression into Python over the level placeholders.
+
+    Returns the Python expression and the numbers it uses, bound to their own
+    placeholders as doubles so that the arithmetic is R's. R evaluates the
+    expression in the R session, where any R name or function resolves; only
+    arithmetic on the levels and numbers is supported here.
+    """
+    # R parses each line as its own expression and keeps the last one only
+    if "\n" in expr or "\r" in expr:
+        raise ValueError(
+            f"Contrast expression {expr!r} spans several lines; R would evaluate only "
+            "its last line. Write it on one line."
+        )
+    tokens = []
+    numbers = {}
+    pos = 0
+    expr_end = len(expr.rstrip())
+    while pos < expr_end:
+        token = _CONTRAST_TOKEN.match(expr, pos)
+        if token is None:
+            raise ValueError(
+                f"Contrast expression '{expr}': unsupported syntax at '{expr[pos:].strip()}'. "
+                "Contrasts may use the level names, numbers, + - * / ^ and brackets."
+            )
+        if token["name"] is not None:
+            if token["name"] not in placeholders:
+                raise ValueError(
+                    f"Contrast expression '{expr}': '{token['name']}' is not one of the "
+                    "levels. Contrasts may use the level names, numbers, + - * / ^ and "
+                    "brackets."
+                )
+            tokens.append(placeholders[token["name"]])
+        elif token["number"] is not None:
+            placeholder = f"_number{len(numbers)}"
+            literal = token["number"].rstrip("L")  # R's integer suffix L
+            is_hex = literal[:2] in ("0x", "0X")
+            numbers[placeholder] = np.float64(int(literal, 16) if is_hex else literal)
+            tokens.append(placeholder)
+        else:
+            tokens.append("**" if token["op"] == "^" else token["op"])
+        pos = token.end()
+    return " ".join(tokens), numbers
 
 
 def _contrast_levels(levels) -> list[str]:

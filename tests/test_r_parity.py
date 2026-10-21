@@ -1048,6 +1048,31 @@ class TestMakeContrastsRParity:
             assert list(py_cont.index) == list(r_cont.index)
             np.testing.assert_array_equal(py_cont.values, r_cont.values)
 
+    def test_r_expressions(self):
+        """Dotted and keyword level names, R numbers, ^ / ** and R precedence."""
+        r_cont = load_r_csv("mce_matrix")
+
+        py_cont = make_contrasts(contrasts=list(r_cont.columns), levels=list(r_cont.index))
+
+        assert list(py_cont.columns) == list(r_cont.columns)
+        np.testing.assert_allclose(py_cont.values, r_cont.values, rtol=1e-12, atol=0)
+        assert np.isnan(py_cont.values).sum() == np.isnan(r_cont.values).sum() > 0
+
+    def test_valid_level_names_follow_make_names(self):
+        """A level is valid when it equals R's make.names() of itself.
+
+        The dots names ... and ..1 pass make.names() but R cannot evaluate them.
+        """
+        r_names = pd.read_csv(FIXTURES_DIR / "R_mce_names.csv", keep_default_na=False)
+
+        for name, valid in zip(r_names["name"], r_names["valid"]):
+            if valid and name not in ("...", "..1"):
+                cm = make_contrasts("2*Z", levels=[name, "Z"])
+                np.testing.assert_array_equal(cm["2*Z"].values, [0.0, 2.0])
+            else:
+                with pytest.raises(ValueError, match="syntactically valid names"):
+                    make_contrasts("2*Z", levels=[name, "Z"])
+
 
 class TestModelMatrixRParity:
     """Test model_matrix matches R's model.matrix."""
