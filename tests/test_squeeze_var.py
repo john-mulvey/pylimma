@@ -316,3 +316,19 @@ class TestFitFDistUnequalDF1:
 
         with pytest.raises(ValueError, match="NA df1"):
             fit_f_dist_unequal_df1(var, df1=df1)
+
+
+def test_scalar_variance_is_a_length_one_vector():
+    """R takes a single variance as a length-1 vector (generate_all_fixtures.R):
+    squeezeVar(1.5, 5) is var.post = var.prior = 1.5, df.prior = 0, and the
+    robust and unequal-df1 fits give NA. A Python scalar raised TypeError."""
+    from pylimma import fit_f_dist, fit_f_dist_robustly, fit_f_dist_unequal_df1, squeeze_var
+
+    squeezed = squeeze_var(1.5, 5)
+    np.testing.assert_array_equal(squeezed["var_post"], [1.5])
+    np.testing.assert_array_equal(squeezed["var_prior"], 1.5)
+    assert squeezed["df_prior"] == 0
+    fit = fit_f_dist(1.5, 5)
+    assert (fit["scale"], fit["df2"]) == (1.5, 0)
+    for fn in (fit_f_dist_robustly, fit_f_dist_unequal_df1):
+        assert np.isnan(fn(1.5, 5)["scale"]) and np.isnan(fn(1.5, 5)["df2"])

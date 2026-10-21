@@ -274,6 +274,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `zscore_t` (default quantile method) returns R's z-scores for very large
   |t|: it returned Inf once the t tail probability underflowed (for
   example |t| = 100 at 988 df, where R gives 48.77).
+- `squeeze_var`, `fit_f_dist`, `fit_f_dist_robustly` and
+  `fit_f_dist_unequal_df1` take a single variance as a length-1 vector, as
+  R does; a Python scalar raised `TypeError`.
 
 ## [0.2.0] - 2026-09-30
 

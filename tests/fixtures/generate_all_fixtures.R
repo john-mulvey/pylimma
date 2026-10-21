@@ -5539,3 +5539,12 @@ write.csv(.zte, "R_zte_zscoret.csv", row.names = FALSE)
 stopifnot(limma:::fitFDist(.fri_x, df1 = .fri_df1)$df2 == Inf, .fri$df2 == Inf)
 write.csv(data.frame(x = .fri_x, df1 = .fri_df1, scale = .fri$scale, tail_p_value = .fri$tail.p.value,
                      df2_shrunk = .fri$df2.shrunk), "R_fri_fitfdistrobustly.csv", row.names = FALSE)
+
+# =============================================================================
+# squeezeVar and the fitFDist family take a single variance as a length-1
+# vector
+# =============================================================================
+stopifnot(identical(squeezeVar(1.5, 5), list(var.post = 1.5, var.prior = 1.5, df.prior = 0)),
+          identical(limma:::fitFDist(1.5, 5), list(scale = 1.5, df2 = 0)),
+          all(is.na(unlist(fitFDistRobustly(1.5, 5)))),
+          all(is.na(unlist(limma:::fitFDistUnequalDF1(1.5, 5)))))

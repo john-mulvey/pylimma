@@ -403,7 +403,7 @@ def fit_f_dist(
     assessing differential expression in microarray experiments.
     Statistical Applications in Genetics and Molecular Biology, 3(1), Article 3.
     """
-    x = np.asarray(x, dtype=np.float64)
+    x = np.atleast_1d(np.asarray(x, dtype=np.float64))  # R: a scalar is a length-1 vector
     n = len(x)
 
     if n == 0:
@@ -596,7 +596,7 @@ def fit_f_dist_robustly(
     """
     from scipy.stats import chi2, rankdata
 
-    x = np.asarray(x, dtype=np.float64)
+    x = np.atleast_1d(np.asarray(x, dtype=np.float64))  # R: a scalar is a length-1 vector
     n = len(x)
 
     # Eliminate cases of no useful data
@@ -870,7 +870,7 @@ def fit_f_dist_unequal_df1(
     from scipy.optimize import minimize_scalar
     from scipy.special import gammaln
 
-    x = np.asarray(x, dtype=np.float64)
+    x = np.atleast_1d(np.asarray(x, dtype=np.float64))  # R: a scalar is a length-1 vector
     df1 = np.asarray(df1, dtype=np.float64)
     n = len(x)
 
@@ -1203,7 +1203,7 @@ def squeeze_var(
     assessing differential expression in microarray experiments.
     Statistical Applications in Genetics and Molecular Biology, 3(1), Article 3.
     """
-    var = np.asarray(var, dtype=np.float64)
+    var = np.atleast_1d(np.asarray(var, dtype=np.float64))  # R: a scalar is a length-1 vector
     n = len(var)
 
     if n == 0:
