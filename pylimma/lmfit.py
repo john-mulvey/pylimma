@@ -1069,7 +1069,41 @@ def _formula_design(formula: str, data) -> pd.DataFrame:
             f"formula {formula!r}: ^ is a power in R but bitwise XOR in patsy; "
             "use ** instead (I(x**2) for a power, (a + b)**2 for crossing terms)"
         )
-    return patsy.dmatrix(formula, data, return_type="dataframe")
+    design = patsy.dmatrix(formula, data, return_type="dataframe")
+    # R codes an ordered factor with contr.poly where it applies contrasts;
+    # patsy ignores the ordering and uses treatment contrasts
+    design_info = design.design_info
+    ordered = sorted(
+        {
+            factor.code
+            for subterms in design_info.term_codings.values()
+            for subterm in subterms
+            for factor, coding in subterm.contrast_matrices.items()
+            if coding.matrix.shape[1] < coding.matrix.shape[0]
+            and _is_ordered_without_contrast(
+                factor.eval(design_info.factor_infos[factor].state, data)
+            )
+        }
+    )
+    if ordered:
+        raise ValueError(
+            f"formula {formula!r}: ordered categorical {', '.join(map(repr, ordered))} "
+            "without a named contrast. R's model.matrix codes ordered factors with "
+            "polynomial contrasts (contr.poly) and patsy with treatment contrasts; "
+            "name the contrast, e.g. C(o, Poly) for R's coding or C(o, Treatment) for "
+            "treatment coding"
+        )
+    return design
+
+
+def _is_ordered_without_contrast(values) -> bool:
+    """Whether an evaluated patsy factor is an ordered categorical that names no
+    contrast (``o``, ``C(o)``, ``Q("o")``; not ``C(o, Poly)``)."""
+    # C(...) gives a box holding the data and the contrast it names, if any
+    if getattr(values, "contrast", None) is not None:
+        return False
+    dtype = getattr(getattr(values, "data", values), "dtype", None)
+    return isinstance(dtype, pd.CategoricalDtype) and bool(dtype.ordered)
 
 
 def _formula_operators(formula: str) -> list[str]:

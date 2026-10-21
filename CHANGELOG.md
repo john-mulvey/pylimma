@@ -186,6 +186,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   other formula entry points) raise an error asking for `**`: patsy
   evaluated `I(age^2)` as bitwise XOR, giving silently wrong designs for
   integer columns (1, 4, 9, ... became 3, 0, 1, ...).
+- Formula strings with an ordered categorical that would be coded with
+  contrasts raise an error asking for `C(o, Poly)` (R's `contr.poly`) or
+  `C(o, Treatment)`; patsy silently used treatment contrasts where R uses
+  polynomial ones.
 
 ### Fixed
 

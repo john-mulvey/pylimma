@@ -359,6 +359,15 @@ Formula strings containing ``^`` (``model_matrix``, ``lm_fit``, the ``voom`` fam
     patsy, ``I(x**2)`` is R's ``I(x^2)`` and ``(a + b)**2`` is R's
     ``(a + b)^2``. A ``^`` inside a quoted name (``Q("a^b")``) is allowed.
 
+Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the ``voom`` family)
+    Where patsy would code an ordered categorical with contrasts, pylimma
+    raises an error asking for ``C(o, Poly)`` (R's ``contr.poly``, the same
+    values) or ``C(o, Treatment)``; this includes ``C(o)`` and ``Q("o")``,
+    which name no contrast. R's ``model.matrix`` codes ordered
+    factors with ``contr.poly``; patsy ignores the ordering and would
+    silently use treatment contrasts. Without contrasts (``~ 0 + o``) both
+    give one indicator column per level, and no error is raised.
+
 Deliberate interface difference: EList design and weights slots
 ---------------------------------------------------------------
 

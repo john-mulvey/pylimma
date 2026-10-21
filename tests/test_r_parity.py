@@ -1155,6 +1155,21 @@ class TestModelMatrixRParity:
             r_mm = pd.read_csv(FIXTURES_DIR / fixture)
             np.testing.assert_array_equal(model_matrix(formula, data), r_mm.values)
 
+    def test_ordered_factor(self):
+        """R's contr.poly is C(o, Poly); without contrasts both give indicators."""
+        from pylimma import model_matrix
+
+        data = pd.DataFrame(
+            {"o": pd.Categorical(list("abcd") * 2, ordered=True), "g": list("xxxxyyyy")}
+        )
+        for formula, fixture in (
+            ("~ g + C(o, Poly)", "R_mmo_poly.csv"),
+            ("~ 0 + o", "R_mmo_cellmeans.csv"),
+        ):
+            r_mm = pd.read_csv(FIXTURES_DIR / fixture)
+            py_mm = model_matrix(formula, data)
+            np.testing.assert_allclose(py_mm, r_mm.values, rtol=1e-12, atol=1e-15)
+
 
 class TestEBayesProportionRParity:
     """Test eBayes with different proportion parameters matches R."""

@@ -5619,3 +5619,12 @@ stopifnot(identical(colnames(makeContrasts(contrasts = "B-A", levels = c("A", "B
 .mmp <- data.frame(age = 1:6, g = rep(c("a", "b", "c"), 2), h = rep(c("x", "y"), each = 3))
 write.csv(model.matrix(~ I(age^2), .mmp), "R_mmp_power.csv", row.names = FALSE)
 write.csv(model.matrix(~ (g + h)^2, .mmp), "R_mmp_crossing.csv", row.names = FALSE)
+
+# =============================================================================
+# model.matrix with an ordered factor: contr.poly where contrasts apply
+# (patsy: C(o, Poly)); indicator columns without an intercept
+# =============================================================================
+.mmo <- data.frame(o = factor(rep(c("a", "b", "c", "d"), 2), ordered = TRUE),
+                   g = rep(c("x", "y"), each = 4))
+write.csv(model.matrix(~ g + o, .mmo), "R_mmo_poly.csv", row.names = FALSE)
+write.csv(model.matrix(~ 0 + o, .mmo), "R_mmo_cellmeans.csv", row.names = FALSE)

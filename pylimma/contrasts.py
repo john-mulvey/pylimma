@@ -112,6 +112,14 @@ def model_matrix(
     formula containing ``^`` raises a ValueError. Write R's ``^`` as
     ``**``: ``I(x**2)`` for a power and ``(a + b)**2`` for crossing terms.
 
+    R codes an ordered factor with polynomial contrasts (``contr.poly``)
+    where it applies contrasts; patsy ignores the ordering and uses
+    treatment contrasts. An ordered categorical that patsy would code with
+    contrasts therefore raises a ValueError, also when it is wrapped
+    without naming a contrast (``C(o)``): write ``C(o, Poly)`` for R's
+    coding or ``C(o, Treatment)`` for treatment coding. Without contrasts
+    (``"~ 0 + o"``) both give one indicator column per level.
+
     See Also
     --------
     make_contrasts : Create contrast matrices for hypothesis testing

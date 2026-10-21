@@ -205,6 +205,44 @@ class TestFormulaCaret:
         np.testing.assert_array_equal(model_matrix('~ Q("a^b")', data)[:, 1], [1, 2, 3])
 
 
+class TestFormulaOrderedFactor:
+    """An ordered categorical coded with treatment contrasts raises (R: contr.poly)."""
+
+    @pytest.fixture
+    def data(self):
+        return pd.DataFrame(
+            {
+                "o": pd.Categorical(
+                    ["lo", "mid", "hi"] * 2, categories=["lo", "mid", "hi"], ordered=True
+                ),
+                "g": list("aabbcc"),
+            }
+        )
+
+    def test_bare_ordered_factor_raises(self, data):
+        with pytest.raises(ValueError, match=r"ordered categorical 'o'.*C\(o, Poly\)"):
+            model_matrix("~ o", data)
+        with pytest.raises(ValueError, match="ordered categorical 'o'"):
+            model_matrix_with_names("~ g + o", data)
+        # wrapped without naming a contrast, patsy still uses treatment coding
+        for formula in ("~ C(o)", '~ Q("o")', '~ C(o, levels=["hi", "mid", "lo"])'):
+            with pytest.raises(ValueError, match="without a named contrast"):
+                model_matrix(formula, data)
+
+    def test_explicit_coding_is_kept(self, data):
+        names = list(model_matrix_with_names("~ C(o, Treatment)", data).columns)
+        assert names == ["Intercept", "C(o, Treatment)[T.mid]", "C(o, Treatment)[T.hi]"]
+        assert model_matrix("~ C(o, contrast=Poly)", data).shape == (6, 3)
+
+    def test_term_derived_from_an_ordered_column_is_unaffected(self, data):
+        names = list(model_matrix_with_names('~ I(o == "lo")', data).columns)
+        assert names == ["Intercept", 'I(o == "lo")[T.True]']
+
+    def test_unordered_factor_is_unaffected(self, data):
+        data["o"] = data["o"].cat.as_unordered()
+        assert model_matrix("~ o", data).shape == (6, 3)
+
+
 class TestContrastsFit:
     """Tests for contrasts_fit function."""
 
