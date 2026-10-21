@@ -5429,3 +5429,20 @@ write.csv(data.frame(set = rownames(topGO(.tna))), "R_tna_topgo.csv", row.names 
 write.csv(data.frame(set = rownames(topKEGG(.tna_kegg))), "R_tna_topkegg.csv", row.names = FALSE)
 
 cat("  topGO / topKEGG NA-name fixtures complete.\n")
+
+# =============================================================================
+# topGO: ontology may be one string or an abbreviation (match.arg); number
+# is capped at the row count, so Inf gives every row
+# =============================================================================
+cat("\nGenerating topGO argument checks...\n")
+
+.tga <- goana_result
+.tga_bp <- topGO(.tga, ontology = c("BP", "BP"))
+stopifnot(identical(topGO(.tga, ontology = "BP"), .tga_bp), identical(topGO(.tga, ontology = "B"), .tga_bp),
+          all(.tga_bp$Ont == "BP"))
+# literal R: an element that matches nothing is dropped while another matches
+stopifnot(identical(topGO(.tga, ontology = c("BP", "XX")), .tga_bp))
+stopifnot(identical(topGO(.tga, number = Inf), topGO(.tga, number = nrow(.tga))),
+          identical(topKEGG(res_kegga, number = Inf), topKEGG(res_kegga, number = nrow(res_kegga))))
+
+cat("  topGO argument checks complete.\n")

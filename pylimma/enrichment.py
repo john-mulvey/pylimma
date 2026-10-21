@@ -76,7 +76,8 @@ from .classes import (
     _resolve_fit_input,
 )
 from .geneset import _is_list_of_sets
-from .utils import p_adjust, tricube_moving_average
+from .toptable import _top_row_count
+from .utils import _match_arg, p_adjust, tricube_moving_average
 
 # ---------------------------------------------------------------------------
 # Public dispatchers
@@ -869,26 +870,30 @@ def top_go(
     shape returned by :func:`goana` (columns ``term``, ``ontology``,
     ``n``, then one count column per DE list, then one ``p_*`` column
     per DE list).
+
+    ``ontology`` is one or more of ``"BP"``, ``"CC"`` and ``"MF"``, which
+    may be abbreviated as in R; unlike R, an element that matches none of
+    them raises an error instead of being dropped. ``number`` is capped at
+    the number of rows, so ``np.inf`` returns every row.
     """
     if not isinstance(results, pd.DataFrame):
         raise ValueError("results should be a data.frame.")
 
-    valid_ont = {"BP", "CC", "MF"}
-    ontology_arr = list(dict.fromkeys(ontology))
-    for o in ontology_arr:
-        if o not in valid_ont:
-            raise ValueError(f"'arg' should be one of 'BP', 'CC', 'MF': got {o!r}")
+    # R: match.arg(unique(ontology), several.ok = TRUE), except that an
+    # element matching nothing raises rather than being dropped.
+    ontology = [ontology] if isinstance(ontology, str) else list(ontology)
+    if not ontology:
+        raise ValueError("'arg' must be of length >= 1")
+    ontology_arr = list(dict.fromkeys(_match_arg(o, ("BP", "CC", "MF"), "arg") for o in ontology))
 
     if len(ontology_arr) < 3 and "ontology" in results.columns:
         results = results.loc[results["ontology"].isin(ontology_arr)]
 
     dimres = results.shape
 
-    if not isinstance(number, (int, np.integer, float, np.floating)):
+    if isinstance(number, bool) or not isinstance(number, (int, np.integer, float, np.floating)):
         raise ValueError("number should be a positive integer")
-    number = int(number)
-    if number > dimres[0]:
-        number = dimres[0]
+    number = _top_row_count(number, dimres[0])
     if number < 1:
         return results.iloc[0:0]
 
@@ -945,11 +950,9 @@ def top_kegg(results, sort=None, number=20, truncate_path=None, p_value=1.0) -> 
         raise ValueError("results should be a data.frame.")
     dimres = results.shape
 
-    if not isinstance(number, (int, np.integer, float, np.floating)):
+    if isinstance(number, bool) or not isinstance(number, (int, np.integer, float, np.floating)):
         raise ValueError("number should be a positive integer")
-    number = int(number)
-    if number > dimres[0]:
-        number = dimres[0]
+    number = _top_row_count(number, dimres[0])
     if number < 1:
         return results.iloc[0:0]
 

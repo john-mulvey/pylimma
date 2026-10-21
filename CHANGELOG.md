@@ -234,6 +234,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   "nan").
 - `top_go` / `top_kegg` sort a missing term or pathway name last among
   ties, as R's `order`; they raised `TypeError`.
+- `top_go` takes `ontology` as one string and accepts abbreviations, as
+  R's `match.arg` (a string was iterated by character and raised); an
+  element that matches nothing still raises. `top_go` / `top_kegg` cap
+  `number` at the row count, so `number=np.inf` returns every row (it
+  raised `OverflowError`), and `number=NaN` raises a clear error, as in
+  `top_table`.
 
 ## [0.2.0] - 2026-09-30
 

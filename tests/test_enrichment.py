@@ -186,3 +186,42 @@ def test_pathway_names_first_row_across_id_types():
     names = pd.DataFrame({"id": [10, "10", 20], "name": ["first", "second", "other"]}, dtype=object)
     tab = pylimma.kegga(["g1"], gp, pathway_names=names, universe=["g1", "g2", "g3"])
     assert tab.loc["10", "pathway"] == "first"
+
+
+def _goana_table():
+    gp = pd.read_csv(FIXTURES / "R_goana_genepathway.csv")
+    universe = pd.read_csv(FIXTURES / "R_goana_universe.csv")["gene_id"].tolist()
+    return pylimma.goana({"Up": universe[:10], "Down": universe[10:20]}, gp, universe=universe)
+
+
+def test_top_go_ontology_string_and_abbreviation():
+    """R: match.arg(unique(ontology), several.ok = TRUE), so one string and
+    an unambiguous abbreviation both work; it iterated the characters."""
+    results = _goana_table()
+    bp = pylimma.top_go(results, ontology=["BP", "BP"])
+    assert set(bp["ontology"]) == {"BP"}
+    pd.testing.assert_frame_equal(pylimma.top_go(results, ontology="BP"), bp)
+    pd.testing.assert_frame_equal(pylimma.top_go(results, ontology="B"), bp)
+
+
+@pytest.mark.parametrize("ontology", [["BP", "XX"], "XX", []])
+def test_top_go_invalid_ontology_raises(ontology):
+    """R drops "XX" when another element matches; pylimma raises for any
+    element that matches nothing (known_differences.rst)."""
+    with pytest.raises(ValueError, match="'arg'"):
+        pylimma.top_go(_goana_table(), ontology=ontology)
+
+
+@pytest.mark.parametrize("fn_name", ["top_go", "top_kegg"])
+def test_top_number_inf_and_nan(fn_name):
+    """R caps number at the row count (Inf gives every row) and fails on
+    NaN with "missing value where TRUE/FALSE needed"; as top_table, pylimma
+    raises a clear error for NaN."""
+    import numpy as np
+
+    gp, pn, universe = _kegga_inputs()
+    results = _goana_table() if fn_name == "top_go" else pylimma.kegga(universe[:10], gp, pathway_names=pn, universe=universe)
+    fn = getattr(pylimma, fn_name)
+    pd.testing.assert_frame_equal(fn(results, number=np.inf), fn(results, number=len(results)))
+    with pytest.raises(ValueError, match="^number must not be NaN$"):
+        fn(results, number=np.nan)

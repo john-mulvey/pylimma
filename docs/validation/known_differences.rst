@@ -293,6 +293,17 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     accepts other lengths (recycling a non-constant offset, ignoring the
     length of a constant one).
 
+``top_go`` with an ``ontology`` element that matches nothing
+    Raises "'arg' should be one of ...". R's ``match.arg(several.ok =
+    TRUE)`` silently drops such an element when another element matches
+    (``ontology = c("BP", "XX")`` gives BP only). Abbreviations such as
+    ``"B"`` work in both. ``generate_all_fixtures.R`` records the R
+    behaviour.
+
+``top_go`` / ``top_kegg`` with ``number=NaN``
+    Raises "number must not be NaN", as ``top_table`` does (R: "missing
+    value where TRUE/FALSE needed"). Other values of ``number`` follow R.
+
 Deliberate interface difference: EList design and weights slots
 ---------------------------------------------------------------
 
