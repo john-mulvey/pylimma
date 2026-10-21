@@ -259,3 +259,30 @@ def test_goana_trend_whole_number_floats_are_positions():
     np.testing.assert_array_equal(
         pylimma.goana_trend([1.0, 4.0], covariate), pylimma.goana_trend([1, 4], covariate)
     )
+
+
+def test_goana_trend_plot_draws_r_trend():
+    """R's goanaTrend(plot=TRUE) draws p.o against covariate rank 1..n
+    (lwd 2) with ylim c(0, ceiling(max(p) * n) / n), and a tick of height
+    ylim[2] / 9 at the rank of each DE gene (lwd 2 below 100 DE genes)."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    covariate = np.random.default_rng(1).permutation(40) / 40
+    index_de = np.arange(0, 40, 3)
+    plt.close("all")
+    p = pylimma.goana_trend(index_de, covariate, plot=True, xlab="x lab", ylab="y lab", main="title")
+    ax = plt.gcf().axes[0]
+    order = np.argsort(covariate, kind="stable")
+    line = ax.lines[0]
+    np.testing.assert_array_equal(line.get_xdata(), np.arange(1, 41))
+    np.testing.assert_allclose(line.get_ydata(), p[order])
+    assert line.get_linewidth() == 2
+    top = np.ceil(p.max() * 40) / 40
+    assert ax.get_ylim() == (0, top)
+    ticks = ax.collections[0].get_segments()
+    de_ranks = np.flatnonzero(np.isin(order, index_de)) + 1
+    np.testing.assert_allclose([seg[0] for seg in ticks], np.column_stack([de_ranks, np.zeros(14)]))
+    np.testing.assert_allclose([seg[1] for seg in ticks], np.column_stack([de_ranks, np.full(14, top / 9)]))
+    assert (ax.get_xlabel(), ax.get_ylabel(), ax.get_title()) == ("x lab", "y lab", "title")
+    plt.close("all")

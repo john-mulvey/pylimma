@@ -247,6 +247,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `goana` / `kegga` raise an error when two set names give the same
   lower-case output column (for example "A" and "a", or a set named "N"
   next to `n`); one of the sets was silently dropped.
+- `goana_trend(plot=True)` draws R's trend plot (it was silently ignored),
+  and `goana_trend` gains R's `xlab`, `ylab` and `main`.
 
 ## [0.2.0] - 2026-09-30
 

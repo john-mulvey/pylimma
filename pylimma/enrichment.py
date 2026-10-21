@@ -1008,7 +1008,15 @@ def top_kegg(results, sort=None, number=20, truncate_path=None, p_value=1.0) -> 
 # ---------------------------------------------------------------------------
 
 
-def goana_trend(index_de, covariate, n_prior=10, plot=False) -> np.ndarray:
+def goana_trend(
+    index_de,
+    covariate,
+    n_prior=10,
+    plot=False,
+    xlab="Covariate Rank",
+    ylab="Probability gene is DE",
+    main="DE status vs covariate",
+) -> np.ndarray:
     """
     Estimate per-gene DE probability from a covariate.
 
@@ -1027,6 +1035,11 @@ def goana_trend(index_de, covariate, n_prior=10, plot=False) -> np.ndarray:
         Genewise covariate, such as gene length or average log-expression.
     n_prior : float, default 10
         Prior number of genes moderating the trend towards a constant.
+    plot : bool, default False
+        Draw the trend against covariate rank, with a tick at each DE
+        gene, as R (requires matplotlib).
+    xlab, ylab, main : str
+        Axis labels and title of the plot.
     """
     index_de = np.asarray(index_de)
     if index_de.dtype != bool and np.any(pd.isna(index_de)):
@@ -1066,7 +1079,9 @@ def goana_trend(index_de, covariate, n_prior=10, plot=False) -> np.ndarray:
         sub_cov = covariate[~isna]
         sub_isde = isDE[~isna].astype(bool)
         # Recurse with bool index aligned to the sub-vector.
-        p[~isna] = goana_trend(sub_isde, sub_cov, n_prior=n_prior, plot=plot)
+        p[~isna] = goana_trend(
+            sub_isde, sub_cov, n_prior=n_prior, plot=plot, xlab=xlab, ylab=ylab, main=main
+        )
         return p
 
     # R: o <- order(covariate). Stable for ties (ascending).
@@ -1084,5 +1099,25 @@ def goana_trend(index_de, covariate, n_prior=10, plot=False) -> np.ndarray:
     p_o = tricube_moving_average(isDE_o, span=span)
     p_o = (p_mean * n_prior + p_o * nDE) / (n_prior + nDE)
     p[o] = p_o
+    if plot:
+        ylim_top = np.ceil(p.max() * ngenes) / ngenes
+        _draw_goana_trend(p_o, isDE_o, ylim_top=ylim_top, xlab=xlab, ylab=ylab, main=main)
 
     return p
+
+
+def _draw_goana_trend(p_o, isDE_o, *, ylim_top, xlab, ylab, main) -> None:
+    """R's goanaTrend plot: the trend against covariate rank, and a tick
+    of height ylim / 9 at the rank of each DE gene."""
+    from .plotting import _require_matplotlib
+
+    plt = _require_matplotlib()
+    ranks = np.arange(1, p_o.size + 1)
+    de_ranks = ranks[isDE_o.astype(bool)]
+    _fig, ax = plt.subplots()
+    ax.plot(ranks, p_o, color="black", linewidth=2)
+    ax.set_ylim(0, ylim_top)
+    ax.vlines(de_ranks, 0, ylim_top / 9, colors="black", linewidth=2 if de_ranks.size < 100 else 1)
+    ax.set_xlabel(xlab)
+    ax.set_ylabel(ylab)
+    ax.set_title(main)
