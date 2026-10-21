@@ -121,7 +121,7 @@ def _dqrdc2_pivot(x: np.ndarray, tol: float = 1e-7) -> tuple[np.ndarray, int]:
     return jpvt, min(k - 1, n)
 
 
-def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
+def _qr_r_style(x: np.ndarray, tol: float = 1e-7, mode: str = "full") -> tuple:
     """
     QR decomposition matching R's ``qr(x, LAPACK=FALSE)`` semantics.
 
@@ -137,12 +137,15 @@ def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
         Matrix of shape (n, p).
     tol : float
         Relative tolerance on column norms. R's default is ``1e-7``.
+    mode : {"full", "economic"}
+        ``"economic"`` returns only the first ``p`` columns of ``q``, which
+        is all a fit needs when ``n`` is large (e.g. one row per gene).
 
     Returns
     -------
     q, r : ndarray
-        Full-mode QR factorisation of ``x[:, pivot]`` (``q`` is ``(n, n)``,
-        ``r`` is ``(n, p)``).
+        QR factorisation of ``x[:, pivot]``: ``q`` is ``(n, n)`` and ``r``
+        ``(n, p)`` in full mode, ``(n, p)`` and ``(p, p)`` in economic mode.
     pivot : ndarray of int
         Permutation of column indices. ``pivot[:rank]`` are the original
         indices of estimable columns in their original order;
@@ -152,7 +155,7 @@ def _qr_r_style(x: np.ndarray, tol: float = 1e-7) -> tuple:
     """
     x = np.asarray(x, dtype=np.float64)
     pivot, rank = _dqrdc2_pivot(x, tol)
-    q, r = linalg.qr(x[:, pivot], mode="full")
+    q, r = linalg.qr(x[:, pivot], mode=mode)
     return q, r, pivot, rank
 
 

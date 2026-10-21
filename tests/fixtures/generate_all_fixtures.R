@@ -5474,3 +5474,19 @@ stopifnot(identical(goanaTrend(-1, .gti_cov), goanaTrend(2:10, .gti_cov)),
 .eid_chr <- kegga(c("1", "2"), universe = as.character(1:5), gene.pathway = data.frame(gene = as.character(1:5), path = .eid_gp$path),
                   pathway.names = data.frame(c("p1", "p2"), c("one", "two")))
 stopifnot(identical(.eid_num, .eid_chr), .eid_num["p1", "DE"] == 2)
+
+# =============================================================================
+# squeezeVar with a covariate at genome scale (30,000 genes). Inputs are a
+# formula of the gene index, so the Python test rebuilds them exactly.
+# =============================================================================
+cat("\nGenerating large-scale squeezeVar trend fixtures...\n")
+
+.svl_i <- 1:30000
+.svl_x <- exp(1.2 * sin(.svl_i * 0.37) + 0.8 * cos(.svl_i * 1.3) + 0.5 * sin(.svl_i * 0.011))
+.svl_cov <- (.svl_i %% 997) / 997 + .svl_i / 30000
+.svl <- squeezeVar(.svl_x, df = 4, covariate = .svl_cov)
+.svl_pick <- c(1, 2, 500, 9999, 15000, 29999, 30000)
+write.csv(data.frame(index = .svl_pick, var_prior = .svl$var.prior[.svl_pick], var_post = .svl$var.post[.svl_pick],
+                     df_prior = .svl$df.prior), "R_svl_trend.csv", row.names = FALSE)
+
+cat("  large-scale squeezeVar trend fixtures complete.\n")

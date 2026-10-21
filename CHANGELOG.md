@@ -254,6 +254,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
   next to `n`); one of the sets was silently dropped.
 - `goana_trend(plot=True)` draws R's trend plot (it was silently ignored),
   and `goana_trend` gains R's `xlab`, `ylab` and `main`.
+- `squeeze_var(covariate=...)`, and so `e_bayes(trend=True)` and
+  `treat(trend=True)`, fit the variance trend with an economy-size QR. The
+  full QR built a genes x genes matrix: 8,000 genes needed 1.2 GB and
+  22,000 genes over 10 GB; 30,000 genes now take 0.02 s and 170 MB.
+  Results are unchanged.
 
 ## [0.2.0] - 2026-09-30
 

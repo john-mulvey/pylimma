@@ -7256,3 +7256,25 @@ def test_gene_set_tests_rank_tolerance_matches_r(fn_name, fixture):
     tab = getattr(pylimma, fn_name)(y, {"a": np.arange(6), "b": np.arange(6, 15)}, design, **kwargs)
     r = load_r_csv(fixture)
     assert compare_pvalues(r["PValue"].to_numpy(), tab["p_value"].to_numpy())["match"]
+
+
+# =============================================================================
+# squeeze_var with a covariate at genome scale: the trend fit's QR is
+# economy-size (genes x df), not genes x genes
+# =============================================================================
+
+
+def test_squeeze_var_trend_30000_genes_matches_r():
+    """30,000 genes: a full-mode QR would need a 30,000 x 30,000 Q (7 GB).
+    Inputs are the formula in generate_all_fixtures.R."""
+    from pylimma import squeeze_var
+
+    i = np.arange(1, 30001)
+    x = np.exp(1.2 * np.sin(i * 0.37) + 0.8 * np.cos(i * 1.3) + 0.5 * np.sin(i * 0.011))
+    covariate = (i % 997) / 997 + i / 30000
+    out = squeeze_var(x, 4, covariate=covariate)
+    r = pd.read_csv(FIXTURES_DIR / "R_svl_trend.csv")
+    pick = r["index"].to_numpy() - 1
+    np.testing.assert_allclose(out["var_prior"][pick], r["var_prior"], rtol=1e-6, atol=1e-12)
+    np.testing.assert_allclose(out["var_post"][pick], r["var_post"], rtol=1e-6, atol=1e-12)
+    np.testing.assert_allclose(out["df_prior"], r["df_prior"].iloc[0], rtol=1e-6)

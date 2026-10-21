@@ -344,13 +344,15 @@ def _fit_spline_trend(e: np.ndarray, covariate: np.ndarray, splinedf: int) -> tu
         raise ValueError("Problem with covariate") from err
 
     # R's lm.fit(design, e): dqrdc2 pivoting and rank (tol 1e-7); aliased
-    # coefficients are NA, and evar is mean(fit$effects[-(1:fit$rank)]^2)
-    q, r, pivot, rank = _qr_r_style(design)
-    effects = q.T @ e
+    # coefficients are NA, and evar is mean(fit$effects[-(1:fit$rank)]^2),
+    # the residual sum of squares over n - rank. Economy QR: design has one
+    # row per gene, so a full Q would be genes x genes.
+    q, r, pivot, rank = _qr_r_style(design, mode="economic")
+    effects = q[:, :rank].T @ e
     coef = np.full(design.shape[1], np.nan)
-    coef[pivot[:rank]] = linalg.solve_triangular(r[:rank, :rank], effects[:rank])
-    fitted = q[:, :rank] @ effects[:rank]
-    residual_var = np.mean(effects[rank:] ** 2)
+    coef[pivot[:rank]] = linalg.solve_triangular(r[:rank, :rank], effects)
+    fitted = q[:, :rank] @ effects
+    residual_var = np.sum((e - fitted) ** 2) / (e.size - rank)
 
     return fitted, residual_var, coef, design, spline_knots
 
