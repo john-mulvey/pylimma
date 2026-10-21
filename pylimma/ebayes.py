@@ -17,63 +17,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy import stats
-from scipy.special import gammaln
 
 from .classes import MArrayLM, _resolve_fit_input
 from .lmfit import is_fullrank
 from .squeeze_var import squeeze_var
+from .utils import _t_isf_log, _t_logsf
 
 if TYPE_CHECKING:
     pass
-
-
-def _t_isf_log(log_p: np.ndarray, df: float) -> np.ndarray:
-    """
-    Inverse survival function for t-distribution with log-scale input.
-
-    R uses qt(log_p, df, lower.tail=FALSE, log.p=TRUE) which handles
-    extreme p-values on the log scale without precision loss. Python's
-    scipy.stats.t.isf requires the p-value itself, causing underflow for
-    very small p-values.
-
-    This function handles underflow by using an asymptotic approximation
-    for very extreme values.
-
-    Parameters
-    ----------
-    log_p : ndarray
-        Log of tail probability (i.e., logsf values, all <= 0)
-    df : float
-        Degrees of freedom (scalar, common to all values)
-
-    Returns
-    -------
-    ndarray
-        Quantiles (positive values since we're dealing with upper tail)
-    """
-    result = np.empty_like(log_p)
-
-    # Try standard method: isf(exp(log_p), df)
-    p = np.exp(log_p)
-
-    # Check for underflow: p == 0 but log_p is finite (not -inf)
-    underflow = (p == 0) & np.isfinite(log_p)
-    standard = ~underflow
-
-    if np.any(standard):
-        result[standard] = stats.t.isf(p[standard], df)
-
-    if np.any(underflow):
-        # Asymptotic approximation for extreme tail
-        # For large t: sf(t, df) ~ c(df) * t^(-df)
-        # where c(df) = Gamma((df+1)/2) / (sqrt(pi*df) * Gamma(df/2))
-        # So: log_p ~ log(c(df)) - df * log(t)
-        # => log(t) ~ (log(c(df)) - log_p) / df
-        log_c = gammaln((df + 1) / 2) - 0.5 * np.log(np.pi * df) - gammaln(df / 2)
-        log_t = (log_c - log_p[underflow]) / df
-        result[underflow] = np.exp(log_t)
-
-    return result
 
 
 def _classify_tests_f(
@@ -150,7 +101,7 @@ def _tmixture_vector(
     needs_adjustment = df < max_df
     if np.any(needs_adjustment):
         # Convert via p-value on log scale (R parity: uses log.p=TRUE throughout)
-        tail_p = stats.t.logsf(tstat[needs_adjustment], df[needs_adjustment])
+        tail_p = _t_logsf(tstat[needs_adjustment], df[needs_adjustment])
         tstat[needs_adjustment] = _t_isf_log(tail_p, max_df)
         df[needs_adjustment] = max_df
 

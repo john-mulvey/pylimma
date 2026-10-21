@@ -5490,3 +5490,32 @@ write.csv(data.frame(index = .svl_pick, var_prior = .svl$var.prior[.svl_pick], v
                      df_prior = .svl$df.prior), "R_svl_trend.csv", row.names = FALSE)
 
 cat("  large-scale squeezeVar trend fixtures complete.\n")
+
+# =============================================================================
+# Extreme t tails on the log scale: pt(..., log.p = TRUE) and
+# qt(..., log.p = TRUE) beyond double-precision underflow, and
+# tmixture.vector with unequal df and |t| in that range (eBayes robust)
+# =============================================================================
+cat("\nGenerating extreme t-tail fixtures...\n")
+
+.ett <- expand.grid(log_p = c(-50, -300, -700, -745, -760, -800, -1500, -3000, -1e5),
+                    df = c(1, 3, 10, 98, 988, 1e4, 5e5, 1e6, Inf))
+.ett$qt <- qt(.ett$log_p, .ett$df, lower.tail = FALSE, log.p = TRUE)
+write.csv(.ett, "R_ett_qt.csv", row.names = FALSE)
+.etp <- expand.grid(t = c(2, 10, 38, 40, 60, 100, 1e3, 1e6, 1e30), df = c(1, 3, 10, 98, 988, 1e4, 5e5, 1e6, Inf))
+.etp$log_sf <- pt(.etp$t, .etp$df, lower.tail = FALSE, log.p = TRUE)
+write.csv(.etp, "R_ett_pt.csv", row.names = FALSE)
+
+.etm_t <- c(seq(-4, 4, length.out = 180), c(60, 75, 90, 120, 150, 200, 250, 300, 400, 500) * rep(c(1, -1), 5),
+            seq(5, 14, length.out = 10))
+.etm_df <- rep(c(988, 980), length.out = length(.etm_t))
+.etm_su <- rep(c(0.5, 0.7, 1), length.out = length(.etm_t))
+write.csv(data.frame(t = .etm_t, df = .etm_df, stdev_unscaled = .etm_su), "R_etm_input.csv", row.names = FALSE)
+# very large df (df.total can reach the pooled residual df)
+.etm_big_t <- rep(c(38, 3, 2, 1, 0.5), 20)
+.etm_big_df <- c(rep(1e6, 99), 2e6)
+write.csv(data.frame(v0 = c(limma:::tmixture.vector(.etm_t, .etm_su, .etm_df, proportion = 0.1),
+                            limma:::tmixture.vector(.etm_big_t, rep(1, 100), .etm_big_df, proportion = 0.1))),
+          "R_etm_v0.csv", row.names = FALSE)
+
+cat("  extreme t-tail fixtures complete.\n")

@@ -45,9 +45,10 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from scipy import optimize as _scipy_optimize
 from scipy import sparse as _scipy_sparse
 from scipy import stats as _scipy_stats
-from scipy.special import digamma, polygamma
+from scipy.special import betaln, digamma, polygamma
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 
@@ -1058,6 +1059,126 @@ def zscore_hyper(
     if np.any(~up):
         z[~up] = ndtri_exp(pmidlower[~up])
     return z
+
+
+# ---------------------------------------------------------------------------
+# t tail probabilities on the log scale (R's pt / qt with log.p = TRUE)
+# ---------------------------------------------------------------------------
+
+
+# Below this log tail probability scipy's log tails lose accuracy and then
+# underflow (exp(-745) is the smallest double), so the continued fraction
+# is used.
+_LOG_TAIL_SCIPY_FLOOR = -700.0
+
+
+def _log_betainc(a, b, log_x, log1m_x) -> np.ndarray:
+    """log I_x(a, b), the regularised incomplete beta function, on the log
+    scale: x^a (1 - x)^b / (a B(a, b)) times the continued fraction of
+    Numerical Recipes' ``betacf`` (modified Lentz). The fraction converges
+    for x < (a + 1) / (a + b + 2), which holds in the far tails it is used
+    for. ``log_x`` and ``log1m_x`` are log(x) and log(1 - x)."""
+    a, b, log_x, log1m_x = np.broadcast_arrays(
+        *(np.asarray(v, dtype=np.float64) for v in (a, b, log_x, log1m_x))
+    )
+    x = np.exp(log_x)
+    tiny = 1e-300
+
+    def nonzero(v):
+        return np.where(np.abs(v) < tiny, tiny, v)
+
+    c = np.ones_like(x)
+    d = 1 / nonzero(1 - (a + b) * x / (a + 1))
+    h = d.copy()
+    for m in range(1, 10000):
+        even = m * (b - m) * x / ((a - 1 + 2 * m) * (a + 2 * m))
+        d = 1 / nonzero(1 + even * d)
+        c = nonzero(1 + even / c)
+        h *= d * c
+        odd = -(a + m) * (a + b + m) * x / ((a + 2 * m) * (a + 1 + 2 * m))
+        d = 1 / nonzero(1 + odd * d)
+        c = nonzero(1 + odd / c)
+        h *= d * c
+        if np.all(np.abs(d * c - 1) < 1e-15):
+            break
+    return a * log_x + b * log1m_x - np.log(a) - betaln(a, b) + np.log(h)
+
+
+def _t_logsf(t: np.ndarray, df: np.ndarray | float) -> np.ndarray:
+    """R's ``pt(t, df, lower.tail = FALSE, log.p = TRUE)`` for t >= 0,
+    accurate where the tail probability underflows: P(T > t) is
+    I_x(df/2, 1/2) / 2 with x = df / (df + t^2), and for df = Inf the
+    normal tail, as R."""
+    t, df = np.broadcast_arrays(np.asarray(t, dtype=np.float64), np.asarray(df, dtype=np.float64))
+    with np.errstate(divide="ignore"):
+        out = np.array(_scipy_stats.t.logsf(t, df), dtype=np.float64)
+        normal = np.isposinf(df)
+        out[normal] = _scipy_stats.norm.logsf(t[normal])
+    far = ~(out > _LOG_TAIL_SCIPY_FLOOR) & (t > 0) & np.isfinite(t) & ~normal
+    if np.any(far):
+        # log(t^2 / df), so that x = 1 / (1 + t^2 / df) and 1 - x do not overflow
+        log_ratio = 2 * np.log(t[far]) - np.log(df[far])
+        out[far] = np.log(0.5) + _log_betainc(
+            df[far] / 2, 0.5, -np.logaddexp(0, log_ratio), -np.logaddexp(0, -log_ratio)
+        )
+    return out
+
+
+def _inverse_log_tail(log_p, guess, log_tail, upper=True) -> np.ndarray:
+    """Quantiles q with ``log_tail(q) == log_p``, R's q*(..., log.p = TRUE).
+
+    ``guess`` is scipy's quantile from ``exp(log_p)``. It is kept where it
+    reproduces ``log_p``; scipy's own round trip agrees to ~5e-11
+    (relative) and its failures (underflow below exp(-745), quantiles capped
+    at 1e100) are off by far more, so 1e-8 is a chosen cut-off between the
+    two. Elsewhere q is found by solving for log q; it is Inf or 0, as in R,
+    when the quantile is beyond the doubles.
+    """
+    log_p = np.asarray(log_p, dtype=np.float64)
+    quantiles = np.array(guess, dtype=np.float64)
+    with np.errstate(invalid="ignore"):
+        inexact = ~(np.abs(log_tail(quantiles) - log_p) <= 1e-8 * np.abs(log_p))
+    redo = inexact & np.isfinite(log_p) & (log_p < np.log(0.5))
+    if np.any(redo):
+        bounds = np.log(np.finfo(np.float64).tiny), np.log(np.finfo(np.float64).max)
+        # log_tail decreases in q for an upper tail and increases for a lower tail
+        sign = 1.0 if upper else -1.0
+        for i in np.flatnonzero(redo):
+            def gap(log_q, target=log_p[i]):
+                return sign * (float(log_tail(np.exp(log_q))) - target)
+
+            if gap(bounds[1]) > 0:
+                quantiles[i] = np.inf
+            elif gap(bounds[0]) < 0:
+                quantiles[i] = 0.0
+            else:
+                log_q = _scipy_optimize.brentq(gap, *bounds, xtol=1e-14, rtol=1e-15)
+                quantiles[i] = np.exp(log_q)
+    return quantiles
+
+
+def _t_isf_log(log_p: np.ndarray, df: float) -> np.ndarray:
+    """
+    R's ``qt(log_p, df, lower.tail = FALSE, log.p = TRUE)``: the t quantile
+    for a log upper-tail probability, accurate where scipy's ``t.isf``
+    underflows or caps (see ``_inverse_log_tail``).
+
+    Parameters
+    ----------
+    log_p : ndarray
+        Log of tail probability (i.e., logsf values, all <= 0)
+    df : float
+        Degrees of freedom (scalar, common to all values)
+
+    Returns
+    -------
+    ndarray
+        Quantiles (positive values since we're dealing with upper tail)
+    """
+    log_p = np.asarray(log_p, dtype=np.float64)
+    return _inverse_log_tail(
+        log_p, _scipy_stats.t.isf(np.exp(log_p), df), lambda q: _t_logsf(q, df)
+    )
 
 
 # ---------------------------------------------------------------------------

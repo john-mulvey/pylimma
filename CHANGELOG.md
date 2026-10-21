@@ -92,6 +92,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
   never matched), and drop missing IDs (`None`, NaN, pandas NA) as R's
   `is.na` does. A pandas NA became the gene "<NA>"; the strings "NA", "nan"
   and "" are now IDs, as in R.
+- `e_bayes(robust=True)` with unequal residual df converts t-statistics
+  to the largest df as R does for very large |t| (beyond about 58 at
+  1,000 arrays). The conversion's log tail probability underflowed to
+  `-inf`, and its inverse used an asymptotic formula that is wrong unless
+  t^2 is much larger than df (R 139.3, pylimma 4.6). This overestimated
+  `var_prior` (by about 18% in a 1,000-array simulation) and shifted every
+  B-statistic; t-statistics and p-values were unaffected.
 
 ### Changed behaviour
 

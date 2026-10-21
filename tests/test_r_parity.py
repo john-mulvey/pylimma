@@ -7278,3 +7278,38 @@ def test_squeeze_var_trend_30000_genes_matches_r():
     np.testing.assert_allclose(out["var_prior"][pick], r["var_prior"], rtol=1e-6, atol=1e-12)
     np.testing.assert_allclose(out["var_post"][pick], r["var_post"], rtol=1e-6, atol=1e-12)
     np.testing.assert_allclose(out["df_prior"], r["df_prior"].iloc[0], rtol=1e-6)
+
+
+# =============================================================================
+# Extreme t tails: R's pt / qt with log.p = TRUE beyond underflow, and the
+# tmixture estimate (eBayes robust, unequal df) that depends on them
+# =============================================================================
+
+
+class TestExtremeTTailRParity:
+    def test_log_sf(self):
+        from pylimma.utils import _t_logsf
+
+        r = pd.read_csv(FIXTURES_DIR / "R_ett_pt.csv")
+        np.testing.assert_allclose(_t_logsf(r["t"].to_numpy(), r["df"].to_numpy()), r["log_sf"], rtol=1e-6)
+
+    def test_isf_log(self):
+        from pylimma.utils import _t_isf_log
+
+        r = pd.read_csv(FIXTURES_DIR / "R_ett_qt.csv")
+        for df, rows in r.groupby("df"):
+            np.testing.assert_allclose(
+                _t_isf_log(rows["log_p"].to_numpy(), df), rows["qt"], rtol=1e-6, err_msg=f"df={df}"
+            )
+
+    def test_tmixture_unequal_df_extreme_t(self):
+        from pylimma.ebayes import _tmixture_vector
+
+        x = pd.read_csv(FIXTURES_DIR / "R_etm_input.csv")
+        expected = pd.read_csv(FIXTURES_DIR / "R_etm_v0.csv")["v0"]
+        v0 = _tmixture_vector(x["t"].to_numpy(), x["stdev_unscaled"].to_numpy(), x["df"].to_numpy(), 0.1)
+        np.testing.assert_allclose(v0, expected.iloc[0], rtol=1e-6)
+        # very large df, as when df_total reaches the pooled residual df
+        big_t = np.tile([38.0, 3, 2, 1, 0.5], 20)
+        big_df = np.r_[np.full(99, 1e6), 2e6]
+        np.testing.assert_allclose(_tmixture_vector(big_t, np.ones(100), big_df, 0.1), expected.iloc[1], rtol=1e-6)
