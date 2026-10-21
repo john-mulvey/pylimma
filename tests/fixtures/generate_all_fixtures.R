@@ -2470,9 +2470,11 @@ cat("  visualisation, wsva and splicing fixtures complete.\n")
 # p-values are computed by feeding the goana data into kegga.default (whose
 # algorithm is byte-identical to goana.default's modulo column names: both
 # build the same incidence matrix and call phyper(...,lower.tail=FALSE) the
-# same way). The Term column - which real goana fills from GO.db - is
-# supplied via a synthetic pathway.names table; pylimma's port reads it as
-# the optional 4th column of gene.pathway.
+# same way). goana.default always restricts an explicit universe to the
+# annotated genes ("Make universe and set of all annotated genes agree"),
+# which is kegga's restrict.universe = TRUE. The Term column - which real
+# goana fills from GO.db - is supplied via a synthetic pathway.names table;
+# pylimma's port reads it as the optional 4th column of gene.pathway.
 cat("\nGenerating enrichment fixtures (goana / kegga / goanaTrend)...\n")
 library(limma)
 
@@ -2553,6 +2555,7 @@ write.csv(kegga_pn, "R_kegga_pathnames.csv",   row.names = FALSE)
   stringsAsFactors = FALSE
 )
 res_goana_alg <- kegga(de = goana_de_list, universe = goana_universe,
+                       restrict.universe = TRUE,
                        gene.pathway  = goana_gp[, c("gene_id","go_id")],
                        pathway.names = .goana_termnames,
                        trend = FALSE)

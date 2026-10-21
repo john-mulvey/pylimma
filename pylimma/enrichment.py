@@ -113,8 +113,9 @@ def goana(
         Mapping from gene IDs to GO terms. See module docstring.
     universe : sequence of str, optional
         Background gene universe. Defaults to all gene IDs in
-        ``gene_pathway``. Required - without GO.db there is no
-        meaningful default beyond the supplied gene_pathway.
+        ``gene_pathway``. As in R, genes with no annotation (not in
+        ``gene_pathway``) are dropped from the universe, so they do not
+        count towards the number of genes. A fit's universe is its genes.
     species : str, optional
         Accepted for R-API compatibility; ignored without GO.db.
     prior_prob : sequence of float, optional
@@ -516,11 +517,13 @@ def _ensure_de_lists(de) -> dict[str, np.ndarray]:
     return dict(zip(disambiguated, gene_sets))
 
 
-def _normalise_universe(universe, prior_prob, covariate, gene_pathway_first_col):
-    """Apply R's NA-removal, dedup, and (optional) restrict-to-pathway logic.
+def _normalise_universe(universe, prior_prob, covariate, annotated_genes, restrict):
+    """Apply R's NA-removal, dedup and (optional) restrict-to-annotated logic.
 
     Mirrors goana.R:122-156 and kegga.R:155-202 for the explicit-universe
-    path (the implicit / database-built path doesn't apply here).
+    path (the implicit / database-built path doesn't apply here). With
+    ``restrict``, genes not in ``annotated_genes`` are dropped, as goana
+    always does and kegga does with ``restrict.universe=TRUE``.
     """
     universe = np.asarray(universe).astype(str).ravel()
     lu = universe.size
@@ -558,6 +561,14 @@ def _normalise_universe(universe, prior_prob, covariate, gene_pathway_first_col)
     if first_idx.size != universe.size:
         keep = np.zeros(universe.size, dtype=bool)
         keep[first_idx] = True
+        universe = universe[keep]
+        if covariate is not None:
+            covariate = covariate[keep]
+        if prior_prob is not None:
+            prior_prob = prior_prob[keep]
+
+    if restrict:
+        keep = np.isin(universe, np.asarray(annotated_genes, dtype=str))
         universe = universe[keep]
         if covariate is not None:
             covariate = covariate[keep]
@@ -661,8 +672,9 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
             warnings.warn("Ignoring covariate and null.prob because universe not set")
             prior_prob = None
             covariate = None
+    # R: "Make universe and set of all annotated genes agree".
     universe, prior_prob, _covariate = _normalise_universe(
-        universe, prior_prob, covariate, gp["gene_id"]
+        universe, prior_prob, covariate, gp["gene_id"], restrict=True
     )
     NGenes = universe.size
     if NGenes < 1:
@@ -759,7 +771,7 @@ def _kegga_default(
             prior_prob = None
             covariate = None
     universe, prior_prob, _covariate = _normalise_universe(
-        universe, prior_prob, covariate, gp["gene_id"]
+        universe, prior_prob, covariate, gp["gene_id"], restrict=False
     )
     NGenes = universe.size
     if NGenes < 1:

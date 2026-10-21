@@ -83,6 +83,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   limit maxit exceeded" when the limit is reached. Results change only for
   fits that hit the limit; inputs with no root (e.g. all-zero `y`) now give
   `-inf` with the warning instead of `0.0` or a huge finite number.
+- `goana` drops universe genes that have no annotation in `gene_pathway`,
+  as R's goana keeps only annotated genes. Unannotated genes in an explicit
+  universe (or among a fit's genes) inflated the gene count, so every
+  p-value changed.
 
 ### Changed behaviour
 
