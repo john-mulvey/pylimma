@@ -22,8 +22,8 @@
 #
 # normalize_vsn() additionally ports the algorithm from the Bioconductor
 # vsn package (which limma's normalizeVSN.default calls per matrix):
-#   vsn/R/vsn2.R, vsn/src/vsn2.c         Copyright (C) 2002-2009 Wolfgang Huber;
-#                                        contributions from Markus Ruschhaupt,
+#   vsn/R/vsn2.R, vsn/R/AllClasses.R,    Copyright (C) 2002-2009 Wolfgang Huber;
+#   vsn/src/vsn2.c                       contributions from Markus Ruschhaupt,
 #                                        Dennis Kostka, David Kreil;
 #                                        Artistic-2.0
 #
@@ -46,6 +46,7 @@ out of scope under pylimma's AnnData / flat-array design.
 
 from __future__ import annotations
 
+import numbers
 import warnings
 
 import numpy as np
@@ -1309,12 +1310,24 @@ def _vsn_ml_fit(y, pstart, factr=5e7, pgtol=2e-4, maxit=60000):
     valid = ~np.isnan(y)
     y_filled = np.where(valid, y, 0.0)
 
+    def objective(par):
+        # a likelihood that is not finite raises below
+        with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+            nll, grad = _vsn_neg_loglik_and_grad(par, y_filled, valid)
+        # R's lbfgsb stops when the likelihood is not finite
+        if not np.isfinite(nll):
+            raise ValueError(
+                "L-BFGS-B needs finite values of 'fn': the vsn likelihood is not finite. "
+                "x must be finite (NaN for missing values) and its arrays must not be "
+                "identical."
+            )
+        return nll, grad
+
     bounds = [(None, None)] * n_cols + [(-100.0, 100.0)] * n_cols
     eps = np.finfo(float).eps
     result = minimize(
-        _vsn_neg_loglik_and_grad,
+        objective,
         pstart,
-        args=(y_filled, valid),
         jac=True,
         method="L-BFGS-B",
         bounds=bounds,
@@ -1389,6 +1402,7 @@ def normalize_vsn(
     factr: float = 5e7,
     pgtol: float = 2e-4,
     maxit: int = 60000,
+    min_data_points_per_stratum: int = 42,
 ) -> np.ndarray:
     """
     Variance-stabilising normalisation (vsn).
@@ -1410,14 +1424,17 @@ def normalize_vsn(
         Expression matrix, shape ``(n_features, n_arrays)``. Raw
         intensities (not log-transformed). NaN allowed.
     lts_quantile : float, default 0.9
-        Quantile used by the LTS robust iteration. ``1.0`` disables
-        the robust iteration (single ML fit).
+        Quantile used by the LTS robust iteration, between 0.5 and 1.
+        ``1.0`` disables the robust iteration (single ML fit).
     cvg_niter : int, default 7
         Maximum number of LTS-ML iterations.
     factr, pgtol, maxit :
         L-BFGS-B options (passed through to
         ``scipy.optimize.minimize(method="L-BFGS-B")``). Defaults
         match R/vsn's ``defaultpar``.
+    min_data_points_per_stratum : int, default 42
+        Fewest rows for which the parameters are estimated (R's
+        ``minDataPointsPerStratum``); fewer rows raise a ValueError.
 
     Returns
     -------
@@ -1438,8 +1455,25 @@ def normalize_vsn(
     if x.ndim != 2:
         raise ValueError("x must be a 2-D matrix")
     n_rows, n_cols = x.shape
+    # R: vsnMatrix, one stratum
+    if n_rows < min_data_points_per_stratum:
+        raise ValueError(
+            f"The number of rows in the data matrix, {n_rows}, is too small for reliable "
+            "estimation of the vsn transformation parameters. If you are sure, lower "
+            "min_data_points_per_stratum (default 42)."
+        )
     if n_cols < 2:
         raise ValueError("x must have 2 or more columns when no reference is supplied")
+    # R: validityVsnInput, on lts.quantile and the optimpar settings
+    if not 0.5 <= lts_quantile <= 1:
+        raise ValueError(f"lts_quantile must be a number between 0.5 and 1, not {lts_quantile}")
+    for name, value in (("factr", factr), ("pgtol", pgtol)):
+        if not value >= 0:
+            raise ValueError(f"{name} must be a number of 0 or more, not {value}")
+    int_max = np.iinfo(np.int32).max
+    for name, value in (("maxit", maxit), ("cvg_niter", cvg_niter)):
+        if not (isinstance(value, numbers.Integral) and 1 <= value <= int_max):
+            raise ValueError(f"{name} must be an integer between 1 and {int_max}, not {value}")
 
     # R: pstartHeuristic, a = 0 and b = 1 for every column
     pstart = np.concatenate([np.zeros(n_cols), np.ones(n_cols)])

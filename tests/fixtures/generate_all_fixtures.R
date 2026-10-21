@@ -5669,3 +5669,27 @@ set.seed(12)
 .vsl_x[sample(length(.vsl_x), 300)] <- NA
 write.csv(.vsl_x, "R_vsl_input.csv", row.names = FALSE)
 write.csv(normalizeVSN(.vsl_x), "R_vsl_output.csv", row.names = FALSE)
+
+# =============================================================================
+# normalizeVSN input checks (vsn::vsnMatrix): too few rows unless
+# minDataPointsPerStratum is lowered, lts.quantile in [0.5, 1], optimpar
+# settings in range, and a likelihood that is not finite (infinite or
+# identical arrays)
+# =============================================================================
+set.seed(13)
+.vsv_x <- matrix(exp(rnorm(120, 6)), 30)
+write.csv(.vsv_x, "R_vsv_input.csv", row.names = FALSE)
+write.csv(normalizeVSN(.vsv_x, minDataPointsPerStratum = 20L), "R_vsv_output.csv", row.names = FALSE)
+.vsv_fails <- function(...) inherits(try(suppressWarnings(normalizeVSN(...)), silent = TRUE), "try-error")
+.vsv_big <- matrix(exp(rnorm(400, 6)), 100)
+.vsv_inf <- .vsv_big
+.vsv_inf[1, 1] <- Inf
+stopifnot(.vsv_fails(.vsv_x), .vsv_fails(.vsv_big[0, ]),
+          .vsv_fails(.vsv_big, lts.quantile = 0.3), .vsv_fails(.vsv_big, lts.quantile = 1.5),
+          !.vsv_fails(.vsv_big, lts.quantile = 0.5),
+          .vsv_fails(.vsv_big, optimpar = list(factr = -1)),
+          .vsv_fails(.vsv_big, optimpar = list(pgtol = NA_real_)),
+          .vsv_fails(.vsv_big, optimpar = list(maxit = 0L)),
+          .vsv_fails(.vsv_big, optimpar = list(cvg.niter = 0L)),
+          .vsv_fails(.vsv_big, optimpar = list(cvg.niter = 2.5)),
+          .vsv_fails(.vsv_inf), .vsv_fails(matrix(0, 100, 4)), .vsv_fails(matrix(5, 100, 4)))

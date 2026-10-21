@@ -207,6 +207,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
   built-ins, `np` and `pd` only. Names were also looked up among the
   imports of pylimma's own modules, so a missing column called `io` or
   `warnings` resolved to a Python module and gave an obscure error.
+- `normalize_vsn` checks its input as vsn does: fewer rows than the new
+  `min_data_points_per_stratum` (default 42, R's `minDataPointsPerStratum`)
+  raise an error, `lts_quantile` must lie between 0.5 and 1, `factr` and
+  `pgtol` must be 0 or more, `maxit` and `cvg_niter` must be integers of 1
+  or more, and a likelihood that is not finite (infinite values, identical
+  arrays) raises "L-BFGS-B needs finite values of 'fn'". Each of these
+  returned numbers; `cvg_niter=0` returned the data transformed at the
+  starting values, never fitted.
 
 ### Fixed
 

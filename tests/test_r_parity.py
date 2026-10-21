@@ -5147,6 +5147,16 @@ class TestNormalizeVSNRParity:
         cmp = compare_arrays(ref[~np.isnan(ref)], py[~np.isnan(py)], rtol=1e-6, atol=1e-12)
         assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
 
+    def test_min_data_points_per_stratum_against_r(self):
+        """30 rows with R's minDataPointsPerStratum lowered to 20."""
+        from pylimma import normalize_vsn
+
+        x = pd.read_csv(FIXTURES_DIR / "R_vsv_input.csv").values
+        ref = pd.read_csv(FIXTURES_DIR / "R_vsv_output.csv").values
+        py = normalize_vsn(x, min_data_points_per_stratum=20)
+        cmp = compare_arrays(ref, py, rtol=1e-6, atol=1e-12)
+        assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
+
     def test_transform_at_r_params_matches_r_to_machine_precision(self):
         """Validate the transform / hoffset / log2-rescale code path is
         a bit-faithful port of vsn::vsn2trsf + vsnMatrix's hoffset
