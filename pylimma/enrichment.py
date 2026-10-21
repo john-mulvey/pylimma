@@ -79,6 +79,8 @@ from .geneset import _is_list_of_sets
 from .toptable import _top_row_count
 from .utils import _match_arg, _r_as_character, p_adjust, tricube_moving_average
 
+_TREND_MESSAGE = "trend correction requires the BiasedUrn port; see pylimma roadmap."
+
 # ---------------------------------------------------------------------------
 # Public dispatchers
 # ---------------------------------------------------------------------------
@@ -133,7 +135,9 @@ def goana(
         raises ``NotImplementedError``. Ignored, with a warning, when
         ``universe`` is not given or no gene is DE.
     plot : bool, default False
-        Forwarded to ``goana_trend`` when applicable.
+        Plot the trend that ``goana_trend`` estimates from ``covariate``.
+        Accepted for R-API compatibility; ``covariate`` is not yet
+        supported.
     fdr : float, default 0.05
         FDR threshold for selecting up/down DE genes from a fit object
         (R name: ``FDR``). Only used in the MArrayLM branch.
@@ -150,26 +154,18 @@ def goana(
         otherwise a ValueError is raised and ``lm_fit`` must be re-run.
     """
     if _is_dispatch_marraylm(de):
-        return _goana_marraylm(
-            de,
-            gene_pathway=gene_pathway,
-            universe=universe,
-            species=species,
-            prior_prob=prior_prob,
-            covariate=covariate,
-            plot=plot,
-            fdr=fdr,
-            trend=trend,
-            **kwargs,
+        selected = _fit_de_sets(
+            "goana", de, universe=universe, covariate=covariate, trend=trend, fdr=fdr, **kwargs
         )
+        if selected is None:
+            return pd.DataFrame()
+        universe, de = selected
     return _goana_default(
         de,
         gene_pathway=gene_pathway,
         universe=universe,
-        species=species,
         prior_prob=prior_prob,
         covariate=covariate,
-        plot=plot,
         trend=trend,
     )
 
@@ -210,30 +206,20 @@ def kegga(
         does this.
     """
     if _is_dispatch_marraylm(de):
-        return _kegga_marraylm(
-            de,
-            gene_pathway=gene_pathway,
-            pathway_names=pathway_names,
-            universe=universe,
-            restrict_universe=restrict_universe,
-            species=species,
-            prior_prob=prior_prob,
-            covariate=covariate,
-            plot=plot,
-            fdr=fdr,
-            trend=trend,
-            **kwargs,
+        selected = _fit_de_sets(
+            "kegga", de, universe=universe, covariate=covariate, trend=trend, fdr=fdr, **kwargs
         )
+        if selected is None:
+            return pd.DataFrame()
+        universe, de = selected
     return _kegga_default(
         de,
         gene_pathway=gene_pathway,
         pathway_names=pathway_names,
         universe=universe,
         restrict_universe=restrict_universe,
-        species=species,
         prior_prob=prior_prob,
         covariate=covariate,
-        plot=plot,
         trend=trend,
     )
 
@@ -356,104 +342,33 @@ def _select_de_from_fit(
     return universe.tolist(), up, dn
 
 
-def _goana_marraylm(
-    de, *, gene_pathway, universe, species, prior_prob, covariate, plot, fdr, trend, **kwargs
-):
-    """Port of goana.MArrayLM (goana.R:3-86)."""
-    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
+def _fit_de_sets(method, de, *, universe, covariate, trend, fdr, **kwargs):
+    """Shared body of goana.MArrayLM / kegga.MArrayLM (goana.R:3-86,
+    kegga.R:3-86): the fit's genes are the universe, and its up and down
+    genes at FDR ``fdr`` the DE sets. Returns (universe, sets), or None
+    (with R's "No DE genes") when no gene is DE."""
+    fit, adata, _key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
 
     # R stops for a universe; a covariate collides with the one passed on.
     if universe is not None:
-        raise ValueError("goana.MArrayLM defines its own universe")
+        raise ValueError(f"{method}.MArrayLM defines its own universe")
     if covariate is not None:
-        raise ValueError("goana.MArrayLM defines its own covariate")
+        raise ValueError(f"{method}.MArrayLM defines its own covariate")
 
     geneid = kwargs.pop("geneid", None)
     coef = kwargs.pop("coef", None)
     if kwargs:
         raise TypeError(f"unexpected keyword arguments: {sorted(kwargs)}")
 
+    # R accepts a numeric or character trend; both need the BiasedUrn port.
     if not isinstance(trend, (bool, np.bool_)):
-        # R accepts numeric or character trend; both go through the
-        # BiasedUrn path which is deferred.
-        raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; see pylimma roadmap."
-        )
+        raise NotImplementedError(_TREND_MESSAGE)
 
-    fit_universe, up, dn = _select_de_from_fit(
-        fit, geneid, coef, fdr, adata=_adata
-    )
-
+    fit_universe, up, dn = _select_de_from_fit(fit, geneid, coef, fdr, adata=adata)
     if not up and not dn:
         warnings.warn("No DE genes")
-        return pd.DataFrame()
-
-    return _goana_default(
-        {"Up": up, "Down": dn},
-        gene_pathway=gene_pathway,
-        universe=fit_universe,
-        species=species,
-        prior_prob=prior_prob,
-        covariate=covariate,
-        plot=plot,
-        trend=trend,
-    )
-
-
-def _kegga_marraylm(
-    de,
-    *,
-    gene_pathway,
-    pathway_names,
-    universe,
-    restrict_universe,
-    species,
-    prior_prob,
-    covariate,
-    plot,
-    fdr,
-    trend,
-    **kwargs,
-):
-    """Port of kegga.MArrayLM (kegga.R:3-86)."""
-    fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
-
-    # R stops for a universe; a covariate collides with the one passed on.
-    if universe is not None:
-        raise ValueError("kegga.MArrayLM defines its own universe")
-    if covariate is not None:
-        raise ValueError("kegga.MArrayLM defines its own covariate")
-
-    geneid = kwargs.pop("geneid", None)
-    coef = kwargs.pop("coef", None)
-    if kwargs:
-        raise TypeError(f"unexpected keyword arguments: {sorted(kwargs)}")
-
-    if not isinstance(trend, (bool, np.bool_)):
-        raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; see pylimma roadmap."
-        )
-
-    fit_universe, up, dn = _select_de_from_fit(
-        fit, geneid, coef, fdr, adata=_adata
-    )
-
-    if not up and not dn:
-        warnings.warn("No DE genes")
-        return pd.DataFrame()
-
-    return _kegga_default(
-        {"Up": up, "Down": dn},
-        gene_pathway=gene_pathway,
-        pathway_names=pathway_names,
-        universe=fit_universe,
-        restrict_universe=restrict_universe,
-        species=species,
-        prior_prob=prior_prob,
-        covariate=covariate,
-        plot=plot,
-        trend=trend,
-    )
+        return None
+    return fit_universe, {"Up": up, "Down": dn}
 
 
 # ---------------------------------------------------------------------------
@@ -711,32 +626,22 @@ def _add_set_columns(out, set_names, S_counts, PValue) -> pd.DataFrame:
     return pd.concat([out, counts, pvalues], axis=1)
 
 
-def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate, plot, trend):
-    """Port of goana.default (goana.R:88-260)."""
-    if not isinstance(trend, (bool, np.bool_)) or trend:
-        raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; see pylimma roadmap."
-        )
+def _overlap_tests(de_lists, gp, universe, prior_prob, covariate, restrict):
+    """The part of goana.default and kegga.default after the annotation is
+    read (goana.R:122-245, kegga.R:155-265): settle the universe, restrict
+    the DE sets and pathways to it, and test each pathway for
+    over-representation in each set with Fisher's exact test.
 
-    # gene_pathway with optional ontology (col 3) + term (col 4) for
-    # the goana output.
-    gp = _normalise_gene_pathway(gene_pathway, optional_extra_cols=True)
-    has_ontology = gp.shape[1] >= 3
-    has_term = gp.shape[1] >= 4
-    ont_col = gp.columns[2] if has_ontology else None
-    term_col = gp.columns[3] if has_term else None
-
-    de_lists = _ensure_de_lists(de)
-
+    Returns (pathway_ids, N, S_counts, PValue).
+    """
     if universe is None:
         universe = pd.unique(gp["gene_id"])
         if prior_prob is not None or covariate is not None:
             warnings.warn("Ignoring covariate and null.prob because universe not set")
             prior_prob = None
             covariate = None
-    # R: "Make universe and set of all annotated genes agree".
     universe, prior_prob, covariate = _normalise_universe(
-        universe, prior_prob, covariate, gp["gene_id"], restrict=True
+        universe, prior_prob, covariate, gp["gene_id"], restrict=restrict
     )
     NGenes = universe.size
     if NGenes < 1:
@@ -753,11 +658,29 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
         raise ValueError("Pathways do not overlap with universe")
     _check_null_prob(de_lists, prior_prob, covariate)
 
-    set_names = list(de_lists.keys())
     pathway_ids, S_N, S_counts = _pathway_counts(gp_in_universe, de_lists)
-    nde = np.array([de_lists[nm].size for nm in set_names], dtype=np.int64)
+    nde = np.array([genes.size for genes in de_lists.values()], dtype=np.int64)
+    return pathway_ids, S_N, S_counts, _hypergeometric_pvalues(S_counts, S_N, nde, NGenes)
 
-    PValue = _hypergeometric_pvalues(S_counts, S_N, nde, NGenes)
+
+def _goana_default(de, *, gene_pathway, universe, prior_prob, covariate, trend):
+    """Port of goana.default (goana.R:88-260)."""
+    if not isinstance(trend, (bool, np.bool_)) or trend:
+        raise NotImplementedError(_TREND_MESSAGE)
+
+    # gene_pathway with optional ontology (col 3) + term (col 4) for
+    # the goana output.
+    gp = _normalise_gene_pathway(gene_pathway, optional_extra_cols=True)
+    has_ontology = gp.shape[1] >= 3
+    has_term = gp.shape[1] >= 4
+    ont_col = gp.columns[2] if has_ontology else None
+    term_col = gp.columns[3] if has_term else None
+
+    de_lists = _ensure_de_lists(de)
+    # R: "Make universe and set of all annotated genes agree".
+    pathway_ids, S_N, S_counts, PValue = _overlap_tests(
+        de_lists, gp, universe, prior_prob, covariate, restrict=True
+    )
 
     # Term and ontology lookups: use the first occurrence of each
     # pathway_id in the (possibly extended) gene_pathway table.
@@ -775,17 +698,15 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
     else:
         out["ontology"] = np.nan
     out["n"] = S_N
-    return _add_set_columns(out, set_names, S_counts, PValue)
+    return _add_set_columns(out, list(de_lists), S_counts, PValue)
 
 
 def _kegga_default(
-    de, *, gene_pathway, pathway_names, universe, restrict_universe, species, prior_prob, covariate, plot, trend
+    de, *, gene_pathway, pathway_names, universe, restrict_universe, prior_prob, covariate, trend
 ):
     """Port of kegga.default (kegga.R:88-280)."""
     if not isinstance(trend, (bool, np.bool_)) or trend:
-        raise NotImplementedError(
-            "trend correction requires the BiasedUrn port; see pylimma roadmap."
-        )
+        raise NotImplementedError(_TREND_MESSAGE)
 
     de_lists = _ensure_de_lists(de)
     gp = _normalise_gene_pathway(gene_pathway, optional_extra_cols=False)
@@ -804,35 +725,11 @@ def _kegga_default(
     else:
         pn_lookup = None
 
-    if universe is None:
-        universe = pd.unique(gp["gene_id"])
-        if prior_prob is not None or covariate is not None:
-            warnings.warn("Ignoring covariate and null.prob because universe not set")
-            prior_prob = None
-            covariate = None
-    elif len(universe) == 0:
+    if universe is not None and len(universe) == 0:
         raise ValueError("No genes in universe")
-    universe, prior_prob, covariate = _normalise_universe(
-        universe, prior_prob, covariate, gp["gene_id"], restrict=restrict_universe
+    pathway_ids, S_N, S_counts, PValue = _overlap_tests(
+        de_lists, gp, universe, prior_prob, covariate, restrict=restrict_universe
     )
-    NGenes = universe.size
-    if NGenes < 1:
-        raise ValueError("No annotated genes found in universe")
-
-    universe_set = set(universe.tolist())
-    for nm in list(de_lists.keys()):
-        de_lists[nm] = np.array([g for g in de_lists[nm] if g in universe_set], dtype=object)
-
-    gp_in_universe = gp[gp["gene_id"].isin(universe_set)].reset_index(drop=True)
-    if gp_in_universe.empty:
-        raise ValueError("Pathways do not overlap with universe")
-    _check_null_prob(de_lists, prior_prob, covariate)
-
-    set_names = list(de_lists.keys())
-    pathway_ids, S_N, S_counts = _pathway_counts(gp_in_universe, de_lists)
-    nde = np.array([de_lists[nm].size for nm in set_names], dtype=np.int64)
-
-    PValue = _hypergeometric_pvalues(S_counts, S_N, nde, NGenes)
 
     out = pd.DataFrame(index=pathway_ids)
     if pn_lookup is not None:
@@ -840,7 +737,7 @@ def _kegga_default(
     else:
         out["pathway"] = list(pathway_ids)
     out["n"] = S_N
-    return _add_set_columns(out, set_names, S_counts, PValue)
+    return _add_set_columns(out, list(de_lists), S_counts, PValue)
 
 
 # ---------------------------------------------------------------------------
