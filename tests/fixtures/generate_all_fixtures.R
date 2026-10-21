@@ -5527,3 +5527,15 @@ cat("  extreme t-tail fixtures complete.\n")
 .zte <- expand.grid(x = c(-500, -100, -50, -5, 0, 2, 50, 100, 500, 1e4), df = c(3, 10, 98, 988, 1e6, Inf))
 .zte$z <- zscoreT(.zte$x, df = .zte$df)
 write.csv(.zte, "R_zte_zscoret.csv", row.names = FALSE)
+
+# =============================================================================
+# fitFDistRobustly with unequal df1 when the non-robust df2 is Inf: pf / qf
+# with df2 = Inf (the chi-squared limit) transform x to the largest df1
+# =============================================================================
+# chi-squared quantiles shrunk towards 1 (under-dispersed), so df2 is Inf
+.fri_df1 <- rep(c(3, 6), each = 30)
+.fri_x <- 0.5 * sqrt(qchisq(rep(ppoints(30), 2), df = .fri_df1) / .fri_df1)
+.fri <- fitFDistRobustly(.fri_x, df1 = .fri_df1)
+stopifnot(limma:::fitFDist(.fri_x, df1 = .fri_df1)$df2 == Inf, .fri$df2 == Inf)
+write.csv(data.frame(x = .fri_x, df1 = .fri_df1, scale = .fri$scale, tail_p_value = .fri$tail.p.value,
+                     df2_shrunk = .fri$df2.shrunk), "R_fri_fitfdistrobustly.csv", row.names = FALSE)

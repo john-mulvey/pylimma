@@ -664,11 +664,20 @@ def fit_f_dist_robustly(
             s = non_robust["scale"] if covariate is None else np.asarray(non_robust["scale"])[i]
             f = x[i] / s
             df2_nr = non_robust["df2"]
-            log_upper = _f_logsf(f, df1[i], df2_nr)
-            log_lower = f_dist.logcdf(f, df1[i], df2_nr)
-            up = log_upper < log_lower
-            f[up] = f_dist.isf(np.exp(log_upper[up]), df1_max, df2_nr)
-            f[~up] = f_dist.ppf(np.exp(log_lower[~up]), df1_max, df2_nr)
+            if np.isinf(df2_nr):
+                # R's pf / qf take df2 = Inf: F(df1, Inf) is chi2(df1) / df1,
+                # where scipy's F distribution gives NaN
+                log_upper = chi2.logsf(f * df1[i], df1[i])
+                log_lower = chi2.logcdf(f * df1[i], df1[i])
+                up = log_upper < log_lower
+                f[up] = chi2.isf(np.exp(log_upper[up]), df1_max) / df1_max
+                f[~up] = chi2.ppf(np.exp(log_lower[~up]), df1_max) / df1_max
+            else:
+                log_upper = _f_logsf(f, df1[i], df2_nr)
+                log_lower = f_dist.logcdf(f, df1[i], df2_nr)
+                up = log_upper < log_lower
+                f[up] = f_dist.isf(np.exp(log_upper[up]), df1_max, df2_nr)
+                f[~up] = f_dist.ppf(np.exp(log_lower[~up]), df1_max, df2_nr)
             x = x.copy()
             x[i] = f * s
             df1 = df1_max

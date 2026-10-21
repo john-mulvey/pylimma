@@ -7322,3 +7322,17 @@ def test_zscore_t_quantile_far_tail_matches_r():
 
     r = pd.read_csv(FIXTURES_DIR / "R_zte_zscoret.csv")
     np.testing.assert_allclose(zscore_t(r["x"].to_numpy(), r["df"].to_numpy()), r["z"], rtol=1e-6, atol=1e-12)
+
+
+def test_fit_f_dist_robustly_unequal_df1_infinite_df2_matches_r():
+    """With unequal df1 the variances are moved to the largest df1 through
+    pf / qf at the non-robust df2; R takes df2 = Inf as the chi-squared
+    limit, where scipy's F distribution gives NaN."""
+    from pylimma import fit_f_dist_robustly
+
+    r = pd.read_csv(FIXTURES_DIR / "R_fri_fitfdistrobustly.csv")
+    out = fit_f_dist_robustly(r["x"].to_numpy(), r["df1"].to_numpy())
+    assert out["df2"] == np.inf
+    np.testing.assert_allclose(out["scale"], r["scale"].iloc[0], rtol=1e-6)
+    np.testing.assert_allclose(out["tail_p_value"], r["tail_p_value"], rtol=1e-6, atol=1e-12)
+    np.testing.assert_array_equal(out["df2_shrunk"], r["df2_shrunk"])
