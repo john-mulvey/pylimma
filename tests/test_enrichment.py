@@ -177,3 +177,12 @@ def test_numpy_false_trend_is_false(fn_name):
     pd.testing.assert_frame_equal(
         fn(["gene001"], gp, universe=universe, trend=np.False_), fn(["gene001"], gp, universe=universe)
     )
+
+
+def test_pathway_names_first_row_across_id_types():
+    """IDs are compared as text (R: match on character IDs), so 10 and "10"
+    are the same pathway and the first row names it."""
+    gp = pd.DataFrame({"gene": ["g1", "g2", "g3"], "path": ["10", "10", "20"]})
+    names = pd.DataFrame({"id": [10, "10", 20], "name": ["first", "second", "other"]}, dtype=object)
+    tab = pylimma.kegga(["g1"], gp, pathway_names=names, universe=["g1", "g2", "g3"])
+    assert tab.loc["10", "pathway"] == "first"

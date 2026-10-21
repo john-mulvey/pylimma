@@ -784,10 +784,9 @@ def _kegga_default(
         if pn.shape[1] < 2:
             raise ValueError("pathway.names must have at least 2 columns")
         pn = pn.rename(columns={pn.columns[0]: "_path_id", pn.columns[1]: "_description"})
-        pn["_path_id"] = pn["_path_id"].astype(str)
-        pn["_description"] = pn["_description"].astype(str)
-        pn_isna = pn[["_path_id", "_description"]].isna().any(axis=1)
-        pn = pn.loc[~pn_isna].copy()
+        pn = pn.loc[pn[["_path_id", "_description"]].notna().all(axis=1)].astype(str)
+        # R: match(g, PathID.PathName[,1]) takes the first row of an ID.
+        pn = pn.drop_duplicates(subset="_path_id", keep="first")
         pn_lookup = dict(zip(pn["_path_id"], pn["_description"]))
     else:
         pn_lookup = None

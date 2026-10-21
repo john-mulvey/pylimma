@@ -5395,3 +5395,19 @@ stopifnot(identical(.efa_msg(universe = goana_universe), "kegga.MArrayLM defines
 stopifnot(grepl("matched by multiple actual arguments", .efa_msg(covariate = rnorm(200))))
 
 cat("  enrichment fit-argument checks complete.\n")
+
+# =============================================================================
+# kegga pathway.names: a duplicated pathway ID takes its first row (match);
+# rows with an NA ID or name are dropped
+# =============================================================================
+cat("\nGenerating kegga pathway.names fixtures...\n")
+
+.kpn <- rbind(kegga_pn, data.frame(path_id = c("path:hsa00010", "path:hsa00020"),
+                                   description = c("Duplicate glycolysis", "Duplicate citrate")))
+.kpn$description[.kpn$path_id == "path:hsa00030"] <- NA
+write.csv(.kpn, "R_kpn_names.csv", row.names = FALSE)
+.kpn_res <- kegga(de_up, universe = goana_universe, gene.pathway = kegga_gp, pathway.names = .kpn)
+stopifnot(.kpn_res["path:hsa00010", "Pathway"] == "Glycolysis", is.na(.kpn_res["path:hsa00030", "Pathway"]))
+write.csv(.kpn_res, "R_kpn_kegga.csv")
+
+cat("  kegga pathway.names fixtures complete.\n")

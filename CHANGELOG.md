@@ -228,6 +228,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   covariate" for `covariate=` (R fails with an argument collision).
 - `goana` / `kegga` accept a numpy boolean `trend` (`np.False_` raised
   `NotImplementedError`).
+- `kegga` takes the first row of a pathway ID that appears more than once
+  in `pathway_names` (R's `match`; it took the last), and a row with a
+  missing name is dropped, so that pathway's name is NA (it was the text
+  "nan").
 
 ## [0.2.0] - 2026-09-30
 
