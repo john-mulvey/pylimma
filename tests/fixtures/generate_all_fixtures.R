@@ -5300,3 +5300,21 @@ write.csv(data.frame(alternative = rep(c("up", "down", "mixed"), each = 3),
                              rownames(topRomer(.trm, 3, "mixed")))), "R_trm_order.csv", row.names = FALSE)
 
 cat("  topRomer fixtures complete.\n")
+
+# =============================================================================
+# camera / fry (.lmEffects) check full rank with qr(), whose tolerance is
+# relative to each column's norm: a tiny-scale column is still full rank
+# =============================================================================
+cat("\nGenerating gene-set rank-tolerance fixtures...\n")
+
+set.seed(20261118)
+
+.gsr_y <- matrix(rnorm(30 * 6), 30, 6)
+.gsr_y[1:6, 4:6] <- .gsr_y[1:6, 4:6] + 1
+write.csv(.gsr_y, "R_gsr_y.csv", row.names = FALSE)
+.gsr_d <- cbind(1, rep(0:1, each = 3) * 3e-11)
+write.csv(.gsr_d, "R_gsr_design.csv", row.names = FALSE)
+write.csv(camera(.gsr_y, list(a = 1:6, b = 7:15), .gsr_d, sort = FALSE), "R_gsr_camera.csv")
+write.csv(fry(.gsr_y, list(a = 1:6, b = 7:15), .gsr_d, sort = "none"), "R_gsr_fry.csv")
+
+cat("  gene-set rank-tolerance fixtures complete.\n")

@@ -297,9 +297,9 @@ def _lm_effects(
             y_mat = linalg.solve_triangular(R_chol, y_mat.T, trans="T").T
             X = linalg.solve_triangular(R_chol, X, trans="T")
 
-    # QR decomposition (fast path).
-    Q, R_qr = linalg.qr(X, mode="full")
-    rank = int(np.sum(np.abs(np.diag(R_qr)) > 1e-10))
+    # R: qrX <- qr(X); stop if rank < p (R's qr() rule; full rank keeps the
+    # column order, so Q is the unpivoted factor)
+    Q, R_qr, _pivot, rank = _qr_r_style(X)
     if rank < p:
         raise ValueError("design must be full column rank")
 
@@ -1484,8 +1484,7 @@ def camera(
         design_use = np.column_stack([rotated[:, 1:], rotated[:, 0:1]])
 
     if weights is None:
-        Q, R_qr = linalg.qr(design_use, mode="full")
-        rank = int(np.sum(np.abs(np.diag(R_qr)) > 1e-10))
+        Q, R_qr, _pivot, rank = _qr_r_style(design_use)
         if rank < p:
             raise ValueError("design matrix is not of full rank")
         effects = Q.T @ y_use.T  # (n, G)
@@ -1499,8 +1498,7 @@ def camera(
         y_w = y_use * sw_mat
         for g in range(G):
             xw = design_use * sw_mat[g, :, np.newaxis]
-            Qg, Rg = linalg.qr(xw, mode="full")
-            rankg = int(np.sum(np.abs(np.diag(Rg)) > 1e-10))
+            Qg, Rg, _pivot_g, rankg = _qr_r_style(xw)
             if rankg < p:
                 raise ValueError(f"weighted design matrix not of full rank for gene {g}")
             effects[:, g] = Qg.T @ y_w[g, :]
@@ -1898,7 +1896,8 @@ def romer(
         y_mat = linalg.solve_triangular(R_chol, y_mat.T, trans="T").T
         design = linalg.solve_triangular(R_chol, design, trans="T")
 
-    Q, R_qr = linalg.qr(design, mode="full")
+    # R: qr <- qr(design) (pivoted, R's rank rule)
+    Q, R_qr, _pivot, rank = _qr_r_style(design)
     signc = float(np.sign(R_qr[p - 1, p - 1]))
     effects = Q.T @ y_mat.T  # (n, ngenes)
 
@@ -1927,10 +1926,7 @@ def romer(
             ngenes,
             1.0
             / abs(
-                R_qr[
-                    int(np.sum(np.abs(np.diag(R_qr)) > 1e-10)) - 1,
-                    int(np.sum(np.abs(np.diag(R_qr)) > 1e-10)) - 1,
-                ]
+                R_qr[rank - 1, rank - 1]
             ),
         )
         var_unscaled = stdev_unscaled**2

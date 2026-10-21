@@ -136,6 +136,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `camera`, `romer` and the gene-set effects behind `roast` / `mroast` /
+  `fry` decide rank with R's `qr()` rule instead of an absolute 1e-10
+  cutoff, so a design with a tiny-scale column is no longer rejected as
+  rank-deficient; `romer` uses the pivoted QR as R.
 - `romer` reforms the design for a contrast with `contrast_as_coef`, as R:
   an all-zero contrast raises R's "contrast is all zero" (it returned a
   table), a contrast matrix tests its last column (raised a shape error),

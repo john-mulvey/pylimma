@@ -7196,3 +7196,16 @@ def test_top_romer_matches_r(alternative):
     r = load_r_csv_no_index("trm_order")
     expected = list(r.loc[r["alternative"] == alternative, "set"])
     assert list(top_romer(table, n=3, alternative=alternative).index) == expected
+
+
+@pytest.mark.parametrize("fn_name, fixture", [("camera", "gsr_camera"), ("fry", "gsr_fry")])
+def test_gene_set_tests_rank_tolerance_matches_r(fn_name, fixture):
+    """A tiny-scale design column is full rank under R's qr() rule."""
+    import pylimma
+
+    y = load_r_csv_no_index("gsr_y").to_numpy(dtype=float)
+    design = load_r_csv_no_index("gsr_design").to_numpy(dtype=float)
+    kwargs = {"sort": False} if fn_name == "camera" else {"sort": "none"}
+    tab = getattr(pylimma, fn_name)(y, {"a": np.arange(6), "b": np.arange(6, 15)}, design, **kwargs)
+    r = load_r_csv(fixture)
+    assert compare_pvalues(r["PValue"].to_numpy(), tab["p_value"].to_numpy())["match"]
