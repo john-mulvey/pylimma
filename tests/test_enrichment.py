@@ -286,3 +286,35 @@ def test_goana_trend_plot_draws_r_trend():
     np.testing.assert_allclose([seg[1] for seg in ticks], np.column_stack([de_ranks, np.full(14, top / 9)]))
     assert (ax.get_xlabel(), ax.get_ylabel(), ax.get_title()) == ("x lab", "y lab", "title")
     plt.close("all")
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_gene_ids_compare_as_r_character(fn_name):
+    """R compares as.character() IDs, so 1.0 and 1 are the same gene
+    (generate_all_fixtures.R); str() made them "1.0" and "1"."""
+    fn = getattr(pylimma, fn_name)
+    gp = pd.DataFrame({"gene": [1, 2, 3, 4, 5], "path": ["p1", "p1", "p1", "p2", "p2"]})
+    by_number = fn([1.0, 2.0], gp, universe=[1.0, 2.0, 3.0, 4.0, 5.0])
+    by_text = fn(["1", "2"], gp.astype({"gene": str}), universe=["1", "2", "3", "4", "5"])
+    pd.testing.assert_frame_equal(by_number, by_text)
+    assert by_number.loc["p1", "de"] == 2
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_missing_ids_are_dropped(fn_name):
+    """R drops is.na() IDs from the universe and gene.pathway; a pandas NA
+    became the gene "<NA>"."""
+    fn = getattr(pylimma, fn_name)
+    gp, _, universe = _kegga_inputs()
+    gp_with_na = pd.concat([gp, pd.DataFrame({"gene_id": [pd.NA], "path_id": ["path:hsa00010"]})], ignore_index=True)
+    with_na = fn(["gene001"], gp_with_na, universe=pd.array(universe + [None], dtype="string"))
+    pd.testing.assert_frame_equal(with_na, fn(["gene001"], gp, universe=universe))
+
+
+def test_fit_missing_gene_ids_are_dropped():
+    """R: genes with an NA ID are dropped before selecting DE genes."""
+    gp, _, _ = _kegga_inputs()
+    fit, genes = _two_group_fit()
+    with_na = pd.array(genes[:-1] + [None], dtype="string")
+    expected = pylimma.kegga(fit[:-1, :], gp, geneid=genes[:-1])
+    pd.testing.assert_frame_equal(pylimma.kegga(fit, gp, geneid=with_na), expected)

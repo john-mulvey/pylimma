@@ -87,6 +87,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
   as R's goana keeps only annotated genes. Unannotated genes in an explicit
   universe (or among a fit's genes) inflated the gene count, so every
   p-value changed.
+- `goana` / `kegga` compare gene and pathway IDs as R's `as.character()`
+  does, so a numeric ID such as `1.0` matches `1` (it became "1.0" and
+  never matched), and drop missing IDs (`None`, NaN, pandas NA) as R's
+  `is.na` does. A pandas NA became the gene "<NA>"; the strings "NA", "nan"
+  and "" are now IDs, as in R.
 
 ### Changed behaviour
 

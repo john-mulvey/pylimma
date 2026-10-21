@@ -77,7 +77,7 @@ from .classes import (
 )
 from .geneset import _is_list_of_sets
 from .toptable import _top_row_count
-from .utils import _match_arg, p_adjust, tricube_moving_average
+from .utils import _match_arg, _r_as_character, p_adjust, tricube_moving_average
 
 # ---------------------------------------------------------------------------
 # Public dispatchers
@@ -309,7 +309,7 @@ def _select_de_from_fit(
             rownames = genes
         else:
             rownames = []
-        universe = [str(v) for v in rownames]
+        universe = _as_gene_ids(rownames)
         if len(universe) != ngenes:
             # R: as.character(rownames(de)) has length 0 when absent.
             raise ValueError("geneid of incorrect length")
@@ -326,12 +326,11 @@ def _select_de_from_fit(
             genes = _fit_var(fit, adata)
         if not isinstance(genes, pd.DataFrame) or col not in genes.columns:
             raise ValueError(f"Column {col} not found in de$genes")
-        universe = [str(v) for v in genes[col].values]
+        universe = _as_gene_ids(genes[col].values)
     else:
-        gid_arr = np.asarray(geneid).ravel()
-        if gid_arr.size != ngenes:
+        universe = _as_gene_ids(geneid)
+        if universe.size != ngenes:
             raise ValueError("geneid of incorrect length")
-        universe = [str(v) for v in gid_arr]
 
     if not isinstance(fdr, (int, float, np.integer, np.floating)):
         raise ValueError("FDR must be numeric and of length 1.")
@@ -343,30 +342,18 @@ def _select_de_from_fit(
     cvec = coefs[:, coef_idx]
 
     # Drop rows where geneid is NA (R's anyNA branch).
-    isna = np.array(
-        [
-            v is None
-            or (isinstance(v, float) and np.isnan(v))
-            or v == ""
-            or v == "nan"
-            or v == "NA"
-            for v in universe
-        ]
-    )
-    if isna.all():
-        raise ValueError("Gene IDs are all NA")
+    isna = pd.isna(universe)
     if isna.any():
-        keep = ~isna
-        universe = [u for u, k in zip(universe, keep) if k]
-        pvec = pvec[keep]
-        cvec = cvec[keep]
+        if isna.all():
+            raise ValueError("Gene IDs are all NA")
+        universe = universe[~isna]
+        pvec = pvec[~isna]
+        cvec = cvec[~isna]
 
     fdr_coef = p_adjust(pvec, method="BH")
-    up_mask = (fdr_coef < fdr) & (cvec > 0)
-    dn_mask = (fdr_coef < fdr) & (cvec < 0)
-    up = [u for u, m in zip(universe, up_mask) if m]
-    dn = [u for u, m in zip(universe, dn_mask) if m]
-    return universe, up, dn
+    up = universe[(fdr_coef < fdr) & (cvec > 0)].tolist()
+    dn = universe[(fdr_coef < fdr) & (cvec < 0)].tolist()
+    return universe.tolist(), up, dn
 
 
 def _goana_marraylm(
@@ -474,6 +461,16 @@ def _kegga_marraylm(
 # ---------------------------------------------------------------------------
 
 
+def _as_gene_ids(values) -> np.ndarray:
+    """Gene or pathway IDs as R's ``as.character()`` gives them (``1.0`` is
+    ``"1"``), with missing values (R's ``is.na``: None, NaN, pandas NA) as
+    None. Returns a 1-D object array."""
+    raw = np.asarray(values, dtype=object).ravel()
+    ids = _r_as_character(raw)
+    ids[pd.isna(raw)] = None
+    return ids
+
+
 def _ensure_de_lists(de) -> dict[str, np.ndarray]:
     """Port of the R 'ensure de is a list, dedupe, name uniquely' block.
 
@@ -506,9 +503,10 @@ def _ensure_de_lists(de) -> dict[str, np.ndarray]:
         if not isinstance(vec, array_like) and hasattr(vec, "__iter__"):
             # Python sets, dict views and generators, as well as lists.
             vec = list(vec)
-        arr = np.asarray(vec, dtype=object).ravel()
-        # R: unique(as.character(...)), in order of first appearance.
-        gene_sets.append(np.array(list(dict.fromkeys(str(v) for v in arr)), dtype=object))
+        # R: unique(as.character(...)), in order of first appearance. A
+        # missing ID never matches the universe, so it is dropped here.
+        ids = _as_gene_ids(vec)
+        gene_sets.append(np.array(list(dict.fromkeys(ids[~pd.isna(ids)])), dtype=object))
         cleaned_names.append("" if nm is None else str(nm).strip())
 
     # Replace empty / NA-like names with DE<i> and disambiguate duplicates.
@@ -545,7 +543,7 @@ def _normalise_universe(universe, prior_prob, covariate, annotated_genes, restri
     ``restrict``, genes not in ``annotated_genes`` are dropped, as goana
     always does and kegga does with ``restrict.universe=TRUE``.
     """
-    universe = np.asarray(universe).astype(str).ravel()
+    universe = _as_gene_ids(universe)
     lu = universe.size
     if prior_prob is not None:
         prior_prob = np.asarray(prior_prob, dtype=np.float64).ravel().copy()
@@ -557,7 +555,7 @@ def _normalise_universe(universe, prior_prob, covariate, annotated_genes, restri
             raise ValueError("universe and covariate must have same length")
 
     # NA filtering
-    isna = np.isin(universe, ["", "nan", "NA", "None"])
+    isna = pd.isna(universe)
     if covariate is not None:
         isna |= np.isnan(covariate)
     if prior_prob is not None:
@@ -619,16 +617,11 @@ def _normalise_gene_pathway(gene_pathway, *, optional_extra_cols=False):
         raise ValueError("gene.pathway must have at least 2 columns")
     cols = list(df.columns)
     df = df.rename(columns={cols[0]: "gene_id", cols[1]: "pathway_id"})
-    df["gene_id"] = df["gene_id"].astype(str)
-    df["pathway_id"] = df["pathway_id"].astype(str)
+    df["gene_id"] = _as_gene_ids(df["gene_id"])
+    df["pathway_id"] = _as_gene_ids(df["pathway_id"])
 
     # Drop rows where either of the first two cols is NA
-    isna = (
-        df[["gene_id", "pathway_id"]].isna().any(axis=1)
-        | (df["gene_id"].isin(["", "nan", "NA"]))
-        | (df["pathway_id"].isin(["", "nan", "NA"]))
-    )
-    df = df.loc[~isna].copy()
+    df = df.loc[df[["gene_id", "pathway_id"]].notna().all(axis=1)].copy()
 
     # Drop duplicate (gene_id, pathway_id) rows
     df = df.drop_duplicates(subset=["gene_id", "pathway_id"], keep="first")
@@ -804,6 +797,7 @@ def _kegga_default(
             raise ValueError("pathway.names must have at least 2 columns")
         pn = pn.rename(columns={pn.columns[0]: "_path_id", pn.columns[1]: "_description"})
         pn = pn.loc[pn[["_path_id", "_description"]].notna().all(axis=1)].astype(str)
+        pn["_path_id"] = _as_gene_ids(pn["_path_id"])
         # R: match(g, PathID.PathName[,1]) takes the first row of an ID.
         pn = pn.drop_duplicates(subset="_path_id", keep="first")
         pn_lookup = dict(zip(pn["_path_id"], pn["_description"]))

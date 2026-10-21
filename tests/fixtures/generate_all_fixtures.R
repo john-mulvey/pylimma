@@ -5464,3 +5464,13 @@ stopifnot(identical(colnames(.kcase), c("Pathway", "N", "A", "a", "P.A", "P.a"))
 stopifnot(identical(goanaTrend(-1, .gti_cov), goanaTrend(2:10, .gti_cov)),
           identical(goanaTrend(2.7, .gti_cov), goanaTrend(2, .gti_cov)),
           length(goanaTrend(11, .gti_cov)) == 10)
+
+# =============================================================================
+# goana / kegga compare gene IDs as as.character(): numeric IDs match their
+# character form, and NA IDs (is.na) are dropped from the universe
+# =============================================================================
+.eid_gp <- data.frame(gene = c(1, 2, 3, 4, 5), path = c("p1", "p1", "p1", "p2", "p2"))
+.eid_num <- kegga(c(1, 2), universe = c(1:5, NA), gene.pathway = .eid_gp, pathway.names = data.frame(c("p1", "p2"), c("one", "two")))
+.eid_chr <- kegga(c("1", "2"), universe = as.character(1:5), gene.pathway = data.frame(gene = as.character(1:5), path = .eid_gp$path),
+                  pathway.names = data.frame(c("p1", "p2"), c("one", "two")))
+stopifnot(identical(.eid_num, .eid_chr), .eid_num["p1", "DE"] == 2)
