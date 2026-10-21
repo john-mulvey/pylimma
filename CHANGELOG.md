@@ -221,6 +221,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
   `TypeError` on a fit. An empty `universe` raises R's "No genes in
   universe" (`kegga`) or "No annotated genes found in universe" (`goana`)
   instead of a `TypeError`.
+- `goana` / `kegga` on a fit accept `coef` as a coefficient or contrast
+  name, as R; a name always raised "Only one coef can be specified.".
 
 ## [0.2.0] - 2026-09-30
 

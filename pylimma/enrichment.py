@@ -275,12 +275,13 @@ def _select_de_from_fit(
 
     if coef is None:
         coef = ncoef - 1
-    if hasattr(coef, "__len__") and len(coef) != 1:
-        raise ValueError("Only one coef can be specified.")
-    if hasattr(coef, "__len__"):
+    # R: length(coef) != 1, where a column name has length 1.
+    if not isinstance(coef, str) and hasattr(coef, "__len__"):
+        if len(coef) != 1:
+            raise ValueError("Only one coef can be specified.")
         coef = coef[0]
     if isinstance(coef, str):
-        coef_names = list(fit.get("coef_names") or [])
+        coef_names = list(fit.get("contrast_names") or fit.get("coef_names") or [])
         if not coef_names:
             # Try column index fallback via design.
             design = fit.get("design")

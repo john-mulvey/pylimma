@@ -125,3 +125,28 @@ def test_null_prob_needs_wallenius(fn_name, arg):
     gp, _, universe = _kegga_inputs()
     with pytest.raises(NotImplementedError, match="BiasedUrn"):
         getattr(pylimma, fn_name)(["gene001"], gp, universe=universe, **{arg: [i / 200 for i in range(1, 201)]})
+
+
+def _two_group_fit():
+    import numpy as np
+
+    genes = [f"gene{i:03d}" for i in range(1, 121)]
+    y = np.random.default_rng(1).normal(size=(120, 6))
+    y[:15, 3:] += 3
+    y[15:25, 3:] -= 3
+    design = pd.DataFrame({"Intercept": 1.0, "B": np.repeat([0.0, 1.0], 3)})
+    return pylimma.e_bayes(pylimma.lm_fit(pd.DataFrame(y, index=genes), design)), genes
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_coef_by_name(fn_name):
+    """R takes coef as a column number or name (length(coef) == 1); a name
+    always raised "Only one coef can be specified."."""
+    gp, _, _ = _kegga_inputs()
+    fit, _ = _two_group_fit()
+    fn = getattr(pylimma, fn_name)
+    by_number = fn(fit, gp, coef=1)
+    pd.testing.assert_frame_equal(fn(fit, gp, coef="B"), by_number)
+    contrast = pd.DataFrame({"B_vs_A": [0.0, 1.0]}, index=["Intercept", "B"])
+    contrast_fit = pylimma.e_bayes(pylimma.contrasts_fit(fit, contrasts=contrast))
+    pd.testing.assert_frame_equal(fn(contrast_fit, gp, coef="B_vs_A"), by_number)
