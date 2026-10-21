@@ -144,6 +144,34 @@ class TestMakeContrastsExpressions:
         np.testing.assert_array_equal(cm["2"].values, [2.0, 2.0])
 
 
+class TestMakeContrastsArgument:
+    """The contrasts= argument, as R's makeContrasts(contrasts=)."""
+
+    def test_single_string_is_one_contrast(self):
+        cm = make_contrasts(contrasts="B-A", levels=["A", "B"])
+        assert list(cm.columns) == ["B-A"]
+        np.testing.assert_array_equal(cm["B-A"].values, [-1.0, 1.0])
+
+    def test_series_with_default_index_is_unnamed(self):
+        cm = make_contrasts(contrasts=pd.Series(["B-A", "A"]), levels=["A", "B"])
+        assert list(cm.columns) == ["B-A", "A"]
+
+    def test_only_an_empty_name_falls_back_to_the_expression(self):
+        cm = make_contrasts(contrasts={0: "B-A", "": "A"}, levels=["A", "B"])
+        assert list(cm.columns) == [0, "A"]
+
+    def test_keyword_contrasts_with_contrasts_argument_raise(self):
+        # R: "Can't specify both ... and contrasts" (named ... arguments count)
+        with pytest.raises(ValueError, match="Cannot specify both"):
+            make_contrasts(BvsA="B-A", contrasts=["B-A"], levels=["A", "B"])
+
+    def test_no_contrasts_raise(self):
+        # R returns a 2 x 0 matrix for contrasts=character(0) and fails for an empty ...
+        for kwargs in ({}, {"contrasts": []}):
+            with pytest.raises(ValueError, match="No contrasts specified"):
+                make_contrasts(levels=["A", "B"], **kwargs)
+
+
 class TestContrastsFit:
     """Tests for contrasts_fit function."""
 

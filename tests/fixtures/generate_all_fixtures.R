@@ -5598,3 +5598,16 @@ stopifnot(identical(unname(makeContrasts(contrasts = "A + B\n- C", levels = c("A
 stopifnot(all.equal(unname(makeContrasts(B - A * pi, levels = c("A", "B"))[, 1]), c(-pi, 1)),
           identical(unname(makeContrasts(mean(c(A, B)), levels = c("A", "B"))[, 1]), c(0.5, 0.5)),
           inherits(try(makeContrasts(B - D, levels = c("A", "B")), silent = TRUE), "try-error"))
+
+# =============================================================================
+# makeContrasts(contrasts=): names of a named vector are the column names (an
+# empty name falls back to the expression); a single string is one contrast
+# =============================================================================
+write.csv(makeContrasts(contrasts = c(BvsA = "B-A", "C-B"), levels = c("A", "B", "C")),
+          "R_mcc_named.csv")
+stopifnot(identical(colnames(makeContrasts(contrasts = "B-A", levels = c("A", "B"))), "B-A"),
+          inherits(try(makeContrasts(BvsA = B - A, contrasts = "B-A", levels = c("A", "B")),
+                       silent = TRUE), "try-error"),
+          # no contrasts: an empty matrix for contrasts= (pylimma raises), an error for ...
+          identical(dim(makeContrasts(contrasts = character(0), levels = c("A", "B"))), c(2L, 0L)),
+          inherits(try(makeContrasts(levels = c("A", "B")), silent = TRUE), "try-error"))

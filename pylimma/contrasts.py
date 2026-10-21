@@ -164,7 +164,7 @@ def model_matrix_with_names(
 
 def make_contrasts(
     *contrasts_args: str,
-    contrasts: list[str] | None = None,
+    contrasts: str | list[str] | dict[str, str] | pd.Series | None = None,
     levels: list[str] | np.ndarray | pd.DataFrame,
     **named_contrasts: str,
 ) -> pd.DataFrame:
@@ -177,9 +177,12 @@ def make_contrasts(
         Contrast expressions like "B-A", "C-A", "(B+C)/2-A".
         Each expression becomes a column in the contrast matrix.
         The column name is the expression itself.
-    contrasts : list of str, optional
-        Alternative way to pass contrasts as a list (R parity).
-        Cannot be used together with positional contrasts.
+    contrasts : str, list of str, dict or Series, optional
+        Alternative way to pass contrasts, as R's ``contrasts=`` character
+        vector. A dict, or a Series with an index other than the default
+        RangeIndex, maps column names to expressions (R's named vector;
+        an empty name falls back to the expression). Cannot be used together
+        with positional or keyword contrasts.
     levels : list of str, categorical or design matrix
         Coefficient names. Can be:
         - List of coefficient names (a single string is one name)
@@ -268,20 +271,29 @@ def make_contrasts(
     identity = np.eye(n)
     indicators = {placeholders[lev]: identity[i] for i, lev in enumerate(levels)}
 
-    # Handle contrasts= parameter (R parity)
+    # (name, expression) pairs; an unnamed contrast is named by its expression
     if contrasts is not None:
-        if contrasts_args:
-            raise ValueError("Cannot specify both positional contrasts and contrasts= parameter")
-        contrast_exprs = list(contrasts)
+        # R: if(length(e) > 1L) stop("Can't specify both ... and contrasts")
+        if contrasts_args or named_contrasts:
+            raise ValueError("Cannot specify both contrast arguments and contrasts=")
+        if isinstance(contrasts, str):
+            contrasts = [contrasts]
+        # A dict, or a Series with its own index, is R's named character
+        # vector; an empty name falls back to the expression
+        named = isinstance(contrasts, dict) or (
+            isinstance(contrasts, pd.Series) and not isinstance(contrasts.index, pd.RangeIndex)
+        )
+        if named:
+            all_contrasts = [
+                (expr if name == "" else name, expr) for name, expr in contrasts.items()
+            ]
+        else:
+            all_contrasts = [(expr, expr) for expr in contrasts]
     else:
-        contrast_exprs = list(contrasts_args)
+        all_contrasts = [(expr, expr) for expr in contrasts_args]
+        all_contrasts.extend(named_contrasts.items())
 
-    # Combine unnamed and named contrasts
-    # Unnamed: expression is both the name and expression
-    # Named: keyword is name, value is expression
-    all_contrasts = [(expr, expr) for expr in contrast_exprs]
-    all_contrasts.extend((name, expr) for name, expr in named_contrasts.items())
-
+    # R returns an n x 0 matrix for contrasts=character(0) and fails for an empty ...
     if not all_contrasts:
         raise ValueError("No contrasts specified")
 

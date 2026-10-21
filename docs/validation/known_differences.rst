@@ -230,6 +230,16 @@ user's locale (in ``en_GB``: apoptosis, Apoptosis, b, Wnt signaling);
 pylimma compares by code point (Apoptosis, Wnt signaling, apoptosis, b),
 as R does in the ``C`` locale, so the order is the same on every machine.
 
+``make_contrasts`` without contrasts
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With no contrasts, ``make_contrasts`` raises "No contrasts specified". R's
+``makeContrasts`` returns a matrix with one row per level and no columns for
+``contrasts = character(0)``, and fails with "length of 'dimnames' [2] not
+equal to array extent" when ``...`` is empty. pylimma reports the missing
+contrasts where they arise instead of returning a matrix with no columns.
+``generate_all_fixtures.R`` records the R behaviour.
+
 Clear errors where R fails obscurely or behaves accidentally
 ------------------------------------------------------------
 

@@ -1058,6 +1058,17 @@ class TestMakeContrastsRParity:
         np.testing.assert_allclose(py_cont.values, r_cont.values, rtol=1e-12, atol=0)
         assert np.isnan(py_cont.values).sum() == np.isnan(r_cont.values).sum() > 0
 
+    def test_named_contrasts_argument(self):
+        """contrasts= as a dict (R's named vector); an empty name falls back to the expression."""
+        r_cont = load_r_csv("mcc_named")
+
+        named = {"BvsA": "B-A", "": "C-B"}
+        for given in (named, pd.Series(named)):
+            py_cont = make_contrasts(contrasts=given, levels=["A", "B", "C"])
+
+            assert list(py_cont.columns) == list(r_cont.columns)
+            np.testing.assert_array_equal(py_cont.values, r_cont.values)
+
     def test_valid_level_names_follow_make_names(self):
         """A level is valid when it equals R's make.names() of itself.
 

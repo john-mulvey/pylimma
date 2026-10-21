@@ -179,6 +179,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   contrast expressions are limited to R arithmetic on the levels and
   numbers (`+ - * / ^` and brackets); other names, function calls and
   other Python syntax raise a clear error.
+- `make_contrasts` raises an error when keyword contrasts are combined with
+  `contrasts=`, as R does for named `...` arguments; they were silently
+  combined.
 
 ### Fixed
 
@@ -298,6 +301,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   which raised errors or, for `None`/`True`, evaluated to Python constants.
   `^` is a power as in R (it was Python's XOR), and R number forms such as
   `2L` and `0x1F` work.
+- `make_contrasts(contrasts=...)` with a dict evaluated the keys as
+  expressions; as R's named character vector, the keys of a dict or the
+  index of a Series (other than a default RangeIndex) are the column names
+  (an empty name falls back to the expression). A single string is one contrast, not one per character.
 
 ## [0.2.0] - 2026-09-30
 
