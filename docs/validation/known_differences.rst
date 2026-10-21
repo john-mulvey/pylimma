@@ -199,6 +199,16 @@ one change; the fixture script checks that they reproduce
 ``voomWithQualityWeights`` whenever the number of genes differs from the
 number of samples.
 
+Names of unnamed gene sets
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For an unnamed list of gene sets, R's ``mroast`` and ``fry`` name the sets
+``set1``, ``set2``, ... (zero-padded from ten sets: ``set01``), while R's
+``camera``, ``cameraPR`` and ``romer`` leave them unnamed, so their result
+rows are labelled ``"1"``, ``"2"``, .... pylimma uses the ``set1`` naming in
+all of them, so results of different tests can be joined on the set name.
+A single set passed on its own is ``set1`` (``romer``: ``set``, as R).
+
 gene_set_test simulation: exact ties
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
