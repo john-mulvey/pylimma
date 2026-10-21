@@ -245,7 +245,10 @@ values, but their names and order can differ:
   age:gc``, and ``~ age + I(age > 3)`` swaps its two terms;
 - an interaction without its main effects (``~ g:h``) is coded with a
   full-rank set of columns (6 for a 3 x 2 layout), where R gives 7
-  rank-deficient columns.
+  rank-deficient columns;
+- a formula sees the columns of the data, patsy's built-ins (``C``, ``I``,
+  ``Q``, ``Poly``, ...), ``np`` and ``pd``, where R's formula also sees
+  the variables of the environment it was written in.
 
 Main-effect formulas such as ``~ group``, ``~ 0 + group`` and ``~ a + b``
 give R's columns in R's order. For other formulas, a coefficient position

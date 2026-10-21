@@ -108,6 +108,10 @@ def model_matrix(
     This function uses patsy for formula parsing with Treatment coding
     to match R's default contr.treatment contrast scheme.
 
+    Names in a formula are the columns of ``data``, patsy's built-ins
+    (``C``, ``I``, ``Q``, ``Poly``, ``center``, ...), ``np`` (numpy) and
+    ``pd`` (pandas), e.g. ``"~ np.log(dose)"``.
+
     patsy evaluates formulas as Python, where ``^`` is bitwise XOR, so a
     formula containing ``^`` raises a ValueError. Write R's ``^`` as
     ``**``: ``I(x**2)`` for a power and ``(a + b)**2`` for crossing terms.

@@ -5,6 +5,7 @@ from pathlib import Path
 import anndata as ad
 import numpy as np
 import pandas as pd
+import patsy
 import pytest
 
 from pylimma.contrasts import (
@@ -203,6 +204,21 @@ class TestFormulaCaret:
     def test_caret_in_a_quoted_name_is_allowed(self):
         data = pd.DataFrame({"a^b": [1.0, 2.0, 3.0]})
         np.testing.assert_array_equal(model_matrix('~ Q("a^b")', data)[:, 1], [1, 2, 3])
+
+
+class TestFormulaNames:
+    """Formula names: data columns, patsy built-ins, np and pd only."""
+
+    def test_numpy_and_patsy_builtins_resolve(self):
+        data = pd.DataFrame({"dose": [1.0, 2.0, 4.0]})
+        design = model_matrix("~ np.log2(dose) + center(dose)", data)
+        np.testing.assert_allclose(design[:, 1:], [[0, -4 / 3], [1, -1 / 3], [2, 5 / 3]])
+
+    def test_module_names_do_not_resolve(self):
+        data = pd.DataFrame({"x": [1.0, 2.0, 3.0]})
+        for name in ("tokenize", "io", "warnings"):
+            with pytest.raises(patsy.PatsyError, match=name):
+                model_matrix(f"~ x + {name}", data)
 
 
 class TestFormulaOrderedFactor:

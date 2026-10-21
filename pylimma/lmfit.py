@@ -1057,6 +1057,12 @@ def _numeric_design(design) -> np.ndarray:
     return np.asarray(design, dtype=np.float64)
 
 
+# Names a formula can use besides the columns of data and patsy's built-ins
+# (C, I, Q, Poly, center, ...); without it patsy would look names up in this
+# module, where e.g. a missing column called io resolves to the io module
+_FORMULA_ENV = patsy.EvalEnvironment([{"np": np, "pd": pd}])
+
+
 def _formula_design(formula: str, data) -> pd.DataFrame:
     """Design matrix of a formula string with named columns (R: model.matrix).
 
@@ -1069,7 +1075,7 @@ def _formula_design(formula: str, data) -> pd.DataFrame:
             f"formula {formula!r}: ^ is a power in R but bitwise XOR in patsy; "
             "use ** instead (I(x**2) for a power, (a + b)**2 for crossing terms)"
         )
-    design = patsy.dmatrix(formula, data, return_type="dataframe")
+    design = patsy.dmatrix(formula, data, eval_env=_FORMULA_ENV, return_type="dataframe")
     # R codes an ordered factor with contr.poly where it applies contrasts;
     # patsy ignores the ordering and uses treatment contrasts
     design_info = design.design_info
