@@ -5446,3 +5446,11 @@ stopifnot(identical(topGO(.tga, number = Inf), topGO(.tga, number = nrow(.tga)))
           identical(topKEGG(res_kegga, number = Inf), topKEGG(res_kegga, number = nrow(res_kegga))))
 
 cat("  topGO argument checks complete.\n")
+
+# =============================================================================
+# goana / kegga keep set names as given, so "A" and "a" are two sets
+# (pylimma lower-cases its output columns and raises on such a clash)
+# =============================================================================
+.kcase <- kegga(list(A = de_up, a = de_up[1:2]), universe = goana_universe, gene.pathway = kegga_gp,
+                pathway.names = kegga_pn)
+stopifnot(identical(colnames(.kcase), c("Pathway", "N", "A", "a", "P.A", "P.a")))

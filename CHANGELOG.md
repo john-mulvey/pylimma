@@ -240,6 +240,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   `number` at the row count, so `number=np.inf` returns every row (it
   raised `OverflowError`), and `number=NaN` raises a clear error, as in
   `top_table`.
+- `goana` / `kegga` raise an error when two set names give the same
+  lower-case output column (for example "A" and "a", or a set named "N"
+  next to `n`); one of the sets was silently dropped.
 
 ## [0.2.0] - 2026-09-30
 

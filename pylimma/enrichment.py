@@ -681,6 +681,43 @@ def _hypergeometric_pvalues(
     return out
 
 
+def _pathway_counts(gp_in_universe, de_lists):
+    """Genes and DE genes per pathway: R's ``rowsum(X, group, reorder=FALSE)``
+    of the incidence matrix ``X`` (a column of ones, then one column per DE
+    set), in order of first appearance of each pathway."""
+    gene_ids = gp_in_universe["gene_id"]
+    X = np.column_stack(
+        [np.ones(len(gene_ids), dtype=np.int64)]
+        + [
+            gene_ids.isin(set(genes.tolist())).to_numpy(dtype=np.int64)
+            for genes in de_lists.values()
+        ]
+    )
+    S = pd.DataFrame(X).groupby(gp_in_universe["pathway_id"].to_numpy(), sort=False).sum()
+    return S.index.to_numpy(), S[0].to_numpy(dtype=np.int64), S.iloc[:, 1:].to_numpy(dtype=np.int64)
+
+
+def _add_set_columns(out, set_names, S_counts, PValue) -> pd.DataFrame:
+    """Append each set's count and p-value columns (R: ``S`` and ``PValue``).
+
+    Columns are the lower-case set name and ``p_`` plus it. Two sets, or a
+    set and a fixed column such as ``n``, that give the same column raise
+    an error; R's set names keep their case, so it has no such clash.
+    """
+    count_cols = [nm.lower() for nm in set_names]
+    p_cols = [f"p_{c}" for c in count_cols]
+    columns = list(out.columns) + count_cols + p_cols
+    clashes = sorted({c for c in columns if columns.count(c) > 1})
+    if clashes:
+        raise ValueError(
+            f"gene set names {list(set_names)} give the same output column(s) "
+            f"{clashes}; rename the sets"
+        )
+    counts = pd.DataFrame(S_counts, index=out.index, columns=count_cols)
+    pvalues = pd.DataFrame(PValue, index=out.index, columns=p_cols)
+    return pd.concat([out, counts, pvalues], axis=1)
+
+
 def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate, plot, trend):
     """Port of goana.default (goana.R:88-260)."""
     if not isinstance(trend, (bool, np.bool_)) or trend:
@@ -723,23 +760,8 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
         raise ValueError("Pathways do not overlap with universe")
     _check_null_prob(de_lists, prior_prob, covariate)
 
-    # Build incidence matrix in R's column order: N, then one column per
-    # DE list. ``rowsum(X, group, reorder=FALSE)`` in pandas is a groupby
-    # on the pathway id with sort=False to preserve first-occurrence
-    # order.
     set_names = list(de_lists.keys())
-    columns = ["N"] + set_names
-    X = pd.DataFrame(0, index=gp_in_universe.index, columns=columns, dtype=np.int64)
-    X["N"] = 1
-    for nm in set_names:
-        members = set(de_lists[nm].tolist())
-        X[nm] = gp_in_universe["gene_id"].isin(members).astype(np.int64)
-
-    grouped = X.groupby(gp_in_universe["pathway_id"].values, sort=False).sum()
-    pathway_ids = grouped.index.to_numpy()
-
-    S_N = grouped["N"].to_numpy(dtype=np.int64)
-    S_counts = grouped[set_names].to_numpy(dtype=np.int64)
+    pathway_ids, S_N, S_counts = _pathway_counts(gp_in_universe, de_lists)
     nde = np.array([de_lists[nm].size for nm in set_names], dtype=np.int64)
 
     PValue = _hypergeometric_pvalues(S_counts, S_N, nde, NGenes)
@@ -760,11 +782,7 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
     else:
         out["ontology"] = np.nan
     out["n"] = S_N
-    for j, nm in enumerate(set_names):
-        out[nm.lower()] = S_counts[:, j]
-    for j, nm in enumerate(set_names):
-        out[f"p_{nm.lower()}"] = PValue[:, j]
-    return out
+    return _add_set_columns(out, set_names, S_counts, PValue)
 
 
 def _kegga_default(
@@ -817,17 +835,7 @@ def _kegga_default(
     _check_null_prob(de_lists, prior_prob, covariate)
 
     set_names = list(de_lists.keys())
-    columns = ["N"] + set_names
-    X = pd.DataFrame(0, index=gp_in_universe.index, columns=columns, dtype=np.int64)
-    X["N"] = 1
-    for nm in set_names:
-        members = set(de_lists[nm].tolist())
-        X[nm] = gp_in_universe["gene_id"].isin(members).astype(np.int64)
-    grouped = X.groupby(gp_in_universe["pathway_id"].values, sort=False).sum()
-    pathway_ids = grouped.index.to_numpy()
-
-    S_N = grouped["N"].to_numpy(dtype=np.int64)
-    S_counts = grouped[set_names].to_numpy(dtype=np.int64)
+    pathway_ids, S_N, S_counts = _pathway_counts(gp_in_universe, de_lists)
     nde = np.array([de_lists[nm].size for nm in set_names], dtype=np.int64)
 
     PValue = _hypergeometric_pvalues(S_counts, S_N, nde, NGenes)
@@ -838,11 +846,7 @@ def _kegga_default(
     else:
         out["pathway"] = list(pathway_ids)
     out["n"] = S_N
-    for j, nm in enumerate(set_names):
-        out[nm.lower()] = S_counts[:, j]
-    for j, nm in enumerate(set_names):
-        out[f"p_{nm.lower()}"] = PValue[:, j]
-    return out
+    return _add_set_columns(out, set_names, S_counts, PValue)
 
 
 # ---------------------------------------------------------------------------

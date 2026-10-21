@@ -300,6 +300,13 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     ``"B"`` work in both. ``generate_all_fixtures.R`` records the R
     behaviour.
 
+``goana`` / ``kegga`` with set names that differ only in case
+    The output columns are the lower-case set names (``up``, ``p_up``), so
+    two sets such as ``"A"`` and ``"a"``, or a set named ``"N"`` next to the
+    ``n`` column, raise an error naming the clash. R keeps the names as
+    given (``A``, ``a``, ``P.A``, ``P.a``). Previously pylimma silently kept
+    only one of the sets.
+
 ``top_go`` / ``top_kegg`` with ``number=NaN``
     Raises "number must not be NaN", as ``top_table`` does (R: "missing
     value where TRUE/FALSE needed"). Other values of ``number`` follow R.

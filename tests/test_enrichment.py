@@ -225,3 +225,14 @@ def test_top_number_inf_and_nan(fn_name):
     pd.testing.assert_frame_equal(fn(results, number=np.inf), fn(results, number=len(results)))
     with pytest.raises(ValueError, match="^number must not be NaN$"):
         fn(results, number=np.nan)
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+@pytest.mark.parametrize("names", [("A", "a"), ("Up", "N")])
+def test_set_names_that_clash_in_lower_case_raise(fn_name, names):
+    """Output columns are lower-case set names; R keeps "A" and "a" as two
+    sets, where pylimma silently kept only one (known_differences.rst)."""
+    gp, _, universe = _kegga_inputs()
+    de = {names[0]: universe[:10], names[1]: universe[:2]}
+    with pytest.raises(ValueError, match="same output column"):
+        getattr(pylimma, fn_name)(de, gp, universe=universe)
