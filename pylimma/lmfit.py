@@ -26,6 +26,8 @@ Implements the core linear model fitting from limma:
 
 from __future__ import annotations
 
+import io
+import tokenize
 import warnings
 from typing import TYPE_CHECKING
 
@@ -1060,7 +1062,23 @@ def _formula_design(formula: str, data) -> pd.DataFrame:
 
     The single place where pylimma builds a design from a formula, with patsy.
     """
+    # patsy evaluates ^ as Python's bitwise XOR (I(age^2) is 3, 0, 1, ... for
+    # integers) and rejects it between terms; in R it is a power or crossing
+    if "^" in _formula_operators(formula):
+        raise ValueError(
+            f"formula {formula!r}: ^ is a power in R but bitwise XOR in patsy; "
+            "use ** instead (I(x**2) for a power, (a + b)**2 for crossing terms)"
+        )
     return patsy.dmatrix(formula, data, return_type="dataframe")
+
+
+def _formula_operators(formula: str) -> list[str]:
+    """Operators of a formula, outside quoted names; [] if it does not tokenise."""
+    try:
+        tokens = list(tokenize.generate_tokens(io.StringIO(formula).readline))
+    except (tokenize.TokenError, SyntaxError):
+        return []  # patsy reports the malformed formula
+    return [token.string for token in tokens if token.type == tokenize.OP]
 
 
 def _parse_design(

@@ -182,6 +182,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `make_contrasts` raises an error when keyword contrasts are combined with
   `contrasts=`, as R does for named `...` arguments; they were silently
   combined.
+- Formula strings containing `^` (`model_matrix`, `lm_fit`, `voom` and the
+  other formula entry points) raise an error asking for `**`: patsy
+  evaluated `I(age^2)` as bitwise XOR, giving silently wrong designs for
+  integer columns (1, 4, 9, ... became 3, 0, 1, ...).
 
 ### Fixed
 

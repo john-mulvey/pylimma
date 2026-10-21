@@ -352,6 +352,13 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     (``"A + B\n- C"`` is ``-C``). ``generate_all_fixtures.R`` records the R
     behaviour.
 
+Formula strings containing ``^`` (``model_matrix``, ``lm_fit``, the ``voom`` family)
+    Raise an error asking for ``**``. pylimma builds designs from formulas
+    with patsy, which evaluates ``I(x^2)`` as Python's bitwise XOR (silently
+    wrong numbers for an integer column) and rejects ``(a + b)^2``. In
+    patsy, ``I(x**2)`` is R's ``I(x^2)`` and ``(a + b)**2`` is R's
+    ``(a + b)^2``. A ``^`` inside a quoted name (``Q("a^b")``) is allowed.
+
 Deliberate interface difference: EList design and weights slots
 ---------------------------------------------------------------
 

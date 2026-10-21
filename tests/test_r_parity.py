@@ -1141,6 +1141,20 @@ class TestModelMatrixRParity:
             f"model_matrix numeric differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
+    def test_power_written_as_double_star(self):
+        """R's ^ is ** in patsy: a power inside I(), crossing of terms outside it."""
+        from pylimma import model_matrix
+
+        data = pd.DataFrame(
+            {"age": np.arange(1, 7), "g": list("abcabc"), "h": list("xxxyyy")}
+        )
+        for formula, fixture in (
+            ("~ I(age**2)", "R_mmp_power.csv"),
+            ("~ (g + h)**2", "R_mmp_crossing.csv"),
+        ):
+            r_mm = pd.read_csv(FIXTURES_DIR / fixture)
+            np.testing.assert_array_equal(model_matrix(formula, data), r_mm.values)
+
 
 class TestEBayesProportionRParity:
     """Test eBayes with different proportion parameters matches R."""

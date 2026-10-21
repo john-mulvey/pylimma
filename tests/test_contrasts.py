@@ -2,11 +2,17 @@
 
 from pathlib import Path
 
+import anndata as ad
 import numpy as np
 import pandas as pd
 import pytest
 
-from pylimma.contrasts import contrasts_fit, make_contrasts
+from pylimma.contrasts import (
+    contrasts_fit,
+    make_contrasts,
+    model_matrix,
+    model_matrix_with_names,
+)
 from pylimma.lmfit import lm_fit
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
@@ -170,6 +176,33 @@ class TestMakeContrastsArgument:
         for kwargs in ({}, {"contrasts": []}):
             with pytest.raises(ValueError, match="No contrasts specified"):
                 make_contrasts(levels=["A", "B"], **kwargs)
+
+
+class TestFormulaCaret:
+    """^ in a formula raises: patsy reads it as XOR, R as a power or crossing."""
+
+    @pytest.fixture
+    def data(self):
+        return pd.DataFrame({"age": np.arange(1, 7), "g": list("aabbcc")})
+
+    def test_caret_raises_in_every_formula_entry_point(self, data):
+        adata = ad.AnnData(
+            X=np.random.default_rng(0).normal(size=(6, 4)),
+            obs=data.set_axis([f"s{i}" for i in range(6)]),
+        )
+        builders = (
+            lambda f: model_matrix(f, data),
+            lambda f: model_matrix_with_names(f, data),
+            lambda f: lm_fit(adata, f),
+        )
+        for build in builders:
+            # an integer column gave silently wrong numbers (1^2 is 3)
+            with pytest.raises(ValueError, match=r"use \*\* instead"):
+                build("~ I(age^2)")
+
+    def test_caret_in_a_quoted_name_is_allowed(self):
+        data = pd.DataFrame({"a^b": [1.0, 2.0, 3.0]})
+        np.testing.assert_array_equal(model_matrix('~ Q("a^b")', data)[:, 1], [1, 2, 3])
 
 
 class TestContrastsFit:

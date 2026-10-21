@@ -108,6 +108,10 @@ def model_matrix(
     This function uses patsy for formula parsing with Treatment coding
     to match R's default contr.treatment contrast scheme.
 
+    patsy evaluates formulas as Python, where ``^`` is bitwise XOR, so a
+    formula containing ``^`` raises a ValueError. Write R's ``^`` as
+    ``**``: ``I(x**2)`` for a power and ``(a + b)**2`` for crossing terms.
+
     See Also
     --------
     make_contrasts : Create contrast matrices for hypothesis testing

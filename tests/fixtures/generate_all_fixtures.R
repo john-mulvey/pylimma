@@ -5611,3 +5611,11 @@ stopifnot(identical(colnames(makeContrasts(contrasts = "B-A", levels = c("A", "B
           # no contrasts: an empty matrix for contrasts= (pylimma raises), an error for ...
           identical(dim(makeContrasts(contrasts = character(0), levels = c("A", "B"))), c(2L, 0L)),
           inherits(try(makeContrasts(levels = c("A", "B")), silent = TRUE), "try-error"))
+
+# =============================================================================
+# model.matrix with ^: a power inside I(), crossing of terms outside it (patsy
+# writes both as **)
+# =============================================================================
+.mmp <- data.frame(age = 1:6, g = rep(c("a", "b", "c"), 2), h = rep(c("x", "y"), each = 3))
+write.csv(model.matrix(~ I(age^2), .mmp), "R_mmp_power.csv", row.names = FALSE)
+write.csv(model.matrix(~ (g + h)^2, .mmp), "R_mmp_crossing.csv", row.names = FALSE)
