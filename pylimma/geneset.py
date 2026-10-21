@@ -40,6 +40,7 @@ the Monte-Carlo sampling error (see ``docs/validation/known_differences.rst``).
 
 from __future__ import annotations
 
+import math
 import warnings
 from typing import Any
 
@@ -2225,7 +2226,10 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
         if nsel == 0:
             return 1.0
         stat_all = stats_arr[~np.isnan(stats_arr)]
-        msel = float(np.mean(ssel))
+        # Exactly rounded means (math.fsum), so that a permutation of the same
+        # values ties the observed mean exactly, as R's long-double mean does on
+        # platforms with extended precision (known_differences.rst)
+        msel = math.fsum(ssel) / nsel
         if alternative == "either":
 
             def posstat(x):
@@ -2239,7 +2243,7 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
         ntail = 1
         for _ in range(nsim):
             sample = rng_state.choice(stat_all, size=nsel, replace=False)
-            if posstat(float(np.mean(sample))) >= msel:
+            if posstat(math.fsum(sample) / nsel) >= msel:
                 ntail += 1
         return float(ntail) / (nsim + 1)
 

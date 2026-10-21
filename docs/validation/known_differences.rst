@@ -199,6 +199,18 @@ one change; the fixture script checks that they reproduce
 ``voomWithQualityWeights`` whenever the number of genes differs from the
 number of samples.
 
+gene_set_test simulation: exact ties
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+With ``ranks_only=False``, ``geneSetTest`` counts random sets whose mean is
+at least the observed mean, so ties are decided by rounding. R's ``mean()``
+sums in long double: on Linux (x86-64, extended precision) a permutation of
+the same values ties exactly, and a set of all genes gives p = 1, but on
+platforms where long double is ordinary double (e.g. macOS on Apple
+silicon) the same call gives values such as 0.999 or 0.5. pylimma compares
+exactly rounded means (``math.fsum``), so ties are always exact and the
+result does not depend on the platform; it agrees with R on Linux.
+
 Clear errors where R fails obscurely or behaves accidentally
 ------------------------------------------------------------
 

@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `gene_set_test(ranks_only=False)` compares exactly rounded means, so a
+  random set with the same values ties the observed set exactly (a set of
+  all genes gave p 0.78 instead of 1; tie-heavy statistics were biased).
 - `roast` / `mroast`: an empty set, a NaN gene weight or a negative
   `df_prior` gave small finite p-values (an empty set was even sorted
   first); as in R, the NaN propagates to NaN p-values, active proportions

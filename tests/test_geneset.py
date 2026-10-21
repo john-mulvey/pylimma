@@ -589,3 +589,16 @@ def test_camera_pr_empty_index_raises():
 
     with pytest.raises(ValueError, match="^index is empty$"):
         pylimma.camera_pr(np.random.default_rng(1).normal(size=20), [])
+
+
+@pytest.mark.parametrize("alternative", ["either", "up", "down"])
+def test_gene_set_test_simulation_ties_are_exact(alternative):
+    """A set of all genes: every permutation has the same values, so its mean
+    ties the observed mean and p = 1 (R on Linux, whose long double sums
+    exactly here; known_differences.rst). Exact sums make the tie exact."""
+    import pylimma
+
+    stat = np.random.default_rng(3).normal(size=20)
+    p = pylimma.gene_set_test(np.arange(20), stat, alternative=alternative, type="t",
+                              ranks_only=False, nsim=999, rng=1)
+    assert p == 1.0
