@@ -163,3 +163,17 @@ def test_fit_defines_its_own_universe_and_covariate(fn_name, arg):
     value = genes if arg == "universe" else [1.0] * len(genes)
     with pytest.raises(ValueError, match=f"defines its own {arg}"):
         getattr(pylimma, fn_name)(fit, gp, **{arg: value})
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_numpy_false_trend_is_false(fn_name):
+    """R: is.logical(trend); a numpy boolean is a logical too."""
+    import numpy as np
+
+    gp, _, universe = _kegga_inputs()
+    fit, _ = _two_group_fit()
+    fn = getattr(pylimma, fn_name)
+    pd.testing.assert_frame_equal(fn(fit, gp, trend=np.False_), fn(fit, gp, trend=False))
+    pd.testing.assert_frame_equal(
+        fn(["gene001"], gp, universe=universe, trend=np.False_), fn(["gene001"], gp, universe=universe)
+    )

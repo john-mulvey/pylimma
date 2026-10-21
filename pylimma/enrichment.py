@@ -385,7 +385,7 @@ def _goana_marraylm(
     if kwargs:
         raise TypeError(f"unexpected keyword arguments: {sorted(kwargs)}")
 
-    if not isinstance(trend, bool):
+    if not isinstance(trend, (bool, np.bool_)):
         # R accepts numeric or character trend; both go through the
         # BiasedUrn path which is deferred.
         raise NotImplementedError(
@@ -441,7 +441,7 @@ def _kegga_marraylm(
     if kwargs:
         raise TypeError(f"unexpected keyword arguments: {sorted(kwargs)}")
 
-    if not isinstance(trend, bool):
+    if not isinstance(trend, (bool, np.bool_)):
         raise NotImplementedError(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
@@ -682,7 +682,7 @@ def _hypergeometric_pvalues(
 
 def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate, plot, trend):
     """Port of goana.default (goana.R:88-260)."""
-    if not isinstance(trend, bool) or trend:
+    if not isinstance(trend, (bool, np.bool_)) or trend:
         raise NotImplementedError(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )
@@ -770,7 +770,7 @@ def _kegga_default(
     de, *, gene_pathway, pathway_names, universe, restrict_universe, species, prior_prob, covariate, plot, trend
 ):
     """Port of kegga.default (kegga.R:88-280)."""
-    if not isinstance(trend, bool) or trend:
+    if not isinstance(trend, (bool, np.bool_)) or trend:
         raise NotImplementedError(
             "trend correction requires the BiasedUrn port; see pylimma roadmap."
         )

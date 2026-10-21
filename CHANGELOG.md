@@ -226,6 +226,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `goana` / `kegga` on a fit raise "defines its own universe" for
   `universe=`, as R (it was silently ignored), and "defines its own
   covariate" for `covariate=` (R fails with an argument collision).
+- `goana` / `kegga` accept a numpy boolean `trend` (`np.False_` raised
+  `NotImplementedError`).
 
 ## [0.2.0] - 2026-09-30
 
