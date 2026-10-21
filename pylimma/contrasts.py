@@ -27,7 +27,7 @@ import pandas as pd
 from scipy import linalg
 
 from .classes import MArrayLM, _resolve_fit_input
-from .lmfit import _design_names
+from .lmfit import _design_names, _formula_design
 from .utils import _r_as_character
 
 if TYPE_CHECKING:
@@ -112,18 +112,7 @@ def model_matrix(
     --------
     make_contrasts : Create contrast matrices for hypothesis testing
     """
-    try:
-        import patsy
-    except ImportError:
-        raise ImportError(
-            "patsy is required for formula-based design matrices. Install with: pip install patsy"
-        )
-
-    # Use Treatment coding to match R's contr.treatment (reference coding)
-    # This is patsy's default, but we set it explicitly for clarity
-    design_info = patsy.dmatrix(formula, data, return_type="dataframe")
-
-    return np.asarray(design_info, dtype=np.float64)
+    return _formula_design(formula, data).to_numpy(dtype=np.float64)
 
 
 def model_matrix_with_names(
@@ -152,14 +141,7 @@ def model_matrix_with_names(
     --------
     model_matrix : Returns a numpy array (faster, no column names)
     """
-    try:
-        import patsy
-    except ImportError:
-        raise ImportError(
-            "patsy is required for formula-based design matrices. Install with: pip install patsy"
-        )
-
-    return patsy.dmatrix(formula, data, return_type="dataframe")
+    return _formula_design(formula, data)
 
 
 def make_contrasts(

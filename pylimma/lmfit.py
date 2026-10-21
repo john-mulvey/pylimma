@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+import patsy
 from scipy import linalg
 
 from .classes import (
@@ -1054,6 +1055,14 @@ def _numeric_design(design) -> np.ndarray:
     return np.asarray(design, dtype=np.float64)
 
 
+def _formula_design(formula: str, data) -> pd.DataFrame:
+    """Design matrix of a formula string with named columns (R: model.matrix).
+
+    The single place where pylimma builds a design from a formula, with patsy.
+    """
+    return patsy.dmatrix(formula, data, return_type="dataframe")
+
+
 def _parse_design(
     design,
     data: pd.DataFrame | None = None,
@@ -1090,22 +1099,10 @@ def _parse_design(
         return np.ones((n_samples, 1)), None
 
     if isinstance(design, str):
-        # Formula string - use patsy
-        try:
-            import patsy
-        except ImportError:
-            raise ImportError(
-                "patsy is required for formula-based design matrices. "
-                "Install with: pip install patsy"
-            )
         if data is None:
             raise ValueError("data must be provided when design is a formula string")
-        dm = patsy.dmatrix(design, data)
-        try:
-            names = [str(c) for c in dm.design_info.column_names]
-        except AttributeError:
-            names = None
-        return np.asarray(dm), names
+        design_df = _formula_design(design, data)
+        return design_df.to_numpy(dtype=np.float64), [str(c) for c in design_df.columns]
 
     names = _design_names(design)
     arr = np.asarray(design, dtype=np.float64)
