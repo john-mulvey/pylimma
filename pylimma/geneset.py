@@ -1406,9 +1406,16 @@ def camera(
     if weights is None:
         weights = ea.get("weights")
 
-    fixed_cor = inter_gene_cor is not None and not (
-        np.ndim(inter_gene_cor) == 0 and np.isnan(inter_gene_cor)
-    )
+    # R: fixed.cor <- !(is.na(inter.gene.cor) || is.null(inter.gene.cor)),
+    # which stops for anything but a single value
+    if inter_gene_cor is not None:
+        try:
+            inter_gene_cor = float(np.asarray(inter_gene_cor, dtype=np.float64).item())
+        except (TypeError, ValueError):
+            raise ValueError(
+                "inter_gene_cor must be a single number, or None / NaN to estimate it"
+            ) from None
+    fixed_cor = inter_gene_cor is not None and not np.isnan(inter_gene_cor)
 
     if not directional:
         if not use_ranks:
@@ -1522,7 +1529,7 @@ def camera(
         m = np.float64(iset.size)
         m2 = np.float64(G) - m
         if fixed_cor:
-            corr = inter_gene_cor if np.ndim(inter_gene_cor) == 0 else inter_gene_cor[i]
+            corr = inter_gene_cor
             vif = 1 + (m - 1) * corr
         else:
             if m > 1:

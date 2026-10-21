@@ -616,3 +616,15 @@ def test_non_finite_y_raises(fn_name, bad):
     design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
     with pytest.raises(ValueError, match="^All y values must be finite and non-NA$"):
         getattr(pylimma, fn_name)(y, {"a": np.arange(5)}, design)
+
+
+@pytest.mark.parametrize("bad", [[0.1, 0.2], "a"])
+def test_camera_inter_gene_cor_must_be_single_value(bad):
+    """R's camera takes one inter.gene.cor (a vector stops R with "'length =
+    2' in coercion to 'logical(1)'"; camera_pr accepts one per set)."""
+    import pylimma
+
+    y = np.random.default_rng(1).normal(size=(20, 6))
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    with pytest.raises(ValueError, match="inter_gene_cor must be a single number"):
+        pylimma.camera(y, {"a": np.arange(5), "b": np.arange(5, 9)}, design, inter_gene_cor=bad)

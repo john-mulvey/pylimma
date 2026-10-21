@@ -86,6 +86,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `camera(inter_gene_cor=...)` takes a single number (or None / NaN to
+  estimate it), as R; a vector was silently used per set and now raises a
+  `ValueError` (`camera_pr` still accepts one value per set, as R).
 - `camera` and `romer` raise "All y values must be finite and non-NA" for
   missing or infinite values, as R errors; they returned NaN or arbitrary
   p-values.
