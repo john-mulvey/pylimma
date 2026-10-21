@@ -5548,3 +5548,11 @@ stopifnot(identical(squeezeVar(1.5, 5), list(var.post = 1.5, var.prior = 1.5, df
           identical(limma:::fitFDist(1.5, 5), list(scale = 1.5, df2 = 0)),
           all(is.na(unlist(fitFDistRobustly(1.5, 5)))),
           all(is.na(unlist(limma:::fitFDistUnequalDF1(1.5, 5)))))
+
+# =============================================================================
+# F upper tail on the log scale (pf(..., log.p = TRUE)) where it underflows,
+# including large df2
+# =============================================================================
+.eft <- expand.grid(f = c(50, 400, 1000, 1e8), df1 = c(3, 6), df2 = c(50, 1e3, 1e5, 1e6))
+.eft$log_sf <- pf(.eft$f, .eft$df1, .eft$df2, lower.tail = FALSE, log.p = TRUE)
+write.csv(.eft, "R_eft_pf.csv", row.names = FALSE)

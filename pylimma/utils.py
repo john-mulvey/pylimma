@@ -1124,6 +1124,23 @@ def _t_logsf(t: np.ndarray, df: np.ndarray | float) -> np.ndarray:
     return out
 
 
+def _f_logsf(f, df1, df2):
+    """R's ``pf(f, df1, df2, lower.tail = FALSE, log.p = TRUE)``, accurate
+    where the tail underflows: P(F > f) is I_x(df2/2, df1/2) with
+    x = df2 / (df2 + df1 * f). Returns a float for scalar input."""
+    f, df1, df2 = np.broadcast_arrays(*(np.asarray(v, dtype=np.float64) for v in (f, df1, df2)))
+    with np.errstate(divide="ignore"):
+        out = np.array(_scipy_stats.f.logsf(f, df1, df2), dtype=np.float64)
+    far = ~(out > _LOG_TAIL_SCIPY_FLOOR) & (f > 0) & np.isfinite(f) & np.isfinite(df2)
+    if np.any(far):
+        # log(df1 * f / df2), so that x and 1 - x do not overflow
+        log_ratio = np.log(df1[far]) + np.log(f[far]) - np.log(df2[far])
+        out[far] = _log_betainc(
+            df2[far] / 2, df1[far] / 2, -np.logaddexp(0, log_ratio), -np.logaddexp(0, -log_ratio)
+        )
+    return out if out.ndim else float(out)
+
+
 def _inverse_log_tail(log_p, guess, log_tail, upper=True) -> np.ndarray:
     """Quantiles q with ``log_tail(q) == log_p``, R's q*(..., log.p = TRUE).
 

@@ -7302,6 +7302,14 @@ class TestExtremeTTailRParity:
                 _t_isf_log(rows["log_p"].to_numpy(), df), rows["qt"], rtol=1e-6, err_msg=f"df={df}"
             )
 
+    def test_f_log_sf(self):
+        from pylimma.utils import _f_logsf
+
+        r = pd.read_csv(FIXTURES_DIR / "R_eft_pf.csv")
+        np.testing.assert_allclose(
+            _f_logsf(r["f"].to_numpy(), r["df1"].to_numpy(), r["df2"].to_numpy()), r["log_sf"], rtol=1e-6
+        )
+
     def test_tmixture_unequal_df_extreme_t(self):
         from pylimma.ebayes import _tmixture_vector
 

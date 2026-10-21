@@ -34,40 +34,13 @@ from scipy.special import polygamma
 from scipy.stats import f as f_dist
 
 from .lmfit import _qr_r_style
-from .utils import _r_trimmed_mean, loess_fit, logmdigamma, trigamma_inverse
+from .utils import _f_logsf, _r_trimmed_mean, loess_fit, logmdigamma, trigamma_inverse
 
 # Pre-compute 128-point Gauss-Legendre quadrature nodes and weights
 _GAUSS_NODES, _GAUSS_WEIGHTS = np.polynomial.legendre.leggauss(128)
 # Transform from [-1, 1] to [0, 1] for uniform distribution
 _GAUSS_NODES_UNIFORM = (_GAUSS_NODES + 1) / 2
 _GAUSS_WEIGHTS_UNIFORM = _GAUSS_WEIGHTS / 2
-
-
-def _f_logsf(f, df1, df2):
-    """log of the F(df1, df2) upper tail, finite where the tail underflows.
-
-    R's pf(log.p=TRUE) computes the log tail directly; scipy's logsf returns
-    -inf once the tail underflows. There, with x = df2 / (df2 + df1 * f) the
-    tail is I_x(df2/2, df1/2) = x^a (1-x)^b / (a B(a, b)) * 2F1(a+b, 1; a+1; x),
-    whose series converges quickly because x is small.
-    """
-    from scipy.special import betaln
-
-    f, df1, df2 = np.broadcast_arrays(*(np.asarray(v, dtype=np.float64) for v in (f, df1, df2)))
-    out = np.asarray(f_dist.logsf(f, df1, df2), dtype=np.float64).copy()
-    bad = np.isneginf(out) & np.isfinite(f) & np.isfinite(df2)
-    if np.any(bad):
-        a, b = df2[bad] / 2, df1[bad] / 2
-        x = df2[bad] / (df2[bad] + df1[bad] * f[bad])
-        term = np.ones_like(x)
-        total = np.ones_like(x)
-        for k in range(1000):
-            term = term * (a + b + k) / (a + 1 + k) * x
-            total = total + term
-            if np.all(term < 1e-17 * total):
-                break
-        out[bad] = a * np.log(x) + b * np.log1p(-x) - np.log(a) - betaln(a, b) + np.log(total)
-    return out if out.ndim else float(out)
 
 
 def _winsorized_moments(

@@ -104,6 +104,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   limit, as R's `pf` / `qf` with `df2 = Inf`. scipy's F distribution gave
   NaN there, so the scale was wrong (0.470, R 0.545) and `tail_p_value`
   was missing. `squeeze_var(robust=True)` was not affected.
+- The far F tail behind `fit_f_dist_robustly`'s outlier p-values is exact
+  for large `df2`: its series stopped at 1,000 terms, so at `df2 = 1e6`
+  a log tail probability of R's -1185.08 came out as -1185.17.
 
 ### Changed behaviour
 
