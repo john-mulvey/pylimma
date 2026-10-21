@@ -172,6 +172,7 @@ def kegga(
     pathway_names=None,
     universe=None,
     *,
+    restrict_universe=False,
     species=None,
     prior_prob=None,
     covariate=None,
@@ -195,6 +196,10 @@ def kegga(
         Two-column mapping from pathway id (column 0) to human-readable
         description (column 1). If absent, the output's ``pathway``
         column repeats the pathway id verbatim.
+    restrict_universe : bool, default False
+        Drop universe genes that are not in any pathway of
+        ``gene_pathway`` (R: ``restrict.universe``). ``goana`` always
+        does this.
     """
     if _is_dispatch_marraylm(de):
         return _kegga_marraylm(
@@ -202,6 +207,7 @@ def kegga(
             gene_pathway=gene_pathway,
             pathway_names=pathway_names,
             universe=universe,
+            restrict_universe=restrict_universe,
             species=species,
             prior_prob=prior_prob,
             covariate=covariate,
@@ -215,6 +221,7 @@ def kegga(
         gene_pathway=gene_pathway,
         pathway_names=pathway_names,
         universe=universe,
+        restrict_universe=restrict_universe,
         species=species,
         prior_prob=prior_prob,
         covariate=covariate,
@@ -402,6 +409,7 @@ def _kegga_marraylm(
     gene_pathway,
     pathway_names,
     universe,
+    restrict_universe,
     species,
     prior_prob,
     covariate,
@@ -441,6 +449,7 @@ def _kegga_marraylm(
         gene_pathway=gene_pathway,
         pathway_names=pathway_names,
         universe=fit_universe,
+        restrict_universe=restrict_universe,
         species=species,
         prior_prob=prior_prob,
         covariate=covariate,
@@ -537,16 +546,14 @@ def _normalise_universe(universe, prior_prob, covariate, annotated_genes, restri
             raise ValueError("universe and covariate must have same length")
 
     # NA filtering
-    isna = np.array([u in ("", "nan", "NA", "None") for u in universe]) | (universe == "")
-    # numpy strings compare equal to "nan" already; explicit check above is
-    # for object-dtype inputs.
+    isna = np.isin(universe, ["", "nan", "NA", "None"])
     if covariate is not None:
         isna |= np.isnan(covariate)
     if prior_prob is not None:
         isna |= np.isnan(prior_prob)
-    if isna.all():
-        raise ValueError("Gene IDs are all NA")
     if isna.any():
+        if isna.all():
+            raise ValueError("Gene IDs are all NA")
         keep = ~isna
         universe = universe[keep]
         if covariate is not None:
@@ -735,7 +742,7 @@ def _goana_default(de, *, gene_pathway, universe, species, prior_prob, covariate
 
 
 def _kegga_default(
-    de, *, gene_pathway, pathway_names, universe, species, prior_prob, covariate, plot, trend
+    de, *, gene_pathway, pathway_names, universe, restrict_universe, species, prior_prob, covariate, plot, trend
 ):
     """Port of kegga.default (kegga.R:88-280)."""
     if not isinstance(trend, bool) or trend:
@@ -770,8 +777,10 @@ def _kegga_default(
             warnings.warn("Ignoring covariate and null.prob because universe not set")
             prior_prob = None
             covariate = None
+    elif len(universe) == 0:
+        raise ValueError("No genes in universe")
     universe, prior_prob, _covariate = _normalise_universe(
-        universe, prior_prob, covariate, gp["gene_id"], restrict=False
+        universe, prior_prob, covariate, gp["gene_id"], restrict=restrict_universe
     )
     NGenes = universe.size
     if NGenes < 1:

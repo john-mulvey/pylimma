@@ -210,6 +210,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
   DataFrame `de` (its column labels were read as gene IDs) and for a
   `None` set (tested as the gene "None"). A dict view of IDs is one set
   (it was read as a single ID).
+- `kegga` gains `restrict_universe` (R: `restrict.universe`), on both the
+  gene-list and the fit path; it was silently ignored, or raised a
+  `TypeError` on a fit. An empty `universe` raises R's "No genes in
+  universe" (`kegga`) or "No annotated genes found in universe" (`goana`)
+  instead of a `TypeError`.
 
 ## [0.2.0] - 2026-09-30
 

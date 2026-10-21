@@ -1,0 +1,9 @@
+"","Pathway","N","Up","Down","P.Up","P.Down"
+"path:hsa00010","Glycolysis",7,2,2,0.415860375038809,0.415860375038809
+"path:hsa00020","Citrate cycle",6,3,0,0.0765885862163141,1
+"path:hsa00030","Pentose phosphate",4,0,2,1,0.164925446825318
+"path:hsa00040","Fructose",6,0,0,1,1
+"path:hsa00050","Galactose",7,3,4,0.120271649154833,0.0183445022982892
+"path:hsa00060","Starch",7,0,3,1,0.120271649154833
+"path:hsa00070","TCA",5,0,0,1,1
+"path:hsa00080","Oxidative phosphorylation",5,3,0,0.0426128705974662,1

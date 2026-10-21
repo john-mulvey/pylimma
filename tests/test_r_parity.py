@@ -4787,6 +4787,18 @@ class TestKeggaRParity:
                 f"kegga {py_col} differs: max_log10_diff={res['max_log10_diff']:.3e}"
             )
 
+    def test_kegga_restrict_universe(self):
+        """restrict_universe=True drops universe genes absent from
+        gene_pathway before counting, as R's restrict.universe."""
+        from pylimma import kegga
+
+        gp, pn, de_list, universe = _load_kegga_inputs()
+        py = kegga(de=de_list, gene_pathway=gp, pathway_names=pn, universe=universe, restrict_universe=True)
+        r = load_r_csv("kegga_restrict").loc[py.index]
+        assert list(py["n"]) == list(r["N"])
+        for r_col, py_col in (("P.Up", "p_up"), ("P.Down", "p_down")):
+            assert compare_pvalues(r[r_col].values, py[py_col].values, max_log10_diff=1e-6)["match"]
+
     def test_top_kegg_ordering_and_truncation(self):
         from pylimma import kegga, top_kegg
 

@@ -5341,3 +5341,17 @@ stopifnot(identical(.ed_null, "components of de should be vectors"))
 stopifnot(identical(colnames(.ed_list), c("Pathway", "N", "DE1", "DE2", "P.DE1", "P.DE2")))
 
 cat("  enrichment de-input checks complete.\n")
+
+# =============================================================================
+# kegga(restrict.universe = TRUE) drops universe genes absent from
+# gene.pathway; an empty explicit universe stops
+# =============================================================================
+cat("\nGenerating kegga restrict.universe fixtures...\n")
+
+write.csv(kegga(goana_de_list, universe = goana_universe, restrict.universe = TRUE,
+                gene.pathway = kegga_gp, pathway.names = kegga_pn), "R_kegga_restrict.csv")
+.kr_empty <- tryCatch(kegga(de_up, universe = character(0), gene.pathway = kegga_gp, pathway.names = kegga_pn),
+                      error = conditionMessage)
+stopifnot(identical(.kr_empty, "No genes in universe"))
+
+cat("  kegga restrict.universe fixtures complete.\n")

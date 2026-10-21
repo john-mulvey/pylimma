@@ -62,3 +62,33 @@ def test_list_of_sets_and_dict_views(fn_name):
     pd.testing.assert_frame_equal(
         fn({"DE1": up.keys(), "DE2": {"gene003"}}, gp, universe=universe), expected
     )
+
+
+@pytest.mark.parametrize(
+    "fn_name, message", [("kegga", "^No genes in universe$"), ("goana", "^No annotated genes found in universe$")]
+)
+def test_empty_universe_raises(fn_name, message):
+    """R: kegga stops "No genes in universe"; goana's universe is then
+    empty after keeping annotated genes."""
+    gp, _, _ = _kegga_inputs()
+    with pytest.raises(ValueError, match=message):
+        getattr(pylimma, fn_name)(["gene001"], gp, universe=[])
+
+
+def test_kegga_fit_passes_restrict_universe():
+    """kegga.MArrayLM passes restrict.universe on to kegga.default."""
+    import numpy as np
+
+    gp, pn, _ = _kegga_inputs()
+    genes = [f"gene{i:03d}" for i in range(1, 121)]
+    rng = np.random.default_rng(1)
+    y = rng.normal(size=(120, 6))
+    y[:15, 3:] += 3
+    fit = pylimma.e_bayes(pylimma.lm_fit(pd.DataFrame(y, index=genes), np.column_stack([np.ones(6), np.repeat([0, 1], 3)])))
+    tab = pylimma.top_table(fit, coef=1, number=np.inf, sort_by="none")
+    up = [g for g, q, lfc in zip(genes, tab["adj_p_value"], tab["log_fc"]) if q < 0.05 and lfc > 0]
+    down = [g for g, q, lfc in zip(genes, tab["adj_p_value"], tab["log_fc"]) if q < 0.05 and lfc < 0]
+    pd.testing.assert_frame_equal(
+        pylimma.kegga(fit, gp, pathway_names=pn, restrict_universe=True),
+        pylimma.kegga({"Up": up, "Down": down}, gp, pathway_names=pn, universe=genes, restrict_universe=True),
+    )
