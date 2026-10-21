@@ -253,6 +253,13 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign
     function call".
 
+``nrot`` / ``nsim`` in ``roast``, ``mroast``, ``romer`` and ``gene_set_test``
+    Must be whole numbers of at least 1 (whole-number floats such as
+    ``1e4`` are accepted). Below 1, R fails with "invalid 'nrow' value" or,
+    for ``geneSetTest``'s ``nsim``, returns ``Inf``; for a fraction such as
+    10.5, R recycles random numbers into a 10-row rotation matrix and uses
+    10.5 in the p-value denominators, which is not meaningful.
+
 ``top_table`` / ``top_table_f`` with ``number=NaN``
     Raises "number must not be NaN" (R: "missing value where TRUE/FALSE
     needed"). Other values of ``number`` follow R: capped at the number of

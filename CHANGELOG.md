@@ -86,6 +86,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `nrot` / `nsim` in `roast`, `mroast`, `romer` and `gene_set_test` must be
+  whole numbers of at least 1 (clear `ValueError`; was `ZeroDivisionError`,
+  `TypeError`, or a silent p = 1 in `romer`). Whole-number floats such as
+  `1e4` work.
 - `camera(inter_gene_cor=...)` takes a single number (or None / NaN to
   estimate it), as R; a vector was silently used per set and now raises a
   `ValueError` (`camera_pr` still accepts one value per set, as R).

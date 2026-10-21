@@ -628,3 +628,60 @@ def test_camera_inter_gene_cor_must_be_single_value(bad):
     design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
     with pytest.raises(ValueError, match="inter_gene_cor must be a single number"):
         pylimma.camera(y, {"a": np.arange(5), "b": np.arange(5, 9)}, design, inter_gene_cor=bad)
+
+
+def _x204_data():
+    y = np.random.default_rng(2).normal(size=(20, 6))
+    return y, np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+
+
+@pytest.mark.parametrize("fn_name", ["roast", "mroast", "romer"])
+@pytest.mark.parametrize("nrot", [0, -1])
+def test_nrot_below_one_raises(fn_name, nrot):
+    import pylimma
+
+    y, design = _x204_data()
+    index = np.arange(5) if fn_name == "roast" else {"a": np.arange(5)}
+    with pytest.raises(ValueError, match="^nrot must be at least 1$"):
+        getattr(pylimma, fn_name)(y, index, design, nrot=nrot)
+
+
+@pytest.mark.parametrize("fn_name", ["roast", "mroast", "romer"])
+def test_nrot_whole_numbers(fn_name):
+    """A fractional nrot raises (R recycles random numbers into a smaller
+    rotation matrix and divides by the fraction: not meaningful); a
+    whole-number float such as 10.0 is accepted."""
+    import pylimma
+
+    y, design = _x204_data()
+    index = np.arange(5) if fn_name == "roast" else {"a": np.arange(5)}
+    fn = getattr(pylimma, fn_name)
+    with pytest.raises(ValueError, match="^nrot must be a whole number$"):
+        fn(y, index, design, nrot=10.5)
+    a = fn(y, index, design, nrot=10.0, rng=1)
+    b = fn(y, index, design, nrot=10, rng=1)
+    if fn_name == "roast":
+        a, b = a["p_value"], b["p_value"]
+    pd.testing.assert_frame_equal(a, b)
+
+
+def test_gene_set_test_nsim():
+    """nsim below 1 or fractional raises (R returns Inf for nsim = -1)."""
+    import pylimma
+
+    stat = np.random.default_rng(3).normal(size=20)
+    for nsim, message in ((-1, "^nsim must be at least 1$"), (10.5, "^nsim must be a whole number$")):
+        with pytest.raises(ValueError, match=message):
+            pylimma.gene_set_test(np.arange(5), stat, type="t", ranks_only=False, nsim=nsim)
+    assert pylimma.gene_set_test(np.arange(5), stat, type="t", ranks_only=False, nsim=10.0, rng=1) == (
+        pylimma.gene_set_test(np.arange(5), stat, type="t", ranks_only=False, nsim=10, rng=1)
+    )
+
+
+@pytest.mark.parametrize("bad", [np.inf, np.nan])
+def test_non_finite_nrot_raises(bad):
+    import pylimma
+
+    y, design = _x204_data()
+    with pytest.raises(ValueError, match="^nrot must be a whole number$"):
+        pylimma.roast(y, np.arange(5), design, nrot=bad)

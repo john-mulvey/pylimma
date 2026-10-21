@@ -343,6 +343,20 @@ def _lm_effects(
 _SQRT2 = np.sqrt(2.0)
 
 
+def _rotation_count(value, name: str) -> int:
+    """nrot / nsim as a whole number of at least 1. R fails obscurely below 1
+    ("invalid 'nrow' value"; geneSetTest's nsim returns Inf) and gives
+    meaningless p-values for a fraction (random numbers recycled into a
+    smaller rotation matrix, the fraction in the denominators); clear errors
+    instead. Whole-number floats such as 1e4 are accepted."""
+    if not math.isfinite(float(value)) or float(value) != int(value):
+        raise ValueError(f"{name} must be a whole number")
+    count = int(value)
+    if count < 1:
+        raise ValueError(f"{name} must be at least 1")
+    return count
+
+
 def _r_sum_greater(values, threshold) -> float:
     """R's sum(values > threshold): NaN when any value or the threshold is
     NaN (R's NA comparison), otherwise the count."""
@@ -817,6 +831,7 @@ def roast(
         ``{"p_value": DataFrame(Active.Prop, P.Value), "ngenes_in_set": int}``.
     """
     y = _elist_from_layer(y, layer, weights_layer)
+    nrot = _rotation_count(nrot, "nrot")
     # If index is a list of sets, dispatch to mroast
     # R: if(is.list(index)) return(mroast(...)), a data.frame included
     if isinstance(index, (dict, pd.DataFrame)) or _is_list_of_sets(index):
@@ -926,6 +941,7 @@ def mroast(
         observation weights, overriding the ``"_E"`` companion convention.
     """
     y = _elist_from_layer(y, layer, weights_layer)
+    nrot = _rotation_count(nrot, "nrot")
     rng_state = _resolve_rng(rng)
 
     covariate = None
@@ -1807,6 +1823,7 @@ def romer(
         ``adata.X`` (e.g. ``"voom_E"``).
     """
     y = _elist_from_layer(y, layer)
+    nrot = _rotation_count(nrot, "nrot")
     if kwargs:
         warnings.warn(f"Extra arguments disregarded: {list(kwargs.keys())}")
 
@@ -2235,6 +2252,7 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
         # "mixed"
         return float(pvals["greater"])
     else:
+        nsim = _rotation_count(nsim, "nsim")
         rng_state = _resolve_rng(rng)
         ssel = stats_arr[idx]
         ssel = ssel[~np.isnan(ssel)]
