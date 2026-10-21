@@ -5454,3 +5454,13 @@ cat("  topGO argument checks complete.\n")
 .kcase <- kegga(list(A = de_up, a = de_up[1:2]), universe = goana_universe, gene.pathway = kegga_gp,
                 pathway.names = kegga_pn)
 stopifnot(identical(colnames(.kcase), c("Pathway", "N", "A", "a", "P.A", "P.a")))
+
+# =============================================================================
+# goanaTrend index.de: literal R behaviour for positions pylimma rejects
+# (a negative position excludes, a fraction is truncated, a position past
+# the end extends isDE; pylimma raises for all three)
+# =============================================================================
+.gti_cov <- (1:10) / 10
+stopifnot(identical(goanaTrend(-1, .gti_cov), goanaTrend(2:10, .gti_cov)),
+          identical(goanaTrend(2.7, .gti_cov), goanaTrend(2, .gti_cov)),
+          length(goanaTrend(11, .gti_cov)) == 10)

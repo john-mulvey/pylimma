@@ -236,3 +236,26 @@ def test_set_names_that_clash_in_lower_case_raise(fn_name, names):
     de = {names[0]: universe[:10], names[1]: universe[:2]}
     with pytest.raises(ValueError, match="same output column"):
         getattr(pylimma, fn_name)(de, gp, universe=universe)
+
+
+@pytest.mark.parametrize(
+    "index_de, message",
+    [([-1], "between 0 and 9"), ([10], "between 0 and 9"), ([1.5], "whole numbers"), (["a"], "whole numbers")],
+)
+def test_goana_trend_invalid_positions_raise(index_de, message):
+    """R excludes a negative position, truncates a fraction and extends
+    isDE past the end (generate_all_fixtures.R); pylimma raises
+    (known_differences.rst). It wrapped negatives and raised IndexError."""
+    import numpy as np
+
+    with pytest.raises(ValueError, match=message):
+        pylimma.goana_trend(index_de, np.arange(1, 11) / 10)
+
+
+def test_goana_trend_whole_number_floats_are_positions():
+    import numpy as np
+
+    covariate = np.arange(1, 11) / 10
+    np.testing.assert_array_equal(
+        pylimma.goana_trend([1.0, 4.0], covariate), pylimma.goana_trend([1, 4], covariate)
+    )

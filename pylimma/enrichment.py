@@ -1015,6 +1015,18 @@ def goana_trend(index_de, covariate, n_prior=10, plot=False) -> np.ndarray:
     Port of R limma's ``goanaTrend`` (``goanaTrend.R``). Used internally
     by :func:`goana` and :func:`kegga` for length / abundance bias
     correction. Stand-alone use is supported and validated against R.
+
+    Parameters
+    ----------
+    index_de : array_like
+        The DE genes: a boolean mask the length of ``covariate``, or
+        0-based positions (whole numbers between 0 and ``len(covariate) -
+        1``). Unlike R, negative, fractional or out-of-range positions
+        raise an error.
+    covariate : array_like
+        Genewise covariate, such as gene length or average log-expression.
+    n_prior : float, default 10
+        Prior number of genes moderating the trend towards a constant.
     """
     index_de = np.asarray(index_de)
     if index_de.dtype != bool and np.any(pd.isna(index_de)):
@@ -1032,9 +1044,17 @@ def goana_trend(index_de, covariate, n_prior=10, plot=False) -> np.ndarray:
             raise ValueError("index.de length must match covariate length")
         isDE[index_de] = 1.0
     else:
-        # 0-based integer indices.
-        idx_int = np.asarray(index_de, dtype=np.int64).ravel()
-        isDE[idx_int] = 1.0
+        # 0-based positions. R excludes a negative position, truncates a
+        # fraction and extends isDE past the end; pylimma raises instead.
+        positions = index_de.ravel()
+        if positions.size and (
+            not np.issubdtype(positions.dtype, np.number)
+            or np.any(positions != np.round(positions))
+        ):
+            raise ValueError("index_de positions must be whole numbers (or a boolean mask)")
+        if np.any((positions < 0) | (positions >= ngenes)):
+            raise ValueError(f"index_de positions must be between 0 and {ngenes - 1}")
+        isDE[positions.astype(np.int64)] = 1.0
 
     nDE = isDE.sum()
     p_mean = max(nDE / ngenes, 1e-5)

@@ -307,6 +307,13 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     given (``A``, ``a``, ``P.A``, ``P.a``). Previously pylimma silently kept
     only one of the sets.
 
+``goana_trend`` with invalid ``index_de`` positions
+    Positions must be whole numbers between 0 and ``len(covariate) - 1``
+    (or ``index_de`` a boolean mask). R's ``isDE[index.de] <- 1`` treats a
+    negative position as "all except", truncates a fraction and silently
+    extends ``isDE`` for a position past the end. ``generate_all_fixtures.R``
+    records the R behaviour.
+
 ``top_go`` / ``top_kegg`` with ``number=NaN``
     Raises "number must not be NaN", as ``top_table`` does (R: "missing
     value where TRUE/FALSE needed"). Other values of ``number`` follow R.

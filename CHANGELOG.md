@@ -143,6 +143,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   pylimma silently ignored `prior_prob`. As in R, `covariate` and
   `prior_prob` are ignored with a warning when `universe` is not given
   (`covariate` raised), and `covariate` is ignored when no gene is DE.
+- `goana_trend` raises a clear error for negative, fractional or
+  out-of-range `index_de` positions (a negative position counted from the
+  end, a fraction was truncated and an out-of-range one raised
+  `IndexError`).
 
 ### Fixed
 
