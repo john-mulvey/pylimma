@@ -266,6 +266,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   full QR built a genes x genes matrix: 8,000 genes needed 1.2 GB and
   22,000 genes over 10 GB; 30,000 genes now take 0.02 s and 170 MB.
   Results are unchanged.
+- `zscore_t` (default quantile method) returns R's z-scores for very large
+  |t|: it returned Inf once the t tail probability underflowed (for
+  example |t| = 100 at 988 df, where R gives 48.77).
 
 ## [0.2.0] - 2026-09-30
 

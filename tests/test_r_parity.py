@@ -7313,3 +7313,12 @@ class TestExtremeTTailRParity:
         big_t = np.tile([38.0, 3, 2, 1, 0.5], 20)
         big_df = np.r_[np.full(99, 1e6), 2e6]
         np.testing.assert_allclose(_tmixture_vector(big_t, np.ones(100), big_df, 0.1), expected.iloc[1], rtol=1e-6)
+
+
+def test_zscore_t_quantile_far_tail_matches_r():
+    """zscoreT's quantile method (the default) on the log scale: pylimma gave
+    Inf once pt(|t|, df, log.p = TRUE) underflowed (|t| = 100 at df 988)."""
+    from pylimma import zscore_t
+
+    r = pd.read_csv(FIXTURES_DIR / "R_zte_zscoret.csv")
+    np.testing.assert_allclose(zscore_t(r["x"].to_numpy(), r["df"].to_numpy()), r["z"], rtol=1e-6, atol=1e-12)

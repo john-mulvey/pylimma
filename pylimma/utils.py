@@ -48,7 +48,7 @@ import pandas as pd
 from scipy import optimize as _scipy_optimize
 from scipy import sparse as _scipy_sparse
 from scipy import stats as _scipy_stats
-from scipy.special import betaln, digamma, polygamma
+from scipy.special import betaln, digamma, ndtri_exp, polygamma
 from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 
@@ -1189,8 +1189,8 @@ def _t_isf_log(log_p: np.ndarray, df: float) -> np.ndarray:
 def _zscore_t_quantile(x: np.ndarray, df: np.ndarray) -> np.ndarray:
     # qnorm(pt(abs(x), df, lower.tail=FALSE, log.p=TRUE),
     #       lower.tail=FALSE, log.p=TRUE) * sign(x)
-    logp = _scipy_stats.t.logsf(np.abs(x), df)
-    return _scipy_stats.norm.isf(np.exp(logp)) * np.sign(x)
+    # qnorm(log_p, lower.tail=FALSE, log.p=TRUE) is -ndtri_exp(log_p)
+    return -ndtri_exp(_t_logsf(np.abs(x), df)) * np.sign(x)
 
 
 def _zscore_t_wallace(x: np.ndarray, df: np.ndarray) -> np.ndarray:

@@ -5519,3 +5519,11 @@ write.csv(data.frame(v0 = c(limma:::tmixture.vector(.etm_t, .etm_su, .etm_df, pr
           "R_etm_v0.csv", row.names = FALSE)
 
 cat("  extreme t-tail fixtures complete.\n")
+
+# =============================================================================
+# zscoreT (default quantile method) for t-statistics whose tail probability
+# underflows double precision
+# =============================================================================
+.zte <- expand.grid(x = c(-500, -100, -50, -5, 0, 2, 50, 100, 500, 1e4), df = c(3, 10, 98, 988, 1e6, Inf))
+.zte$z <- zscoreT(.zte$x, df = .zte$df)
+write.csv(.zte, "R_zte_zscoret.csv", row.names = FALSE)
