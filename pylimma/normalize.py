@@ -1228,11 +1228,9 @@ def _aver_arrays_anndata(adata, id=None, weights=None):
 # are jointly normal with row-mean mu_i and a single column-shared
 # variance sigsq.
 #
-# Optimiser. R/vsn calls L-BFGS-B via the LINPACK-era lbfgsb wrapper. We
-# call scipy.optimize.minimize(method="L-BFGS-B"). Same algorithm,
-# different implementation; converged parameters typically agree to
-# rtol ~ 1e-4. The resulting transformation matches R to a tighter
-# tolerance because small parameter wiggles compress through the asinh.
+# Optimiser. R/vsn calls R's lbfgsb from C (vsn2.c); we call
+# scipy.optimize.minimize(method="L-BFGS-B") with vsn's start (b = 1) and
+# memory (lmm = 5), which follows R's path to the same optimum.
 #
 # LTS robustification. After each ML fit, residuals are computed for ALL
 # rows; rows are split into 5 hmean-rank quintiles and within each (slice,
@@ -1300,10 +1298,13 @@ def _vsn_neg_loglik_and_grad(par, y_full, valid_full):
 
 
 def _vsn_ml_fit(y, pstart, factr=5e7, pgtol=2e-4, maxit=60000):
-    """Profile-likelihood ML fit via L-BFGS-B (single stratum, affine)."""
-    from scipy.optimize import minimize
+    """Profile-likelihood ML fit via L-BFGS-B (single stratum, affine).
 
-    n_rows, n_cols = y.shape
+    Set up as vsn2.c's vsn2_optim: lmm = 5 correction pairs (scipy's
+    maxcor; its default of 10 takes another path through the nearly flat
+    likelihood) and no limit on the number of evaluations beyond maxit.
+    """
+    n_cols = y.shape[1]
     valid = ~np.isnan(y)
     y_filled = np.where(valid, y, 0.0)
 
@@ -1316,7 +1317,13 @@ def _vsn_ml_fit(y, pstart, factr=5e7, pgtol=2e-4, maxit=60000):
         jac=True,
         method="L-BFGS-B",
         bounds=bounds,
-        options={"ftol": factr * eps, "gtol": pgtol, "maxiter": maxit},
+        options={
+            "ftol": factr * eps,
+            "gtol": pgtol,
+            "maxiter": maxit,
+            "maxcor": 5,
+            "maxfun": np.iinfo(np.int32).max,
+        },
     )
     return result.x, int(not result.success)
 
@@ -1429,39 +1436,11 @@ def normalize_vsn(
 
     Notes
     -----
-    **Loglik is flat in a uniform-shift-in-b direction.** For typical
-    microarray-style intensities ``exp(b_j) * y_ij`` dominates ``a_j``
-    and ``arsinh(z) ~ log(2 z) = log(2) + b_j + log(y_ij)``, so a
-    uniform shift ``b -> b + delta`` adds the same constant to every
-    transformed cell. The profile-likelihood row-mean centring and
-    the per-stratum ``hoffset`` rescaling both absorb this shift, so
-    the log-likelihood is asymptotically flat under it. Different
-    L-BFGS-B implementations land at different points along this
-    flat valley despite reporting near-identical nll.
-
-    **End-to-end parity is rtol ~ 2e-4 against R/vsn 3.66.0**, not the
-    rtol ~ 1e-6 typical of pylimma's other ports, for that reason.
-    The output IS still invariant under the b shift in the asymptotic
-    limit; the residual disagreement comes from the finite-``y``
-    correction. The transform itself (``_vsn_trsf`` plus the
-    ``hoffset`` formula) is bit-faithful to ``vsn::vsn2trsf`` and is
-    verified in
-    ``TestNormalizeVSNRParity::test_transform_at_r_params_matches_r_to_machine_precision``
-    (rtol=1e-6).
-
-    **Deliberate divergence from R's pstart heuristic.** R/vsn's
-    ``pstartHeuristic`` initialises ``b = 1``; with R's LINPACK
-    ``lbfgsb`` that walks down to ``b ~ 0``. With scipy's L-BFGS-B
-    starting from ``b = 1`` walks up to ``b ~ 1.1``, landing in a
-    different region of the flat valley and giving rtol ~ 4e-3.
-    pylimma starts from ``b = 0`` (unit scale factor, the natural
-    "no scaling" initial guess) which keeps scipy's converged point
-    in the same valley region as R's, reducing end-to-end rel-diff
-    to rtol ~ 2e-4. ``pstart`` is documented as a heuristic in
-    ``R/vsn2.R`` and is not surfaced through limma's
-    ``normalizeVSN.default`` interface, so this change is invisible
-    to users translating limma scripts. See ``docs/validation/known_differences.rst`` for the full
-    discussion.
+    The optimiser is set up as in vsn: L-BFGS-B from vsn's
+    ``pstartHeuristic`` (``a = 0``, ``b = 1``) with 5 correction pairs, so
+    the result matches R's ``normalizeVSN`` to rounding error. The
+    transform (``_vsn_trsf`` plus the ``hoffset`` formula) is a direct
+    port of ``vsn::vsn2trsf``.
     """
     x = _as_dense_array(x, np.float64)
     if x.ndim != 2:
@@ -1470,16 +1449,8 @@ def normalize_vsn(
     if n_cols < 2:
         raise ValueError("x must have 2 or more columns when no reference is supplied")
 
-    # Initial parameters: a=0, b=0 per column (unit scale factor, the
-    # natural "no scaling" starting point). R/vsn's pstartHeuristic
-    # uses b=1; with R's LINPACK lbfgsb that walks DOWN toward b=0,
-    # whereas scipy's L-BFGS-B with the same loose tolerances walks
-    # UP and lands in a different region of the loglik's flat valley
-    # (the loglik is asymptotically flat under a uniform shift in b
-    # for large y, so multiple optima exist). Starting at b=0 keeps
-    # scipy's converged params close to R's; output rel-diff drops
-    # from ~4e-3 (b=1 start) to ~2e-4 (b=0 start).
-    pstart = np.zeros(2 * n_cols)
+    # R: pstartHeuristic, a = 0 and b = 1 for every column
+    pstart = np.concatenate([np.zeros(n_cols), np.ones(n_cols)])
 
     # vsnLTS loop: ML on the active rows, then trim to the best 90% by
     # squared row residual within hmean-rank quintile.

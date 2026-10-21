@@ -40,15 +40,15 @@ Tolerances
 
 Tolerances are tabulated in :doc:`fixtures`. Summary: deterministic
 statistics match R at ``rtol=1e-6`` or tighter, and p-values are
-compared on the log10 scale. Three known-divergence families
-(``normexp_fit(method="saddle")``, ``normalize_vsn`` and the
-rotation-based Monte-Carlo gene-set tests) use looser tolerances
-documented in :doc:`known_differences`.
+compared on the log10 scale. Two known-divergence families
+(``normexp_fit(method="saddle")`` and the rotation-based Monte-Carlo
+gene-set tests) use looser tolerances documented in
+:doc:`known_differences`.
 
 Known differences from R limma
 ------------------------------
 
-Four families of small, non-bug-for-bug numerical divergences are
+Three families of small, non-bug-for-bug numerical divergences are
 documented in :doc:`known_differences`:
 
 - ``normexp_fit(method="saddle")`` drifts up to ~2e-4 from R because
@@ -56,11 +56,6 @@ documented in :doc:`known_differences`:
   different termination rules on the flat saddle-likelihood plateau.
   ``method="mle"`` remains bit-exact; the ``rma`` / ``rma75`` /
   closed-form variants match at floating-point precision.
-- ``normalize_vsn`` drifts up to ~2.4e-4 from R/vsn 3.66.0 because
-  the vsn profile log-likelihood is asymptotically flat in the
-  per-column scale parameter. The transform formula is bit-faithful
-  at R's converged parameters; the residual disagreement is the
-  L-BFGS-B path divergence within that flat valley.
 - Rotation-based gene-set tests (``roast``, ``mroast``, ``romer``,
   ``gene_set_test``) differ by the Monte-Carlo sampling error of
   independently-seeded RNG streams (NumPy PCG64 vs R's Mersenne

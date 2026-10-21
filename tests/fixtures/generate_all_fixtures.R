@@ -5628,3 +5628,15 @@ write.csv(model.matrix(~ (g + h)^2, .mmp), "R_mmp_crossing.csv", row.names = FAL
                    g = rep(c("x", "y"), each = 4))
 write.csv(model.matrix(~ g + o, .mmo), "R_mmo_poly.csv", row.names = FALSE)
 write.csv(model.matrix(~ 0 + o, .mmo), "R_mmo_cellmeans.csv", row.names = FALSE)
+
+# =============================================================================
+# normalizeVSN (vsn::vsnMatrix): optimiser starting at pstartHeuristic's b = 1
+# with lmm = 5; data with many missing values in one array, which runs away to
+# a worse optimum from b = 0
+# =============================================================================
+set.seed(55)
+.vso_x <- exp(runif(150, 3, 10) + matrix(rnorm(450, 0, 0.2), 150)) %*% diag(exp(rnorm(3, 0, 0.2))) +
+  matrix(rnorm(450, 0, 20), 150)
+.vso_x[1:100, 2] <- NA
+write.csv(.vso_x, "R_vso_input.csv", row.names = FALSE)
+write.csv(normalizeVSN(.vso_x, lts.quantile = 1), "R_vso_ml.csv", row.names = FALSE)

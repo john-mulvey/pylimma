@@ -110,6 +110,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `make_contrasts` with a categorical (`pd.Categorical` or a categorical
   Series) as `levels` used its values, giving repeated rows; as R's
   `levels(factor)`, it uses the categories in category order.
+- `normalize_vsn` sets up L-BFGS-B as vsn does: from vsn's
+  `pstartHeuristic` (b = 1) with 5 correction pairs (scipy's default is
+  10) and no cap on function evaluations. Output now matches R's
+  `normalizeVSN` to rounding error (it differed by up to 2.4e-4, which was
+  documented as an accepted difference), and data with many missing
+  values no longer runs away to a worse optimum (up to 1.8 log2 units off
+  R).
 
 ### Changed behaviour
 

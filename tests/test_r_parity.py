@@ -5095,17 +5095,9 @@ class TestContrastAsCoefRParity:
 
 
 class TestNormalizeVSNRParity:
-    """vsn parity. The vsn loglik is asymptotically flat under a uniform
-    shift in the per-column scale parameter b (in the large-y limit
-    h(y) = arsinh(exp(b)*y + a) becomes log(2*exp(b)*y) up to higher
-    orders, and the per-array hoffset absorbs uniform shifts in b
-    exactly). Different L-BFGS-B implementations land at different
-    points along this flat valley. The transform OUTPUT after applying
-    h(y) and subtracting hoffset is invariant under the shift only in
-    that asymptotic limit; for finite y the residual is what we
-    measure here. With pylimma's b=0 starting point (vs R/vsn's b=1)
-    scipy and R land close enough that the output agrees to rtol~2e-4.
-    """
+    """vsn parity. The optimiser starts where vsn's pstartHeuristic does
+    (b = 1) and keeps vsn2.c's lmm = 5 correction pairs, so scipy's
+    L-BFGS-B follows R's path to the same optimum."""
 
     def test_matrix_path_against_r(self):
         from pylimma import normalize_vsn
@@ -5114,18 +5106,29 @@ class TestNormalizeVSNRParity:
         ref = pd.read_csv(FIXTURES_DIR / "R_normalize_vsn_output.csv").values
         py = normalize_vsn(x)
         assert py.shape == ref.shape
-        cmp = compare_arrays(ref, py, rtol=5e-4, atol=2e-3)
+        cmp = compare_arrays(ref, py, rtol=1e-6, atol=1e-12)
         assert cmp["match"], (
             f"normalize_vsn differs from R (vsn 3.66.0): "
             f"max_rel={cmp['max_rel_diff']:.3e} max_abs={cmp['max_abs_diff']:.3e}"
         )
 
+    def test_missing_values_ml_fit_against_r(self):
+        """Many missing values in one array: from b = 0 the fit ran away to a
+        worse optimum (output 1.8 log2 units off R on similar data)."""
+        from pylimma import normalize_vsn
+
+        x = pd.read_csv(FIXTURES_DIR / "R_vso_input.csv").values.astype(float)
+        ref = pd.read_csv(FIXTURES_DIR / "R_vso_ml.csv").values.astype(float)
+        py = normalize_vsn(x, lts_quantile=1.0)
+        np.testing.assert_array_equal(np.isnan(py), np.isnan(ref))
+        cmp = compare_arrays(ref[~np.isnan(ref)], py[~np.isnan(py)], rtol=1e-6, atol=1e-12)
+        assert cmp["match"], f"max_rel={cmp['max_rel_diff']:.3e}"
+
     def test_transform_at_r_params_matches_r_to_machine_precision(self):
         """Validate the transform / hoffset / log2-rescale code path is
         a bit-faithful port of vsn::vsn2trsf + vsnMatrix's hoffset
         formula: at R's converged parameters, our transform must match
-        R's output exactly. Any disagreement here would be a real bug
-        independent of the L-BFGS-B path divergence.
+        R's output exactly, independently of the optimiser.
         """
         from pylimma.normalize import _scaling_factor_transform, _vsn_trsf
 
