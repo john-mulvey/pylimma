@@ -5177,3 +5177,26 @@ write.csv(data.frame(
 ), "R_gst_index.csv", row.names = FALSE)
 
 cat("  geneSetTest index fixtures complete.\n")
+
+# =============================================================================
+# ids2indices: which(identifiers %in% as.character(x)) per set, so duplicated
+# identifiers all count and repeated members do not; a non-list is Set1
+# =============================================================================
+cat("\nGenerating ids2indices fixtures...\n")
+
+.i2i_ids <- c("a", "b", "a", "c", "10", "d")
+.i2i <- list(
+  dup = ids2indices(list(s = c("a", "a", "b")), .i2i_ids),
+  unnamed = ids2indices(list(c("b", "c"), "d", "zz"), .i2i_ids),
+  single = ids2indices("a", .i2i_ids),
+  numeric = ids2indices(list(n = 10), .i2i_ids),
+  keep_empty = ids2indices(list(e = "zz", s = "c"), .i2i_ids, remove.empty = FALSE)
+)
+write.csv(do.call(rbind, lapply(names(.i2i), function(case) {
+  x <- .i2i[[case]]
+  nms <- if (is.null(names(x))) rep("", length(x)) else names(x)
+  data.frame(case = case, set = seq_along(x), name = nms,
+             rows = vapply(x, function(v) paste(v - 1L, collapse = ";"), ""))
+})), "R_i2i.csv", row.names = FALSE)
+
+cat("  ids2indices fixtures complete.\n")

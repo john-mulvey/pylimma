@@ -77,10 +77,12 @@ def ids2indices(
 
     Parameters
     ----------
-    gene_sets : dict or list
-        Either a dict mapping set names to iterables of identifiers, or a
-        single iterable (wrapped as ``{"Set1": gene_sets}``, matching R's
-        ``if(!is.list(gene.sets))`` branch).
+    gene_sets : dict, list or iterable
+        A dict mapping set names to iterables of identifiers; a list of such
+        iterables (R's unnamed list; named ``set1``, ``set2``, ...,
+        zero-padded from ten sets: ``set01``, ...); or a
+        single iterable of identifiers (wrapped as ``{"Set1": gene_sets}``,
+        matching R's ``if(!is.list(gene.sets))`` branch).
     identifiers : array_like of str
         Identifier vector; the returned indices are positions in this
         vector.
@@ -93,27 +95,26 @@ def ids2indices(
         Dict mapping each set name to an ``int64`` array of zero-based
         indices into ``identifiers``.
     """
-    if not isinstance(gene_sets, dict):
+    # R: if(!is.list(gene.sets)) gene.sets <- list(Set1=gene.sets). A Python
+    # list holding any collection is R's unnamed list of sets (a string in it
+    # is a one-member set); a list of plain IDs is one set.
+    if isinstance(gene_sets, (list, tuple)) and any(
+        not isinstance(x, str) and hasattr(x, "__iter__") for x in gene_sets
+    ):
+        gene_sets = dict(zip(_unnamed_set_names(len(gene_sets)), gene_sets))
+    elif not isinstance(gene_sets, dict):
         gene_sets = {"Set1": gene_sets}
 
-    ids = np.asarray(identifiers).astype(str)
-    # Build position lookup in insertion order, keeping only the first
-    # occurrence of each identifier (matches R's which(identifiers %in% x)
-    # semantics when identifiers contain duplicates).
-    lookup: dict[str, int] = {}
-    for pos, name in enumerate(ids):
-        if name not in lookup:
-            lookup[name] = pos
-
+    # R: which(identifiers %in% as.character(x)), both as.character()
+    ids = _r_as_character(np.asarray(identifiers, dtype=object))
     out: dict[str, np.ndarray] = {}
     for name, members in gene_sets.items():
-        members_arr = np.asarray(members).astype(str)
-        hits = np.fromiter(
-            (lookup[m] for m in members_arr if m in lookup),
-            dtype=np.int64,
-        )
-        hits.sort()
-        out[name] = hits
+        if members is None:
+            members = []
+        elif isinstance(members, str) or not hasattr(members, "__iter__"):
+            members = [members]
+        members = _r_as_character(np.asarray(list(members), dtype=object))
+        out[name] = np.flatnonzero(np.isin(ids, members))
 
     if remove_empty:
         out = {k: v for k, v in out.items() if v.size > 0}
@@ -1064,9 +1065,15 @@ def _normalise_index(index, ngenes: int) -> dict:
     if nsets == 0:
         raise ValueError("index is empty")
     if isinstance(index, list):
-        width = 1 + int(np.floor(np.log10(nsets)))
-        index = {f"set{str(i + 1).zfill(width)}": s for i, s in enumerate(index)}
+        index = dict(zip(_unnamed_set_names(nsets), index))
     return index
+
+
+def _unnamed_set_names(nsets: int) -> list[str]:
+    """R's names for an unnamed list of gene sets (mroast, fry):
+    paste0("set", formatC(1:nsets, width=1+floor(log10(nsets)), flag="0"))."""
+    width = 1 + int(np.floor(np.log10(nsets)))
+    return [f"set{str(i + 1).zfill(width)}" for i in range(nsets)]
 
 
 def _fry_effects(

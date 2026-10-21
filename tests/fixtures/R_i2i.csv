@@ -1,0 +1,8 @@
+"case","set","name","rows"
+"dup",1,"s","0;1;2"
+"unnamed",1,"","1;3"
+"unnamed",2,"","5"
+"single",1,"Set1","0;2"
+"numeric",1,"n","4"
+"keep_empty",1,"e",""
+"keep_empty",2,"s","3"

@@ -7004,3 +7004,39 @@ def test_gene_set_test_range_index_is_not_names():
     stat = pd.Series(np.random.default_rng(1).normal(size=20))
     with pytest.raises(ValueError, match="needs names on statistics"):
         gene_set_test(["1", "2"], stat)
+
+
+# =============================================================================
+# ids2indices: which(identifiers %in% as.character(x)) per set
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "case, gene_sets, kwargs",
+    [
+        ("dup", {"s": ["a", "a", "b"]}, {}),
+        ("unnamed", [["b", "c"], "d", "zz"], {}),
+        ("single", "a", {}),
+        ("numeric", {"n": [10]}, {}),
+        ("keep_empty", {"e": ["zz"], "s": ["c"]}, {"remove_empty": False}),
+    ],
+)
+def test_ids2indices_matches_r(case, gene_sets, kwargs):
+    from pylimma import ids2indices
+
+    r = load_r_csv_no_index("i2i")
+    r = r[r["case"] == case]
+    out = ids2indices(gene_sets, ["a", "b", "a", "c", "10", "d"], **kwargs)
+    expected_names = [n if isinstance(n, str) else f"set{k}" for k, n in zip(r["set"], r["name"])]
+    assert list(out) == expected_names
+    expected_rows = [[] if pd.isna(v) else [int(x) for x in str(v).split(";")] for v in r["rows"]]
+    assert [list(v) for v in out.values()] == expected_rows
+
+
+def test_ids2indices_accepts_python_iterables():
+    from pylimma import ids2indices
+
+    ids = ["a", "b", "c"]
+    expected = {"Set1": [0, 2]}
+    for gene_set in ({"a", "c"}, {"a": 1, "c": 2}.keys(), (g for g in ["a", "c"])):
+        assert {k: list(v) for k, v in ids2indices(gene_set, ids).items()} == expected

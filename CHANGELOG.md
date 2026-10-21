@@ -112,6 +112,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `ids2indices` follows R's `which(identifiers %in% x)`: a duplicated
+  identifier gives all its positions (was the first only) and a repeated
+  member is counted once (was repeated); a list of sets, a single ID,
+  numeric IDs and Python sets / generators work (raised errors).
 - `gene_set_test`, `wilcox_gst` and `rank_sum_test_with_correlation` subscript
   the statistics as R's `statistics[index]`: a set of gene IDs selects by the
   names of a pandas Series (was `int('g1')`), and a boolean mask its True
