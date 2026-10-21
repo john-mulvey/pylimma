@@ -704,3 +704,20 @@ def test_romer_contrast_vector_and_matrix():
     assert pylimma.romer(y, index, design, contrast=1.0, nrot=99, rng=1).equals(by_column)
     with pytest.raises(ValueError, match="contrast is all zero"):
         pylimma.romer(y, index, design, contrast=np.array([0.0, 0.0]), nrot=99)
+
+
+@pytest.mark.parametrize("fn_name", ["camera", "fry", "roast", "mroast"])
+def test_numeric_scalar_contrast_is_a_column(fn_name):
+    """R takes any length-1 contrast as a column number, whatever its type
+    (camera: design[, c((1:p)[-contrast], contrast)]; .lmEffects:
+    as.integer(contrast)), so a fractional value is truncated."""
+    import pylimma
+
+    y = np.random.default_rng(3).normal(size=(20, 6))
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3), np.tile([0.0, 1.0], 3)])
+    index = {"a": np.arange(5), "b": np.arange(5, 12)}
+    kwargs = {"nrot": 99, "rng": 1} if fn_name in ("roast", "mroast") else {}
+    fn = getattr(pylimma, fn_name)
+    by_column = fn(y, index, design, contrast=1, **kwargs)
+    for contrast in (1.0, np.float64(1.0), np.array([1.0]), 1.7):
+        pd.testing.assert_frame_equal(fn(y, index, design, contrast=contrast, **kwargs), by_column)

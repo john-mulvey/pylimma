@@ -144,6 +144,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   an all-zero contrast raises R's "contrast is all zero" (it returned a
   table), a contrast matrix tests its last column (raised a shape error),
   and a float column number such as `1.0` works.
+- `camera`, `fry`, `roast` and `mroast` take any numeric scalar contrast as
+  a column number, as R: a float such as `1.0` raised a shape error. A
+  fractional value is truncated, as R does.
 - `top_romer` raised `KeyError('Up')` on every `romer` result; it reads
   `romer`'s `n_genes` / `up` / `down` / `mixed` columns.
 - `camera` / `camera_pr` with a set of all genes or of no genes raised

@@ -202,11 +202,8 @@ def _lm_effects(
 
     # Reform design so that the contrast is the last coefficient.
     contrast_arr = np.atleast_1d(np.asarray(contrast))
-    if (
-        contrast_arr.ndim == 1
-        and contrast_arr.size == 1
-        and np.issubdtype(contrast_arr.dtype, np.integer)
-    ):
+    if contrast_arr.size == 1:
+        # R: contrast <- as.integer(contrast), which truncates.
         k = int(contrast_arr.item())
         if k < 0 or k >= p:
             raise ValueError(f"contrast index {k} out of range for design with {p} columns")
@@ -1470,7 +1467,8 @@ def camera(
     elif _is_character_contrast(contrast):
         contrast = _character_contrast(contrast, design_names, warn_multiple=False)
     contrast_arr = np.atleast_1d(np.asarray(contrast))
-    if contrast_arr.size == 1 and np.issubdtype(contrast_arr.dtype, np.integer):
+    if contrast_arr.size == 1:
+        # R indexes design by the number, which truncates a fraction.
         k = int(contrast_arr.item())
         if k < p - 1:
             keep = [j for j in range(p) if j != k]
