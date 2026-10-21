@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `camera(trend_var=True)` with array weights computed the variance trend's
+  average expression from the unweighted data; as R, it uses the data
+  scaled by the square-root weights (p-values differed by up to ~3%).
 - `inter_gene_correlation` averaged the scaled residual effects over the
   wrong axis, so `vif` and `correlation` were wrong for any data (e.g. vif
   0.672 vs R 0.349); it now matches R's `interGeneCorrelation`, including

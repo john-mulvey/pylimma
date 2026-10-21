@@ -5223,3 +5223,21 @@ write.csv(data.frame(case = names(.igc), vif = sapply(.igc, `[[`, "vif"), correl
           "R_igc.csv", row.names = FALSE)
 
 cat("  interGeneCorrelation fixtures complete.\n")
+
+# =============================================================================
+# camera(trend.var = TRUE) with array weights: y is scaled by sqrt(weights)
+# before the trend's average expression is computed
+# =============================================================================
+cat("\nGenerating camera weighted trend fixtures...\n")
+
+set.seed(20261115)
+
+.cwt_y <- matrix(rnorm(300 * 6, mean = 6), 300, 6)
+.cwt_y[1:30, 4:6] <- .cwt_y[1:30, 4:6] + 0.8
+write.csv(.cwt_y, "R_cwt_y.csv", row.names = FALSE)
+.cwt_d <- cbind(1, rep(0:1, each = 3))
+.cwt_w <- c(0.3, 1, 2, 0.5, 1.5, 1)
+.cwt_sets <- list(a = 1:30, b = 31:70)
+write.csv(camera(.cwt_y, .cwt_sets, .cwt_d, weights = .cwt_w, trend.var = TRUE, sort = FALSE), "R_cwt_camera.csv")
+
+cat("  camera weighted trend fixtures complete.\n")

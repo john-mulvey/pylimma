@@ -1472,7 +1472,8 @@ def camera(
     sigma2 = np.mean(U**2, axis=0)
     U_t = U.T / np.sqrt(np.maximum(sigma2, 1e-8))[:, None]  # (G, n-p)
 
-    A = np.mean(y_mat, axis=1) if trend_var else None
+    # R: A <- rowMeans(y) on y already scaled by sqrt(array weights)
+    A = np.mean(y_use, axis=1) if trend_var else None
     sv = squeeze_var(sigma2, df=df_residual, covariate=A)
     var_post = sv["var_post"]
     df_prior = sv["df_prior"]

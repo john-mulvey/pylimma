@@ -7065,3 +7065,18 @@ def test_inter_gene_correlation_matches_r(case):
         out = inter_gene_correlation(y, design)
     np.testing.assert_allclose(out["vif"], r["vif"], rtol=1e-6, equal_nan=True)
     np.testing.assert_allclose(out["correlation"], r["correlation"], rtol=1e-6, equal_nan=True)
+
+
+def test_camera_weighted_trend_matches_r():
+    """camera(trend_var=True) with array weights: the trend uses the
+    weight-scaled expression, as R."""
+    from pylimma import camera
+
+    y = load_r_csv_no_index("cwt_y").to_numpy(dtype=float)
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    tab = camera(
+        y, {"a": np.arange(30), "b": np.arange(30, 70)}, design,
+        weights=np.array([0.3, 1, 2, 0.5, 1.5, 1]), trend_var=True, sort=False,
+    )
+    r = load_r_csv("cwt_camera")
+    assert compare_pvalues(r["PValue"].to_numpy(), tab["p_value"].to_numpy())["match"]
