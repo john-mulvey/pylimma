@@ -5378,3 +5378,20 @@ stopifnot(!isTRUE(all.equal(.np_wallenius$P.DE,
                                   pathway.names = kegga_pn)$P.DE)))
 
 cat("  enrichment null.prob checks complete.\n")
+
+# =============================================================================
+# goana / kegga on a fit define their own universe and covariate
+# =============================================================================
+cat("\nGenerating enrichment fit-argument checks...\n")
+
+set.seed(20261121)
+.efa_y <- matrix(rnorm(200 * 6), 200, 6, dimnames = list(goana_universe, NULL))
+.efa_y[1:15, 4:6] <- .efa_y[1:15, 4:6] + 3
+.efa_fit <- eBayes(lmFit(.efa_y, cbind(1, rep(0:1, each = 3))))
+.efa_msg <- function(...) tryCatch(kegga(.efa_fit, gene.pathway = kegga_gp, pathway.names = kegga_pn, ...),
+                                   error = conditionMessage)
+stopifnot(identical(.efa_msg(universe = goana_universe), "kegga.MArrayLM defines its own universe"))
+# with trend = FALSE the covariate collides with the one kegga.MArrayLM passes on
+stopifnot(grepl("matched by multiple actual arguments", .efa_msg(covariate = rnorm(200))))
+
+cat("  enrichment fit-argument checks complete.\n")

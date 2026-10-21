@@ -223,6 +223,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   instead of a `TypeError`.
 - `goana` / `kegga` on a fit accept `coef` as a coefficient or contrast
   name, as R; a name always raised "Only one coef can be specified.".
+- `goana` / `kegga` on a fit raise "defines its own universe" for
+  `universe=`, as R (it was silently ignored), and "defines its own
+  covariate" for `covariate=` (R fails with an argument collision).
 
 ## [0.2.0] - 2026-09-30
 

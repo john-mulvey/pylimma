@@ -150,3 +150,16 @@ def test_coef_by_name(fn_name):
     contrast = pd.DataFrame({"B_vs_A": [0.0, 1.0]}, index=["Intercept", "B"])
     contrast_fit = pylimma.e_bayes(pylimma.contrasts_fit(fit, contrasts=contrast))
     pd.testing.assert_frame_equal(fn(contrast_fit, gp, coef="B_vs_A"), by_number)
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+@pytest.mark.parametrize("arg", ["universe", "covariate"])
+def test_fit_defines_its_own_universe_and_covariate(fn_name, arg):
+    """R stops: "kegga.MArrayLM defines its own universe"; a covariate
+    collides with the one the fit method passes on (R: "formal argument
+    matched by multiple actual arguments"). pylimma ignored universe."""
+    gp, _, universe = _kegga_inputs()
+    fit, genes = _two_group_fit()
+    value = genes if arg == "universe" else [1.0] * len(genes)
+    with pytest.raises(ValueError, match=f"defines its own {arg}"):
+        getattr(pylimma, fn_name)(fit, gp, **{arg: value})

@@ -117,7 +117,8 @@ def goana(
         Background gene universe. Defaults to all gene IDs in
         ``gene_pathway``. As in R, genes with no annotation (not in
         ``gene_pathway``) are dropped from the universe, so they do not
-        count towards the number of genes. A fit's universe is its genes.
+        count towards the number of genes. A fit's universe is its genes;
+        passing ``universe`` (or ``covariate``) with a fit raises, as R.
     species : str, optional
         Accepted for R-API compatibility; ignored without GO.db.
     prior_prob : sequence of float, optional
@@ -373,9 +374,10 @@ def _goana_marraylm(
     """Port of goana.MArrayLM (goana.R:3-86)."""
     fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
 
-    if "universe" in kwargs:
+    # R stops for a universe; a covariate collides with the one passed on.
+    if universe is not None:
         raise ValueError("goana.MArrayLM defines its own universe")
-    if (not isinstance(trend, bool) or trend) and "covariate" in kwargs:
+    if covariate is not None:
         raise ValueError("goana.MArrayLM defines its own covariate")
 
     geneid = kwargs.pop("geneid", None)
@@ -428,9 +430,10 @@ def _kegga_marraylm(
     """Port of kegga.MArrayLM (kegga.R:3-86)."""
     fit, _adata, _adata_key = _resolve_fit_input(de, kwargs.pop("key", "pylimma"))
 
-    if "universe" in kwargs:
+    # R stops for a universe; a covariate collides with the one passed on.
+    if universe is not None:
         raise ValueError("kegga.MArrayLM defines its own universe")
-    if (not isinstance(trend, bool) or trend) and "covariate" in kwargs:
+    if covariate is not None:
         raise ValueError("kegga.MArrayLM defines its own covariate")
 
     geneid = kwargs.pop("geneid", None)
