@@ -314,6 +314,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   index of a Series (other than a default RangeIndex) are the column names
   (an empty name falls back to the expression). A single string is one contrast, not one per character.
 
+### Documentation and examples
+
+- `model_matrix` and `known_differences.rst` document how formula designs
+  built with patsy differ from R's `model.matrix` in column names and
+  order (interactions of numeric and categorical terms, `~ g:h`).
+
 ## [0.2.0] - 2026-09-30
 
 A branch-by-branch audit against R limma 3.66.0. Every fix below is paired

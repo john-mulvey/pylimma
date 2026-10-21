@@ -120,6 +120,16 @@ def model_matrix(
     coding or ``C(o, Treatment)`` for treatment coding. Without contrasts
     (``"~ 0 + o"``) both give one indicator column per level.
 
+    Column names follow patsy (``g[T.b]`` where R has ``gb``), and the
+    column order can differ from R's: patsy puts the terms of a
+    categorical factor before those of a numeric one (``"~ age * g"`` gives
+    ``Intercept, g[T.b], g[T.c], age, age:g[T.b], age:g[T.c]``; R gives
+    ``(Intercept), age, gb, gc, age:gb, age:gc``), and an interaction
+    without its main effects (``"~ g:h"``) is coded with a different,
+    full-rank set of columns spanning the same space. Coefficient
+    positions taken from R code can therefore refer to other columns;
+    names from ``model_matrix_with_names`` identify them.
+
     See Also
     --------
     make_contrasts : Create contrast matrices for hypothesis testing

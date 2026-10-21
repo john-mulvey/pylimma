@@ -230,6 +230,28 @@ user's locale (in ``en_GB``: apoptosis, Apoptosis, b, Wnt signaling);
 pylimma compares by code point (Apoptosis, Wnt signaling, apoptosis, b),
 as R does in the ``C`` locale, so the order is the same on every machine.
 
+Formula designs: column order and names
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+pylimma builds designs from formula strings with patsy rather than R's
+``model.matrix``. The columns span the same space and give the same fitted
+values, but their names and order can differ:
+
+- names follow patsy: ``g[T.b]`` for R's ``gb``, ``Intercept`` for
+  ``(Intercept)``;
+- patsy puts the terms of a categorical factor before those of a numeric
+  one: ``~ age * g`` gives ``Intercept, g[T.b], g[T.c], age, age:g[T.b],
+  age:g[T.c]``, where R gives ``(Intercept), age, gb, gc, age:gb,
+  age:gc``, and ``~ age + I(age > 3)`` swaps its two terms;
+- an interaction without its main effects (``~ g:h``) is coded with a
+  full-rank set of columns (6 for a 3 x 2 layout), where R gives 7
+  rank-deficient columns.
+
+Main-effect formulas such as ``~ group``, ``~ 0 + group`` and ``~ a + b``
+give R's columns in R's order. For other formulas, a coefficient position
+taken from R code (``coef = 3``) can refer to a different column;
+``model_matrix_with_names`` and the fit's ``coef_names`` give the names.
+
 ``make_contrasts`` without contrasts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
