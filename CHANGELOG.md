@@ -406,6 +406,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   most frequent value as background; a float status matches integer
   `values` (`1.0` is `"1"`), where nothing was highlighted; tied
   frequencies keep R's level order (numeric for numbers).
+- `plot_with_highlights` (so also `plot_md` / `plot_ma`) draws limma's
+  legend: the background value first ("Other" when the background holds
+  several values), then every highlighted value, also one with no points.
+  The legend listed only the highlighted values that had points.
 
 ### Documentation and examples
 

@@ -255,7 +255,32 @@ def plot_with_highlights(
 
     show_legend, loc = _resolve_legend(legend)
     if show_legend:
-        ax.legend(loc=loc)
+        # R: the background value comes first ("Other" when the background
+        # holds several values), then every highlighted value, drawn or
+        # not; point sizes above 0.5 shrink to 0.5 + 0.8 * (cex - 0.5)
+        from matplotlib.lines import Line2D
+
+        labels, markers, colours = list(values), list(hl_pch_v), list(hl_col_v)
+        sizes = list(hl_cex_v)
+        if nonhi:
+            bg_values = list(dict.fromkeys(status_arr[bg_mask]))
+            bg_label = bg_values[0] if len(bg_values) == 1 else "Other"
+            labels.insert(0, "NA" if bg_label is None else bg_label)
+            markers.insert(0, bg_pch)
+            colours.insert(0, bg_col)
+            sizes.insert(0, float(bg_cex))
+        handles = [
+            Line2D(
+                [],
+                [],
+                linestyle="none",
+                marker=marker,
+                color=colour,
+                markersize=np.sqrt((0.5 + 0.8 * (size - 0.5) if size > 0.5 else size) * 25),
+            )
+            for marker, colour, size in zip(markers, colours, sizes)
+        ]
+        ax.legend(handles, labels, loc=loc)
 
     return ax
 

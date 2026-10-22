@@ -5928,7 +5928,10 @@ stopifnot(isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, iterations = 0),
   record <- function(what) {
     force(what)
     function(...) {
-    args <- list(...)
+    # skip empty arguments (legend(..., pch=pch,, col=col) in plotWithHighlights)
+    dots <- match.call(expand.dots = FALSE)$...
+    given <- !vapply(dots, function(d) identical(d, quote(expr = )), TRUE)
+    args <- lapply(dots[given], eval, envir = parent.frame())
     if (is.null(names(args))) names(args) <- rep("", length(args))
     unnamed <- names(args) == ""
     names(args)[unnamed] <- paste0("arg", which(unnamed))
@@ -5973,3 +5976,19 @@ write.csv(do.call(rbind, lapply(names(.pwh_cases), function(case) {
   rec <- do.call(.plot_record, args)
   data.frame(case = case, rec[rec$fun == "points" & rec$arg == "arg1", ])
 })), "R_pwh_status_points.csv", row.names = FALSE)
+
+# =============================================================================
+# plotWithHighlights legend: the background value comes first ("Other" when
+# the background holds several values, NA included), then every highlighted
+# value, also one with no points
+# =============================================================================
+.pwl_cases <- list(
+  single_background = list(status = c(rep("notDE", 150), rep("up", 6), rep("down", 4))),
+  other_background = list(status = c(rep("a", 100), rep("b", 50), rep("c", 10)), values = "c"),
+  na_background = list(status = c(rep("a", 100), rep(NA, 50), rep("c", 10)), values = "c"),
+  empty_value = list(status = c(rep("a", 150), rep("c", 10)), values = c("c", "z")))
+write.csv(do.call(rbind, lapply(names(.pwl_cases), function(case) {
+  args <- c(list("plotWithHighlights", seq_len(160), sqrt(seq_len(160))), .pwl_cases[[case]])
+  rec <- do.call(.plot_record, args)
+  data.frame(case = case, rec[rec$fun == "legend" & rec$arg == "legend", c("pos", "value")])
+})), "R_pwh_legend.csv", row.names = FALSE)

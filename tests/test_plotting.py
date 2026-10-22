@@ -43,11 +43,10 @@ def test_plot_with_highlights_layer_counts():
     # Counts: 180 background + 10 up + 10 down
     sizes = sorted(c.get_offsets().shape[0] for c in ax.collections)
     assert sizes == [10, 10, 180]
-    # Legend has up/down labels
-    legend = ax.get_legend()
-    assert legend is not None
-    labels = [t.get_text() for t in legend.get_texts()]
-    assert set(labels) == {"up", "down"}
+    # Legend: background first, then the highlights by frequency (ties in
+    # level order), as R's plotWithHighlights
+    labels = [t.get_text() for t in ax.get_legend().get_texts()]
+    assert labels == ["background", "down", "up"]
 
 
 def _r_points_calls(fixture, case):
@@ -85,6 +84,26 @@ def test_plot_with_highlights_status_matches_r(case):
     assert len(drawn) == len(expected)
     for got, want in zip(drawn, expected):
         np.testing.assert_array_equal(got, want)
+
+
+PWH_LEGEND = {
+    "single_background": (["notDE"] * 150 + ["up"] * 6 + ["down"] * 4, None),
+    "other_background": (["a"] * 100 + ["b"] * 50 + ["c"] * 10, "c"),
+    "na_background": (["a"] * 100 + [None] * 50 + ["c"] * 10, "c"),
+    "empty_value": (["a"] * 150 + ["c"] * 10, ["c", "z"]),
+}
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize("case", list(PWH_LEGEND))
+def test_plot_with_highlights_legend_matches_r(case):
+    from pylimma import plot_with_highlights
+
+    status, values = PWH_LEGEND[case]
+    x = np.arange(1.0, 161.0)
+    ax = plot_with_highlights(x, np.sqrt(x), status=np.array(status, dtype=object), values=values)
+    expected = pd.read_csv(FIXTURES / "R_pwh_legend.csv").query("case == @case")["value"]
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == expected.tolist()
 
 
 # ----------------------------------------------------------------------------
