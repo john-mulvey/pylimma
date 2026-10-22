@@ -340,12 +340,14 @@ def _as_dense_array(x, dtype=None) -> np.ndarray:
     and dask arrays (``compute``) are loaded and densified first; a plain
     np.asarray would turn them into a 0-d object array. Masked cells of a
     numpy masked array become NaN (R's NA); np.asarray would drop the mask
-    and use the hidden values.
+    and use the hidden values. Only a callable ``to_memory`` / ``compute``
+    marks a lazy array: pandas exposes columns as attributes, so a sample
+    named "compute" is a Series, not a method.
     """
-    if hasattr(x, "to_memory"):
-        x = x.to_memory()
-    if hasattr(x, "compute"):
-        x = x.compute()
+    for method in ("to_memory", "compute"):
+        load = getattr(x, method, None)
+        if callable(load):
+            x = load()
     if _scipy_sparse.issparse(x):
         x = x.toarray()
     if isinstance(x, np.ma.MaskedArray):

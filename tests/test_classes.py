@@ -1074,6 +1074,22 @@ def test_masked_array_cells_are_missing_values(name):
     _assert_same_result(call(np.ma.masked_array(x, mask=mask), design), call(with_nan, design))
 
 
+def test_dataframe_samples_named_like_lazy_array_methods():
+    """A DataFrame column called "compute" or "to_memory" is a sample, not a
+    sign of a dask or backed array."""
+    import pylimma
+
+    counts, design = _sparse_counts()
+    x = np.log2(counts + 1)
+    frame = pd.DataFrame(x, columns=["compute", "to_memory", "s3", "s4", "s5", "s6"])
+    _assert_same_result(
+        pylimma.lm_fit(pylimma.EList({"E": frame}), design), pylimma.lm_fit(x, design)
+    )
+    np.testing.assert_array_equal(
+        pylimma.normalize_quantiles(frame), pylimma.normalize_quantiles(x)
+    )
+
+
 def test_masked_array_weights_in_array_weights():
     counts, design = _sparse_counts()
     x = np.log2(counts + 1)
