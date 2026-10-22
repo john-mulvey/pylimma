@@ -305,12 +305,8 @@ def normalize_cyclic_loess(
         )
 
     if adaptive_span:
-        span = choose_lowess_span(
-            x.shape[0],
-            small_n=50,
-            min_span=0.3,
-            power=1 / 3,
-        )
+        # R: chooseLowessSpan(nrow(x), small.n=200, min.span=0.6)
+        span = choose_lowess_span(x.shape[0], small_n=200, min_span=0.6)
 
     n = x.shape[1]
 

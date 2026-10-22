@@ -5479,6 +5479,14 @@ class TestLowessRParity:
         expected = load_r_csv_no_index(f"lowess_cyclic_{method}").to_numpy()
         np.testing.assert_allclose(normalize_cyclic_loess(x, method=method), expected, rtol=1e-10)
 
+    def test_cyclic_loess_adaptive_span_matches_r(self):
+        from pylimma import normalize_cyclic_loess
+
+        x = load_r_csv_no_index("lowess_cyclic_input").to_numpy()
+        expected = load_r_csv_no_index("lowess_cyclic_adaptive").to_numpy()
+        got = normalize_cyclic_loess(x, adaptive_span=True)
+        np.testing.assert_allclose(got, expected, rtol=1e-10)
+
 
 class TestCyclicLoessFitsRParity:
     """normalize_cyclic_loess takes each fit from loess_fit, as R does: zero

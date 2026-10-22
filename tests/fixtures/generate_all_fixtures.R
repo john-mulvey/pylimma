@@ -5886,3 +5886,12 @@ write.csv(.cyl_keep(.cyl_na, "affy"), "R_cyl_na_affy.csv", row.names = FALSE)
 .cyl_two[1, c(7, 11)] <- NA
 write.csv(.cyl_two, "R_cyl_two.csv", row.names = FALSE)
 write.csv(normalizeCyclicLoess(.cyl_two), "R_cyl_two_fast.csv", row.names = FALSE)
+
+# =============================================================================
+# normalizeCyclicLoess(adaptive.span = TRUE) chooses its span with
+# chooseLowessSpan(nrow(x), small.n = 200, min.span = 0.6)
+# =============================================================================
+stopifnot(all.equal(normalizeCyclicLoess(.lwc_cyc, adaptive.span = TRUE),
+                    normalizeCyclicLoess(.lwc_cyc,
+                                         span = chooseLowessSpan(300, small.n = 200, min.span = 0.6))))
+write.csv(normalizeCyclicLoess(.lwc_cyc, adaptive.span = TRUE), "R_lowess_cyclic_adaptive.csv", row.names = FALSE)

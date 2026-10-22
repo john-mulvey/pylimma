@@ -388,6 +388,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   zero weight were left unadjusted (up to 2.16 off R on a 60-row example)
   and a column with one observed value in a row was not fitted, where R
   fits it exactly (two genes with missing values: 6.58 against R's 6.00).
+- `normalize_cyclic_loess(adaptive_span=True)` chooses its span as R does,
+  with `choose_lowess_span(nrow, small_n=200, min_span=0.6)`; it used
+  voom's settings (`small_n=50, min_span=0.3`), a span of 0.69 instead of
+  0.95 for 300 rows (results up to 1.02 off R).
 
 ### Documentation and examples
 
