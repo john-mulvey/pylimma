@@ -6125,3 +6125,21 @@ write.csv(rbind(.pd_rec("character", group = c("b", "a", "b", "a")),
 .pl_rec <- .plot_record("plotlines", matrix(seq_len(20), 5), col = c("red", "blue"))
 write.csv(.pl_rec[.pl_rec$fun == "lines" & .pl_rec$arg == "col", c("call", "value")],
           "R_plotlines_col.csv", row.names = FALSE)
+
+# =============================================================================
+# plotMDS(plot = FALSE) returns the MDS object, x and y for dim.plot; the MDS
+# object can be plotted again (plotMDS.MDS); dim.plot must name two
+# dimensions
+# =============================================================================
+set.seed(81)
+.mds_x <- matrix(rnorm(100 * 6), 100)
+.mds_x[1:20, 4:6] <- .mds_x[1:20, 4:6] + 2
+write.csv(.mds_x, "R_mds_x.csv", row.names = FALSE)
+.mds <- plotMDS(.mds_x, plot = FALSE, dim.plot = c(1, 3))
+pdf(NULL)
+.mds_re <- plotMDS(.mds, dim.plot = c(2, 3))
+invisible(dev.off())
+write.csv(data.frame(x = .mds$x, y = .mds$y, re_x = .mds_re$x, re_y = .mds_re$y),
+          "R_mds_dims.csv", row.names = FALSE)
+.mds_fails <- function(...) inherits(try(plotMDS(.mds_x, plot = FALSE, ...), silent = TRUE), "try-error")
+stopifnot(.mds_fails(dim.plot = c(1, 1)), .mds_fails(dim.plot = 1), .mds_fails(top = 0))

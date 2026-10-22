@@ -44,6 +44,7 @@ it.
 
 from __future__ import annotations
 
+import numbers
 import warnings
 
 import numpy as np
@@ -905,56 +906,95 @@ def _mds_coordinates(
     }
 
 
+def _mds_axes(mds, dim_plot):
+    """R: x and y of an MDS object for dim.plot, with R's warning for a
+    degenerate dimension."""
+    lam = np.maximum(mds["eigen_values"], 0.0)
+    coords = []
+    for i in dim_plot:
+        coords.append(mds["eigen_vectors"][:, i] * np.sqrt(lam[i]))
+        if lam[i] < 1e-13:
+            warnings.warn(f"dimension {i + 1} is degenerate or all zero", stacklevel=3)
+    return coords
+
+
 def plot_mds(
     x,
     top: int = 500,
     labels=None,
     pch=None,
     cex: float = 1.0,
-    dim_plot: tuple[int, int] = (0, 1),
+    dim_plot: tuple[int, int] | None = None,
     gene_selection: str = "pairwise",
     xlab: str | None = None,
     ylab: str | None = None,
+    plot: bool = True,
     var_explained: bool = True,
     ax=None,
     **kwargs,
 ):
-    """Multidimensional-scaling plot. Port of R limma's ``plotMDS.default``.
+    """Multidimensional-scaling plot. Port of R limma's ``plotMDS``.
 
-    Dimensions are 0-based (pylimma convention).
+    Dimensions are 0-based (pylimma convention). As in R, ``plot=False``
+    returns the MDS result (a dict with ``x``, ``y``, ``eigen_values``,
+    ``eigen_vectors``, ``var_explained``, ``dim_plot``,
+    ``distance_matrix_squared``, ``top``, ``gene_selection`` and
+    ``axislabel``) without drawing, and such a result can be passed back
+    as ``x`` to plot it, also for other ``dim_plot`` (R's
+    ``plotMDS.MDS``). Otherwise the Axes are returned.
     """
-    plt = _require_matplotlib()
-
-    if isinstance(x, EList):
-        x_mat = np.asarray(x["E"], dtype=np.float64)
-        sample_names = None
-        E_df = x.get("E")
-        if isinstance(E_df, pd.DataFrame):
-            sample_names = list(E_df.columns)
-    elif isinstance(x, pd.DataFrame):
-        x_mat = x.values.astype(np.float64)
-        sample_names = list(x.columns)
+    is_mds = isinstance(x, dict) and "eigen_vectors" in x
+    # R: plotMDS.MDS keeps x$dim.plot unless dim.plot is given; plotMDS.default
+    # takes c(1, 2)
+    if dim_plot is None:
+        dim_plot = tuple(x.get("dim_plot", (0, 1))) if is_mds else (0, 1)
+    # R: dim.plot <- unique(as.integer(dim.plot)), two dimensions, 1-based
+    dim_plot = tuple(dict.fromkeys(int(d) for d in dim_plot))
+    if len(dim_plot) != 2:
+        raise ValueError("dim_plot must specify two dimensions to plot")
+    if min(dim_plot) < 0:
+        raise ValueError("dim_plot must give 0-based dimension numbers")
+    if is_mds:
+        mds = dict(x)
+        sample_names = mds.get("sample_names")
     else:
-        x_mat = np.asarray(x, dtype=np.float64)
-        sample_names = None
-
-    ndim = max(int(dim_plot[0]), int(dim_plot[1])) + 1
-    result = _mds_coordinates(x_mat, top=top, gene_selection=gene_selection, ndim=ndim)
-
-    eigvals = result["eigen_values"]
-    eigvecs = result["eigen_vectors"]
-    lam = np.maximum(eigvals, 0.0)
+        if isinstance(x, EList):
+            x_mat = np.asarray(x["E"], dtype=np.float64)
+            sample_names = list(x["E"].columns) if isinstance(x["E"], pd.DataFrame) else None
+        elif isinstance(x, pd.DataFrame):
+            x_mat = x.values.astype(np.float64)
+            sample_names = list(x.columns)
+        else:
+            x_mat = np.asarray(x, dtype=np.float64)
+            sample_names = None
+        # R: top <- min(top, nprobes), any number of 1 or more (Inf for all)
+        if not (isinstance(top, numbers.Real) and top >= 1):
+            raise ValueError(f"top must be a number of 1 or more, not {top!r}")
+        mds = _mds_coordinates(
+            x_mat,
+            top=int(min(top, x_mat.shape[0])),
+            gene_selection=gene_selection,
+            ndim=max(dim_plot) + 1,
+        )
+        mds["axislabel"] = (
+            "Leading logFC dim" if gene_selection == "pairwise" else "Principal Component"
+        )
+        mds["sample_names"] = sample_names
     i1, i2 = int(dim_plot[0]), int(dim_plot[1])
-    xcoord = eigvecs[:, i1] * np.sqrt(lam[i1])
-    ycoord = eigvecs[:, i2] * np.sqrt(lam[i2])
+    mds["x"], mds["y"] = _mds_axes(mds, (i1, i2))
+    mds["dim_plot"] = (i1, i2)
+    if not plot:
+        return mds
 
-    axislabel = "Leading logFC dim" if gene_selection == "pairwise" else "Principal Component"
+    plt = _require_matplotlib()
+    xcoord, ycoord = mds["x"], mds["y"]
+    axislabel = mds.get("axislabel") or "Principal Coordinate"
     if xlab is None:
         xlab = f"{axislabel} {i1 + 1}"
     if ylab is None:
         ylab = f"{axislabel} {i2 + 1}"
     if var_explained:
-        pct = np.round(result["var_explained"] * 100).astype(int)
+        pct = np.round(mds["var_explained"] * 100).astype(int)
         xlab = f"{xlab} ({pct[i1]}%)"
         ylab = f"{ylab} ({pct[i2]}%)"
 
@@ -962,21 +1002,17 @@ def plot_mds(
         _, ax = plt.subplots()
 
     if labels is None and pch is None:
-        labels = (
-            sample_names
-            if sample_names is not None
-            else [str(i + 1) for i in range(x_mat.shape[1])]
-        )
+        labels = sample_names if sample_names is not None else list(range(1, len(xcoord) + 1))
 
     if labels is not None:
-        labels = [str(lab) for lab in labels]
+        labels = [str(lab) for lab in _r_as_character(labels)]
         margin = 0.05 * (xcoord.max() - xcoord.min() + 1e-12)
         ax.set_xlim(xcoord.min() - margin, xcoord.max() + margin)
         ax.set_ylim(ycoord.min() - margin, ycoord.max() + margin)
         for xi, yi, lab in zip(xcoord, ycoord, labels):
             ax.text(xi, yi, lab, ha="center", va="center", fontsize=10 * cex)
     else:
-        ax.scatter(xcoord, ycoord, marker=pch if pch is not None else "o", s=(float(cex) * 25))
+        ax.scatter(xcoord, ycoord, marker=pch, s=(float(cex) * 25))
 
     ax.set_xlabel(xlab)
     ax.set_ylabel(ylab)

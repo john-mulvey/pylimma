@@ -401,6 +401,75 @@ def test_mds_coordinates_rparity(sel, top):
     )
 
 
+def test_plot_mds_without_plotting_returns_the_mds_result_as_r():
+    """plot=False returns the MDS result with x and y for dim_plot, which
+    can be plotted again for other dimensions (R's plotMDS.MDS)."""
+    from pylimma import plot_mds
+
+    x = pd.read_csv(FIXTURES / "R_mds_x.csv").to_numpy()
+    r = pd.read_csv(FIXTURES / "R_mds_dims.csv")
+    mds = plot_mds(x, plot=False, dim_plot=(0, 2))
+    np.testing.assert_allclose(
+        canonical_column_signs(np.column_stack([mds["x"], mds["y"]])),
+        canonical_column_signs(r[["x", "y"]].to_numpy()),
+        rtol=1e-8,
+    )
+    again = plot_mds(mds, plot=False, dim_plot=(1, 2))
+    np.testing.assert_allclose(
+        canonical_column_signs(np.column_stack([again["x"], again["y"]])),
+        canonical_column_signs(r[["re_x", "re_y"]].to_numpy()),
+        rtol=1e-8,
+    )
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"dim_plot": (0, 0)}, {"dim_plot": (1,)}, {"top": 0}, {"top": -1}]
+)
+def test_plot_mds_rejects_bad_dimensions_and_top(kwargs):
+    from pylimma import plot_mds
+
+    x = pd.read_csv(FIXTURES / "R_mds_x.csv").to_numpy()
+    with pytest.raises(
+        ValueError, match="dim_plot must specify two dimensions|top must be a number|0-based"
+    ):
+        plot_mds(x, plot=False, **kwargs)
+
+
+def test_plot_mds_takes_r_dim_plot_and_top_rules():
+    """unique(dim.plot) as R, a float top, and a stored MDS result replotted
+    in its own dimensions (R's plotMDS.MDS has dim.plot=NULL)."""
+    from pylimma import plot_mds
+
+    x = pd.read_csv(FIXTURES / "R_mds_x.csv").to_numpy()
+    assert plot_mds(x, plot=False, dim_plot=(0, 0, 2))["dim_plot"] == (0, 2)
+    np.testing.assert_allclose(
+        plot_mds(x, plot=False, top=500.0)["x"], plot_mds(x, plot=False)["x"]
+    )
+    stored = plot_mds(x, plot=False, dim_plot=(1, 2))
+    assert plot_mds(stored, plot=False)["dim_plot"] == (1, 2)
+    np.testing.assert_allclose(
+        plot_mds(x, plot=False, top=np.inf)["x"], plot_mds(x, plot=False, top=len(x))["x"]
+    )
+
+
+def test_plot_mds_warns_with_r_dimension_numbers():
+    """R: warning("dimension ", i, ...) with i 1-based; three samples leave
+    the third dimension empty."""
+    from pylimma import plot_mds
+
+    x = np.random.default_rng(1).normal(size=(50, 3))
+    with pytest.warns(UserWarning, match="^dimension 3 is degenerate or all zero$"):
+        plot_mds(x, plot=False, dim_plot=(0, 2))
+
+
+def test_plot_mds_takes_mds_coordinates_output():
+    from pylimma import plot_mds
+    from pylimma.plotting import _mds_coordinates
+
+    x = pd.read_csv(FIXTURES / "R_mds_x.csv").to_numpy()
+    assert plot_mds(_mds_coordinates(x), plot=False)["dim_plot"] == (0, 1)
+
+
 # ----------------------------------------------------------------------------
 # Venn
 # ----------------------------------------------------------------------------

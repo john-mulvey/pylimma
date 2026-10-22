@@ -274,6 +274,15 @@ minor version (0.x.0) may change results or behaviour; a patch version
   (this sample vs others)"; columns can be given by name.
 - `volcano_plot` labels the highlighted genes with the `ID` column of
   `fit["genes"]` by default, as R does; it used row numbers.
+- `plot_mds` gains R's `plot` argument: `plot=False` returns the MDS result
+  (coordinates for `dim_plot`, eigenvalues and -vectors, variance
+  explained, distance matrix) without drawing, and that result can be
+  passed back to plot it for other dimensions, as R's `plotMDS.MDS` does
+  (`plot=False` used to be swallowed and the plot drawn). `dim_plot` must
+  name two different dimensions and `top` must be 1 or more (`np.inf`
+  for all genes), as in R (`dim_plot=(0, 0)` ran, `top=0` failed inside
+  the eigendecomposition), and a degenerate dimension warns as in R, with
+  R's 1-based dimension number.
 
 ### Added
 
