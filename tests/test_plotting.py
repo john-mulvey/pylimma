@@ -694,3 +694,23 @@ def test_barcode_plot_worm_substrate():
     stat[:50] += 1
     ax = barcode_plot(stat, index=np.arange(1, 51).tolist())
     assert ax is not None
+
+
+@pytest.mark.parametrize(
+    "function", ["plotlines", "heat_diagram", "plot_exons", "plot_exon_junc", "plot_ma_3by2"]
+)
+def test_plot_functions_without_matplotlib_raise_a_clear_import_error(function, monkeypatch):
+    import sys
+
+    import pylimma
+
+    monkeypatch.setitem(sys.modules, "matplotlib.pyplot", None)
+    args = {
+        "plotlines": (np.ones((2, 3)),),
+        "heat_diagram": (np.ones((2, 2)), np.ones((2, 2))),
+        "plot_exons": ({},),
+        "plot_exon_junc": ({},),
+        "plot_ma_3by2": (np.ones((5, 3)),),
+    }[function]
+    with pytest.raises(ImportError, match="plotting functions require matplotlib"):
+        getattr(pylimma, function)(*args)

@@ -1636,7 +1636,7 @@ def plotlines(
     Port of R limma's ``plotlines`` (``plotlines.R``). Draws one line
     per row of ``x`` along the columns.
     """
-    import matplotlib.pyplot as plt
+    plt = _require_matplotlib()
 
     x = np.asarray(x, dtype=np.float64)
     if x.ndim == 1:
@@ -1695,7 +1695,7 @@ def heat_diagram(
     Port of R limma's ``heatDiagram`` (``plots-fit.R``). ``primary`` is
     0-based.
     """
-    import matplotlib.pyplot as plt
+    plt = _require_matplotlib()
 
     results = np.asarray(results, dtype=np.float64)
     results = np.where(np.isnan(results), 0.0, results)
@@ -1936,7 +1936,7 @@ def plot_rldf(
         result["test_scores"] = d_z[:, list(show_dimensions)]
 
     if plot:
-        import matplotlib.pyplot as plt
+        plt = _require_matplotlib()
 
         if ax is None:
             _fig, ax = plt.subplots()
@@ -1978,7 +1978,7 @@ def plot_exons(
 
     Port of R limma's ``plotExons`` (``plotExons.R``).
     """
-    import matplotlib.pyplot as plt
+    plt = _require_matplotlib()
     import pandas as pd
 
     from .utils import p_adjust
@@ -2033,7 +2033,7 @@ def plot_exon_junc(
     Port of R limma's ``plotExonJunc`` (``plotExonJunc.R``). Junctions
     are distinguished from exons by ``genes["Length"] == 1``.
     """
-    import matplotlib.pyplot as plt
+    plt = _require_matplotlib()
     import pandas as pd
 
     from .utils import p_adjust
@@ -2143,7 +2143,7 @@ def plot_ma_3by2(
     """
     import os
 
-    import matplotlib.pyplot as plt
+    plt = _require_matplotlib()
 
     if device not in ("png", "jpeg", "pdf", "postscript"):
         raise ValueError(

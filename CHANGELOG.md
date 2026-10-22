@@ -449,6 +449,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   among numbers is a group of its own, as in R.
 - `plotlines` recycles a list of colours over the rows, as R does; a list
   whose length was not the number of rows raised `ValueError`.
+- Without matplotlib, `plotlines`, `heat_diagram`, `plot_exons`,
+  `plot_exon_junc`, `plot_ma_3by2` and `plot_rldf(plot=True)` raise the
+  same `ImportError` as the other plot functions, saying to install
+  `pylimma[plot]`; they raised a bare `ModuleNotFoundError`.
 
 ### Documentation and examples
 
