@@ -50,7 +50,7 @@ import numpy as np
 import pandas as pd
 
 from .classes import EList, MArrayLM
-from .utils import p_adjust, tricube_moving_average
+from .utils import _r_as_character, p_adjust, tricube_moving_average
 
 _LEGEND_ANCHORS = {
     "bottomright": "lower right",
@@ -96,6 +96,36 @@ def _resolve_legend(legend):
 # ----------------------------------------------------------------------------
 
 
+def _status_labels(status) -> np.ndarray:
+    """R's as.character(status) with NA kept as None: NaN, None and pd.NA
+    are missing (checked on the raw values), numbers drop ".0"."""
+    raw = np.asarray(status, dtype=object).ravel()
+    missing = pd.isna(raw)
+    labels = _r_as_character(np.where(missing, None, raw))
+    labels[missing] = None
+    return labels
+
+
+def _table_levels_by_frequency(status) -> list:
+    """names(sort(table(status), decreasing=TRUE)): the levels of a factor
+    of status (numeric order for numbers, FALSE before TRUE, otherwise
+    sorted by code point, where R uses the locale), by decreasing count,
+    ties in level order."""
+    raw = np.asarray(status, dtype=object).ravel()
+    observed = raw[~pd.isna(raw)]
+    numeric = (int, float, np.integer, np.floating)
+    if all(isinstance(v, numeric) and not isinstance(v, (bool, np.bool_)) for v in observed):
+        levels = np.unique(observed.astype(np.float64))
+        labels = _r_as_character(levels)
+        counts = [int(np.sum(observed.astype(np.float64) == v)) for v in levels]
+    else:
+        labels = np.array(sorted(set(_r_as_character(observed))), dtype=object)
+        observed_labels = _r_as_character(observed)
+        counts = [int(np.sum(observed_labels == v)) for v in labels]
+    order = np.argsort(-np.asarray(counts), kind="stable")
+    return [labels[i] for i in order]
+
+
 def plot_with_highlights(
     x,
     y,
@@ -130,16 +160,11 @@ def plot_with_highlights(
     if ax is None:
         _, ax = plt.subplots()
 
-    # Status NULL or all NA -> plot all as background
-    def _all_na(arr):
-        if arr is None:
-            return True
-        a = np.asarray(arr)
-        if a.dtype.kind in ("U", "S", "O"):
-            return all(v is None or (isinstance(v, float) and np.isnan(v)) for v in a.tolist())
-        return bool(np.all(np.isnan(a.astype(float, copy=False))))
+    # R: as.character(status), with NA kept (tested on the raw values)
+    status_arr = None if status is None else _status_labels(status)
 
-    if status is None or _all_na(status):
+    # Status NULL or all NA -> plot all as background
+    if status_arr is None or all(v is None for v in status_arr):
         ax.scatter(x, y, marker=bg_pch, c=bg_col, s=(float(bg_cex) * 25) ** 1, **kwargs)
         if main is not None:
             ax.set_title(main)
@@ -147,20 +172,13 @@ def plot_with_highlights(
         ax.set_ylabel(ylab)
         return ax
 
-    status_arr = np.asarray([str(v) for v in np.asarray(status).tolist()])
-
-    # Build `values` if not supplied: unique status values (most frequent
-    # first becomes background; remaining are highlights, in descending
-    # frequency order).
+    # R: the most frequent status value is the background and the others are
+    # highlighted in decreasing order of frequency
+    # (names(sort(table(status), decreasing=TRUE))[-1]; table() drops NA)
     if values is None:
-        unique, counts = np.unique(status_arr, return_counts=True)
-        order = np.argsort(-counts, kind="stable")
-        status_values = unique[order]
-        values = status_values[1:].tolist()
+        values = _table_levels_by_frequency(status)[1:]
     else:
-        values = [
-            str(v) for v in (values if isinstance(values, (list, tuple, np.ndarray)) else [values])
-        ]
+        values = list(_r_as_character(np.atleast_1d(np.asarray(values, dtype=object))))
 
     nvalues = len(values)
     if nvalues == 0:
@@ -181,7 +199,7 @@ def plot_with_highlights(
 
     # Background mask: status not in values
     values_set = set(values)
-    bg_mask = np.array([s not in values_set for s in status_arr])
+    bg_mask = np.array([v is None or v not in values_set for v in status_arr])
     nonhi = bool(np.any(bg_mask))
 
     # Resolve per-category pch / col / cex (length nvalues each, recycling)

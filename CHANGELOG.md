@@ -400,6 +400,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   with `choose_lowess_span(nrow, small_n=200, min_span=0.6)`; it used
   voom's settings (`small_n=50, min_span=0.3`), a span of 0.69 instead of
   0.95 for 300 rows (results up to 1.02 off R).
+- `plot_with_highlights` (so also `plot_md` / `plot_ma` with a status)
+  reads the status as R does: a missing value (None, NaN) is background, not
+  a highlighted group of its own, and is no longer counted when choosing the
+  most frequent value as background; a float status matches integer
+  `values` (`1.0` is `"1"`), where nothing was highlighted; tied
+  frequencies keep R's level order (numeric for numbers).
 
 ### Documentation and examples
 

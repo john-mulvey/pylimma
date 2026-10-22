@@ -50,6 +50,43 @@ def test_plot_with_highlights_layer_counts():
     assert set(labels) == {"up", "down"}
 
 
+def _r_points_calls(fixture, case):
+    """x values of each points() call R made, without the NA entries R's
+    x[status == value] carries (base graphics does not draw them)."""
+    calls = pd.read_csv(FIXTURES / fixture).query("case == @case")
+    return [g["value"].dropna().to_numpy() for _, g in calls.groupby("call", sort=True)]
+
+
+PWH_STATUS = {
+    "character_na": (np.array(["a"] * 100 + [None] * 50 + ["b"] * 10, dtype=object), None),
+    "na_most_frequent": (
+        np.array(["a"] * 10 + [None] * 50 + ["b"] * 5 + ["c"] * 95, dtype=object),
+        None,
+    ),
+    "float_values": (np.r_[np.ones(100), np.zeros(50), -np.ones(10)], [1, -1]),
+    "numeric_ties": (np.r_[np.zeros(100), np.full(30, 10.0), np.full(30, 2.0)], None),
+    "logical": (np.r_[np.ones(40, dtype=bool), np.zeros(120, dtype=bool)], None),
+}
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize("case", list(PWH_STATUS))
+def test_plot_with_highlights_status_matches_r(case):
+    """R keeps NA as background (not a group), takes values from table() by
+    frequency with ties in level order, and matches a float 1 to values=1."""
+    from pylimma import plot_with_highlights
+
+    x = np.arange(1.0, 161.0)
+    status, values = PWH_STATUS[case]
+    n = len(status)
+    ax = plot_with_highlights(x[:n], np.sqrt(x[:n]), status=status, values=values, legend=False)
+    drawn = [c.get_offsets()[:, 0] for c in ax.collections]
+    expected = [v for v in _r_points_calls("R_pwh_status_points.csv", case) if v.size]
+    assert len(drawn) == len(expected)
+    for got, want in zip(drawn, expected):
+        np.testing.assert_array_equal(got, want)
+
+
 # ----------------------------------------------------------------------------
 # plot_ma / plot_md
 # ----------------------------------------------------------------------------

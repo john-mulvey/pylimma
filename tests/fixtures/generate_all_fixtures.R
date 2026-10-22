@@ -5916,3 +5916,60 @@ stopifnot(isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, iterations = 0),
                            normalizeCyclicLoess(.cyl_x, iterations = 1))),
           isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, weights = matrix(.cyl_w)),
                            normalizeCyclicLoess(.cyl_x, weights = .cyl_w))))
+
+# =============================================================================
+# Recording what limma's plot functions draw: .plot_record(fname, ...) runs
+# the limma function with its base-graphics calls replaced by recorders and
+# returns the calls as a long data frame (call number, function, argument,
+# position, value). Used by the plotting sections below.
+# =============================================================================
+.plot_record <- function(fname, ...) {
+  calls <- list()
+  record <- function(what) {
+    force(what)
+    function(...) {
+    args <- list(...)
+    if (is.null(names(args))) names(args) <- rep("", length(args))
+    unnamed <- names(args) == ""
+    names(args)[unnamed] <- paste0("arg", which(unnamed))
+    calls[[length(calls) + 1]] <<- list(what = what, args = args)
+    invisible(NULL)
+  }}
+  f <- get(fname, asNamespace("limma"))
+  e <- new.env(parent = environment(f))
+  for (g in c("plot", "points", "lines", "segments", "rect", "text", "legend", "abline", "axis",
+              "mtext", "title", "polygon", "image", "par", "layout", "barplot", "matplot", "box"))
+    assign(g, record(g), e)
+  environment(f) <- e
+  f(...)
+  rows <- list()
+  for (k in seq_along(calls)) for (a in names(calls[[k]]$args)) {
+    v <- calls[[k]]$args[[a]]
+    if (is.function(v) || is.language(v) || is.list(v) || is.null(v)) next
+    # an empty vector (e.g. points() for a status value with no points) is one
+    # row with pos 0
+    rows[[length(rows) + 1]] <- data.frame(call = k, fun = calls[[k]]$what, arg = a,
+                                           pos = if (length(v)) seq_along(v) else 0L,
+                                           value = if (length(v)) as.character(v) else NA)
+  }
+  do.call(rbind, rows)
+}
+
+# =============================================================================
+# plotWithHighlights: as.character(status) keeps NA (background, not a group
+# of its own), values come from table(status) by decreasing frequency (ties in
+# level order: numeric for numbers) and a float status matches values = 1
+# =============================================================================
+.pwh_x <- seq_len(160)
+.pwh_y <- sqrt(.pwh_x)
+.pwh_cases <- list(
+  character_na = list(status = c(rep("a", 100), rep(NA, 50), rep("b", 10))),
+  na_most_frequent = list(status = c(rep("a", 10), rep(NA, 50), rep("b", 5), rep("c", 95))),
+  float_values = list(status = c(rep(1, 100), rep(0, 50), rep(-1, 10)), values = c(1, -1)),
+  numeric_ties = list(status = c(rep(0, 100), rep(10, 30), rep(2, 30))),
+  logical = list(status = c(rep(TRUE, 40), rep(FALSE, 120))))
+write.csv(do.call(rbind, lapply(names(.pwh_cases), function(case) {
+  args <- c(list("plotWithHighlights", .pwh_x, .pwh_y, legend = FALSE), .pwh_cases[[case]])
+  rec <- do.call(.plot_record, args)
+  data.frame(case = case, rec[rec$fun == "points" & rec$arg == "arg1", ])
+})), "R_pwh_status_points.csv", row.names = FALSE)
