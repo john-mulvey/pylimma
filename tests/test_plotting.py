@@ -846,6 +846,49 @@ def test_plot_functions_need_a_2d_matrix():
 
 
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_functions_densify_masked_and_sparse_matrices(monkeypatch):
+    """A masked cell (of E or of its weights) is a missing value (R's NA), as
+    in get_eawp; a sparse matrix plots as its dense form (R's as.matrix of a
+    sparse Matrix)."""
+    import scipy.sparse
+
+    import pylimma
+
+    plotting = __import__("pylimma.plotting", fromlist=["plot_with_highlights"])
+    E = np.random.default_rng(6).normal(8, 1, size=(100, 4))
+    mask = np.zeros(E.shape, dtype=bool)
+    mask[:5, 0] = True
+    with_nan = np.where(mask, np.nan, E)
+
+    seen = []
+    monkeypatch.setattr(plotting, "plot_with_highlights", lambda x, y, **kw: seen.append(y))
+    pylimma.plot_md(np.ma.masked_array(E, mask=mask))
+    pylimma.plot_md(with_nan)
+    np.testing.assert_array_equal(seen[0], seen[1])
+    assert np.isnan(seen[0][:5]).all()
+
+    w = np.ones(E.shape)
+    pylimma.plot_md(pylimma.EList({"E": E, "weights": np.ma.masked_array(w, mask=mask)}))
+    pylimma.plot_md(pylimma.EList({"E": E, "weights": np.where(mask, np.nan, w)}))
+    np.testing.assert_array_equal(seen[2], seen[3])
+    assert np.isnan(seen[2][:5]).all()
+
+    sparse = pylimma.plot_mds(scipy.sparse.csr_matrix(E), plot=False)
+    np.testing.assert_allclose(sparse["x"], pylimma.plot_mds(E, plot=False)["x"])
+    from_sparse = pylimma.plotlines(scipy.sparse.csr_matrix(E[:3]))
+    dense = pylimma.plotlines(E[:3])
+    np.testing.assert_array_equal(
+        np.vstack([line.get_ydata() for line in from_sparse.lines]),
+        np.vstack([line.get_ydata() for line in dense.lines]),
+    )
+    pylimma.mdplot(scipy.sparse.csr_matrix(E))
+    pylimma.mdplot(E)
+    np.testing.assert_array_equal(seen[4], seen[5])
+    pylimma.mdplot(np.ma.masked_array(E, mask=mask))
+    assert np.isnan(seen[6][:5]).all()
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_functions_read_an_anndata_layer(monkeypatch):
     """layer= plots adata.layers[layer] in place of X, as in lm_fit; a layer
     for another input (a matrix, a fit, an MDS result) raises."""

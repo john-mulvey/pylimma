@@ -69,6 +69,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - numpy masked arrays as expression data: the mask was ignored and the
   hidden values used as data; masked cells are now missing values (NaN),
   as R's NA.
+- The same holds in the plot functions that take expression data (also
+  for an EList's weights, and in `mdplot` and `plotlines`), which plotted
+  the hidden values; they also accept scipy.sparse matrices, which raised
+  "setting an array element with a sequence".
 - `cum_overlap`: p-values below ~1e-16 were lost (computed as
   `1 - cdf`), so `p_value`, `p_min` and `n_min` were wrong for strongly
   concordant lists; they now use the upper tail directly, as R.

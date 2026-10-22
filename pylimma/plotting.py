@@ -60,7 +60,13 @@ import numpy as np
 import pandas as pd
 
 from .classes import MArrayLM, _is_anndata, get_eawp
-from .utils import _r_as_character, _r_factor, p_adjust, tricube_moving_average
+from .utils import (
+    _as_dense_array,
+    _r_as_character,
+    _r_factor,
+    p_adjust,
+    tricube_moving_average,
+)
 
 _LEGEND_ANCHORS = {
     "bottomright": "lower right",
@@ -314,7 +320,12 @@ def _expression_matrix(object, *, layer=None, want_weights=False):
     DataFrame, EList or dict with E, or an AnnData (through get_eawp, so
     samples x genes is turned to genes x samples, reading ``layer`` in place
     of X; a layer for another input raises). weights is None unless
-    ``want_weights``; sample names and genes are None when absent."""
+    ``want_weights``; sample names and genes are None when absent.
+
+    The other inputs are read as R's plot functions read them, with
+    as.matrix() rather than lmFit's getEAWP (so a DataFrame's first text
+    column is not taken as gene IDs, and its column names name the
+    samples); sparse and masked matrices are densified as get_eawp does."""
     if _is_anndata(object) or layer is not None:
         y = get_eawp(object, layer=layer)
         targets = y.get("targets")
@@ -323,11 +334,13 @@ def _expression_matrix(object, *, layer=None, want_weights=False):
     if isinstance(object, dict) and "E" in object:
         E_in = object["E"]
         w = object.get("weights") if want_weights else None
+        if w is not None:
+            w = _as_dense_array(w, np.float64)
         genes = object.get("genes")
     else:
         E_in, w, genes = object, None, None
     names = list(E_in.columns) if isinstance(E_in, pd.DataFrame) else None
-    E = np.asarray(E_in, dtype=np.float64)
+    E = _as_dense_array(E_in, np.float64)
     if E.ndim != 2:
         raise ValueError("plot requires a 2D expression matrix")
     return E, w, names, genes
@@ -1924,7 +1937,7 @@ def plotlines(
     """
     plt = _require_matplotlib()
 
-    x = np.asarray(x, dtype=np.float64)
+    x = _as_dense_array(x, np.float64)
     if x.ndim == 1:
         x = x.reshape(1, -1)
     if first_column_origin:
@@ -1954,7 +1967,7 @@ def mdplot(
     Port of R limma's ``mdplot`` (``plotMD.R``). pylimma uses 0-based
     column indexing: pass ``columns=(0, 1)`` for R's ``c(1, 2)``.
     """
-    x = np.asarray(x, dtype=np.float64)
+    x = _as_dense_array(x, np.float64)
     if x.ndim != 2:
         raise ValueError("mdplot requires a 2-D matrix")
     # R: as.integer(columns)[1:2] is NA without a second column and plot()
