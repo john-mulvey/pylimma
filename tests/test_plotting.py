@@ -27,6 +27,15 @@ except ImportError:
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def _close_figures():
+    yield
+    if HAS_MPL:
+        import matplotlib.pyplot as plt
+
+        plt.close("all")
+
+
 # ----------------------------------------------------------------------------
 # plot_with_highlights
 # ----------------------------------------------------------------------------
@@ -430,6 +439,33 @@ def test_venn_counts_drops_rows_with_missing_values_as_r(include, file):
     x = np.array([[1, 1], [0, 1], [np.nan, 0], [1, 0], [-1, np.nan], [0, -1], [1, 1]])
     expected = pd.read_csv(FIXTURES / file)
     pd.testing.assert_frame_equal(venn_counts(x, include=include), expected, check_dtype=False)
+
+
+VENN_CASES = {
+    "one": (["A"], {}),
+    "two": (["A", "B"], {}),
+    "three": (["A", "B", "C"], {}),
+    "two_up_down": (["A", "B"], {"include": ["up", "down"]}),
+    "two_scalar_cex": (["A", "B"], {"cex": 1}),
+}
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize("case", list(VENN_CASES))
+def test_venn_diagram_text_matches_r(case):
+    """Set names and counts at R's positions: counts[k] in table() order,
+    so the count for set 2 only is inside the second circle."""
+    from pylimma import venn_diagram
+
+    columns, kwargs = VENN_CASES[case]
+    tests = pd.read_csv(FIXTURES / "R_venn_tests.csv")[columns]
+    ax = venn_diagram(tests, **kwargs)
+    r = pd.read_csv(FIXTURES / "R_venn_text.csv").query("case == @case")
+    expected = r.pivot(index="call", columns="arg", values="value")
+    got = [(*t.get_position(), t.get_text()) for t in ax.texts]
+    assert [label for *_, label in got] == expected["arg3"].tolist()
+    np.testing.assert_allclose([p[0] for p in got], expected["arg1"].astype(float))
+    np.testing.assert_allclose([p[1] for p in got], expected["arg2"].astype(float))
 
 
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")

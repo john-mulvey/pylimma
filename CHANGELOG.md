@@ -423,6 +423,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
   does; such a row was counted as all zeros (with any `include`). Unnamed
   columns are named "Group 1", "Group 2", ... as in R (they were "col0",
   "col1", ...), which also gives `venn_diagram` R's default set names.
+- `venn_diagram` places the counts as R's `vennDiagram` does: with two
+  sets the counts for "first set only" and "second set only" were drawn in
+  each other's circles, and with one set the counts inside and outside the
+  circle were swapped. A scalar `cex` works (it raised `TypeError`), and a
+  given `circle_col` also fills the circles lightly, as in R.
 
 ### Documentation and examples
 

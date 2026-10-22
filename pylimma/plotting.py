@@ -1055,6 +1055,7 @@ def venn_diagram(
     raises ``NotImplementedError``.
     """
     plt = _require_matplotlib()
+    cex = np.atleast_1d(np.asarray(cex, dtype=np.float64))
 
     if isinstance(include, (list, tuple, np.ndarray)):
         include_list = [str(v) for v in include]
@@ -1123,12 +1124,12 @@ def venn_diagram(
     ytext = {1: [1.8], 2: [1.8, 1.8], 3: [2.4, 2.4, -3.0]}[nsets]
 
     for k in range(nsets):
-        ax.plot(
-            xcentres[k] + r * np.cos(theta),
-            ycentres[k] + r * np.sin(theta),
-            color=circle_col_list[k],
-            linewidth=lwd,
-        )
+        circle_x = xcentres[k] + r * np.cos(theta)
+        circle_y = ycentres[k] + r * np.sin(theta)
+        ax.plot(circle_x, circle_y, color=circle_col_list[k], linewidth=lwd)
+        if circle_col is not None:
+            # R: a given circle colour also fills the circle, with alpha 0.06
+            ax.fill(circle_x, circle_y, color=circle_col_list[k], alpha=0.06, linewidth=0)
         ax.text(xtext[k], ytext[k], names[k], fontsize=12 * cex[0], ha="center")
 
     if nsets in (1, 2):
@@ -1137,11 +1138,12 @@ def venn_diagram(
         ax.plot([-3, 3, 3, -3, -3], [-3.5, -3.5, 3.3, 3.3, -3.5], color="black", linewidth=lwd)
 
     def _show_counts(zz, cex_val, adj, color, leg):
+        # R: counts[k] in table() order, outside the circles first
         if nsets == 1:
             ax.text(
-                2.3, -2.1, str(zz["1"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+                2.3, -2.1, str(zz["0"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
             )
-            ax.text(0, 0, str(zz["0"]), color=color, fontsize=10 * cex_val, ha="center", va=adj)
+            ax.text(0, 0, str(zz["1"]), color=color, fontsize=10 * cex_val, ha="center", va=adj)
             if show_include:
                 ax.text(-2.3, -2.1, leg, color=color, fontsize=10 * cex_val, ha="center", va=adj)
         elif nsets == 2:
@@ -1149,10 +1151,10 @@ def venn_diagram(
                 2.3, -2.1, str(zz["00"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
             )
             ax.text(
-                1.5, 0.1, str(zz["10"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+                1.5, 0.1, str(zz["01"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
             )
             ax.text(
-                -1.5, 0.1, str(zz["01"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
+                -1.5, 0.1, str(zz["10"]), color=color, fontsize=10 * cex_val, ha="center", va=adj
             )
             ax.text(0, 0.1, str(zz["11"]), color=color, fontsize=10 * cex_val, ha="center", va=adj)
             if show_include:

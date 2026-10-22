@@ -5941,8 +5941,11 @@ stopifnot(isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, iterations = 0),
   }}
   f <- get(fname, asNamespace("limma"))
   e <- new.env(parent = environment(f))
+  # par() stays real (functions query it, e.g. par("col")), on a null device
+  pdf(NULL)
+  on.exit(dev.off())
   for (g in c("plot", "points", "lines", "segments", "rect", "text", "legend", "abline", "axis",
-              "mtext", "title", "polygon", "image", "par", "layout", "barplot", "matplot", "box",
+              "mtext", "title", "polygon", "image", "layout", "barplot", "matplot", "box",
               .also))
     assign(g, record(g), e)
   environment(f) <- e
@@ -6030,8 +6033,26 @@ write.csv(.vp_rec[.vp_rec$fun == "text", c("arg", "pos", "value")], "R_volcano_l
           row.names = FALSE)
 
 # =============================================================================
-# vennCounts drops rows with NA (and names columns "Group 1", ...)
+# vennCounts drops rows with NA (and names columns "Group 1", ...);
+# vennDiagram puts counts[k] (table order) at fixed positions, the set-2-only
+# count in the second circle, and accepts a scalar cex
 # =============================================================================
 .vn_x <- cbind(c(1, 0, NA, 1, -1, 0, 1), c(1, 1, 0, 0, NA, -1, 1))
 write.csv(vennCounts(.vn_x), "R_venn_counts_na.csv", row.names = FALSE)
 write.csv(vennCounts(.vn_x, include = "up"), "R_venn_counts_na_up.csv", row.names = FALSE)
+set.seed(51)
+.vn_tests <- matrix(sample(c(-1, 0, 1), 3 * 40, replace = TRUE, prob = c(0.2, 0.5, 0.3)), 40,
+                    dimnames = list(NULL, c("A", "B", "C")))
+.vn_text <- function(case, ...) {
+  rec <- .plot_record("vennDiagram", ...)
+  text_calls <- rec[rec$fun == "text" & rec$arg %in% c("arg1", "arg2", "arg3"), ]
+  data.frame(case = case, text_calls[, c("call", "arg", "value")])
+}
+write.csv(rbind(
+  .vn_text("one", .vn_tests[, 1, drop = FALSE]),
+  .vn_text("two", .vn_tests[, 1:2]),
+  .vn_text("three", .vn_tests),
+  .vn_text("two_up_down", .vn_tests[, 1:2], include = c("up", "down")),
+  .vn_text("two_scalar_cex", .vn_tests[, 1:2], cex = 1)),
+  "R_venn_text.csv", row.names = FALSE)
+write.csv(.vn_tests, "R_venn_tests.csv", row.names = FALSE)
