@@ -441,6 +441,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   truncated at `limit`, with a stable sort, so truncated values keep R's
   order. Names are R's `as.character` (`1.0` is "1"), and `names` must
   give one name per row (R labels the rows past its end NA).
+- `plot_densities` orders the groups as R's factor does (numbers
+  numerically, otherwise sorted), so the legend and the colour of each
+  group follow R; a `group` shorter than the number of arrays is recycled
+  over the arrays as in R, where it raised `IndexError`. A missing group
+  (None, pandas NA, or NaN among strings) gets no line, as R's NA; a NaN
+  among numbers is a group of its own, as in R.
 
 ### Documentation and examples
 

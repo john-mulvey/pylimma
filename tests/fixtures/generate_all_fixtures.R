@@ -6100,3 +6100,21 @@ environment(.p32) <- list2env(list(plotMA = .p32_plotMA, png = function(...) NUL
                               parent = asNamespace("limma"))
 .p32(.p32_E)
 write.csv(do.call(rbind, .p32_calls), "R_p32_calls.csv", row.names = FALSE)
+
+# =============================================================================
+# plotDensities: group levels sorted (factor), each array coloured by its
+# level, colours recycled over the arrays when group is shorter, legend in
+# level order (default col = 1:ngroup, so col values index the levels)
+# =============================================================================
+set.seed(71)
+.pd_E <- matrix(rnorm(50 * 4, 8), 50, dimnames = list(NULL, c("s1", "s2", "s3", "s4")))
+write.csv(.pd_E, "R_pd_E.csv", row.names = FALSE)
+.pd_rec <- function(case, ...) {
+  rec <- .plot_record("plotDensities.default", .pd_E, ...)
+  keep <- (rec$fun == "matplot" & rec$arg == "col") | (rec$fun == "legend" & rec$arg %in% c("legend", "col"))
+  data.frame(case = case, rec[keep, c("fun", "arg", "pos", "value")])
+}
+write.csv(rbind(.pd_rec("character", group = c("b", "a", "b", "a")),
+                .pd_rec("short", group = c(1, 2)),
+                .pd_rec("numeric", group = c(10, 2, 2, 10))),
+          "R_pd_groups.csv", row.names = FALSE)

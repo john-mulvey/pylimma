@@ -560,6 +560,64 @@ def test_plot_ma_3by2_passes_status_and_labels_on(tmp_path):
     assert len(files) == 2
 
 
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize(
+    "case,group",
+    [("character", ["b", "a", "b", "a"]), ("short", [1, 2]), ("numeric", [10, 2, 2, 10])],
+)
+def test_plot_densities_groups_match_r(case, group):
+    """Levels sorted as R's factor, each array coloured by its level (the
+    colours recycled over the arrays when group is shorter), legend in level
+    order. R's default col is 1:ngroup, so its values index the levels."""
+    from matplotlib.colors import to_rgba
+
+    from pylimma import plot_densities
+
+    E = pd.read_csv(FIXTURES / "R_pd_E.csv")
+    ax = plot_densities(E, group=group)
+    r = pd.read_csv(FIXTURES / "R_pd_groups.csv").query("case == @case")
+    array_level = r.query("fun == 'matplot'")["value"].astype(int).to_numpy() - 1
+    array_level = np.resize(array_level, E.shape[1])
+    legend = ax.get_legend()
+    assert [t.get_text() for t in legend.get_texts()] == r.query("arg == 'legend'")[
+        "value"
+    ].tolist()
+    level_colours = [to_rgba(h.get_color()) for h in legend.legend_handles]
+    assert [to_rgba(line.get_color()) for line in ax.lines] == [
+        level_colours[i] for i in array_level
+    ]
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_densities_default_and_categorical_groups_follow_r_factor():
+    """R: group defaults to 1:narray (numeric levels) without column names;
+    a categorical group keeps its categories' order."""
+    from pylimma import plot_densities
+
+    E = np.random.default_rng(4).normal(8, 1, size=(50, 12))
+    ax = plot_densities(E)
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == [str(i) for i in range(1, 13)]
+    ax = plot_densities(E[:, :2], group=pd.Categorical(["b", "a"], categories=["b", "a"]))
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ["b", "a"]
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_densities_missing_groups_as_r():
+    """R: as.factor keeps a numeric NaN as a level; a missing group (None,
+    or NaN among strings: pandas' missing value) has no colour and matplot
+    draws no line."""
+    from pylimma import plot_densities
+
+    E = np.random.default_rng(5).normal(8, 1, size=(50, 4))
+    ax = plot_densities(E, group=[1.0, np.nan, 2.0, 2.0])
+    assert [t.get_text() for t in ax.get_legend().get_texts()] == ["1", "2", "NaN"]
+    assert len({line.get_color() for line in ax.lines}) == 3
+    for group in (["a", None, "b", "b"], ["a", np.nan, "b", "b"]):
+        ax = plot_densities(E, group=group)
+        assert len(ax.lines) == 3
+        assert [t.get_text() for t in ax.get_legend().get_texts()] == ["a", "b"]
+
+
 # ----------------------------------------------------------------------------
 # coolmap
 # ----------------------------------------------------------------------------

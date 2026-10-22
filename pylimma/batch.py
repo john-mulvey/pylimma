@@ -31,58 +31,17 @@ import pandas as pd
 
 from .classes import _shape_error, get_eawp, put_eawp
 from .lmfit import _numeric_design, _qr_r_style, lm_fit
-from .utils import _r_as_character
+from .utils import _r_factor
 
 
 def _factor_levels(factor) -> tuple[np.ndarray, np.ndarray]:
-    """Determine levels and string-coded factor values following R's
-    ``as.factor()`` dispatch.
-
-    Rules (mirrors R's `as.factor`):
-    - ``pd.Categorical`` / ``pd.Series`` with categorical dtype: preserve
-      ``categories`` order (matches R's factor-input behaviour).
-    - Numeric (int/float) array: levels = numeric sort of unique values,
-      rendered back to strings (matches R's `as.factor(numeric_vector)`).
-    - Boolean: levels = ``["FALSE", "TRUE"]`` (matches R).
-    - Character / object: levels = alphabetical sort of unique string values
-      (matches R's `as.factor(character_vector)`).
-
-    Returns ``(levels, str_values)`` both as 1-D numpy arrays of strings.
-    """
-    # Categorical (including pd.Series of categorical dtype)
-    if isinstance(factor, pd.Categorical):
-        cat = factor
-    elif isinstance(factor, pd.Series) and hasattr(factor, "cat"):
-        cat = factor.values
-    else:
-        cat = None
-    if cat is not None and isinstance(cat, pd.Categorical):
-        levels = np.array([str(c) for c in cat.categories])
-        str_values = np.array([str(v) for v in cat])
-        return levels, str_values
-
-    arr = np.asarray(factor)
-
-    # Boolean
-    if arr.dtype == bool:
-        levels = np.array(["FALSE", "TRUE"])
-        str_values = np.where(arr, "TRUE", "FALSE")
-        return levels, str_values
-
-    # Numeric (integer or float)
-    if np.issubdtype(arr.dtype, np.number):
-        unique_sorted = np.sort(np.unique(arr))
-
-        # R's `as.character(numeric)` labels; values whose labels coincide
-        # (0.3 and 0.1 + 0.2) form one level, as as.factor() merges them
-        levels = np.array(list(dict.fromkeys(_r_as_character(unique_sorted))))
-        str_values = _r_as_character(arr)
-        return levels, str_values
-
-    # Character / object: alphabetical
-    str_values = np.array([str(v) for v in arr])
-    levels = np.array(sorted(set(str_values)))
-    return levels, str_values
+    """Levels and string-coded values of R's ``as.factor(factor)``
+    (utils._r_factor; a numeric NaN is a level). Missing labels are
+    rejected before this is called. Returns ``(levels, str_values)`` as 1-D
+    arrays of strings."""
+    levels, codes = _r_factor(factor, nan_is_level=True)
+    levels = np.array(levels, dtype=object)
+    return levels.astype(str), levels[codes].astype(str)
 
 
 def _has_missing_label(factor) -> bool:

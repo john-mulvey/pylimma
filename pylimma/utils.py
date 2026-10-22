@@ -387,6 +387,48 @@ def _r_as_character(values) -> np.ndarray:
     return np.array([one(v) for v in np.asarray(values, dtype=object).ravel()], dtype=object)
 
 
+def _r_factor(values, *, nan_is_level: bool = False) -> tuple[list, np.ndarray]:
+    """R's factor(values): the level labels and each value's level index
+    (-1 for a missing value). A pandas Categorical keeps its categories;
+    numbers sort numerically, values whose as.character() labels coincide
+    (0.3 and 0.1 + 0.2) sharing a level; FALSE comes before TRUE; strings
+    sort by code point (R uses the locale). None and pandas NA are
+    missing; so is NaN unless ``nan_is_level`` and the values are numbers
+    (as.factor() makes a numeric NaN a level, table() leaves it out; among
+    strings NaN is pandas' missing value, R's NA)."""
+    if isinstance(values, pd.Series) and isinstance(values.dtype, pd.CategoricalDtype):
+        values = values.array
+    if isinstance(values, pd.Categorical):
+        levels = list(_r_as_character(np.asarray(values.categories, dtype=object)))
+        return levels, np.asarray(values.codes, dtype=np.int64)
+    raw = np.asarray(values, dtype=object).ravel()
+    numbers = (int, float, np.integer, np.floating)
+    present = [v for v in raw if v is not None and v is not pd.NA]
+    numeric = bool(present) and all(
+        isinstance(v, numbers) and not isinstance(v, (bool, np.bool_)) for v in present
+    )
+    nan_level = nan_is_level and numeric
+
+    def is_missing(v):
+        if v is None or v is pd.NA:
+            return True
+        return isinstance(v, (float, np.floating)) and np.isnan(v) and not nan_level
+
+    missing = np.array([is_missing(v) for v in raw], dtype=bool)
+    observed = raw[~missing]
+    codes = np.full(raw.size, -1, dtype=np.int64)
+    if numeric:
+        floats = observed.astype(np.float64)
+        labels = _r_as_character(floats)
+        levels = list(dict.fromkeys(_r_as_character(np.unique(floats))))
+    else:
+        labels = _r_as_character(observed)
+        levels = sorted(set(labels))
+    position = {level: k for k, level in enumerate(levels)}
+    codes[~missing] = [position[label] for label in labels]
+    return levels, codes
+
+
 def _r_trimmed_mean(x: np.ndarray, trim: float) -> float:
     """R's mean(x, trim=trim): the plain mean when trim <= 0, the median
     when trim >= 0.5, otherwise floor(n * trim) values dropped at each end."""

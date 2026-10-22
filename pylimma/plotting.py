@@ -50,7 +50,7 @@ import numpy as np
 import pandas as pd
 
 from .classes import EList, MArrayLM
-from .utils import _r_as_character, p_adjust, tricube_moving_average
+from .utils import _r_as_character, _r_factor, p_adjust, tricube_moving_average
 
 _LEGEND_ANCHORS = {
     "bottomright": "lower right",
@@ -107,23 +107,11 @@ def _status_labels(status) -> np.ndarray:
 
 
 def _table_levels_by_frequency(status) -> list:
-    """names(sort(table(status), decreasing=TRUE)): the levels of a factor
-    of status (numeric order for numbers, FALSE before TRUE, otherwise
-    sorted by code point, where R uses the locale), by decreasing count,
-    ties in level order."""
-    raw = np.asarray(status, dtype=object).ravel()
-    observed = raw[~pd.isna(raw)]
-    numeric = (int, float, np.integer, np.floating)
-    if all(isinstance(v, numeric) and not isinstance(v, (bool, np.bool_)) for v in observed):
-        levels = np.unique(observed.astype(np.float64))
-        labels = _r_as_character(levels)
-        counts = [int(np.sum(observed.astype(np.float64) == v)) for v in levels]
-    else:
-        labels = np.array(sorted(set(_r_as_character(observed))), dtype=object)
-        observed_labels = _r_as_character(observed)
-        counts = [int(np.sum(observed_labels == v)) for v in labels]
-    order = np.argsort(-np.asarray(counts), kind="stable")
-    return [labels[i] for i in order]
+    """names(sort(table(status), decreasing=TRUE)): the factor levels of
+    status by decreasing count, ties in level order."""
+    levels, codes = _r_factor(status)
+    counts = np.bincount(codes[codes >= 0], minlength=len(levels))
+    return [levels[i] for i in np.argsort(-counts, kind="stable")]
 
 
 def plot_with_highlights(
@@ -754,13 +742,14 @@ def plot_densities(
     if E.ndim != 2:
         raise ValueError("plotDensities requires a 2D expression matrix")
     narray = E.shape[1]
+    # R: group defaults to colnames(E), else the integers 1:narray
     if colnames is None:
-        colnames = [str(i + 1) for i in range(narray)]
+        colnames = list(range(1, narray + 1))
 
+    # R: group <- as.factor(group), its levels sorted
     if group is None:
         group = colnames
-    group_arr = np.array([str(g) for g in group])
-    levels = list(dict.fromkeys(group_arr.tolist()))  # preserve appearance
+    levels, group_codes = _r_factor(group, nan_is_level=True)
     ngroup = len(levels)
 
     default_cycle = [
@@ -782,7 +771,11 @@ def plot_densities(
         col_list = [str(col_v[i % len(col_v)]) for i in range(ngroup)]
 
     level_to_col = {lev: col_list[i] for i, lev in enumerate(levels)}
-    arraycol = [level_to_col[g] for g in group_arr.tolist()]
+    # R: arraycol is the group with its levels replaced by col; matplot
+    # recycles it over the arrays when group is shorter
+    # (a missing group has no colour: R's matplot draws no line for NA)
+    arraycol = [col_list[code] if code >= 0 else None for code in group_codes]
+    arraycol = [arraycol[a % len(arraycol)] for a in range(narray)]
 
     if ax is None:
         _, ax = plt.subplots()
@@ -795,7 +788,8 @@ def plot_densities(
         xx, yy = _r_density_gaussian(col_data, n_pts=512)
         X[:, a] = xx
         Y[:, a] = yy
-        ax.plot(xx, yy, color=arraycol[a], linewidth=2)
+        if arraycol[a] is not None:
+            ax.plot(xx, yy, color=arraycol[a], linewidth=2)
 
     ax.set_xlabel("Intensity")
     ax.set_ylabel("Density")
