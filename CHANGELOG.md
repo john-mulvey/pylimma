@@ -290,6 +290,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - The plot functions raise a clear error for an integer `pch` (R's codes
   such as 16 are not translated to matplotlib markers; see known
   differences), where matplotlib raised "Unrecognized marker style 16".
+- `plot_rldf` follows R's `plotRLDF`: the design's rank comes from R's
+  `qr()` rule (a design column on a tiny scale was dropped by an absolute
+  1e-10 cutoff), R's argument checks apply (`labels_y` and `labels_z`
+  lengths, rows of `z`, `show_dimensions`, `var_prior` / `df_prior`
+  lengths), points are labelled with the column names or 1..n unless
+  `pch_y` is given, and a design with fewer discriminant functions than
+  asked for (two groups) raises a clear error where R pads an arbitrary
+  dimension (it raised `IndexError`).
 
 ### Added
 

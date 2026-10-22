@@ -6156,3 +6156,27 @@ stopifnot(identical(.pae(volcanoplot(list(x = 1))), "fit must be an MArrayLM"),
           nzchar(.pae(mdplot(matrix(rnorm(20), 10), columns = 1))),
           nzchar(.pae(vennDiagram(NULL))))
 invisible(dev.off())
+
+# =============================================================================
+# plotRLDF: R's argument checks; a design column on a tiny scale is still
+# estimable (qr(tol = 1e-7) is relative); with two groups R pads svd(nu = 2)
+# with an arbitrary second dimension (pylimma raises)
+# =============================================================================
+set.seed(91)
+.rl_y <- matrix(rnorm(150 * 12), 150)
+.rl_y[1:15, 5:8] <- .rl_y[1:15, 5:8] + 2
+.rl_y[16:30, 9:12] <- .rl_y[16:30, 9:12] + 2
+write.csv(.rl_y, "R_rl_y.csv", row.names = FALSE)
+.rl_design <- cbind(1, rep(c(0, 1, 0), each = 4), rep(c(0, 0, 1), each = 4))
+.rl_tiny <- .rl_design
+.rl_tiny[, 3] <- .rl_tiny[, 3] * 1e-11
+.rl_out <- plotRLDF(.rl_y, .rl_tiny, plot = FALSE)
+.rl_sign <- function(m) sweep(m, 2, sign(m[cbind(apply(abs(m), 2, which.max), seq_len(ncol(m)))]), "*")
+write.csv(.rl_sign(.rl_out$training), "R_rl_tiny_training.csv", row.names = FALSE)
+write.csv(data.frame(d = .rl_out$singular.values), "R_rl_tiny_singular_values.csv", row.names = FALSE)
+.rl_fails <- function(...) inherits(try(plotRLDF(.rl_y, plot = FALSE, ...), silent = TRUE), "try-error")
+stopifnot(.rl_fails(design = .rl_design, labels.y = c("a", "b")),
+          .rl_fails(design = .rl_design, z = .rl_y[1:10, ]),
+          .rl_fails(design = .rl_design, show.dimensions = c(1, 1)),
+          .rl_fails(design = .rl_design, var.prior = c(1, 2), df.prior = 3),
+          ncol(plotRLDF(.rl_y, cbind(1, rep(0:1, each = 6)), plot = FALSE)$training) == 2)

@@ -1800,7 +1800,11 @@ def plot_rldf(
     Regularised linear discriminant function plot.
 
     Port of R limma's ``plotRLDF`` (``plotrldf.R``). ``show_dimensions``
-    is 0-based; pass ``(0, 1)`` for R's ``c(1, 2)``.
+    is 0-based; pass ``(0, 1)`` for R's ``c(1, 2)``. As R intends (its own
+    tests have misplaced parentheses), ``ndim`` is raised to the largest
+    shown dimension and a dimension beyond the samples raises; a design
+    with fewer discriminant functions than asked for raises (R pads them;
+    see :doc:`/validation/known_differences`).
 
     Parameters
     ----------
@@ -1845,47 +1849,67 @@ def plot_rldf(
     ``training_scores``, ``top_probes`` and ``test_scores`` are kept.
     """
     _check_pch(pch_y, pch_z)
+    from .lmfit import _qr_r_style
     from .squeeze_var import squeeze_var
 
-    y = np.asarray(y, dtype=np.float64)
+    y, _, colnames, _ = _expression_matrix(y)
     g, n = y.shape
+
+    # R: labels.y default colnames(y), else 1:n; a given one has length n
+    if labels_y is None:
+        labels_y = colnames if colnames is not None else list(range(1, n + 1))
+    elif len(labels_y) != n:
+        raise ValueError("length(labels_y) doesn't agree with ncol(y)")
+    labels_y = [str(v) for v in _r_as_character(labels_y)]
+
+    if z is not None:
+        z, _, z_colnames, _ = _expression_matrix(z)
+        if z.shape[0] != g:
+            raise ValueError("nrow(z) disagrees with nrow(y)")
+        if labels_z is None:
+            labels_z = (
+                z_colnames
+                if z_colnames is not None
+                else list("abcdefghijklmnopqrstuvwxyz"[: z.shape[1]])
+            )
+        if len(labels_z) != z.shape[1]:
+            raise ValueError("length(labels_z) doesn't agree with ncol(z)")
+        labels_z = [str(v) for v in _r_as_character(labels_z)]
+
     if design is None:
-        if labels_y is None:
-            raise ValueError("groups not specified")
-        labs = np.asarray(labels_y)
-        if len(np.unique(labs)) == len(labs):
+        # R: design <- model.matrix(~ as.factor(labels.y))
+        if len(set(labels_y)) == len(labels_y):
             raise ValueError("design not specified and all labels_y are different")
-        # Build ~ f design
-        levels, inv = np.unique(labs, return_inverse=True)
+        levels, codes = _r_factor(labels_y)
         design = np.column_stack(
-            [
-                np.ones(n),
-                (inv[:, None] == np.arange(1, len(levels))).astype(float),
-            ]
+            [np.ones(n), (codes[:, None] == np.arange(1, len(levels))).astype(float)]
         )
     design = np.asarray(design, dtype=np.float64)
     if design.shape[0] != n:
         raise ValueError("nrow(design) doesn't match ncol(y)")
+
+    # R: show.dimensions must be two different columns of y
+    # R: as.integer(show.dimensions)[1:2]
+    show_dimensions = tuple(int(d) for d in show_dimensions)[:2]
+    if len(show_dimensions) != 2 or show_dimensions[0] == show_dimensions[1]:
+        raise ValueError("show_dimensions must specify two different columns")
+    if min(show_dimensions) < 0 or max(show_dimensions) >= n:
+        raise ValueError("show_dimensions must be a column number of y")
+    # R: if(any(show.dimensions)>ndim) ndim <- max(show.dimensions), meant as
+    # any(show.dimensions > ndim)
+    ndim = max(show_dimensions) + 1 if ndim is None else max(int(ndim), max(show_dimensions) + 1)
     if nprobes < 1:
         raise ValueError("'nprobes' must be at least 1")
-    if ndim is None:
-        ndim = max(show_dimensions) + 1
 
-    # Project onto between / within spaces via full QR of design
-    # (plotrldf.R:59-65). U = Q.T @ y.T shape (n, g). Drop first column
-    # as intercept. UB is rows 2:p of U (between space, p-1 rows). UW
-    # is rows p+1:n (residual/within space, n-p rows).
-    Q_full, R_full = np.linalg.qr(design, mode="complete")
-    # R rank = number of non-zero diag entries
-    diag_R = np.abs(np.diag(R_full)) if R_full.ndim == 2 else np.array([abs(R_full[0, 0])])
-    rank_d = int(np.sum(diag_R > 1e-10))
-    p = rank_d
+    # Project onto between / within spaces (R: qr(design), qr.qty), the
+    # rank from R's qr() rule; the first column (intercept) is discarded
+    Q_full, _, _, p = _qr_r_style(design)
     df_residual = n - p
     if df_residual == 0:
         raise ValueError("No residual degrees of freedom")
     U = Q_full.T @ y.T  # (n, g)
-    UB = U[1:p, :]  # rows 2:p, shape (p-1, g); R's 1-based U[2:p,] -> Python U[1:p,]
-    UW = U[p:, :]  # rows p+1:n, shape (n-p, g)
+    UB = U[1:p, :]  # R: U[2:p, ]
+    UW = U[p:, :]  # R: U[(p+1):n, ]
     s2 = np.mean(UW**2, axis=0)  # (g,)
 
     # Prior variance / df (plotrldf.R:68-79)
@@ -1894,6 +1918,11 @@ def plot_rldf(
         sv = squeeze_var(s2, df=float(df_residual), covariate=covariate, robust=robust)
         var_prior = sv["var_prior"]
         df_prior = sv["df_prior"]
+    else:
+        if np.size(var_prior) not in (1, g):
+            raise ValueError("var_prior wrong length")
+        if np.size(df_prior) not in (1, g):
+            raise ValueError("df_prior wrong length")
     var_prior = np.atleast_1d(np.asarray(var_prior, dtype=np.float64))
     df_prior = np.atleast_1d(np.asarray(df_prior, dtype=np.float64))
     df_prior = np.minimum(df_prior, (g - 1) * df_residual)
@@ -1951,12 +1980,19 @@ def plot_rldf(
     # SVD: columns of U are metagenes (per-gene), singular values are
     # the discriminant strengths.
     U_svd, s_vals, _ = np.linalg.svd(WintoB, full_matrices=False)
+    rank_out = min(WintoB.shape)
+    # R pads svd(nu=ndim) with an arbitrary orthonormal completion when the
+    # design gives fewer discriminant functions; pylimma raises
+    if ndim > rank_out:
+        raise ValueError(
+            f"the design gives {rank_out} discriminant function(s), but show_dimensions / ndim "
+            f"ask for {ndim}"
+        )
     metagenes = U_svd[:, :ndim]
 
     # LDF scores for the training set: d.y = t(y) %*% metagenes
     # (plotrldf.R:125). t(y) is (n, g) so d_y has shape (n, ndim).
     d_y = y_sel.T @ metagenes
-    rank_out = min(WintoB.shape)
 
     result = {
         "training": d_y,
@@ -1981,22 +2017,25 @@ def plot_rldf(
             _fig, ax = plt.subplots()
         d1 = show_dimensions[0]
         d2 = show_dimensions[1]
-        if pch_y is None and labels_y is not None:
+        # R: text labels unless pch is given
+        if pch_y is None:
             for xi, yi, lab in zip(d_y[:, d1], d_y[:, d2], labels_y):
-                ax.text(xi, yi, str(lab), color=col_y)
+                ax.text(xi, yi, lab, color=col_y)
         else:
-            ax.scatter(
-                d_y[:, d1], d_y[:, d2], c=col_y, marker=str(pch_y) if pch_y is not None else "o"
-            )
+            ax.scatter(d_y[:, d1], d_y[:, d2], c=col_y, marker=pch_y)
         if z_sel is not None:
             d_z = result["predicting"]
-            if pch_z is None and labels_z is not None:
+            if pch_z is None:
                 for xi, yi, lab in zip(d_z[:, d1], d_z[:, d2], labels_z):
-                    ax.text(xi, yi, str(lab), color=col_z)
+                    ax.text(xi, yi, lab, color=col_z)
             else:
-                ax.scatter(
-                    d_z[:, d1], d_z[:, d2], c=col_z, marker=str(pch_z) if pch_z is not None else "x"
-                )
+                ax.scatter(d_z[:, d1], d_z[:, d2], c=col_z, marker=pch_z)
+        # R: plot(type="n") sets the limits from all points; text sets none
+        drawn = [d_y[:, [d1, d2]]] + (
+            [result["predicting"][:, [d1, d2]]] if z_sel is not None else []
+        )
+        ax.update_datalim(np.vstack(drawn))
+        ax.autoscale_view()
         ax.set_xlabel(f"Discriminant Function {d1 + 1}")
         ax.set_ylabel(f"Discriminant Function {d2 + 1}")
     return result

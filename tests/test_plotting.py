@@ -861,3 +861,62 @@ def test_tuple_markers_are_accepted():
 
     ax = plot_mds(np.random.default_rng(0).normal(size=(50, 4)), pch=(5, 0, 0))
     assert len(ax.collections) == 1
+
+
+def _rl_inputs():
+    y = pd.read_csv(FIXTURES / "R_rl_y.csv").to_numpy()
+    design = np.column_stack(
+        [np.ones(12), np.repeat([0.0, 1.0, 0.0], 4), np.repeat([0.0, 0.0, 1.0], 4)]
+    )
+    return y, design
+
+
+def test_plot_rldf_tiny_scale_design_column_matches_r():
+    """R's qr() decides rank relative to each column, so a design column on
+    a 1e-11 scale is estimable (an absolute 1e-10 cutoff dropped it)."""
+    from pylimma import plot_rldf
+
+    y, design = _rl_inputs()
+    design[:, 2] *= 1e-11
+    out = plot_rldf(y, design, plot=False)
+    r_sv = pd.read_csv(FIXTURES / "R_rl_tiny_singular_values.csv")["d"].to_numpy()
+    np.testing.assert_allclose(out["singular_values"], r_sv, rtol=1e-6)
+    np.testing.assert_allclose(
+        canonical_column_signs(out["training"]),
+        pd.read_csv(FIXTURES / "R_rl_tiny_training.csv").to_numpy(),
+        rtol=1e-6,
+        atol=1e-12,
+    )
+
+
+@pytest.mark.parametrize(
+    "kwargs,message",
+    [
+        ({"labels_y": ["a", "b"]}, "length\\(labels_y\\) doesn't agree"),
+        ({"z": "short"}, "nrow\\(z\\) disagrees"),
+        ({"show_dimensions": (0, 0)}, "two different columns"),
+        ({"var_prior": [1.0, 2.0], "df_prior": 3.0}, "var_prior wrong length"),
+        ({"two_groups": True}, "the design gives 1 discriminant function"),
+    ],
+)
+def test_plot_rldf_argument_errors(kwargs, message):
+    """R's checks (fixture script); with two groups there is one discriminant
+    function, where R pads a second with an arbitrary completion."""
+    from pylimma import plot_rldf
+
+    y, design = _rl_inputs()
+    if kwargs.pop("z", None) == "short":
+        kwargs["z"] = y[:10]
+    if kwargs.pop("two_groups", False):
+        design = np.column_stack([np.ones(12), np.repeat([0.0, 1.0], 6)])
+    with pytest.raises(ValueError, match=message):
+        plot_rldf(y, design, plot=False, **kwargs)
+
+
+def test_plot_rldf_uses_the_first_two_show_dimensions():
+    """R: as.integer(show.dimensions)[1:2]."""
+    from pylimma import plot_rldf
+
+    y, design = _rl_inputs()
+    out = plot_rldf(y, design, plot=False, show_dimensions=(0, 1, 5))
+    np.testing.assert_allclose(out["training"], plot_rldf(y, design, plot=False)["training"])

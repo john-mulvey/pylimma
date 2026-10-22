@@ -158,6 +158,20 @@ on data without missing values; the fixture script also checks that R
 turns those rows NA. A row holding an infinite value is returned all
 NaN, as in R, which gives no warning; pylimma warns.
 
+Conditions with misplaced parentheses in ``plotMD`` and ``plotRLDF``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``plotMD.MArrayLM`` tests ``if(ncol(status == ncol(object)))``, which is
+always true, so a status with several columns always gives its column
+``column``, whatever its number of columns (R stops only when that column
+does not exist). ``plotRLDF`` tests ``any(show.dimensions) > ndim`` and
+``any(show.dimensions) > n``, which compare ``TRUE`` (1) with the number,
+so ``ndim`` is never raised to the largest shown dimension and a
+dimension beyond the samples is not caught. pylimma follows the evident
+intent: ``plot_md`` raises "status has multiple columns" unless the status
+has one column per coefficient, and ``plot_rldf`` raises ``ndim`` to the
+largest shown dimension and rejects one beyond the samples.
+
 genas: logFC / predFC subsets re-centre the coefficients
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -402,6 +416,15 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     ``mdplot(x, columns=1)`` takes an NA second column and fails in
     ``plot.window`` ("need finite 'xlim' values"); ``vennDiagram(NULL)``
     fails in ``as.matrix`` ("'data' must be of a vector type").
+    ``generate_all_fixtures.R`` records the R behaviour.
+
+``plot_rldf`` asking for more discriminant functions than the design gives
+    With two groups the design gives one discriminant function, but
+    ``show_dimensions`` always names two. R's ``svd(nu=2)`` then pads the
+    metagenes with an orthonormal completion from LAPACK, so R plots and
+    returns a second dimension that carries no information and differs
+    between LAPACK builds. pylimma raises "the design gives 1 discriminant
+    function(s), but show_dimensions / ndim ask for 2".
     ``generate_all_fixtures.R`` records the R behaviour.
 
 ``heat_diagram`` with ``names`` of the wrong length
