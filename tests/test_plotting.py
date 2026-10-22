@@ -1114,3 +1114,18 @@ def test_coolmap_accepts_elist_and_anndata_and_needs_two_rows():
         assert [t.get_text() for t in out["ax"].get_yticklabels()] == list(x.index[rows])
     with pytest.raises(ValueError, match="Need at least 2 rows and 2 columns"):
         coolmap(x.iloc[:1])
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_barcode_plot_index_is_0_based_and_weights_follow_it():
+    """index positions are 0-based (pylimma's gene-set convention) and
+    gene_weights follow the order of index, as R's gene.weights1[index]."""
+    from pylimma import barcode_plot
+
+    stat = pd.read_csv(FIXTURES / "R_bc_stat.csv")["stat"].to_numpy()
+    sets = pd.read_csv(FIXTURES / "R_bc_index.csv")
+    ax = barcode_plot(
+        stat, index=sets["index"].to_numpy() - 1, gene_weights=sets["weight"].to_numpy()
+    )
+    expected = pd.read_csv(FIXTURES / "R_bc_worm_weighted.csv")["value"].to_numpy()
+    np.testing.assert_allclose(ax.lines[0].get_ydata(), expected, rtol=1e-10)

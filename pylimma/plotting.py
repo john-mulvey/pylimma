@@ -1516,11 +1516,34 @@ def barcode_plot(
 ):
     """Barcode plot of one or two gene sets. Port of R limma's
     ``barcodeplot``.
+
+    ``index`` and ``index2`` are booleans, 0-based positions or names of a
+    ``statistics`` Series, as in pylimma's gene-set functions.
     """
     plt = _require_matplotlib()
 
+    from .geneset import _subscript_rows
+
     stat = np.asarray(statistics, dtype=np.float64).copy()
     nstat = len(stat)
+
+    def rows_of(index):
+        """0-based rows of statistics[index], as pylimma's gene-set functions
+        take an index: booleans, 0-based positions, or names of a Series."""
+        arr = np.asarray(index)
+        if pd.isna(arr).any():
+            raise ValueError("Need to provide index without NAs")
+        if arr.dtype.kind == "b" and arr.size != nstat:
+            raise ValueError("Length of index disagrees with statistics")
+        rows = _subscript_rows(index, statistics)
+        if rows.size > nstat:
+            raise ValueError("Length of index disagrees with statistics")
+        return rows
+
+    def mask_of(rows):
+        mask = np.zeros(nstat, dtype=bool)
+        mask[rows] = True
+        return mask
 
     # Check / coerce index
     if index is None:
@@ -1528,65 +1551,52 @@ def barcode_plot(
             raise ValueError("Must specify at least one of index or gene_weights")
         if len(gene_weights) != nstat:
             raise ValueError("No index and length(gene_weights) doesn't equal length(statistics)")
-        index = np.ones(nstat, dtype=bool)
+        rows1 = np.arange(nstat)
         index2 = None
     else:
-        idx = np.asarray(index)
-        if idx.dtype == bool:
-            if len(idx) != nstat:
-                raise ValueError("Length of index disagrees with statistics")
-        else:
-            if len(idx) > nstat:
-                raise ValueError("Length of index disagrees with statistics")
+        rows1 = rows_of(index)
 
     # index2 handling (two-set from two indexes -> collapse to weights)
     if index2 is not None:
         if gene_weights is not None:
             warnings.warn("gene_weights ignored", UserWarning)
         w = np.zeros(nstat)
-        w[_as_logical(index, nstat)] = 1.0
-        w[_as_logical(index2, nstat)] = -1.0
+        w[rows1] = 1.0
+        w[rows_of(index2)] = -1.0
         gene_weights = w
-        index = np.ones(nstat, dtype=bool)
-        index2 = None
+        rows1 = np.arange(nstat)
 
     gene_weights2 = None
+    idx2_mask = None
     if gene_weights is not None:
         gw = np.asarray(gene_weights, dtype=np.float64)
         if np.any(np.isnan(gw)):
             raise ValueError("Need to provide gene_weights without NAs")
         if np.all(gw == 0):
             raise ValueError("gene_weights equal to zero: no selected genes to plot")
-        idx_mask = _as_logical(index, nstat)
-        if len(gw) != int(idx_mask.sum()):
+        if len(gw) != rows1.size:
             raise ValueError("Length of gene_weights disagrees with size of set")
-
-        one = bool(np.all(gw >= 0) or np.all(gw <= 0))
-
-        if one:
-            index2 = None
-            gw1_full = np.zeros(nstat)
-            gw1_full[idx_mask] = gw
-            index = gw1_full != 0
-            gene_weights = gw1_full[index]
+        # R: gene.weights1[index] <- gene.weights, in the order of index
+        full = np.zeros(nstat)
+        full[rows1] = gw
+        if np.all(gw >= 0) or np.all(gw <= 0):
+            idx_mask = full != 0
         else:
-            gw12 = np.zeros(nstat)
-            gw12[idx_mask] = gw
-            index = gw12 > 0
-            index2 = gw12 < 0
-            gene_weights = gw12[index]
-            gene_weights2 = gw12[index2]
+            idx_mask = full > 0
+            idx2_mask = full < 0
+            gene_weights2 = full[idx2_mask]
+        gene_weights = full[idx_mask]
+    else:
+        idx_mask = mask_of(rows1)
 
-    TWO = index2 is not None and np.any(_as_logical(index2, nstat))
+    TWO = idx2_mask is not None
 
-    idx_mask = _as_logical(index, nstat)
     set1 = {
         "idx": idx_mask,
         "weight": np.full(nstat, np.nan),
         "wt": np.full(nstat, np.nan),
     }
     if TWO:
-        idx2_mask = _as_logical(index2, nstat)
         set2 = {
             "idx": idx2_mask,
             "weight": np.full(nstat, np.nan),
@@ -1730,26 +1740,6 @@ def barcode_plot(
 
     ax.set_xlabel(xlab)
     return ax
-
-
-def _as_logical(index, n):
-    """Coerce R-style index (logical or integer) to a boolean mask of length n."""
-    arr = np.asarray(index)
-    if arr.dtype == bool:
-        if len(arr) != n:
-            out = np.zeros(n, dtype=bool)
-            out[: len(arr)] = arr
-            return out
-        return arr.copy()
-    mask = np.zeros(n, dtype=bool)
-    # Integer positions: R uses 1-based positive indices
-    pos = arr.astype(np.int64)
-    # Accept either 1-based (R) or 0-based (Python) via heuristic:
-    # if min > 0 and max <= n, assume 1-based.
-    if len(pos) and pos.min() >= 1 and pos.max() <= n:
-        pos = pos - 1
-    mask[pos] = True
-    return mask
 
 
 # ===========================================================================

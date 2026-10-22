@@ -313,6 +313,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   / `col_ind` (R's `rowInd` / `colInd`, 0-based) and the linkages, where it
   returned the Figure. `ax=` and further arguments (which R passes to
   `heatmap.2`) raise errors; they were silently ignored.
+- `barcode_plot` takes `index` / `index2` as pylimma's gene-set functions
+  do: booleans, 0-based positions or names of a `statistics` Series. It
+  guessed the base of integer positions (all between 1 and n were taken as
+  1-based and shifted), so a 0-based index could mark the wrong genes, and
+  `gene_weights` followed the position order instead of the order of
+  `index`; an index with NA raises R's error.
 
 ### Added
 

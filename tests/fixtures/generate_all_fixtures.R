@@ -6252,3 +6252,18 @@ write.csv(rbind(.cm_ind("na_de_pattern", .cm_na), .cm_ind("na_expression", .cm_n
 .cm_el <- new("EList", list(E = .cm_x))
 stopifnot(identical(.cm_ind("el", .cm_el)$ind, .cm_ind("x", .cm_x)$ind),
           inherits(try(.cm_ind("one", .cm_x[1, , drop = FALSE]), silent = TRUE), "try-error"))
+
+# =============================================================================
+# barcodeplot: index positions in the order given, gene.weights following
+# that order (an unsorted index with unequal weights); the worm is recorded
+# =============================================================================
+set.seed(121)
+.bc_stat <- rnorm(200)
+.bc_index <- sample(200, 30)
+.bc_stat[.bc_index[1:15]] <- .bc_stat[.bc_index[1:15]] + 1.5
+.bc_weights <- runif(30, 0.5, 3)
+write.csv(data.frame(stat = .bc_stat), "R_bc_stat.csv", row.names = FALSE)
+write.csv(data.frame(index = .bc_index, weight = .bc_weights), "R_bc_index.csv", row.names = FALSE)
+.bc_rec <- .plot_record("barcodeplot", .bc_stat, index = .bc_index, gene.weights = .bc_weights)
+write.csv(.bc_rec[.bc_rec$fun == "lines" & .bc_rec$arg == "y", c("pos", "value")], "R_bc_worm_weighted.csv",
+          row.names = FALSE)
