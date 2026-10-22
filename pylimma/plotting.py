@@ -1498,6 +1498,29 @@ def coolmap(
 # ----------------------------------------------------------------------------
 
 
+def _r_format(values, digits, scientific=True):
+    """R's format(x, digits=digits) for finite numbers: all values share the
+    number of decimals that the one needing most takes to show ``digits``
+    significant digits (trailing zeros dropped); scientific notation when
+    that is narrower (unless ``scientific=False``). Not padded to a common
+    width."""
+    values = np.atleast_1d(np.asarray(values, dtype=np.float64))
+    decimals, max_sig, negative = 0, 1, bool(np.any(values < 0))
+    for v in values[np.isfinite(values) & (values != 0)]:
+        mantissa, exponent = f"{abs(v):.{digits - 1}e}".split("e")
+        sig = len(mantissa.replace(".", "").rstrip("0")) or 1
+        max_sig = max(max_sig, sig)
+        decimals = max(decimals, sig - int(exponent) - 1)
+    fixed = [f"{v:.{decimals}f}" for v in values]
+    if scientific:
+        sci = [f"{v:.{max_sig - 1}e}" for v in values]
+        fixed_width = max(len(v) for v in fixed)
+        sci_width = negative + (max_sig + 1 if max_sig > 1 else max_sig) + 4
+        if fixed_width > sci_width:
+            return sci
+    return fixed
+
+
 def barcode_plot(
     statistics,
     index=None,
@@ -1511,6 +1534,7 @@ def barcode_plot(
     worm: bool = True,
     span_worm: float = 0.45,
     xlab: str = "Statistic",
+    main: str | None = None,
     ax=None,
     **kwargs,
 ):
@@ -1518,8 +1542,16 @@ def barcode_plot(
     ``barcodeplot``.
 
     ``index`` and ``index2`` are booleans, 0-based positions or names of a
-    ``statistics`` Series, as in pylimma's gene-set functions.
+    ``statistics`` Series, as in pylimma's gene-set functions. As in R, the
+    statistics are ranked from left to right over a shaded band (light blue
+    below ``quantiles[0]``, pink above ``quantiles[1]``); each gene of the
+    set is a bar (the second set's below the band, as is a set given by
+    negative ``gene_weights``), bar heights follow unequal weights, and the
+    worm above (and below) shows the relative enrichment. ``main`` is the
+    title (R passes it on to ``plot()``).
     """
+    if kwargs:
+        raise TypeError(f"barcode_plot got unexpected arguments {sorted(kwargs)}")
     plt = _require_matplotlib()
 
     from .geneset import _subscript_rows
@@ -1668,29 +1700,32 @@ def barcode_plot(
                 WTS = True
             max_wt = max(np.max(set1["wt"][r]), np.max(set2["wt"][r2]))
             len_up = set1["wt"][r] / max_wt
-            # TODO: confirm whether _len_down should be used (R barcodeplot.R:188
-            # passes len.down to segments() drawing the second-set bars; the
-            # corresponding plotting branch is not yet ported)
-            _len_down = set2["wt"][r2] / max_wt
+            len_down = set2["wt"][r2] / max_wt
 
     pos_dir = bool(np.all(len_up > 0))
     shift = 0.1 if WTS else 0.0
+    quantiles = np.sort(np.asarray(quantiles, dtype=np.float64))
 
+    # R: bar colours; with unequal weights the long bars are transparent
+    from matplotlib.collections import LineCollection
+    from matplotlib.colors import to_rgba
+    from matplotlib.patches import Rectangle
+    from matplotlib.transforms import blended_transform_factory
+
+    bar_alpha = max(min(alpha, 1.0), 0.1)
     if col_bars is None:
-        col_bars = ("red", "blue") if TWO else ("black",)
+        col_bars = ["red", "blue"] if TWO else ["black"]
     else:
-        if not isinstance(col_bars, (list, tuple, np.ndarray)):
-            col_bars = (col_bars,)
+        col_bars = list(np.atleast_1d(np.asarray(col_bars, dtype=object)))
+        if TWO and len(col_bars) == 1:
+            col_bars = col_bars * 2
+    col_bars_alpha = [to_rgba(c, bar_alpha) for c in col_bars] if WTS else list(col_bars)
 
+    # R: plot(1:n, type="n", axes=FALSE) with these limits
     ylim_worm = [-2.1, 2.1] if worm else [-1.0, 1.0]
     if not TWO:
         ylim_worm = [0.0, 2.1] if worm else [0.0, 1.0]
-
-    # TODO: confirm whether _ylim should be used (R barcodeplot.R:283 derives
-    # barlim from ylim for the bar-rectangle drawing, which is not yet ported)
-    _ylim = [-1.0, 1.5]
-    if TWO:
-        _ylim = [-1.5, 1.5]
+    ylim = [-1.5 if TWO else -1.0, 1.5]
 
     if ax is None:
         _, ax = plt.subplots()
@@ -1699,46 +1734,138 @@ def barcode_plot(
         ax.set_ylim(ylim_worm[0] - shift, ylim_worm[1] + shift)
     else:
         ax.set_ylim(ylim_worm[0] - shift * (not pos_dir), ylim_worm[1] + shift * pos_dir)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.set_xlabel(xlab)
+    if main is not None:
+        ax.set_title(main)
 
-    # TODO: confirm whether _npos / _nneg should be used (R barcodeplot.R:290-292
-    # uses these to draw coloured background rectangles; not yet ported)
-    _npos = int(np.sum(stat > quantiles[1]))
-    _nneg = int(np.sum(stat < quantiles[0]))
+    npos = int(np.sum(stat > quantiles[1]))
+    nneg = int(np.sum(stat < quantiles[0]))
+    lwd = min(max(50 / len(r), 0.2), 1.9)
+    if TWO:
+        lwd = lwd2 = min(lwd, min(max(50 / len(r2), 0.2), 1.9))
 
-    # Compute worm (main numeric substrate output)
-    worm1 = None
-    # TODO: confirm whether _worm2 should be used (R barcodeplot.R:344,356,386
-    # compute worm2 and plot worm2.scale; the second-set worm-plot branch is
-    # not yet ported)
-    _worm2 = None
+    def rects(bottom, top):
+        # R: grey middle, light blue below quantiles[0], pink above quantiles[1]
+        spans = [(nneg + 0.5, n - npos + 0.5, "lightgray")]
+        if nneg:
+            spans.append((0.5, nneg + 0.5, "lightblue"))
+        if npos:
+            spans.append((n - npos + 0.5, n + 0.5, "pink"))
+        for left, right, colour in spans:
+            ax.add_patch(
+                Rectangle(
+                    (left, bottom), right - left, top - bottom, facecolor=colour, edgecolor="none"
+                )
+            )
+
+    def segments(x, y0, y1, width, colour):
+        y0, y1 = np.broadcast_to(y0, x.shape), np.broadcast_to(y1, x.shape)
+        lines = [[(xi, a), (xi, b)] for xi, a, b in zip(x, y0, y1)]
+        ax.add_collection(LineCollection(lines, colors=[colour], linewidths=width))
+
+    # R: bars at 1-based positions r; barlim from ylim
+    x1 = r + 1.0
+    barlim = [ylim[1] - 1.5, ylim[1] - 0.5]
+    if not pos_dir:
+        rects(0.5, 1.0)
+        segments(x1, barlim[1] / 2, barlim[1], lwd, col_bars_alpha[0])
+        segments(x1, barlim[1] / 2 - shift, barlim[1] / 2 * (1 + len_up) - shift, lwd, col_bars[0])
+    else:
+        rects(-0.5 if TWO else 0.0, 0.5)
+        segments(x1, barlim[0], barlim[1] / 2, lwd, col_bars_alpha[0])
+        segments(x1, barlim[1] / 2 + shift, barlim[1] / 2 * (1 + len_up) + shift, lwd, col_bars[0])
+    if TWO:
+        x2 = r2 + 1.0
+        barlim2 = [ylim[0] + 0.5, ylim[0] + 1.5]
+        segments(x2, barlim2[0] / 2, barlim2[1], lwd2, col_bars_alpha[1])
+        segments(
+            x2, barlim2[0] / 2 * (1 + len_down) - shift, barlim2[0] / 2 - shift, lwd2, col_bars[1]
+        )
+
+    # R's axis() calls: ticked labels go on the y axis, untick ones are text
+    left_ticks, left_text = [], []
+    lab_at = 0.0 if TWO else 0.5
+    left_text.append((lab_at, labels[0]))
+    on_right = blended_transform_factory(ax.transAxes, ax.transData)
+    ax.text(1.01, lab_at, labels[1], transform=on_right, ha="left", va="center", fontsize=8)
+    prob = np.arange(11) / 10
+    ax.set_xticks(
+        np.linspace(1, n, 11), _r_format(np.quantile(stat, prob), 1), rotation=90, fontsize=7
+    )
+
     if worm:
-        idx_sorted = set1["idx"].astype(np.float64)
         if not WTS:
-            ave_enrich1 = len(r) / n
-            worm1 = tricube_moving_average(idx_sorted, span=span_worm) / ave_enrich1
+            worm1 = tricube_moving_average(set1["idx"].astype(np.float64), span=span_worm) / (
+                len(r) / n
+            )
             if TWO:
-                ave_enrich2 = len(r2) / n
-                _worm2 = (
-                    tricube_moving_average(-set2["idx"].astype(np.float64), span=span_worm)
-                    / ave_enrich2
+                worm2 = tricube_moving_average(-set2["idx"].astype(np.float64), span=span_worm) / (
+                    len(r2) / n
                 )
         else:
-            ave_enrich1 = np.mean(set1["wt"])
-            worm1 = tricube_moving_average(set1["wt"], span=span_worm) / ave_enrich1
+            worm1 = tricube_moving_average(set1["wt"], span=span_worm) / np.mean(set1["wt"])
             if TWO:
-                ave_enrich2 = np.mean(set2["wt"])
-                _worm2 = tricube_moving_average(-set2["wt"], span=span_worm) / ave_enrich2
+                worm2 = tricube_moving_average(-set2["wt"], span=span_worm) / np.mean(set2["wt"])
 
-        def rescale(x, new_lo, new_hi, old_lo, old_hi):
-            if old_hi == old_lo:
-                return np.full_like(np.asarray(x, dtype=np.float64), new_lo)
-            return new_lo + (x - old_lo) / (old_hi - old_lo) * (new_hi - new_lo)
+        def rescale(x, newrange, oldrange):
+            return newrange[0] + (x - oldrange[0]) / (oldrange[1] - oldrange[0]) * (
+                newrange[1] - newrange[0]
+            )
 
-        max_w1 = float(np.max(worm1))
-        worm1_scale = rescale(worm1, 1.1 + shift * pos_dir, 2.1 + shift * pos_dir, 0.0, max_w1)
-        ax.plot(np.arange(1, n + 1), worm1_scale, color=col_bars[0], linewidth=2)
+        up = shift * pos_dir if not TWO else shift
+        max_worm1 = float(np.max(worm1))
+        range1 = (1.1 + up, 2.1 + up)
+        ax.plot(
+            np.arange(1, n + 1),
+            rescale(worm1, range1, (0, max_worm1)),
+            color=col_bars[0],
+            linewidth=2,
+        )
+        ax.axhline(rescale(1, range1, (0, max_worm1)), linestyle="--", color="black")
+        left_ticks += [(range1[0], "0"), (range1[1], _r_format(max_worm1, 2)[0])]
+        left_text.append((1.6 + up, "Enrichment"))
+        if TWO:
+            min_worm2 = float(np.min(worm2))
+            range2 = (-2.1 - shift, -1.1 - shift)
+            ax.plot(
+                np.arange(1, n + 1),
+                rescale(worm2, range2, (min_worm2, 0)),
+                color=col_bars[1],
+                linewidth=2,
+            )
+            ax.axhline(rescale(-1, range2, (min_worm2, 0)), linestyle="--", color="black")
+            left_ticks += [(-1.1 - shift, "0"), (-2.1 - shift, _r_format(-min_worm2, 2)[0])]
+            left_text.append((-1.6 - shift, "Enrichment"))
 
-    ax.set_xlabel(xlab)
+    if WTS:
+        if not TWO:
+            if pos_dir:
+                left_ticks += [
+                    (0.5 + shift, "0"),
+                    (1 + shift, _r_format(np.max(set1["weight"][r]), 2)[0]),
+                ]
+                left_text.append((0.75 + shift, weights_label))
+            else:
+                left_ticks += [
+                    (0 - shift, _r_format(np.min(set1["weight"][r]), 2)[0]),
+                    (0.5 - shift, "0"),
+                ]
+                left_text.append((0.25 - shift, weights_label))
+        else:
+            max_weight = max(np.max(set1["weight"][r]), np.max(np.abs(set2["weight"][r2])))
+            label = _r_format(max_weight, 2, scientific=False)[0]
+            left_ticks += [(0.5 + shift, "0"), (1 + shift, label)]
+            left_ticks += [
+                (-0.5 - shift, "0"),
+                (-1 - shift, _r_format(-max_weight, 2, scientific=False)[0]),
+            ]
+            left_text += [(0.75 + shift, weights_label), (-0.75 - shift, weights_label)]
+
+    ax.set_yticks([y for y, _ in left_ticks], [t for _, t in left_ticks], fontsize=7)
+    for y, text in left_text:
+        ax.text(-0.01, y, text, transform=on_right, ha="right", va="center", fontsize=8)
     return ax
 
 

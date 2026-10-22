@@ -6267,3 +6267,26 @@ write.csv(data.frame(index = .bc_index, weight = .bc_weights), "R_bc_index.csv",
 .bc_rec <- .plot_record("barcodeplot", .bc_stat, index = .bc_index, gene.weights = .bc_weights)
 write.csv(.bc_rec[.bc_rec$fun == "lines" & .bc_rec$arg == "y", c("pos", "value")], "R_bc_worm_weighted.csv",
           row.names = FALSE)
+
+# barcodeplot's drawing: shaded regions (rect), bars (segments), worms
+# (lines), their reference lines (abline) and axis labels, for one set, two
+# sets, positive / mixed / negative weights and without the worm
+.bc_two <- sample(setdiff(seq_len(200), .bc_index), 25)
+.bc_stat[.bc_two[1:12]] <- .bc_stat[.bc_two[1:12]] - 1.5
+write.csv(data.frame(stat = .bc_stat), "R_bc_stat2.csv", row.names = FALSE)
+write.csv(data.frame(index2 = .bc_two), "R_bc_index2.csv", row.names = FALSE)
+.bc_mixed <- .bc_weights * rep(c(1, -1), 15)
+.bc_draw <- function(case, ...) {
+  rec <- .plot_record("barcodeplot", .bc_stat, ...)
+  keep <- rec$fun %in% c("rect", "segments", "lines", "abline", "axis") &
+    rec$arg %in% c("arg1", "arg2", "arg3", "arg4", "col", "lwd", "x", "y", "h", "side", "at", "labels", "tick")
+  data.frame(case = case, rec[keep, ])
+}
+write.csv(rbind(
+  .bc_draw("one", index = .bc_index),
+  .bc_draw("two", index = .bc_index, index2 = .bc_two),
+  .bc_draw("weighted", index = .bc_index, gene.weights = .bc_weights),
+  .bc_draw("mixed", index = .bc_index, gene.weights = .bc_mixed),
+  .bc_draw("negative", index = .bc_index, gene.weights = -.bc_weights),
+  .bc_draw("no_worm", index = .bc_index, worm = FALSE)),
+  "R_bc_draw.csv", row.names = FALSE)

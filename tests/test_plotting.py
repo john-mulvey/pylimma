@@ -1129,3 +1129,96 @@ def test_barcode_plot_index_is_0_based_and_weights_follow_it():
     )
     expected = pd.read_csv(FIXTURES / "R_bc_worm_weighted.csv")["value"].to_numpy()
     np.testing.assert_allclose(ax.lines[0].get_ydata(), expected, rtol=1e-10)
+
+
+def _r_calls(frame):
+    """{call: {arg: values}} of one case of a recorded R plot."""
+    calls = {}
+    for (call, fun, arg), g in frame.groupby(["call", "fun", "arg"], sort=True):
+        calls.setdefault(call, {"fun": fun})[arg] = g.sort_values("pos")["value"].to_numpy()
+    return [calls[k] for k in sorted(calls)]
+
+
+BC_CASES = {
+    "one": {},
+    "two": {"index2": True},
+    "weighted": {"gene_weights": 1},
+    "mixed": {"gene_weights": "mixed"},
+    "negative": {"gene_weights": -1},
+    "no_worm": {"worm": False},
+}
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize("case", list(BC_CASES))
+def test_barcode_plot_draws_what_r_draws(case):
+    """Shaded regions, bars (with transparency and heights for weights),
+    worms with their reference lines, and R's axis labels."""
+    from matplotlib.colors import to_rgba
+
+    from pylimma import barcode_plot
+
+    stat = pd.read_csv(FIXTURES / "R_bc_stat2.csv")["stat"].to_numpy()
+    sets = pd.read_csv(FIXTURES / "R_bc_index.csv")
+    kwargs = {"index": sets["index"].to_numpy() - 1}
+    option = BC_CASES[case]
+    if option.get("index2"):
+        kwargs["index2"] = pd.read_csv(FIXTURES / "R_bc_index2.csv")["index2"].to_numpy() - 1
+    weights = option.get("gene_weights")
+    if weights == "mixed":
+        kwargs["gene_weights"] = sets["weight"].to_numpy() * np.tile([1, -1], 15)
+    elif weights is not None:
+        kwargs["gene_weights"] = sets["weight"].to_numpy() * weights
+    if "worm" in option:
+        kwargs["worm"] = option["worm"]
+    ax = barcode_plot(stat, **kwargs)
+    calls = _r_calls(pd.read_csv(FIXTURES / "R_bc_draw.csv").query("case == @case"))
+    num = lambda v: v.astype(float)  # noqa: E731
+
+    rects = [c for c in calls if c["fun"] == "rect"]
+    assert len(ax.patches) == len(rects)
+    for patch, c in zip(ax.patches, rects):
+        x0, y0 = patch.get_xy()
+        got = [x0, y0, x0 + patch.get_width(), y0 + patch.get_height()]
+        np.testing.assert_allclose(got, [num(c[f"arg{k}"])[0] for k in range(1, 5)])
+        assert patch.get_facecolor() == to_rgba(c["col"][0])
+
+    segments = [c for c in calls if c["fun"] == "segments"]
+    assert len(ax.collections) == len(segments)
+    for collection, c in zip(ax.collections, segments):
+        drawn = np.array(collection.get_segments())
+        size = len(drawn)
+        for column, arg in ((0, "arg1"), (1, "arg2")):
+            np.testing.assert_allclose(drawn[:, 0, column], np.broadcast_to(num(c[arg]), size))
+        np.testing.assert_allclose(drawn[:, 1, 1], np.broadcast_to(num(c["arg4"]), size))
+        assert tuple(collection.get_colors()[0]) == to_rgba(c["col"][0])
+        np.testing.assert_allclose(collection.get_linewidths()[0], num(c["lwd"])[0])
+
+    worms = [c for c in calls if c["fun"] in ("lines", "abline")]
+    assert len(ax.lines) == len(worms)
+    for line, c in zip(ax.lines, worms):
+        if c["fun"] == "lines":
+            np.testing.assert_allclose(line.get_ydata(), num(c["y"]), rtol=1e-10)
+        else:
+            np.testing.assert_allclose(line.get_ydata(), num(c["h"])[0], rtol=1e-10)
+
+    axes = [c for c in calls if c["fun"] == "axis"]
+    side1 = [c for c in axes if c["side"][0] == "1"]
+    np.testing.assert_allclose(ax.get_xticks(), num(side1[0]["at"]))
+    assert [t.get_text() for t in ax.get_xticklabels()] == [v.strip() for v in side1[0]["labels"]]
+    ticked = [
+        (float(a), lab)
+        for c in axes
+        if c["side"][0] == "2" and "tick" not in c
+        for a, lab in zip(c["at"], c["labels"])
+    ]
+    np.testing.assert_allclose(ax.get_yticks(), [a for a, _ in ticked])
+    assert [t.get_text() for t in ax.get_yticklabels()] == [lab for _, lab in ticked]
+    untick = [
+        (float(c["at"][0]), c["labels"][0])
+        for c in axes
+        if c["side"][0] in ("2", "4") and "tick" in c
+    ]
+    texts = sorted((t.get_position()[1], t.get_text()) for t in ax.texts)
+    assert [label for _, label in texts] == [label for _, label in sorted(untick)]
+    np.testing.assert_allclose([y for y, _ in texts], [y for y, _ in sorted(untick)])

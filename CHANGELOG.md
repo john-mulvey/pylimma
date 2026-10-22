@@ -519,6 +519,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `coolmap` accepts an EList (its `E`, as R's `as.matrix`) and an AnnData,
   where an EList raised `TypeError`, and a single row raises R's "Need at
   least 2 rows and 2 columns" instead of scipy's error.
+- `barcode_plot` draws R's barcode plot: the bars for each gene of the set
+  (below the band for a second set or negative weights, with heights and
+  transparency for unequal weights), the shaded band (light blue / pink
+  beyond the quantiles), the second worm and both reference lines, and R's
+  labels (quantiles of the statistics along x, enrichment and weight scales,
+  "Down" / "Up"). It drew only the first worm. `main` sets the title; other
+  extra arguments raise `TypeError` (they were ignored).
 
 ### Documentation and examples
 
