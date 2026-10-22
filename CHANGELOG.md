@@ -158,6 +158,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `coolmap(cluster_by="de pattern")` clusters the columns on the unscaled
   matrix, as R does; it used the row z-scores, so the column order could
   differ from R's.
+- `coolmap` with `linkage_row` / `linkage_col` of `"ward.D"`, `"centroid"`
+  or `"median"` clusters as R's `hclust` does; `"ward.D"` ran scipy's ward
+  (R's `"ward.D2"`) and centroid and median used scipy's squared-distance
+  updates, so the dendrogram orders differed from R's.
 
 ### Changed behaviour
 

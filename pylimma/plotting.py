@@ -1253,15 +1253,23 @@ def _coolmap_linkage(name: str) -> str:
         n = "ward.D2"
     if n not in _COOLMAP_LINKAGES:
         raise ValueError(f"linkage must be one of {_COOLMAP_LINKAGES}, got {name!r}")
-    # Translate R -> scipy method names
-    mapping = {
-        "ward.D": "ward",  # R's ward.D is the older (non-squared) method;
-        # scipy only has squared-distance 'ward'. We map
-        # to 'ward' which matches R's ward.D2.
-        "ward.D2": "ward",
-        "mcquitty": "weighted",
-    }
-    return mapping.get(n, n)
+    return n
+
+
+def _r_hclust(distances, method):
+    """R's hclust(d, method) as a scipy linkage matrix, heights on R's scale.
+    scipy's ward, centroid and median square the distances inside their
+    Lance-Williams updates (R's ward.D2 does the same); R's ward.D, centroid
+    and median update the distances as given, which scipy reproduces on
+    sqrt(d), with heights squared back."""
+    from scipy.cluster.hierarchy import linkage
+
+    if method in ("ward.D", "centroid", "median"):
+        merges = linkage(np.sqrt(distances), method="ward" if method == "ward.D" else method)
+        merges[:, 2] = merges[:, 2] ** 2
+        return merges
+    scipy_method = {"ward.D2": "ward", "mcquitty": "weighted"}.get(method, method)
+    return linkage(distances, method=scipy_method)
 
 
 _COOLMAP_PALETTES = {"redblue", "redgreen", "yellowblue", "whitered"}
@@ -1311,7 +1319,7 @@ def coolmap(
         ``col_linkage``, scipy linkage matrices (None without clustering).
     """
     plt = _require_matplotlib()
-    from scipy.cluster.hierarchy import dendrogram, leaves_list, linkage
+    from scipy.cluster.hierarchy import dendrogram, leaves_list
     from scipy.spatial.distance import pdist
 
     if ax is not None:
@@ -1374,18 +1382,18 @@ def coolmap(
         sym = False
 
     # Column clustering
-    if linkage_col == "none":
+    if link_col == "none":
         col_link = None
         show_dendrogram = {"both": "row", "column": "none"}.get(show_dendrogram, show_dendrogram)
     else:
         # R: the column dendrogram uses the unscaled matrix
-        col_link = linkage(pdist(M.T, metric="euclidean"), method=link_col)
+        col_link = _r_hclust(pdist(M.T, metric="euclidean"), link_col)
 
-    if linkage_row == "none":
+    if link_row == "none":
         row_link = None
         show_dendrogram = {"both": "column", "row": "none"}.get(show_dendrogram, show_dendrogram)
     else:
-        row_link = linkage(pdist(Z, metric="euclidean"), method=link_row)
+        row_link = _r_hclust(pdist(Z, metric="euclidean"), link_row)
 
     # heatmap.2: rowInd <- order.dendrogram(Rowv), else nr:1; colInd likewise,
     # else 1:nc; row rowInd[1] is drawn at the bottom

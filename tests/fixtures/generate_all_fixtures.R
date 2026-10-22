@@ -6231,3 +6231,9 @@ write.csv(rbind(
   .cm_ind("rows_none", cluster.by = "expression level", linkage.row = "none"),
   .cm_ind("cols_none", cluster.by = "expression level", linkage.col = "none")),
   "R_cm_ind.csv", row.names = FALSE)
+
+# coolmap with each linkage method: R's ward.D, centroid and median update
+# the distances as given (scipy squares them)
+write.csv(do.call(rbind, lapply(c("single", "complete", "average", "mcquitty", "ward.D", "ward.D2",
+                                  "centroid", "median"), function(m)
+  .cm_ind(m, linkage.row = m, linkage.col = m))), "R_cm_linkage.csv", row.names = FALSE)

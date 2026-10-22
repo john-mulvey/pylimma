@@ -1063,3 +1063,20 @@ def test_coolmap_rejects_ax_and_heatmap2_arguments():
         coolmap(x, ax=object())
     with pytest.raises(TypeError, match="heatmap.2, which is not ported"):
         coolmap(x, margins=(5, 5))
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize(
+    "method",
+    ["single", "complete", "average", "mcquitty", "ward.D", "ward.D2", "centroid", "median"],
+)
+def test_coolmap_linkage_methods_match_r(method):
+    """R's hclust: ward.D, centroid and median update the distances as given,
+    where scipy's methods square them."""
+    from pylimma import coolmap
+
+    x = pd.read_csv(FIXTURES / "R_cm_x.csv", index_col=0)
+    out = coolmap(x, linkage_row=method, linkage_col=method)
+    r = pd.read_csv(FIXTURES / "R_cm_linkage.csv").query("case == @method")
+    np.testing.assert_array_equal(out["row_ind"] + 1, r.query("which == 'row'")["ind"])
+    np.testing.assert_array_equal(out["col_ind"] + 1, r.query("which == 'col'")["ind"])
