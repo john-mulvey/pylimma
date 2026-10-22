@@ -1378,7 +1378,8 @@ def coolmap(
         col_link = None
         show_dendrogram = {"both": "row", "column": "none"}.get(show_dendrogram, show_dendrogram)
     else:
-        col_link = linkage(pdist(Z.T, metric="euclidean"), method=link_col)
+        # R: the column dendrogram uses the unscaled matrix
+        col_link = linkage(pdist(M.T, metric="euclidean"), method=link_col)
 
     if linkage_row == "none":
         row_link = None

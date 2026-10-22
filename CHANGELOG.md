@@ -155,6 +155,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   against the mean of the other arrays, with M off by a factor n/(n-1) and
   limits from those values. Without column names there is no title (it was
   "Array i").
+- `coolmap(cluster_by="de pattern")` clusters the columns on the unscaled
+  matrix, as R does; it used the row z-scores, so the column order could
+  differ from R's.
 
 ### Changed behaviour
 

@@ -6211,7 +6211,7 @@ write.csv(rbind(.pe_rec("rank1"), .pe_rec("rank2_exon", rank = 2, exoncolname = 
 # =============================================================================
 # coolmap (through gplots::heatmap.2): rowInd / colInd, the row order from
 # the bottom up (nr:1 without a row dendrogram) and the column order (1:nc
-# without one)
+# without one); the column dendrogram uses the unscaled matrix
 # =============================================================================
 set.seed(111)
 .cm_x <- matrix(rnorm(30 * 6, 8, 1), 30, dimnames = list(sprintf("g%02d", 1:30), paste0("s", 1:6)))
@@ -6226,6 +6226,7 @@ write.csv(.cm_x, "R_cm_x.csv")
         data.frame(case = case, which = "col", pos = seq_along(out$colInd), ind = out$colInd))
 }
 write.csv(rbind(
+  .cm_ind("de_pattern"),
   .cm_ind("expression", cluster.by = "expression level"),
   .cm_ind("rows_none", cluster.by = "expression level", linkage.row = "none"),
   .cm_ind("cols_none", cluster.by = "expression level", linkage.col = "none")),

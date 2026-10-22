@@ -1044,6 +1044,17 @@ def test_coolmap_orders_and_orientation_match_r(case, kwargs):
 
 
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_coolmap_clusters_columns_on_the_unscaled_matrix_as_r():
+    from pylimma import coolmap
+
+    x = pd.read_csv(FIXTURES / "R_cm_x.csv", index_col=0)
+    out = coolmap(x)
+    rows, cols = _cm_expected("de_pattern")
+    np.testing.assert_array_equal(out["row_ind"], rows)
+    np.testing.assert_array_equal(out["col_ind"], cols)
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_coolmap_rejects_ax_and_heatmap2_arguments():
     from pylimma import coolmap
 
