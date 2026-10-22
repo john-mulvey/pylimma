@@ -5895,3 +5895,24 @@ stopifnot(all.equal(normalizeCyclicLoess(.lwc_cyc, adaptive.span = TRUE),
                     normalizeCyclicLoess(.lwc_cyc,
                                          span = chooseLowessSpan(300, small.n = 200, min.span = 0.6))))
 write.csv(normalizeCyclicLoess(.lwc_cyc, adaptive.span = TRUE), "R_lowess_cyclic_adaptive.csv", row.names = FALSE)
+
+# =============================================================================
+# normalizeCyclicLoess input: iterations = 0 runs two passes (1:0 is c(1, 0);
+# pylimma raises) and 2.5 runs two, "pairs" / "affy" on one column, "fast"
+# on none and weights with more than one value per row fail, an n x 1
+# matrix does not
+# =============================================================================
+.cyi_fails <- function(...) inherits(try(normalizeCyclicLoess(...), silent = TRUE), "try-error")
+stopifnot(isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, iterations = 0),
+                           normalizeCyclicLoess(.cyl_x, iterations = 2))),
+          .cyi_fails(.cyl_x[, 1, drop = FALSE], method = "pairs"),
+          .cyi_fails(.cyl_x[, 1, drop = FALSE], method = "affy"),
+          !.cyi_fails(.cyl_x[, 1, drop = FALSE], method = "fast"),
+          .cyi_fails(.cyl_x[, 0, drop = FALSE], method = "fast"),
+          .cyi_fails(.cyl_x, weights = matrix(1, 40, 4)),
+          isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, iterations = 2.5),
+                           normalizeCyclicLoess(.cyl_x, iterations = 2))),
+          isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, iterations = 0.5),
+                           normalizeCyclicLoess(.cyl_x, iterations = 1))),
+          isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, weights = matrix(.cyl_w)),
+                           normalizeCyclicLoess(.cyl_x, weights = .cyl_w))))

@@ -396,6 +396,12 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     "Elements of argument 'Sstrat' must be in ascending order".
     ``generate_all_fixtures.R`` records the R behaviour.
 
+``normalize_cyclic_loess`` with ``iterations`` below 1
+    Raises "iterations must be a finite number of 1 or more". R's loop
+    ``for (k in 1:iterations)`` runs one pass for values between 0 and 1,
+    two for 0 and three for -1, because ``1:0`` counts down.
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 Deliberate interface difference: EList design and weights slots
 ---------------------------------------------------------------
 

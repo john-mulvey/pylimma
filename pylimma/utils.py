@@ -831,8 +831,10 @@ def loess_fit(
     min_weight = max(min_weight, 0.0)
 
     if weights is not None:
-        weights = np.asarray(weights, dtype=np.float64)
-        if len(weights) != n:
+        # R: length(weights) != n, and weights[obs] by position, so any shape
+        # with n values (an n x 1 matrix) is accepted
+        weights = np.asarray(weights, dtype=np.float64).ravel(order="F")
+        if weights.size != n:
             raise ValueError("y and weights have different lengths")
         w_obs = np.nan_to_num(weights[obs], nan=0.0)
         w_obs = np.minimum(np.maximum(w_obs, min_weight), max_weight)

@@ -250,6 +250,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
   interpolate" where pylimma returned a constant trend.
 - `normalize_cyclic_loess` returns rows that hold an infinite value as
   NaN, as R does, and warns; before, such a row was left unnormalised.
+- `normalize_cyclic_loess` checks its input: `iterations` below 1 raises
+  (R's `1:iterations` runs two passes for 0; pylimma returned x
+  unnormalised), as do `"pairs"` / `"affy"` on a single column and `"fast"`
+  on none (R: "subscript out of bounds"; pylimma returned x unchanged).
+  Weights with more than one value per row give R's "y and weights have
+  different lengths" (pylimma raised an unrelated numpy error); `loess_fit`,
+  like R's `loessFit`, now accepts weights of any shape with one value per
+  point, such as an n x 1 matrix.
 
 ### Added
 

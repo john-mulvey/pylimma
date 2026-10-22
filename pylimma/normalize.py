@@ -277,13 +277,13 @@ def normalize_cyclic_loess(
     :doc:`/validation/known_differences`). A row holding an infinite value
     is returned all NaN, as in R; pylimma also warns.
 
-    Per-observation (matrix-shaped) weights are accepted by R's
-    signature but fail inside R's own ``loessFit`` call with
-    ``"y and weights have different lengths"`` - this is a latent
-    bug in R limma. pylimma does not attempt to fix it; pass a
-    probe-vector instead, or collapse your ``(n_genes, n_samples)``
-    weight matrix with ``row_means = np.nanmean(w, axis=1)`` before
-    calling.
+    Weights must have one value per row of ``x`` (any shape, such as an
+    ``n x 1`` matrix); a matrix with one weight per value raises
+    "y and weights have different lengths", as R's ``loessFit`` does.
+
+    ``iterations`` below 1 raises an error. R's
+    ``for (k in 1:iterations)`` runs one pass for values between 0 and 1,
+    two for 0 and three for -1 (see :doc:`/validation/known_differences`).
 
     The ``adaptive_span`` default of ``False`` matches the installed R
     limma (3.66.0) used to generate the parity fixtures. The current
@@ -303,6 +303,14 @@ def normalize_cyclic_loess(
             f"normalize_cyclic_loess(method={method!r}) unknown; "
             "choose one of 'fast', 'pairs', 'affy'"
         )
+    # R: for (k in 1:iterations) runs twice for 0, and 1:2.5 is 1, 2
+    if not (isinstance(iterations, numbers.Real) and np.isfinite(iterations) and iterations >= 1):
+        raise ValueError(f"iterations must be a finite number of 1 or more, not {iterations!r}")
+    iterations = int(iterations)
+    # R: x[, 1] ("fast") or x[, 2] ("pairs", "affy") is out of bounds
+    min_columns = 1 if method == "fast" else 2
+    if x.shape[1] < min_columns:
+        raise ValueError(f"method={method!r} needs at least {min_columns} column(s) of x")
 
     if adaptive_span:
         # R: chooseLowessSpan(nrow(x), small.n=200, min.span=0.6)
