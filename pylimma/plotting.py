@@ -1995,9 +1995,7 @@ def heat_diagram(
 
     DE = np.abs(results[:, primary]) > 0.5
     if not DE.any():
-        import warnings as _w
-
-        _w.warn("Nothing significant to plot")
+        warnings.warn("Nothing significant to plot")
         return None
 
     # R: substring(as.character(names), 1, 15), numbered over all rows before
@@ -2419,9 +2417,6 @@ def plot_exon_junc(
     are distinguished from exons by ``genes["Length"] == 1``.
     """
     plt = _require_matplotlib()
-    import pandas as pd
-
-    from .utils import p_adjust
 
     if genecolname is None:
         genecolname = fit.get("genecolname")
