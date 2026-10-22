@@ -506,6 +506,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   was a line at 0) and the title lists the gene's annotation and strand. A
   missing `exoncolname` raises R's error, and `coef` takes a coefficient
   name, as in R.
+- `coolmap` clusters a matrix with missing values as R's `dist()` does
+  (over the coordinates two rows share, scaled up by the number missing);
+  it raised "The condensed distance matrix must contain only finite
+  values".
 
 ### Documentation and examples
 

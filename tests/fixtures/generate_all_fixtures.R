@@ -6237,3 +6237,13 @@ write.csv(rbind(
 write.csv(do.call(rbind, lapply(c("single", "complete", "average", "mcquitty", "ward.D", "ward.D2",
                                   "centroid", "median"), function(m)
   .cm_ind(m, linkage.row = m, linkage.col = m))), "R_cm_linkage.csv", row.names = FALSE)
+
+# coolmap with missing values: dist() sums over the coordinates both rows
+# have and scales by ncol / count
+.cm_na <- .cm_x
+.cm_na[2, 1] <- NA
+.cm_na[c(5, 17), 4] <- NA
+.cm_na[9, 2:3] <- NA
+write.csv(.cm_na, "R_cm_na.csv")
+write.csv(rbind(.cm_ind("na_de_pattern", .cm_na), .cm_ind("na_expression", .cm_na, cluster.by = "expression level")),
+          "R_cm_na_ind.csv", row.names = FALSE)

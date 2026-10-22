@@ -1256,6 +1256,28 @@ def _coolmap_linkage(name: str) -> str:
     return n
 
 
+def _r_dist(x):
+    """R's dist(x, method="euclidean") as a condensed vector. With missing
+    values R sums over the coordinates both rows have and scales by
+    ncol / count; scipy's pdist has no such rule, so rows go one at a time."""
+    from scipy.spatial.distance import pdist
+
+    if not np.isnan(x).any():
+        return pdist(x, metric="euclidean")
+    nc = x.shape[1]
+    parts = []
+    for i in range(x.shape[0] - 1):
+        squares = (x[i] - x[i + 1 :]) ** 2
+        count = np.sum(~np.isnan(squares), axis=1)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            parts.append(np.sqrt(np.nansum(squares, axis=1) / (count / nc)))
+    distances = np.concatenate(parts)
+    if np.isnan(distances).any():
+        # R: hclust stops with "NA/NaN/Inf in foreign function call"
+        raise ValueError("cannot cluster: two rows (or columns) share no non-missing values")
+    return distances
+
+
 def _r_hclust(distances, method):
     """R's hclust(d, method) as a scipy linkage matrix, heights on R's scale.
     scipy's ward, centroid and median square the distances inside their
@@ -1320,7 +1342,6 @@ def coolmap(
     """
     plt = _require_matplotlib()
     from scipy.cluster.hierarchy import dendrogram, leaves_list
-    from scipy.spatial.distance import pdist
 
     if ax is not None:
         raise ValueError(
@@ -1387,13 +1408,13 @@ def coolmap(
         show_dendrogram = {"both": "row", "column": "none"}.get(show_dendrogram, show_dendrogram)
     else:
         # R: the column dendrogram uses the unscaled matrix
-        col_link = _r_hclust(pdist(M.T, metric="euclidean"), link_col)
+        col_link = _r_hclust(_r_dist(M.T), link_col)
 
     if link_row == "none":
         row_link = None
         show_dendrogram = {"both": "column", "row": "none"}.get(show_dendrogram, show_dendrogram)
     else:
-        row_link = _r_hclust(pdist(Z, metric="euclidean"), link_row)
+        row_link = _r_hclust(_r_dist(Z), link_row)
 
     # heatmap.2: rowInd <- order.dendrogram(Rowv), else nr:1; colInd likewise,
     # else 1:nc; row rowInd[1] is drawn at the bottom

@@ -1080,3 +1080,19 @@ def test_coolmap_linkage_methods_match_r(method):
     r = pd.read_csv(FIXTURES / "R_cm_linkage.csv").query("case == @method")
     np.testing.assert_array_equal(out["row_ind"] + 1, r.query("which == 'row'")["ind"])
     np.testing.assert_array_equal(out["col_ind"] + 1, r.query("which == 'col'")["ind"])
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize(
+    "cluster_by,case", [("de pattern", "na_de_pattern"), ("expression level", "na_expression")]
+)
+def test_coolmap_with_missing_values_matches_r(cluster_by, case):
+    """R's dist() sums over the coordinates both rows have and scales by
+    ncol / count; scipy's pdist refused NaN."""
+    from pylimma import coolmap
+
+    x = pd.read_csv(FIXTURES / "R_cm_na.csv", index_col=0)
+    out = coolmap(x, cluster_by=cluster_by)
+    r = pd.read_csv(FIXTURES / "R_cm_na_ind.csv").query("case == @case")
+    np.testing.assert_array_equal(out["row_ind"] + 1, r.query("which == 'row'")["ind"])
+    np.testing.assert_array_equal(out["col_ind"] + 1, r.query("which == 'col'")["ind"])
