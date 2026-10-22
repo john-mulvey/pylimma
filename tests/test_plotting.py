@@ -920,3 +920,88 @@ def test_plot_rldf_uses_the_first_two_show_dimensions():
     y, design = _rl_inputs()
     out = plot_rldf(y, design, plot=False, show_dimensions=(0, 1, 5))
     np.testing.assert_allclose(out["training"], plot_rldf(y, design, plot=False)["training"])
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize(
+    "case,kwargs",
+    [
+        ("rank1", {}),
+        ("rank2_exon", {"rank": 2, "exoncolname": "Exon"}),
+        ("geneid", {"geneid": "G3", "exoncolname": "Exon"}),
+    ],
+)
+def test_plot_exons_matches_r(case, kwargs):
+    """The rank-th distinct gene, exons ordered and labelled by exoncolname,
+    DE exons red / blue sized by FDR, dashed mean line, R's title."""
+    from matplotlib.colors import to_rgba
+
+    from pylimma import e_bayes, lm_fit, plot_exons
+
+    y = pd.read_csv(FIXTURES / "R_pe_y.csv").to_numpy()
+    fit = e_bayes(lm_fit(y, np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])))
+    fit["genes"] = pd.read_csv(FIXTURES / "R_pe_genes.csv")
+    ax = plot_exons(fit, **kwargs)
+    r = pd.read_csv(FIXTURES / "R_pe_calls.csv").query("case == @case")
+    value = {(f, a): g["value"].to_numpy() for (f, a), g in r.groupby(["fun", "arg"])}
+
+    np.testing.assert_allclose(ax.lines[0].get_ydata(), value[("plot", "arg1")].astype(float))
+    assert ax.get_title() == value[("plot", "main")][0]
+    assert [t.get_text() for t in ax.get_xticklabels()] == [
+        str(v) for v in value[("axis", "labels")]
+    ]
+    assert ax.get_xlabel() == " ".join(value[("mtext", "text")])
+    marks = ax.collections[0]
+    np.testing.assert_allclose(marks.get_offsets()[:, 0], value[("points", "arg1")].astype(float))
+    np.testing.assert_allclose(marks.get_offsets()[:, 1], value[("points", "arg2")].astype(float))
+    assert [tuple(c) for c in marks.get_facecolors()] == [
+        to_rgba(c) for c in value[("points", "col")]
+    ]
+    np.testing.assert_allclose(
+        np.broadcast_to(marks.get_sizes(), (len(value[("points", "cex")]),)),
+        value[("points", "cex")].astype(float) * 25,
+    )
+    np.testing.assert_allclose(ax.lines[1].get_ydata(), value[("abline", "h")].astype(float)[0])
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_exons_puts_a_missing_exon_id_last():
+    """R: order() puts NA last."""
+    from pylimma import e_bayes, lm_fit, plot_exons
+
+    y = pd.read_csv(FIXTURES / "R_pe_y.csv").to_numpy()
+    fit = e_bayes(lm_fit(y, np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])))
+    genes = pd.read_csv(FIXTURES / "R_pe_genes.csv")
+    genes.loc[1, "Exon"] = np.nan
+    fit["genes"] = genes
+    ax = plot_exons(fit, geneid="G1", exoncolname="Exon")
+    assert [t.get_text() for t in ax.get_xticklabels()] == ["1", "7", "9", "NA"]
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_exons_title_columns_match_genecolname_as_a_regex():
+    """R: grep(paste0(genecolname, "|geneid|symbol"), colnames(fit$genes))."""
+    from pylimma import e_bayes, lm_fit, plot_exons
+
+    y = pd.read_csv(FIXTURES / "R_pe_y.csv").to_numpy()
+    fit = e_bayes(lm_fit(y, np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])))
+    genes = pd.read_csv(FIXTURES / "R_pe_genes.csv").rename(columns={"GeneID": "Gene.ID"})
+    genes["GeneXID"] = "x1"
+    fit["genes"] = genes
+    ax = plot_exons(fit, geneid="G1", genecolname="Gene.ID")
+    assert "x1" in ax.get_title()
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_exons_takes_a_coefficient_name():
+    """R: fit$p.value[, coef] takes a column name too."""
+    from pylimma import e_bayes, lm_fit, plot_exons
+
+    y = pd.read_csv(FIXTURES / "R_pe_y.csv").to_numpy()
+    design = pd.DataFrame({"a": np.ones(6), "b": np.repeat([0.0, 1.0], 3)})
+    fit = e_bayes(lm_fit(y, design))
+    fit["genes"] = pd.read_csv(FIXTURES / "R_pe_genes.csv")
+    by_name = plot_exons(fit, coef="a")
+    by_position = plot_exons(fit, coef=0)
+    assert by_name.get_title() == by_position.get_title()
+    np.testing.assert_allclose(by_name.lines[0].get_ydata(), by_position.lines[0].get_ydata())

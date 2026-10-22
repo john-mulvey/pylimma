@@ -45,6 +45,7 @@ it.
 from __future__ import annotations
 
 import numbers
+import re
 import warnings
 
 import numpy as np
@@ -2052,53 +2053,106 @@ def plot_exons(
     ax=None,
 ):
     """
-    Plot log-fold-changes of exons for a single gene.
+    Plot log-fold-changes of the exons of one gene, marking the DE exons.
 
-    Port of R limma's ``plotExons`` (``plotExons.R``).
+    Port of R limma's ``plotExons`` (``plotExons.R``). ``coef`` is 0-based
+    (or a name) and defaults to the last coefficient. The gene is ``geneid``, else the
+    one ranked ``rank`` by p-value among distinct genes. As in R, the exons
+    are ordered and labelled by ``exoncolname`` (else numbered), joined by
+    a line, the DE exons (BH-adjusted p below ``fdr``) are drawn red or blue
+    by the sign of their logFC and sized by significance, and a dashed line
+    marks the mean logFC.
     """
     plt = _require_matplotlib()
-    import pandas as pd
 
-    from .utils import p_adjust
-
+    if not isinstance(fit, MArrayLM):
+        raise ValueError("fit is not MArrayLM object")
     if fit.get("p_value") is None:
-        raise ValueError("fit must contain p_value from e_bayes")
+        raise ValueError("fit object should contain p value from eBayes")
+    if fit.get("method") is None:
+        raise ValueError(
+            "fit object should have fitting method from least square or robust regression"
+        )
     genes = fit.get("genes")
-    if genes is None:
-        raise ValueError("fit must contain genes")
-    if not isinstance(genes, pd.DataFrame):
-        genes = pd.DataFrame(genes)
+    genes = pd.DataFrame(genes) if genes is not None else pd.DataFrame()
+    genecolname = str(genecolname)
     if genecolname not in genes.columns:
         raise ValueError(f"genecolname {genecolname} not found")
-    coef_idx = fit["coefficients"].shape[1] - 1 if coef is None else int(coef)
-    p_col = np.asarray(fit["p_value"])[:, coef_idx]
-    fc = np.asarray(fit["coefficients"])[:, coef_idx]
+    if exoncolname is not None:
+        exoncolname = str(exoncolname)
+        if exoncolname not in genes.columns:
+            raise ValueError(f"exoncolname {exoncolname} not found")
+
+    names = fit.get("contrast_names") or fit.get("coef_names")
+    coef_idx = fit.ncol - 1 if coef is None else _column_index(coef, names, fit.ncol)
+    p_col = np.asarray(fit["p_value"], dtype=np.float64).reshape(len(genes), -1)[:, coef_idx]
+    logfc = np.asarray(fit["coefficients"], dtype=np.float64).reshape(len(genes), -1)[:, coef_idx]
+    gene_ids = _r_as_character(genes[genecolname].to_numpy())
 
     if geneid is None:
         if rank == 1:
-            gi = int(np.argmin(p_col))
+            igene = int(np.nanargmin(p_col))
         else:
-            order = np.argsort(p_col)
-            gi = int(order[rank - 1])
-        gene = str(genes.iloc[gi][genecolname])
+            # R: the rank-th of the genes, each at its smallest p-value
+            ordered = gene_ids[np.argsort(p_col, kind="stable")]
+            distinct = list(dict.fromkeys(ordered))
+            igene = int(np.flatnonzero(gene_ids == distinct[int(rank) - 1])[0])
     else:
-        gene = str(geneid)
-    mask = genes[genecolname].astype(str).values == gene
-    if not mask.any():
-        raise ValueError(f"gene {gene} not found")
+        wanted = _r_as_character(np.atleast_1d(np.asarray(geneid, dtype=object)))[0]
+        matches = np.flatnonzero(gene_ids == wanted)
+        if matches.size == 0:
+            raise ValueError(f"geneid {wanted} not found")
+        igene = int(matches[0])
 
-    adj = p_adjust(p_col, method="BH")
-    de_exon = adj[mask] < fdr
-    x = np.arange(int(mask.sum()))
-    y = fc[mask]
+    # R: the title joins the gene's annotation columns, then its strand
+    pattern = re.compile(f"{genecolname}|geneid|symbol", re.IGNORECASE)
+    label_columns = [c for c in genes.columns if pattern.search(str(c))]
+    genelab = ", ".join(
+        str(v) for v in _r_as_character(genes.iloc[igene][label_columns].to_numpy())
+    )
+    strand = [c for c in genes.columns if "strand" in str(c).lower()]
+    if strand:
+        genelab += f" ({_r_as_character([genes.iloc[igene][strand[0]]])[0]})"
+
+    exon_fdr = p_adjust(p_col, method="BH")
+    exons = np.flatnonzero(gene_ids == gene_ids[igene])
+    if exoncolname is None:
+        exoncolname = "ID"
+        exon_ids = np.arange(1, exons.size + 1)
+    else:
+        exon_ids = genes[exoncolname].to_numpy()[exons]
+    # R: order(exon.de[, exoncolname])
+    levels, codes = _r_factor(exon_ids)
+    # R: order() puts missing values last
+    order = np.argsort(np.where(codes < 0, len(levels), codes), kind="stable")
+    exons, exon_ids = exons[order], np.asarray(exon_ids, dtype=object)[order]
+    y = logfc[exons]
+    position = np.arange(1, exons.size + 1)
+
     if ax is None:
         _fig, ax = plt.subplots()
-    ax.scatter(x[~de_exon], y[~de_exon], color="grey")
-    ax.scatter(x[de_exon], y[de_exon], color="red")
-    ax.axhline(0.0, color="black", linewidth=0.5)
-    ax.set_xlabel("Exon")
-    ax.set_ylabel("log2 FC")
-    ax.set_title(gene)
+    ax.plot(position, y, marker="o", markerfacecolor="none", color="black")
+    # R: a missing exon ID is labelled NA
+    exon_labels = [
+        "NA" if code < 0 else str(v) for code, v in zip(codes[order], _r_as_character(exon_ids))
+    ]
+    ax.set_xticks(position, exon_labels, rotation=90, fontsize=6)
+    ax.set_xlabel(f"Exon {exoncolname}")
+    ax.set_ylabel("Log2 Fold Change")
+    ax.set_title(genelab)
+
+    mark = exon_fdr[exons] < fdr
+    if mark.any():
+        colours = np.where(y[mark] > 0, "red", np.where(y[mark] < 0, "blue", "none"))
+        if mark.sum() == 1:
+            cex = np.array([1.5])
+        else:
+            abs_fdr = np.abs(np.log10(exon_fdr[exons][mark]))
+            low, high = abs_fdr.min(), abs_fdr.max()
+            with np.errstate(divide="ignore", invalid="ignore"):
+                cex = (abs_fdr - low) / (high - low) + 1.0
+        ax.scatter(position[mark], y[mark], c=list(colours), s=cex * 25, zorder=3)
+    ax.axhline(np.mean(y), linestyle="--", color="black")
     return ax
 
 

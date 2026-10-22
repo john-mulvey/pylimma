@@ -6180,3 +6180,30 @@ stopifnot(.rl_fails(design = .rl_design, labels.y = c("a", "b")),
           .rl_fails(design = .rl_design, show.dimensions = c(1, 1)),
           .rl_fails(design = .rl_design, var.prior = c(1, 2), df.prior = 3),
           ncol(plotRLDF(.rl_y, cbind(1, rep(0:1, each = 6)), plot = FALSE)$training) == 2)
+
+# =============================================================================
+# plotExons: the rank-th gene among distinct genes, exons ordered and
+# labelled by exoncolname, DE exons red / blue sized by FDR, dashed line at
+# the mean logFC, title from the annotation columns and strand
+# =============================================================================
+set.seed(101)
+.pe_genes <- data.frame(GeneID = rep(paste0("G", 1:6), each = 4), Exon = rep(c(9, 3, 7, 1), 6),
+                        Symbol = rep(paste0("sym", 1:6), each = 4), Strand = "+")
+.pe_y <- matrix(rnorm(24 * 6), 24)
+.pe_y[5:8, 4:6] <- .pe_y[5:8, 4:6] + c(3, -2.5, 0.2, 4)
+.pe_y[1:4, 4:6] <- .pe_y[1:4, 4:6] + c(5, 4, 3.5, 4.5)
+write.csv(.pe_y, "R_pe_y.csv", row.names = FALSE)
+write.csv(.pe_genes, "R_pe_genes.csv", row.names = FALSE)
+.pe_fit <- eBayes(lmFit(.pe_y, cbind(1, rep(0:1, each = 3))))
+.pe_fit$genes <- .pe_genes
+.pe_rec <- function(case, ...) {
+  rec <- .plot_record("plotExons", .pe_fit, ...)
+  keep <- (rec$fun == "plot" & rec$arg %in% c("arg1", "main")) |
+    (rec$fun == "axis" & rec$arg == "labels") |
+    (rec$fun == "points" & rec$arg %in% c("arg1", "arg2", "col", "cex")) |
+    (rec$fun == "abline" & rec$arg == "h") | (rec$fun == "mtext" & rec$arg == "text")
+  data.frame(case = case, rec[keep, c("fun", "arg", "pos", "value")])
+}
+write.csv(rbind(.pe_rec("rank1"), .pe_rec("rank2_exon", rank = 2, exoncolname = "Exon"),
+                .pe_rec("geneid", geneid = "G3", exoncolname = "Exon")),
+          "R_pe_calls.csv", row.names = FALSE)

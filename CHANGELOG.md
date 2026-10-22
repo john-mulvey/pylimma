@@ -483,6 +483,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
   functions that take expression data do; they raised an obscure
   `ValueError`. `plot_densities(log=False)` plots `2 ** E` of an AnnData,
   as of an EList.
+- `plot_exons` draws what R's `plotExons` draws: `rank` counts distinct
+  genes (`rank=2` plotted the first gene again when it had several exons),
+  exons are ordered and labelled by `exoncolname` (which was ignored) and
+  joined by a line, DE exons are marked red or blue by the sign of the
+  logFC and sized by significance, a dashed line marks the mean logFC (it
+  was a line at 0) and the title lists the gene's annotation and strand. A
+  missing `exoncolname` raises R's error, and `coef` takes a coefficient
+  name, as in R.
 
 ### Documentation and examples
 
