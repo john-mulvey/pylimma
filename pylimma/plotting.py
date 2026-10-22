@@ -1010,49 +1010,25 @@ def venn_counts(x, include: str = "both") -> pd.DataFrame:
         x_arr = np.asarray(x, dtype=np.float64)
         if x_arr.ndim == 1:
             x_arr = x_arr.reshape(-1, 1)
-        col_names = [f"col{i}" for i in range(x_arr.shape[1])]
+        col_names = [f"Group {i + 1}" for i in range(x_arr.shape[1])]
 
-    if include == "both":
-        indicator = np.sign(np.abs(x_arr))
-    elif include == "up":
-        indicator = np.sign((x_arr > 0).astype(np.int64))
-    else:
-        indicator = np.sign((x_arr < 0).astype(np.int64))
+    with np.errstate(invalid="ignore"):
+        if include == "both":
+            indicator = np.sign(np.abs(x_arr))
+        elif include == "up":
+            indicator = (x_arr > 0).astype(np.float64)
+        else:
+            indicator = (x_arr < 0).astype(np.float64)
+    # R: table() drops a row with NA in any column (NA > 0 is NA too)
+    indicator = indicator[~np.isnan(x_arr).any(axis=1)]
 
+    # R: outcomes[, j] <- rep(0:1, times=2^(j-1), each=2^(ncontrasts-j)), so
+    # outcome k has column j's bit at weight 2^(ncontrasts-1-j) (0-based),
+    # the order of table() over the columns in reverse
     ncontrasts = indicator.shape[1]
-    noutcomes = 2**ncontrasts
-    outcomes = np.zeros((noutcomes, ncontrasts), dtype=np.int64)
-    for j in range(ncontrasts):
-        # R: rep(0:1, times=2^(j-1), each=2^(ncontrasts-j))  (1-based j)
-        # In 0-based:   times = 2^j, each = 2^(ncontrasts-1-j)
-        times = 2**j
-        each = 2 ** (ncontrasts - 1 - j)
-        pattern = np.tile(np.repeat(np.array([0, 1]), each), times)
-        outcomes[:, j] = pattern
-
-    # Count rows by outcome pattern. Match R's `table` output order: the
-    # last column cycles fastest. R's loop:
-    #   for (i in 1:ncontrasts) xlist[[i]] <- factor(x[,ncontrasts-i+1], ...)
-    # so the leftmost factor in xlist is column `ncontrasts`, whose level
-    # ordering cycles SLOWEST. table() cycles the LAST factor fastest,
-    # i.e. column 1. Our outcomes matrix above does the same (j=0 cycles
-    # slowest). Verify by matching the outcome pattern.
-    indicator_int = indicator.astype(np.int64)
-    counts = np.zeros(noutcomes, dtype=np.int64)
-    for r in range(indicator_int.shape[0]):
-        row = indicator_int[r, :]
-        # Match this row against each outcome row
-        idx = 0
-        # outcome at idx has column j = (idx >> (ncontrasts - 1 - j)) & 1
-        # but simpler: outcomes[idx, j] gives the pattern. We want the idx
-        # where all columns match. From the construction:
-        #   outcomes[idx, j] = (idx // (2**(ncontrasts-1-j))) % 2
-        for j in range(ncontrasts):
-            bit = int(row[j])
-            if bit not in (0, 1):
-                bit = 0
-            idx += bit * (2 ** (ncontrasts - 1 - j))
-        counts[idx] += 1
+    weights = 2 ** np.arange(ncontrasts - 1, -1, -1)
+    outcomes = (np.arange(2**ncontrasts)[:, None] // weights) % 2
+    counts = np.bincount(indicator.astype(np.int64) @ weights, minlength=2**ncontrasts)
 
     result = pd.DataFrame(outcomes, columns=col_names)
     result["Counts"] = counts

@@ -6028,3 +6028,10 @@ write.csv(.pmd_y, "R_pmd_y.csv", row.names = FALSE)
 .vp_rec <- .plot_record("volcanoplot", .pmd_fit, coef = 2, highlight = 4)
 write.csv(.vp_rec[.vp_rec$fun == "text", c("arg", "pos", "value")], "R_volcano_labels.csv",
           row.names = FALSE)
+
+# =============================================================================
+# vennCounts drops rows with NA (and names columns "Group 1", ...)
+# =============================================================================
+.vn_x <- cbind(c(1, 0, NA, 1, -1, 0, 1), c(1, 1, 0, 0, NA, -1, 1))
+write.csv(vennCounts(.vn_x), "R_venn_counts_na.csv", row.names = FALSE)
+write.csv(vennCounts(.vn_x, include = "up"), "R_venn_counts_na_up.csv", row.names = FALSE)

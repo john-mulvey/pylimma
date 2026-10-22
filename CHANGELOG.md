@@ -419,6 +419,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   legend: the background value first ("Other" when the background holds
   several values), then every highlighted value, also one with no points.
   The legend listed only the highlighted values that had points.
+- `venn_counts` leaves out rows with a missing value, as R's `vennCounts`
+  does; such a row was counted as all zeros (with any `include`). Unnamed
+  columns are named "Group 1", "Group 2", ... as in R (they were "col0",
+  "col1", ...), which also gives `venn_diagram` R's default set names.
 
 ### Documentation and examples
 

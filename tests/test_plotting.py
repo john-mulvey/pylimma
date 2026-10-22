@@ -421,6 +421,17 @@ def test_venn_counts_rparity(include, file):
         )
 
 
+@pytest.mark.parametrize(
+    "include,file", [("both", "R_venn_counts_na.csv"), ("up", "R_venn_counts_na_up.csv")]
+)
+def test_venn_counts_drops_rows_with_missing_values_as_r(include, file):
+    from pylimma import venn_counts
+
+    x = np.array([[1, 1], [0, 1], [np.nan, 0], [1, 0], [-1, np.nan], [0, -1], [1, 1]])
+    expected = pd.read_csv(FIXTURES / file)
+    pd.testing.assert_frame_equal(venn_counts(x, include=include), expected, check_dtype=False)
+
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_venn_diagram_smoke():
     from pylimma import venn_diagram
