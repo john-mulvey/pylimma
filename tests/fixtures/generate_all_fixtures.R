@@ -6021,3 +6021,10 @@ write.csv(rbind(
   .pmd_args("md_elist", "plotMD.EList", .pmd_el, column = 2)),
   "R_pmd_defaults.csv", row.names = FALSE)
 write.csv(.pmd_y, "R_pmd_y.csv", row.names = FALSE)
+
+# =============================================================================
+# volcanoplot: highlight labels default to fit$genes$ID
+# =============================================================================
+.vp_rec <- .plot_record("volcanoplot", .pmd_fit, coef = 2, highlight = 4)
+write.csv(.vp_rec[.vp_rec$fun == "text", c("arg", "pos", "value")], "R_volcano_labels.csv",
+          row.names = FALSE)

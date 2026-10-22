@@ -265,6 +265,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
   coefficient (`decide_tests` output) to the plotted column. For a matrix or
   EList the title is the column name and `ylab` is "Expression log-ratio
   (this sample vs others)"; columns can be given by name.
+- `volcano_plot` labels the highlighted genes with the `ID` column of
+  `fit["genes"]` by default, as R does; it used row numbers.
 
 ### Added
 

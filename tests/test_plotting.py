@@ -162,6 +162,30 @@ def test_plot_md_and_plot_ma_defaults_match_r(case, monkeypatch):
     assert list(status) == list(value["status"])
 
 
+def _pmd_fit():
+    from pylimma import e_bayes, lm_fit
+
+    y = pd.read_csv(FIXTURES / "R_pmd_y.csv").to_numpy()
+    design = pd.DataFrame(
+        {"Intercept": 1.0, "B": np.repeat([0.0, 1.0], 3), "C": np.tile([0.0, 1.0, 0.0], 2)}
+    )
+    fit = e_bayes(lm_fit(y, design))
+    fit["genes"] = pd.DataFrame({"ID": [f"g{i}" for i in range(1, 61)]})
+    return fit
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_volcano_plot_labels_default_to_gene_ids_as_r():
+    from pylimma import volcano_plot
+
+    ax = volcano_plot(_pmd_fit(), coef=1, highlight=4)
+    r = pd.read_csv(FIXTURES / "R_volcano_labels.csv")
+    value = {arg: g["value"].to_numpy() for arg, g in r.groupby("arg")}
+    assert [t.get_text() for t in ax.texts] == list(value["labels"])
+    np.testing.assert_allclose([t.get_position()[0] for t in ax.texts], value["arg1"].astype(float))
+    np.testing.assert_allclose([t.get_position()[1] for t in ax.texts], value["arg2"].astype(float))
+
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_md_unknown_column_name_raises():
     from pylimma import plot_md

@@ -489,6 +489,8 @@ def volcano_plot(
 
     Port of R limma's ``volcanoplot``. ``coef`` is 0-based (pylimma
     convention). ``style`` is one of ``"p-value"`` or ``"b-statistic"``.
+    The ``highlight`` labels default, as in R, to the ``ID`` column of
+    ``fit["genes"]``, else to row numbers.
     """
     plt = _require_matplotlib()
     if not isinstance(fit, MArrayLM) and not isinstance(fit, dict):
@@ -498,14 +500,9 @@ def volcano_plot(
     if style_low not in ("p-value", "b-statistic"):
         raise ValueError(f"style must be 'p-value' or 'b-statistic', got {style!r}")
 
-    c = coef
-    if isinstance(c, str):
-        names_list = fit.get("contrast_names") or fit.get("coef_names")
-        if names_list is None or c not in list(names_list):
-            raise ValueError(f"coef {c!r} not found")
-        c = list(names_list).index(c)
-
     coefs = np.asarray(fit["coefficients"])
+    coef_names = fit.get("contrast_names") or fit.get("coef_names")
+    c = _column_index(coef, coef_names, coefs.shape[1] if coefs.ndim > 1 else 1)
     x = coefs[:, c] if coefs.ndim > 1 else coefs
 
     if style_low == "p-value":
@@ -533,11 +530,13 @@ def volcano_plot(
     ax.set_ylabel(ylab)
 
     if highlight > 0:
+        # R: names=fit$genes$ID, else 1:length(x); as.character()
+        genes = fit.get("genes")
+        if names is None and isinstance(genes, pd.DataFrame) and "ID" in genes.columns:
+            names = genes["ID"].to_numpy()
         if names is None:
-            gene_names = np.arange(1, len(x) + 1)
-        else:
-            gene_names = np.asarray(names)
-        gene_names = np.array([str(g) for g in gene_names.tolist()])
+            names = np.arange(1, len(x) + 1)
+        gene_names = ["NA" if g is None else g for g in _status_labels(names)]
         o = np.argsort(-y, kind="stable")
         i_top = o[: int(highlight)]
         for i in i_top:
