@@ -735,8 +735,10 @@ def test_coolmap_substrate(cb, suffix):
     np.testing.assert_allclose(Z, expected_z, rtol=1e-6)
 
     # Run coolmap and verify dendrogram leaf orders match R's hclust
-    fig = coolmap(E, cluster_by=cb)
-    assert fig is not None
+    out = coolmap(E, cluster_by=cb)
+    np.testing.assert_array_equal(
+        out["row_ind"] + 1, pd.read_csv(FIXTURES / f"R_coolmap_row_order_{suffix}.csv")["order"]
+    )
 
 
 # ----------------------------------------------------------------------------
@@ -1005,3 +1007,48 @@ def test_plot_exons_takes_a_coefficient_name():
     by_position = plot_exons(fit, coef=0)
     assert by_name.get_title() == by_position.get_title()
     np.testing.assert_allclose(by_name.lines[0].get_ydata(), by_position.lines[0].get_ydata())
+
+
+def _cm_expected(case):
+    r = pd.read_csv(FIXTURES / "R_cm_ind.csv").query("case == @case")
+    return (
+        r.query("which == 'row'")["ind"].to_numpy() - 1,
+        r.query("which == 'col'")["ind"].to_numpy() - 1,
+    )
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize(
+    "case,kwargs",
+    [
+        ("expression", {}),
+        ("rows_none", {"linkage_row": "none"}),
+        ("cols_none", {"linkage_col": "none"}),
+    ],
+)
+def test_coolmap_orders_and_orientation_match_r(case, kwargs):
+    """R's rowInd / colInd (heatmap.2), row rowInd[0] drawn at the bottom, a
+    dendrogram drawn only for a clustered side."""
+    from pylimma import coolmap
+
+    x = pd.read_csv(FIXTURES / "R_cm_x.csv", index_col=0)
+    out = coolmap(x, cluster_by="expression level", **kwargs)
+    rows, cols = _cm_expected(case)
+    np.testing.assert_array_equal(out["row_ind"], rows)
+    np.testing.assert_array_equal(out["col_ind"], cols)
+    image = out["ax"].images[0]
+    assert image.origin == "lower"
+    np.testing.assert_allclose(image.get_array()[0], x.to_numpy()[rows[0], cols])
+    assert [t.get_text() for t in out["ax"].get_yticklabels()] == list(x.index[rows])
+    assert len(out["fig"].axes) == 2 + ("linkage_row" not in kwargs) + ("linkage_col" not in kwargs)
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_coolmap_rejects_ax_and_heatmap2_arguments():
+    from pylimma import coolmap
+
+    x = pd.read_csv(FIXTURES / "R_cm_x.csv", index_col=0)
+    with pytest.raises(ValueError, match="ax is not supported"):
+        coolmap(x, ax=object())
+    with pytest.raises(TypeError, match="heatmap.2, which is not ported"):
+        coolmap(x, margins=(5, 5))

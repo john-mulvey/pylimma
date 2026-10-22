@@ -298,6 +298,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
   `pch_y` is given, and a design with fewer discriminant functions than
   asked for (two groups) raises a clear error where R pads an arbitrary
   dimension (it raised `IndexError`).
+- `coolmap` draws and returns what R's `coolmap` (through
+  `gplots::heatmap.2`) does: the rows from the bottom up in dendrogram
+  order (they were upside down relative to R), the row and column
+  dendrograms as `show_dendrogram` asks (none were drawn) and the colour
+  key, and it returns a dict with the figure, the heatmap axes, `row_ind`
+  / `col_ind` (R's `rowInd` / `colInd`, 0-based) and the linkages, where it
+  returned the Figure. `ax=` and further arguments (which R passes to
+  `heatmap.2`) raise errors; they were silently ignored.
 
 ### Added
 

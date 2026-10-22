@@ -1295,14 +1295,34 @@ def coolmap(
 ):
     """Clustered heatmap with log2-expression colour scheme.
 
-    Port of the numeric substrate of R limma's ``coolmap``. Hierarchical
-    clustering and row z-scoring match R; layout is re-implemented in
-    matplotlib (R's ``coolmap`` delegates to ``gplots::heatmap.2``, which
-    is not ported). Returns the matplotlib Figure.
+    Port of R limma's ``coolmap``. Clustering and row z-scoring follow R;
+    the drawing follows ``gplots::heatmap.2`` (which R's ``coolmap`` calls)
+    in matplotlib: the colour key top left, the column dendrogram on top,
+    the row dendrogram on the left (as ``show_dendrogram`` asks) and the
+    rows drawn from the bottom up in dendrogram order. ``ax`` and further
+    arguments, which R passes on to ``heatmap.2``, are not supported.
+
+    Returns
+    -------
+    dict
+        ``fig`` and ``ax`` (the heatmap axes); ``row_ind`` and ``col_ind``,
+        the 0-based row order from the bottom up and column order from the
+        left (R's ``rowInd`` / ``colInd``); ``row_linkage`` and
+        ``col_linkage``, scipy linkage matrices (None without clustering).
     """
     plt = _require_matplotlib()
-    from scipy.cluster.hierarchy import leaves_list, linkage
+    from scipy.cluster.hierarchy import dendrogram, leaves_list, linkage
     from scipy.spatial.distance import pdist
+
+    if ax is not None:
+        raise ValueError(
+            "coolmap draws its own figure (heatmap, dendrograms and key); ax is not supported"
+        )
+    if kwargs:
+        raise TypeError(
+            f"coolmap got unexpected arguments {sorted(kwargs)}; R passes them on to "
+            "gplots::heatmap.2, which is not ported"
+        )
 
     if cluster_by not in ("de pattern", "expression level"):
         raise ValueError(
@@ -1355,24 +1375,23 @@ def coolmap(
 
     # Column clustering
     if linkage_col == "none":
-        col_order = np.arange(Z.shape[1])
-        show_dendrogram_eff = show_dendrogram.replace("both", "row").replace("column", "none")
+        col_link = None
+        show_dendrogram = {"both": "row", "column": "none"}.get(show_dendrogram, show_dendrogram)
     else:
         col_link = linkage(pdist(Z.T, metric="euclidean"), method=link_col)
-        col_order = leaves_list(col_link)
-        show_dendrogram_eff = show_dendrogram
 
     if linkage_row == "none":
-        row_order = np.arange(Z.shape[0])
-        show_dendrogram_eff = show_dendrogram_eff.replace("both", "column").replace("row", "none")
         row_link = None
+        show_dendrogram = {"both": "column", "row": "none"}.get(show_dendrogram, show_dendrogram)
     else:
         row_link = linkage(pdist(Z, metric="euclidean"), method=link_row)
-        row_order = leaves_list(row_link)
 
+    # heatmap.2: rowInd <- order.dendrogram(Rowv), else nr:1; colInd likewise,
+    # else 1:nc; row rowInd[1] is drawn at the bottom
+    nr, nc = Z.shape
+    row_order = leaves_list(row_link) if row_link is not None else np.arange(nr)[::-1]
+    col_order = leaves_list(col_link) if col_link is not None else np.arange(nc)
     Z_reordered = Z[np.ix_(row_order, col_order)]
-    row_labels = [row_names[i] for i in row_order]
-    col_labels = [col_names[j] for j in col_order]
 
     if sym:
         vmax = float(np.nanmax(np.abs(Z_reordered)))
@@ -1381,14 +1400,61 @@ def coolmap(
         vmin = float(np.nanmin(Z_reordered))
         vmax = float(np.nanmax(Z_reordered))
 
-    fig, ax_main = plt.subplots(figsize=(6, 6))
-    im = ax_main.imshow(Z_reordered, aspect="auto", cmap=cmap, vmin=vmin, vmax=vmax)
-    ax_main.set_xticks(np.arange(len(col_labels)))
-    ax_main.set_xticklabels(col_labels, rotation=90, fontsize=8)
-    ax_main.set_yticks(np.arange(len(row_labels)))
-    ax_main.set_yticklabels(row_labels, fontsize=6)
-    fig.colorbar(im, ax=ax_main, label="Z-Score" if sym else "log2(expression)")
-    return fig
+    # heatmap.2's layout: key top left, column dendrogram top, row dendrogram
+    # left, heatmap bottom right; dendrogram leaves sit at 10 * i + 5
+    fig = plt.figure(figsize=(7, 7))
+    grid = fig.add_gridspec(
+        2, 2, width_ratios=[1.5, 4], height_ratios=[1.5, 4], wspace=0.02, hspace=0.02
+    )
+    ax_heat = fig.add_subplot(grid[1, 1])
+    im = ax_heat.imshow(
+        Z_reordered,
+        aspect="auto",
+        cmap=cmap,
+        vmin=vmin,
+        vmax=vmax,
+        origin="lower",
+        interpolation="nearest",
+    )
+    ax_heat.set_xticks(np.arange(nc), [col_names[j] for j in col_order], rotation=90, fontsize=8)
+    ax_heat.yaxis.tick_right()
+    ax_heat.set_yticks(np.arange(nr), [row_names[i] for i in row_order], fontsize=6)
+    if show_dendrogram in ("both", "row"):
+        ax_row = fig.add_subplot(grid[1, 0])
+        dendrogram(
+            row_link,
+            orientation="left",
+            ax=ax_row,
+            no_labels=True,
+            color_threshold=0,
+            above_threshold_color="black",
+        )
+        ax_row.set_ylim(0, 10 * nr)
+        ax_row.set_axis_off()
+    if show_dendrogram in ("both", "column"):
+        ax_col = fig.add_subplot(grid[0, 1])
+        dendrogram(
+            col_link,
+            orientation="top",
+            ax=ax_col,
+            no_labels=True,
+            color_threshold=0,
+            above_threshold_color="black",
+        )
+        ax_col.set_xlim(0, 10 * nc)
+        ax_col.set_axis_off()
+    ax_key = fig.add_subplot(grid[0, 0])
+    fig.colorbar(
+        im, cax=ax_key, orientation="horizontal", label="Z-Score" if sym else "log2(expression)"
+    )
+    return {
+        "fig": fig,
+        "ax": ax_heat,
+        "row_ind": row_order,
+        "col_ind": col_order,
+        "row_linkage": row_link,
+        "col_linkage": col_link,
+    }
 
 
 # ----------------------------------------------------------------------------

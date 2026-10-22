@@ -6207,3 +6207,26 @@ write.csv(.pe_genes, "R_pe_genes.csv", row.names = FALSE)
 write.csv(rbind(.pe_rec("rank1"), .pe_rec("rank2_exon", rank = 2, exoncolname = "Exon"),
                 .pe_rec("geneid", geneid = "G3", exoncolname = "Exon")),
           "R_pe_calls.csv", row.names = FALSE)
+
+# =============================================================================
+# coolmap (through gplots::heatmap.2): rowInd / colInd, the row order from
+# the bottom up (nr:1 without a row dendrogram) and the column order (1:nc
+# without one)
+# =============================================================================
+set.seed(111)
+.cm_x <- matrix(rnorm(30 * 6, 8, 1), 30, dimnames = list(sprintf("g%02d", 1:30), paste0("s", 1:6)))
+.cm_x[1:8, 4:6] <- .cm_x[1:8, 4:6] + 2
+.cm_x[9:14, c(1, 4)] <- .cm_x[9:14, c(1, 4)] - 1.5
+write.csv(.cm_x, "R_cm_x.csv")
+.cm_ind <- function(case, x = .cm_x, ...) {
+  pdf(NULL)
+  on.exit(dev.off())
+  out <- coolmap(x, ...)
+  rbind(data.frame(case = case, which = "row", pos = seq_along(out$rowInd), ind = out$rowInd),
+        data.frame(case = case, which = "col", pos = seq_along(out$colInd), ind = out$colInd))
+}
+write.csv(rbind(
+  .cm_ind("expression", cluster.by = "expression level"),
+  .cm_ind("rows_none", cluster.by = "expression level", linkage.row = "none"),
+  .cm_ind("cols_none", cluster.by = "expression level", linkage.col = "none")),
+  "R_cm_ind.csv", row.names = FALSE)
