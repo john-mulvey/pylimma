@@ -258,6 +258,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
   different lengths" (pylimma raised an unrelated numpy error); `loess_fit`,
   like R's `loessFit`, now accepts weights of any shape with one value per
   point, such as an n x 1 matrix.
+- `plot_md` / `plot_ma` take R's defaults. For a fit they plot the last
+  coefficient (they plotted the first, usually the intercept), titled with
+  its name; `status` defaults to the `Status` column of `fit["genes"]` (or
+  of an EList's genes), and `plot_md` reduces a status with one column per
+  coefficient (`decide_tests` output) to the plotted column. For a matrix or
+  EList the title is the column name and `ylab` is "Expression log-ratio
+  (this sample vs others)"; columns can be given by name.
 
 ### Added
 

@@ -111,6 +111,65 @@ def test_plot_with_highlights_legend_matches_r(case):
 # ----------------------------------------------------------------------------
 
 
+PMD_CASES = {
+    "md_fit": ("plot_md", "fit", {}),
+    "ma_fit": ("plot_ma", "fit", {}),
+    "md_fit_coef": ("plot_md", "fit", {"coef": 1}),
+    "md_fit_tests": ("plot_md", "fit", {"status": "decide_tests"}),
+    "md_elist": ("plot_md", "elist", {"column": 1}),
+}
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize("case", list(PMD_CASES))
+def test_plot_md_and_plot_ma_defaults_match_r(case, monkeypatch):
+    """R's defaults: the last coefficient of a fit, its name as title,
+    genes$Status as status (plotMD: the matching column of decideTests
+    output); for an EList the column name and its ylab."""
+    import pylimma
+    from pylimma import EList, decide_tests, e_bayes, lm_fit
+
+    plotting = __import__("pylimma.plotting", fromlist=["plot_with_highlights"])
+    y = pd.read_csv(FIXTURES / "R_pmd_y.csv")
+    design = pd.DataFrame(
+        {"Intercept": 1.0, "B": np.repeat([0.0, 1.0], 3), "C": np.tile([0.0, 1.0, 0.0], 2)}
+    )
+    genes = pd.DataFrame(
+        {"ID": [f"g{i}" for i in range(1, 61)], "Status": ["gene"] * 54 + ["control"] * 6}
+    )
+    function, kind, kwargs = PMD_CASES[case]
+    if kind == "fit":
+        target = e_bayes(lm_fit(y.to_numpy(), design))
+        target["genes"] = genes
+    else:
+        target = EList({"E": y, "genes": genes})
+    if kwargs.get("status") == "decide_tests":
+        kwargs = {"status": decide_tests(target)}
+
+    seen = {}
+    monkeypatch.setattr(
+        plotting, "plot_with_highlights", lambda x, y, **kw: seen.update(x=x, y=y, **kw)
+    )
+    getattr(pylimma, function)(target, **kwargs)
+
+    r = pd.read_csv(FIXTURES / "R_pmd_defaults.csv").query("case == @case")
+    value = {arg: g["value"].to_numpy() for arg, g in r.groupby("arg")}
+    np.testing.assert_allclose(seen["x"], value["x"].astype(float), rtol=1e-12)
+    np.testing.assert_allclose(seen["y"], value["y"].astype(float), rtol=1e-12)
+    assert seen["main"] == value["main"][0]
+    assert seen["ylab"] == value["ylab"][0]
+    status = plotting._status_labels(seen["status"])
+    assert list(status) == list(value["status"])
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_md_unknown_column_name_raises():
+    from pylimma import plot_md
+
+    with pytest.raises(ValueError, match="coef 'a' not found"):
+        plot_md(np.ones((10, 3)), column="a")
+
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_ma_marraylm_substrate():
     from pylimma import contrasts_fit, e_bayes, lm_fit, plot_ma

@@ -160,6 +160,11 @@ def plot_with_highlights(
     if ax is None:
         _, ax = plt.subplots()
 
+    # R stops for a TestResults status with several columns
+    if status is not None and np.ndim(status) == 2:
+        if np.shape(status)[1] > 1:
+            raise ValueError("status has more than one column")
+        status = np.asarray(status, dtype=object)[:, 0]
     # R: as.character(status), with NA kept (tested on the raw values)
     status_arr = None if status is None else _status_labels(status)
 
@@ -331,12 +336,67 @@ def _ma_from_matrix(E, col, weights=None, zero_weights=False):
     return a, m
 
 
+_EXPRESSION_YLAB = "Expression log-ratio (this sample vs others)"
+
+
+def _column_index(column, names, ncol):
+    """0-based index of a column given by position or by name."""
+    if isinstance(column, str):
+        if names is None or column not in list(names):
+            raise ValueError(f"coef {column!r} not found")
+        return list(names).index(column)
+    return int(np.arange(ncol)[int(column)])
+
+
+def _md_inputs(object, column, main, status, zero_weights, *, column_of_status):
+    """x, y, title and status as R's plotMA / plotMD methods take them. For
+    an MArrayLM: Amean against coefficients[, column], the column defaulting
+    to the last, the title to its name and the status to genes$Status (with
+    ``column_of_status``, plotMD's choice of the matching column of a
+    multi-column status). Otherwise column against the mean of the others,
+    the title defaulting to the column name and, for an EList, the status
+    to genes$Status."""
+    genes = object.get("genes") if isinstance(object, dict) else None
+    if isinstance(genes, pd.DataFrame) and "Status" in genes.columns and status is None:
+        status = genes["Status"].to_numpy()
+
+    if isinstance(object, MArrayLM):
+        if object.get("Amean") is None:
+            raise ValueError("Amean component is absent.")
+        names = object.get("contrast_names") or object.get("coef_names")
+        ncoef = object.ncol
+        j = ncoef - 1 if column is None else _column_index(column, names, ncoef)
+        coefs = np.asarray(object["coefficients"], dtype=np.float64)
+        y = coefs if coefs.ndim == 1 else coefs[:, j]
+        x = np.asarray(object["Amean"], dtype=np.float64)
+        colnames = names
+        if column_of_status and status is not None and np.ndim(status) == 2:
+            status = np.asarray(status, dtype="O")  # `object` is the argument here
+            if status.shape[1] == ncoef:
+                status = status[:, j]
+            elif status.shape[1] > 1:
+                raise ValueError("status has multiple columns")
+    else:
+        E, w = _get_matrix_E(object, want_weights=True)
+        if isinstance(object, pd.DataFrame):
+            colnames = list(object.columns)
+        elif isinstance(object, dict) and isinstance(object.get("E"), pd.DataFrame):
+            colnames = list(object["E"].columns)
+        else:
+            colnames = None
+        j = 0 if column is None else _column_index(column, colnames, E.shape[1])
+        x, y = _ma_from_matrix(E, j, weights=w, zero_weights=zero_weights)
+    if main is None and colnames is not None:
+        main = str(colnames[j])
+    return x, y, main, status
+
+
 def plot_ma(
     object,
-    array: int = 0,
-    coef: int | None = None,
+    array: int | str = 0,
+    coef: int | str | None = None,
     xlab: str = "Average log-expression",
-    ylab: str = "log-fold-change",
+    ylab: str | None = None,
     main: str | None = None,
     status=None,
     zero_weights: bool = False,
@@ -350,30 +410,23 @@ def plot_ma(
     - ``ndarray`` / matrix-like: ``(A, M)`` computed from column ``array``
       vs the mean of the remaining columns.
     - ``EList``: the ``E`` slot is extracted and the matrix path runs.
-    - ``MArrayLM``: ``x = Amean``, ``y = coefficients[:, coef]``.
+    - ``MArrayLM``: ``x = Amean``, ``y = coefficients[:, coef]``, ``coef``
+      defaulting to the last coefficient as in R.
+
+    As in R, ``main`` defaults to the column or coefficient name, ``ylab``
+    to "log-fold-change" for a fit and "Expression log-ratio (this sample
+    vs others)" otherwise, and ``status`` to the ``Status`` column of
+    ``genes`` when there is one.
 
     Index convention: ``array`` and ``coef`` are 0-based (matching
-    ``top_table``'s convention throughout pylimma).
+    ``top_table``'s convention throughout pylimma); names also work.
     """
-    if isinstance(object, MArrayLM):
-        if object.get("Amean") is None:
-            raise ValueError("Amean component is absent.")
-        c = coef if coef is not None else 0
-        if isinstance(c, str):
-            names = object.get("contrast_names") or object.get("coef_names")
-            if names is None or c not in list(names):
-                raise ValueError(f"coef {c!r} not found")
-            c = list(names).index(c)
-        coefs = np.asarray(object["coefficients"])
-        if coefs.ndim == 1:
-            y = coefs
-        else:
-            y = coefs[:, c]
-        x = np.asarray(object["Amean"], dtype=np.float64)
-    else:
-        E, w = _get_matrix_E(object, want_weights=True)
-        x, y = _ma_from_matrix(E, int(array), weights=w, zero_weights=zero_weights)
-
+    column = coef if isinstance(object, MArrayLM) else array
+    x, y, main, status = _md_inputs(
+        object, column, main, status, zero_weights, column_of_status=False
+    )
+    if ylab is None:
+        ylab = "log-fold-change" if isinstance(object, MArrayLM) else _EXPRESSION_YLAB
     return plot_with_highlights(
         x, y, status=status, xlab=xlab, ylab=ylab, main=main, ax=ax, **kwargs
     )
@@ -381,10 +434,10 @@ def plot_ma(
 
 def plot_md(
     object,
-    column: int = 0,
-    coef: int | None = None,
+    column: int | str | None = None,
+    coef: int | str | None = None,
     xlab: str = "Average log-expression",
-    ylab: str = "log-fold-change",
+    ylab: str | None = None,
     main: str | None = None,
     status=None,
     zero_weights: bool = False,
@@ -393,30 +446,21 @@ def plot_md(
 ):
     """Mean-difference plot. Port of R limma's ``plotMD``.
 
-    Dispatch and numeric substrate mirror ``plot_ma`` exactly (``plotMA``
-    and ``plotMD`` use identical matrix-path computations in R). The only
-    behavioural difference is that when ``coef`` is supplied for an
-    MArrayLM, it overrides ``column``.
+    Dispatch, defaults and numeric substrate mirror :func:`plot_ma`
+    (``column`` defaults to the last coefficient of a fit and to the first
+    column otherwise). As in R, ``coef`` overrides ``column`` for an
+    MArrayLM, and a status with one column per coefficient (such as
+    ``decide_tests`` output) is reduced to the plotted column; another
+    multi-column status raises, where R's test for it is always true (see
+    :doc:`/validation/known_differences`).
     """
-    if isinstance(object, MArrayLM):
-        if object.get("Amean") is None:
-            raise ValueError("Amean component is absent.")
-        c = coef if coef is not None else column
-        if isinstance(c, str):
-            names = object.get("contrast_names") or object.get("coef_names")
-            if names is None or c not in list(names):
-                raise ValueError(f"coef {c!r} not found")
-            c = list(names).index(c)
-        coefs = np.asarray(object["coefficients"])
-        if coefs.ndim == 1:
-            y = coefs
-        else:
-            y = coefs[:, c]
-        x = np.asarray(object["Amean"], dtype=np.float64)
-    else:
-        E, w = _get_matrix_E(object, want_weights=True)
-        x, y = _ma_from_matrix(E, int(column), weights=w, zero_weights=zero_weights)
-
+    if isinstance(object, MArrayLM) and coef is not None:
+        column = coef
+    x, y, main, status = _md_inputs(
+        object, column, main, status, zero_weights, column_of_status=True
+    )
+    if ylab is None:
+        ylab = "log-fold-change" if isinstance(object, MArrayLM) else _EXPRESSION_YLAB
     return plot_with_highlights(
         x, y, status=status, xlab=xlab, ylab=ylab, main=main, ax=ax, **kwargs
     )

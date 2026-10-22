@@ -5921,9 +5921,10 @@ stopifnot(isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, iterations = 0),
 # Recording what limma's plot functions draw: .plot_record(fname, ...) runs
 # the limma function with its base-graphics calls replaced by recorders and
 # returns the calls as a long data frame (call number, function, argument,
-# position, value). Used by the plotting sections below.
+# position, value); .also names further functions to record, such as
+# plotWithHighlights. Used by the plotting sections below.
 # =============================================================================
-.plot_record <- function(fname, ...) {
+.plot_record <- function(fname, ..., .also = character()) {
   calls <- list()
   record <- function(what) {
     force(what)
@@ -5941,7 +5942,8 @@ stopifnot(isTRUE(all.equal(normalizeCyclicLoess(.cyl_x, iterations = 0),
   f <- get(fname, asNamespace("limma"))
   e <- new.env(parent = environment(f))
   for (g in c("plot", "points", "lines", "segments", "rect", "text", "legend", "abline", "axis",
-              "mtext", "title", "polygon", "image", "par", "layout", "barplot", "matplot", "box"))
+              "mtext", "title", "polygon", "image", "par", "layout", "barplot", "matplot", "box",
+              .also))
     assign(g, record(g), e)
   environment(f) <- e
   f(...)
@@ -5992,3 +5994,30 @@ write.csv(do.call(rbind, lapply(names(.pwl_cases), function(case) {
   rec <- do.call(.plot_record, args)
   data.frame(case = case, rec[rec$fun == "legend" & rec$arg == "legend", c("pos", "value")])
 })), "R_pwh_legend.csv", row.names = FALSE)
+
+# =============================================================================
+# plotMD / plotMA defaults: for an MArrayLM the last coefficient, its name as
+# title and genes$Status; plotMD takes the matching column of a TestResults
+# status; for an EList the column name as title and genes$Status
+# =============================================================================
+set.seed(41)
+.pmd_y <- matrix(rnorm(60 * 6, 8), 60, dimnames = list(NULL, paste0("s", 1:6)))
+.pmd_y[1:6, 4:6] <- .pmd_y[1:6, 4:6] + 3
+.pmd_design <- cbind(Intercept = 1, B = rep(0:1, each = 3), C = rep(c(0, 1, 0), 2))
+.pmd_genes <- data.frame(ID = paste0("g", 1:60), Status = rep(c("gene", "control"), c(54, 6)))
+.pmd_fit <- eBayes(lmFit(.pmd_y, .pmd_design))
+.pmd_fit$genes <- .pmd_genes
+.pmd_el <- new("EList", list(E = .pmd_y, genes = .pmd_genes))
+.pmd_args <- function(case, fname, ...) {
+  rec <- .plot_record(fname, ..., .also = "plotWithHighlights")
+  rec <- rec[rec$fun == "plotWithHighlights" & rec$arg %in% c("x", "y", "main", "ylab", "status"), ]
+  data.frame(case = case, rec[, c("arg", "pos", "value")])
+}
+write.csv(rbind(
+  .pmd_args("md_fit", "plotMD.MArrayLM", .pmd_fit),
+  .pmd_args("ma_fit", "plotMA.MArrayLM", .pmd_fit),
+  .pmd_args("md_fit_coef", "plotMD.MArrayLM", .pmd_fit, coef = 2),
+  .pmd_args("md_fit_tests", "plotMD.MArrayLM", .pmd_fit, status = decideTests(.pmd_fit)),
+  .pmd_args("md_elist", "plotMD.EList", .pmd_el, column = 2)),
+  "R_pmd_defaults.csv", row.names = FALSE)
+write.csv(.pmd_y, "R_pmd_y.csv", row.names = FALSE)
