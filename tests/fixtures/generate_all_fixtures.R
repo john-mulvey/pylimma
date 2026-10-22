@@ -6247,3 +6247,8 @@ write.csv(do.call(rbind, lapply(c("single", "complete", "average", "mcquitty", "
 write.csv(.cm_na, "R_cm_na.csv")
 write.csv(rbind(.cm_ind("na_de_pattern", .cm_na), .cm_ind("na_expression", .cm_na, cluster.by = "expression level")),
           "R_cm_na_ind.csv", row.names = FALSE)
+
+# coolmap takes as.matrix() of an EList (its E) and fails for a single row
+.cm_el <- new("EList", list(E = .cm_x))
+stopifnot(identical(.cm_ind("el", .cm_el)$ind, .cm_ind("x", .cm_x)$ind),
+          inherits(try(.cm_ind("one", .cm_x[1, , drop = FALSE]), silent = TRUE), "try-error"))

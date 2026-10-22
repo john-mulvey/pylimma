@@ -1096,3 +1096,21 @@ def test_coolmap_with_missing_values_matches_r(cluster_by, case):
     r = pd.read_csv(FIXTURES / "R_cm_na_ind.csv").query("case == @case")
     np.testing.assert_array_equal(out["row_ind"] + 1, r.query("which == 'row'")["ind"])
     np.testing.assert_array_equal(out["col_ind"] + 1, r.query("which == 'col'")["ind"])
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_coolmap_accepts_elist_and_anndata_and_needs_two_rows():
+    """R's coolmap takes as.matrix(x) (an EList's E) and fails for one row
+    (fixture script); AnnData is read as genes x samples."""
+    anndata = pytest.importorskip("anndata")
+    from pylimma import EList, coolmap
+
+    x = pd.read_csv(FIXTURES / "R_cm_x.csv", index_col=0)
+    rows, cols = _cm_expected("de_pattern")
+    for data in (EList({"E": x}), anndata.AnnData(x.T)):
+        out = coolmap(data)
+        np.testing.assert_array_equal(out["row_ind"], rows)
+        np.testing.assert_array_equal(out["col_ind"], cols)
+        assert [t.get_text() for t in out["ax"].get_yticklabels()] == list(x.index[rows])
+    with pytest.raises(ValueError, match="Need at least 2 rows and 2 columns"):
+        coolmap(x.iloc[:1])

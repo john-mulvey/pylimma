@@ -1370,16 +1370,22 @@ def coolmap(
     else:
         cmap = col
 
-    if isinstance(x, pd.DataFrame):
-        row_names = list(x.index)
-        col_names = list(x.columns)
-        M = x.values.astype(np.float64)
+    # R: as.matrix(x), an EList's E; rows and columns named as R's dimnames
+    M, _, col_names, _ = _expression_matrix(x)
+    if _is_anndata(x):
+        row_names = [str(v) for v in x.var_names]
+    elif isinstance(x, pd.DataFrame):
+        row_names = [str(v) for v in x.index]
+    elif isinstance(x, dict) and isinstance(x.get("E"), pd.DataFrame):
+        row_names = [str(v) for v in x["E"].index]
     else:
-        M = np.asarray(x, dtype=np.float64)
         row_names = [str(i + 1) for i in range(M.shape[0])]
+    if col_names is None:
         col_names = [str(j + 1) for j in range(M.shape[1])]
-
-    if M.shape[1] < 2:
+    col_names = [str(v) for v in col_names]
+    # R checks the columns; hclust stops for a single row ("must have n >= 2
+    # objects to cluster")
+    if M.shape[0] < 2 or M.shape[1] < 2:
         raise ValueError("Need at least 2 rows and 2 columns")
 
     link_row = _coolmap_linkage(linkage_row)

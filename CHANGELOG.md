@@ -510,6 +510,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   (over the coordinates two rows share, scaled up by the number missing);
   it raised "The condensed distance matrix must contain only finite
   values".
+- `coolmap` accepts an EList (its `E`, as R's `as.matrix`) and an AnnData,
+  where an EList raised `TypeError`, and a single row raises R's "Need at
+  least 2 rows and 2 columns" instead of scipy's error.
 
 ### Documentation and examples
 
