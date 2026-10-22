@@ -21,6 +21,14 @@
 #   barcodeplot.R                         Copyright (C) 2008-2019 Gordon Smyth,
 #                                                                 Di Wu,
 #                                                                 Yifang Hu
+#   plots-fit.R (heatDiagram)             Copyright (C) 2002-2004 Gordon Smyth
+#   plotlines.R                           Copyright (C) 2006      Gordon Smyth
+#   plotrldf.R                            Copyright (C) 2009-2016 Di Wu,
+#                                                                 Gordon Smyth
+#   plotExons.R                           Copyright (C) 2014      Yifang Hu,
+#                                                                 Gordon Smyth
+#   plotExonJunc.R                        Copyright (C) 2018      Yunshun Chen,
+#                                                                 Gordon Smyth
 # Python port: Copyright (C) 2026 John Mulvey
 """
 Diagnostic and exploratory plots for pylimma.
