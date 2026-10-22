@@ -283,6 +283,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
   for all genes), as in R (`dim_plot=(0, 0)` ran, `top=0` failed inside
   the eigendecomposition), and a degenerate dimension warns as in R, with
   R's 1-based dimension number.
+- `volcano_plot` on an object without coefficients raises R's "fit must be
+  an MArrayLM" (it raised `KeyError`), and `mdplot` with fewer than two
+  columns and `venn_diagram(None)` raise clear errors where R fails
+  obscurely (see known differences).
 
 ### Added
 

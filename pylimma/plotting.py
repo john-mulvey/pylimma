@@ -482,7 +482,7 @@ def volcano_plot(
     ``fit["genes"]``, else to row numbers.
     """
     plt = _require_matplotlib()
-    if not isinstance(fit, MArrayLM) and not isinstance(fit, dict):
+    if not isinstance(fit, dict) or fit.get("coefficients") is None:
         raise ValueError("fit must be an MArrayLM")
 
     style_low = str(style).lower()
@@ -1085,6 +1085,8 @@ def venn_diagram(
     raises ``NotImplementedError``.
     """
     plt = _require_matplotlib()
+    if object is None:
+        raise ValueError("object must be a matrix of test results or venn_counts output, not None")
     cex = np.atleast_1d(np.asarray(cex, dtype=np.float64))
 
     if isinstance(include, (list, tuple, np.ndarray)):
@@ -1707,6 +1709,10 @@ def mdplot(
     x = np.asarray(x, dtype=np.float64)
     if x.ndim != 2:
         raise ValueError("mdplot requires a 2-D matrix")
+    # R: as.integer(columns)[1:2] is NA without a second column and plot()
+    # fails on the NA limits
+    if np.size(columns) < 2:
+        raise ValueError("columns must give two columns of x")
     i, j = int(columns[0]), int(columns[1])
     d = x[:, j] - x[:, i]
     m = (x[:, i] + x[:, j]) / 2.0

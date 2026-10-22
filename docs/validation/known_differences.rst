@@ -396,6 +396,14 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     "Elements of argument 'Sstrat' must be in ascending order".
     ``generate_all_fixtures.R`` records the R behaviour.
 
+``mdplot`` with one column, ``venn_diagram(None)``
+    Raise "columns must give two columns of x" and "object must be a
+    matrix of test results or venn_counts output, not None". R's
+    ``mdplot(x, columns=1)`` takes an NA second column and fails in
+    ``plot.window`` ("need finite 'xlim' values"); ``vennDiagram(NULL)``
+    fails in ``as.matrix`` ("'data' must be of a vector type").
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 ``heat_diagram`` with ``names`` of the wrong length
     Raises "names must give one name per row of results". R takes
     ``names[DE]``, so the rows past the end of a short ``names`` are

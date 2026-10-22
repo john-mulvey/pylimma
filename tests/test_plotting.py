@@ -783,3 +783,17 @@ def test_plot_functions_without_matplotlib_raise_a_clear_import_error(function, 
     }[function]
     with pytest.raises(ImportError, match="plotting functions require matplotlib"):
         getattr(pylimma, function)(*args)
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_argument_errors_are_clear():
+    """R: volcanoplot stops with "fit must be an MArrayLM"; mdplot with one
+    column and vennDiagram(NULL) fail obscurely in R (fixture script notes)."""
+    from pylimma import mdplot, venn_diagram, volcano_plot
+
+    with pytest.raises(ValueError, match="fit must be an MArrayLM"):
+        volcano_plot({"x": 1})
+    with pytest.raises(ValueError, match="columns must give two columns"):
+        mdplot(np.ones((10, 3)), columns=(0,))
+    with pytest.raises(ValueError, match="not None"):
+        venn_diagram(None)

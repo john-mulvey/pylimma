@@ -6143,3 +6143,16 @@ write.csv(data.frame(x = .mds$x, y = .mds$y, re_x = .mds_re$x, re_y = .mds_re$y)
           "R_mds_dims.csv", row.names = FALSE)
 .mds_fails <- function(...) inherits(try(plotMDS(.mds_x, plot = FALSE, ...), silent = TRUE), "try-error")
 stopifnot(.mds_fails(dim.plot = c(1, 1)), .mds_fails(dim.plot = 1), .mds_fails(top = 0))
+
+# =============================================================================
+# Plot argument errors: volcanoplot(list(x = 1)) stops with "fit must be an
+# MArrayLM"; mdplot(columns = 1) and vennDiagram(NULL) fail obscurely
+# ("need finite 'xlim' values", "'data' must be of a vector type"); pylimma
+# raises clear errors for the last two
+# =============================================================================
+pdf(NULL)
+.pae <- function(expr) tryCatch({ suppressWarnings(expr); "" }, error = conditionMessage)
+stopifnot(identical(.pae(volcanoplot(list(x = 1))), "fit must be an MArrayLM"),
+          nzchar(.pae(mdplot(matrix(rnorm(20), 10), columns = 1))),
+          nzchar(.pae(vennDiagram(NULL))))
+invisible(dev.off())
