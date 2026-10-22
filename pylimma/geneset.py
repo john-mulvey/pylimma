@@ -2098,18 +2098,32 @@ def romer(
 
 def _subscript_rows(index, statistics) -> np.ndarray:
     """0-based rows of statistics[index] as R subscripts a vector (used by
-    geneSetTest and rankSumTestWithCorrelation): a logical index gives its TRUE
-    positions, an integer index the positions as given, a character index the
-    position of each name (repeats count). Names come from a pandas Series."""
+    geneSetTest and rankSumTestWithCorrelation): a logical index (one value
+    per statistic) gives its TRUE positions, an integer index the positions as given (each within
+    0..n-1), a character index the position of each name (repeats count).
+    Names come from a pandas Series."""
     if isinstance(index, str):
         index = [index]
     elif not isinstance(index, (np.ndarray, pd.Series, pd.Index, pd.Categorical, list, tuple)):
         index = list(index)
     arr = np.atleast_1d(np.asarray(index))
+    n = np.size(statistics)
     if arr.dtype.kind == "b":
+        # R: a shorter logical index is recycled, a longer one gives NA
+        if arr.size != n:
+            raise ValueError(f"a logical gene set has {arr.size} values for {n} statistics")
         return np.flatnonzero(arr)
     if not _is_character(arr):
-        return arr.astype(np.int64)
+        rows = arr.astype(np.int64)
+        outside = (rows < 0) | (rows >= n)
+        if outside.any():
+            # R: a position past the end gives NA p-values, a negative one
+            # drops that gene
+            raise ValueError(
+                f"gene set position {rows[outside][0]} is outside the 0-based "
+                f"positions 0..{n - 1} of statistics"
+            )
+        return rows
     names = _index_ids(statistics.index) if isinstance(statistics, pd.Series) else None
     if names is None:
         raise ValueError(
@@ -2137,6 +2151,12 @@ def rank_sum_test_with_correlation(
     Wilcoxon rank-sum test with an inter-gene correlation adjustment.
 
     Port of R limma's ``rankSumTestWithCorrelation``.
+
+    ``index`` is booleans (one per statistic), 0-based positions or names
+    of a ``statistics`` Series. A position outside 0..n-1 or a logical
+    index of another length raises, where R gives NA p-values for one past
+    the end, drops the gene of a negative one and recycles a shorter
+    logical index (see :doc:`/validation/known_differences`).
 
     Returns
     -------
@@ -2201,6 +2221,12 @@ def gene_set_test(  # noqa: A002 (`type` kwarg shadows builtin; deliberate R par
     p-value is obtained analytically via
     :func:`rank_sum_test_with_correlation`; otherwise a permutation
     distribution is simulated using ``rng``.
+
+    ``index`` is booleans (one per statistic), 0-based positions or names
+    of a ``statistics`` Series. A position outside 0..n-1 or a logical
+    index of another length raises, where R gives NA p-values for one past
+    the end, drops the gene of a negative one and recycles a shorter
+    logical index (see :doc:`/validation/known_differences`).
 
     The ``type`` keyword shadows the Python builtin `type`; this is
     deliberate for R-signature parity (limma's ``geneSetTest(type=...)``).
@@ -2283,7 +2309,8 @@ def wilcox_gst(index, statistics, **kwargs) -> float:
     Mean-rank gene-set test using a Wilcoxon / rank-sum test.
 
     Port of R limma's ``wilcoxGST`` (``geneset-wilcox.R``). Thin
-    wrapper around :func:`gene_set_test` with ``ranks_only=True``.
+    wrapper around :func:`gene_set_test` with ``ranks_only=True``;
+    ``index`` is as there.
     """
     kwargs.pop("ranks_only", None)
     return gene_set_test(index=index, statistics=statistics, ranks_only=True, **kwargs)

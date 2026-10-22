@@ -665,6 +665,21 @@ def test_nrot_whole_numbers(fn_name):
     pd.testing.assert_frame_equal(a, b)
 
 
+def test_gene_set_positions_outside_the_statistics_raise():
+    """R gives NA p-values for a position past the end and drops a negative
+    one (fixture script); 0-based, -1 would be the last gene."""
+    import pylimma
+
+    stat = np.random.default_rng(3).normal(size=20)
+    for index in ([0, 20], [-1, 3], [True, False], np.arange(21) == 20):
+        for fn in (gene_set_test, rank_sum_test_with_correlation, pylimma.wilcox_gst):
+            with pytest.raises(ValueError, match="outside the 0-based positions 0..19|20 statistics"):
+                fn(index, stat)
+    pytest.importorskip("matplotlib")
+    with pytest.raises(ValueError, match="outside the 0-based positions 0..19"):
+        pylimma.barcode_plot(stat, index=[0, 1], index2=[-1])
+
+
 def test_gene_set_test_nsim():
     """nsim below 1 or fractional raises (R returns Inf for nsim = -1)."""
     import pylimma

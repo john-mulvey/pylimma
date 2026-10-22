@@ -313,6 +313,16 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     for a name that is not among them, where R's ``statistics[name]`` is NA
     and the p-value silently NA.
 
+Gene-set positions outside the statistics (``gene_set_test``, ``wilcox_gst``, ``rank_sum_test_with_correlation``, ``barcode_plot``)
+    A position must lie in 0..n-1 for ``n`` statistics, else pylimma raises
+    "gene set position ... is outside the 0-based positions 0..n-1 of
+    statistics". In R a position past the end subscripts NA, so the
+    p-values are NA (``barcodeplot`` drops the gene), and a negative
+    position drops that gene from the set; read as 0-based, a negative
+    position would instead count from the end. Likewise a logical set must
+    have one value per statistic: R recycles a shorter one and gives NA
+    for a longer one. ``generate_all_fixtures.R`` records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

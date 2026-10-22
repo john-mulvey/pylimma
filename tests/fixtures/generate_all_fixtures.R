@@ -5179,6 +5179,15 @@ write.csv(data.frame(
              wilcoxGST(.gst_mask, .gst_t))
 ), "R_gst_index.csv", row.names = FALSE)
 
+# A position past the end subscripts NA, giving NA p-values; a negative
+# position drops that gene; a shorter logical set is recycled, a longer one
+# gives NA (pylimma raises for all)
+stopifnot(is.na(geneSetTest(c(1, 31), .gst_t)),
+          all(is.na(rankSumTestWithCorrelation(c(1, 31), .gst_t))),
+          geneSetTest(-(1:28), .gst_t) == geneSetTest(29:30, .gst_t),
+          geneSetTest(c(TRUE, FALSE), .gst_t) == geneSetTest(seq(1, 29, by = 2), .gst_t),
+          is.na(geneSetTest(c(rep(FALSE, 30), TRUE), .gst_t)))
+
 cat("  geneSetTest index fixtures complete.\n")
 
 # =============================================================================

@@ -1572,7 +1572,8 @@ def barcode_plot(
     ``barcodeplot``.
 
     ``index`` and ``index2`` are booleans, 0-based positions or names of a
-    ``statistics`` Series, as in pylimma's gene-set functions. As in R, the
+    ``statistics`` Series, as in pylimma's gene-set functions (a position
+    outside 0..n-1 raises, see :func:`gene_set_test`). As in R, the
     statistics are ranked from left to right over a shaded band (light blue
     below ``quantiles[0]``, pink above ``quantiles[1]``); each gene of the
     set is a bar (the second set's below the band, as is a set given by
