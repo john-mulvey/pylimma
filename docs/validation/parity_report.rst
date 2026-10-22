@@ -73,10 +73,12 @@ documented in :doc:`known_differences`:
   Linux; with four or more points per fit it matches R on macOS arm64 to
   4e-11 relative.
 
-The same page also documents three deliberate divergences: ``genas``
-applies the logFC / predFC re-centring that limma's code intends but
-does not perform; ``decide_tests(method="hierarchical")`` with a
-supplied ``genewise_p_value`` follows limma's intended behaviour where
-limma 3.66.0 errors; and ``voom`` / ``voom_with_quality_weights`` use
-an EList's design (and, for voom, weights) slots, with a warning, where
-R silently drops them.
+The same page also lists the deliberate divergences, where pylimma
+follows the behaviour limma's code evidently intends rather than its
+literal behaviour (for example the ``genas`` logFC / predFC
+re-centring, ``decide_tests(method="hierarchical")`` with a supplied
+``genewise_p_value`` and missing values in ``normalize_cyclic_loess``
+with ``"pairs"`` / ``"affy"``); the cases where pylimma raises a clear
+error where R fails obscurely or behaves accidentally; and the EList
+design and weights slots that ``voom`` and
+``voom_with_quality_weights`` use, with a warning, where R drops them.

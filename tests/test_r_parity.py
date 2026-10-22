@@ -5480,6 +5480,54 @@ class TestLowessRParity:
         np.testing.assert_allclose(normalize_cyclic_loess(x, method=method), expected, rtol=1e-10)
 
 
+class TestCyclicLoessFitsRParity:
+    """normalize_cyclic_loess takes each fit from loess_fit, as R does: zero
+    weights, one observed value per column, missing and infinite values."""
+
+    METHODS = ["fast", "pairs", "affy"]
+
+    @staticmethod
+    def _assert_matches(got, expected):
+        np.testing.assert_array_equal(np.isnan(got), np.isnan(expected))
+        np.testing.assert_allclose(got[~np.isnan(got)], expected[~np.isnan(expected)], rtol=1e-8)
+
+    @pytest.mark.parametrize("method", METHODS)
+    def test_zero_weights_match_r(self, method):
+        from pylimma import normalize_cyclic_loess
+
+        x = load_r_csv_no_index("cyl_x").to_numpy()
+        w = load_r_csv_no_index("cyl_w")["w"].to_numpy()
+        expected = load_r_csv_no_index(f"cyl_weighted_{method}").to_numpy()
+        self._assert_matches(normalize_cyclic_loess(x, weights=w, method=method), expected)
+
+    @pytest.mark.parametrize("method", METHODS)
+    def test_missing_values_keep_the_rest_of_the_row(self, method):
+        """"fast" against R; "pairs" and "affy" against R's loessFit with no
+        adjustment where a value is missing (R turns those rows NA)."""
+        from pylimma import normalize_cyclic_loess
+
+        x = load_r_csv_no_index("cyl_na").to_numpy()
+        expected = load_r_csv_no_index(f"cyl_na_{method}").to_numpy()
+        self._assert_matches(normalize_cyclic_loess(x, method=method), expected)
+
+    @pytest.mark.parametrize("method", METHODS)
+    def test_infinite_values_turn_their_rows_nan_as_r(self, method):
+        from pylimma import normalize_cyclic_loess
+
+        x = load_r_csv_no_index("cyl_inf").to_numpy()
+        expected = load_r_csv_no_index(f"cyl_inf_{method}").to_numpy()
+        with pytest.warns(UserWarning, match="x has infinite values in 2 rows"):
+            got = normalize_cyclic_loess(x, method=method)
+        self._assert_matches(got, expected)
+
+    def test_one_observed_value_is_fitted_exactly_as_r(self):
+        from pylimma import normalize_cyclic_loess
+
+        x = load_r_csv_no_index("cyl_two").to_numpy()
+        expected = load_r_csv_no_index("cyl_two_fast").to_numpy()
+        self._assert_matches(normalize_cyclic_loess(x), expected)
+
+
 # =============================================================================
 # qr() / dqrdc2 pivoting and lm.series genewise branches
 # =============================================================================

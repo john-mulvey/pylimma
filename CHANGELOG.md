@@ -248,6 +248,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
   with fewer than two distinct points (one gene with a finite sigma, or all
   genes at one average) stops with R's "need at least two non-NA values to
   interpolate" where pylimma returned a constant trend.
+- `normalize_cyclic_loess` returns rows that hold an infinite value as
+  NaN, as R does, and warns; before, such a row was left unnormalised.
 
 ### Added
 
@@ -381,6 +383,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `normalize_between_arrays(method="vsn")` says, as R does, that the
   method is no longer supported and to use `normalize_vsn` instead; it
   said the method was not applicable to single-channel data.
+- `normalize_cyclic_loess` (so also `normalize_between_arrays(method=
+  "cyclicloess")`) takes each fit from `loess_fit`, as R does. Rows with a
+  zero weight were left unadjusted (up to 2.16 off R on a 60-row example)
+  and a column with one observed value in a row was not fitted, where R
+  fits it exactly (two genes with missing values: 6.58 against R's 6.00).
 
 ### Documentation and examples
 

@@ -5821,3 +5821,68 @@ set.seed(12)
 write.csv(.lwc_cyc, "R_lowess_cyclic_input.csv", row.names = FALSE)
 write.csv(normalizeCyclicLoess(.lwc_cyc, method = "pairs"), "R_lowess_cyclic_pairs.csv", row.names = FALSE)
 write.csv(normalizeCyclicLoess(.lwc_cyc, method = "affy"), "R_lowess_cyclic_affy.csv", row.names = FALSE)
+
+# =============================================================================
+# normalizeCyclicLoess takes each fit from loessFit: a column with one
+# observed value in a row is fitted exactly, a zero weight still gets a
+# fitted value and a row holding an infinite value turns NA. A missing value
+# turns the whole row NA in "pairs" and "affy" (not in "fast"); pylimma gives
+# such a row no adjustment from that fit instead, as .cyl_keep does here with
+# R's own loessFit
+# =============================================================================
+set.seed(31)
+.cyl_x <- matrix(rnorm(40 * 4, 8, 2), 40)
+.cyl_x[, 2] <- .cyl_x[, 2] + 0.5 + 0.1 * .cyl_x[, 1]
+.cyl_w <- runif(40)
+.cyl_w[c(4, 17)] <- 0
+.cyl_na <- .cyl_x
+.cyl_na[c(3, 10), 2] <- NA
+.cyl_na[22, c(1, 4)] <- NA
+.cyl_inf <- .cyl_x
+.cyl_inf[5, 3] <- Inf
+.cyl_inf[12, 1] <- -Inf
+.cyl_keep <- function(x, method, span = 0.7, iterations = 3) {
+  n <- ncol(x)
+  fit <- function(m, a) {
+    f <- loessFit(m, a, span = span)$fitted
+    f[is.na(f)] <- 0
+    f
+  }
+  for (k in 1:iterations) {
+    adjustment <- matrix(0, nrow(x), n)
+    for (i in 1:(n - 1)) for (j in (i + 1):n) {
+      f <- fit(x[, j] - x[, i], 0.5 * (x[, j] + x[, i]))
+      if (method == "pairs") {
+        x[, i] <- x[, i] + f / 2
+        x[, j] <- x[, j] - f / 2
+      } else {
+        adjustment[, j] <- adjustment[, j] + f
+        adjustment[, i] <- adjustment[, i] - f
+      }
+    }
+    if (method == "affy") x <- x - adjustment / n
+  }
+  x
+}
+stopifnot(all.equal(.cyl_keep(.cyl_x, "pairs"), normalizeCyclicLoess(.cyl_x, method = "pairs")),
+          all.equal(.cyl_keep(.cyl_x, "affy"), normalizeCyclicLoess(.cyl_x, method = "affy")),
+          all(is.na(normalizeCyclicLoess(.cyl_na, method = "pairs")[c(3, 10, 22), ])),
+          all(is.na(normalizeCyclicLoess(.cyl_na, method = "affy")[c(3, 10, 22), ])))
+write.csv(.cyl_x, "R_cyl_x.csv", row.names = FALSE)
+write.csv(data.frame(w = .cyl_w), "R_cyl_w.csv", row.names = FALSE)
+write.csv(.cyl_na, "R_cyl_na.csv", row.names = FALSE)
+write.csv(.cyl_inf, "R_cyl_inf.csv", row.names = FALSE)
+for (.cyl_m in c("fast", "pairs", "affy")) {
+  write.csv(normalizeCyclicLoess(.cyl_x, weights = .cyl_w, method = .cyl_m),
+            paste0("R_cyl_weighted_", .cyl_m, ".csv"), row.names = FALSE)
+  write.csv(normalizeCyclicLoess(.cyl_inf, method = .cyl_m), paste0("R_cyl_inf_", .cyl_m, ".csv"),
+            row.names = FALSE)
+}
+write.csv(normalizeCyclicLoess(.cyl_na, method = "fast"), "R_cyl_na_fast.csv", row.names = FALSE)
+write.csv(.cyl_keep(.cyl_na, "pairs"), "R_cyl_na_pairs.csv", row.names = FALSE)
+write.csv(.cyl_keep(.cyl_na, "affy"), "R_cyl_na_affy.csv", row.names = FALSE)
+# two genes: in the columns where gene 1 is missing, gene 2 is fitted exactly
+.cyl_two <- rbind(rnorm(16, 7.5, 0.3), rnorm(16, 6, 0.3))
+.cyl_two[1, c(7, 11)] <- NA
+write.csv(.cyl_two, "R_cyl_two.csv", row.names = FALSE)
+write.csv(normalizeCyclicLoess(.cyl_two), "R_cyl_two_fast.csv", row.names = FALSE)

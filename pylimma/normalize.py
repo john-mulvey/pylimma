@@ -270,6 +270,13 @@ def normalize_cyclic_loess(
     (length = number of rows in ``x``) are passed on to it for all three
     methods.
 
+    Missing values (NaN) stay missing and leave the rest of their row
+    normalised: a fit gives no adjustment to a row whose M or A value is
+    missing. R does the same for ``"fast"``, but for ``"pairs"`` and
+    ``"affy"`` it turns the whole row NA (see
+    :doc:`/validation/known_differences`). A row holding an infinite value
+    is returned all NaN, as in R; pylimma also warns.
+
     Per-observation (matrix-shaped) weights are accepted by R's
     signature but fail inside R's own ``loessFit`` call with
     ``"y and weights have different lengths"`` - this is a latent
@@ -307,24 +314,38 @@ def normalize_cyclic_loess(
 
     n = x.shape[1]
 
-    # Shared helper: fit loess of ``m`` vs ``a`` and return fitted
-    # values in the original ordering (R: loessFit(m, a, weights, span)).
+    # R: x[i, ] with an infinite value turns NA through the fits
+    infinite_rows = np.isinf(x).any(axis=1)
+    if infinite_rows.any():
+        n_infinite = int(infinite_rows.sum())
+        warnings.warn(
+            f"x has infinite values in {n_infinite} {'row' if n_infinite == 1 else 'rows'}, "
+            "which are returned as NaN, as in R. Use NaN for missing values.",
+            stacklevel=2,
+        )
+
+    # R: f <- loessFit(m, a, weights=weights, span=span)$fitted, which is NA
+    # where m or a is not finite. A missing value gives no adjustment, where
+    # R would spread the NA along the row (pairs, affy); a row with an
+    # infinite value takes the NA, as in R.
     def _loess_adjust(m, a, w):
-        obs = np.isfinite(m) & np.isfinite(a)
-        if w is not None:
-            obs &= np.isfinite(w) & (w > 0)
-        if int(obs.sum()) < 2:
-            return np.zeros_like(m)
-        f_obs = loess_fit(m, a, weights=w, span=span)["fitted"][obs]
-        f = np.zeros_like(m)
-        f[obs] = f_obs
+        f = loess_fit(m, a, weights=w, span=span)["fitted"]
+        f[(np.isnan(m) | np.isnan(a)) & ~infinite_rows] = 0.0
         return f
+
+    def _pair(xi, xj):
+        # M and A of a pair; inf - inf gives NaN, silently as in R
+        with np.errstate(invalid="ignore"):
+            return xj - xi, 0.5 * (xj + xi)
 
     if method == "fast":
         for _ in range(iterations):
-            a = np.nanmean(x, axis=1)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", RuntimeWarning)  # rows all NaN
+                a = np.nanmean(x, axis=1)
             for i in range(n):
-                m = x[:, i] - a
+                with np.errstate(invalid="ignore"):  # inf - inf, as in R
+                    m = x[:, i] - a
                 f = _loess_adjust(m, a, weights)
                 x[:, i] = x[:, i] - f
         return x
@@ -334,8 +355,7 @@ def normalize_cyclic_loess(
         for _ in range(iterations):
             for i in range(n - 1):
                 for j in range(i + 1, n):
-                    m = x[:, j] - x[:, i]
-                    a = 0.5 * (x[:, j] + x[:, i])
+                    m, a = _pair(x[:, i], x[:, j])
                     f = _loess_adjust(m, a, weights)
                     x[:, i] = x[:, i] + f / 2.0
                     x[:, j] = x[:, j] - f / 2.0
@@ -347,8 +367,7 @@ def normalize_cyclic_loess(
         adjustment = np.zeros_like(x)
         for i in range(n - 1):
             for j in range(i + 1, n):
-                m = x[:, j] - x[:, i]
-                a = 0.5 * (x[:, j] + x[:, i])
+                m, a = _pair(x[:, i], x[:, j])
                 f = _loess_adjust(m, a, weights)
                 adjustment[:, j] = adjustment[:, j] + f
                 adjustment[:, i] = adjustment[:, i] - f

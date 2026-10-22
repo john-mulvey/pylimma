@@ -137,6 +137,27 @@ R's ``decideTests.default`` with ``ngenes <- nrow(p)`` inserted before
 its ``switch()``; the fixture script checks that the patched function
 reproduces R exactly wherever R itself succeeds.
 
+normalize_cyclic_loess: missing values with ``"pairs"`` and ``"affy"``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In ``normalizeCyclicLoess(method="pairs")`` and ``"affy"``, a pair fit
+has no fitted value where either array is missing, and adding that NA to
+both arrays spreads it, so a row with one missing value ends up NA in
+every array. ``"fast"`` keeps the other arrays' values, because it
+averages the rows with ``rowMeans(na.rm=TRUE)``; the pair methods do not
+handle missing values at all.
+
+pylimma gives such a row no adjustment from that fit, so in all three
+methods only the missing cells stay NaN, also when a whole array is
+missing (R then returns every array it is paired with all NA); through
+the later fits the other rows differ slightly from R's. The reference fixtures
+(``R_cyl_na_pairs.csv``, ``R_cyl_na_affy.csv``) come from R's
+``loessFit`` with the missing fitted values set to 0 (``.cyl_keep`` in
+the fixture script), which reproduces ``normalizeCyclicLoess`` exactly
+on data without missing values; the fixture script also checks that R
+turns those rows NA. A row holding an infinite value is returned all
+NaN, as in R, which gives no warning; pylimma warns.
+
 genas: logFC / predFC subsets re-centre the coefficients
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
