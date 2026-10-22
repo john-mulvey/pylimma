@@ -466,6 +466,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   `plot_exon_junc`, `plot_ma_3by2` and `plot_rldf(plot=True)` raise the
   same `ImportError` as the other plot functions, saying to install
   `pylimma[plot]`; they raised a bare `ModuleNotFoundError`.
+- `plot_md`, `plot_ma`, `plot_ma_3by2`, `plot_mds` and `plot_densities`
+  accept an AnnData (read through `get_eawp`, so samples x genes is turned
+  to genes x samples and `obs_names` name the samples), as the other
+  functions that take expression data do; they raised an obscure
+  `ValueError`. `plot_densities(log=False)` plots `2 ** E` of an AnnData,
+  as of an EList.
 
 ### Documentation and examples
 

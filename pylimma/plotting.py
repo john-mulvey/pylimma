@@ -50,7 +50,7 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from .classes import EList, MArrayLM
+from .classes import MArrayLM, _is_anndata, get_eawp
 from .utils import _r_as_character, _r_factor, p_adjust, tricube_moving_average
 
 _LEGEND_ANCHORS = {
@@ -284,21 +284,27 @@ def plot_with_highlights(
 # ----------------------------------------------------------------------------
 
 
-def _get_matrix_E(object, *, want_weights=False):
-    """Extract (E, weights) from ndarray / EList / dict. Returns
-    ``(E, weights)`` where weights may be None."""
-    if isinstance(object, EList):
-        E = np.asarray(object["E"], dtype=np.float64)
-        w = object.get("weights") if want_weights else None
-        return E, w
+def _expression_matrix(object, *, want_weights=False):
+    """(E, weights, sample names, genes) of an expression input: an ndarray,
+    DataFrame, EList or dict with E, or an AnnData (through get_eawp, so
+    samples x genes is turned to genes x samples). weights is None unless
+    ``want_weights``; sample names and genes are None when absent."""
+    if _is_anndata(object):
+        y = get_eawp(object)
+        targets = y.get("targets")
+        names = list(targets.index) if targets is not None else None
+        return y["exprs"], y["weights"] if want_weights else None, names, y.get("probes")
     if isinstance(object, dict) and "E" in object:
-        E = np.asarray(object["E"], dtype=np.float64)
+        E_in = object["E"]
         w = object.get("weights") if want_weights else None
-        return E, w
-    arr = np.asarray(object)
-    if arr.ndim != 2:
+        genes = object.get("genes")
+    else:
+        E_in, w, genes = object, None, None
+    names = list(E_in.columns) if isinstance(E_in, pd.DataFrame) else None
+    E = np.asarray(E_in, dtype=np.float64)
+    if E.ndim != 2:
         raise ValueError("plot requires a 2D expression matrix")
-    return arr.astype(np.float64), None
+    return E, w, names, genes
 
 
 def _ma_from_matrix(E, col, weights=None, zero_weights=False):
@@ -345,7 +351,10 @@ def _md_inputs(object, column, main, status, zero_weights, *, column_of_status):
     multi-column status). Otherwise column against the mean of the others,
     the title defaulting to the column name and, for an EList, the status
     to genes$Status."""
-    genes = object.get("genes") if isinstance(object, dict) else None
+    if isinstance(object, MArrayLM):
+        genes = object.get("genes")
+    else:
+        E, w, colnames, genes = _expression_matrix(object, want_weights=True)
     if isinstance(genes, pd.DataFrame) and "Status" in genes.columns and status is None:
         status = genes["Status"].to_numpy()
 
@@ -366,13 +375,6 @@ def _md_inputs(object, column, main, status, zero_weights, *, column_of_status):
             elif status.shape[1] > 1:
                 raise ValueError("status has multiple columns")
     else:
-        E, w = _get_matrix_E(object, want_weights=True)
-        if isinstance(object, pd.DataFrame):
-            colnames = list(object.columns)
-        elif isinstance(object, dict) and isinstance(object.get("E"), pd.DataFrame):
-            colnames = list(object["E"].columns)
-        else:
-            colnames = None
         j = 0 if column is None else _column_index(column, colnames, E.shape[1])
         x, y = _ma_from_matrix(E, j, weights=w, zero_weights=zero_weights)
     if main is None and colnames is not None:
@@ -715,33 +717,17 @@ def plot_densities(
     """Kernel-density plots of sample intensities.
 
     Port of R limma's single-channel ``plotDensities.default`` /
-    ``plotDensities.EList``. For ``EList`` input, ``E`` is extracted; if
-    ``log=False``, values are exponentiated (``2 ** E``) before plotting.
+    ``plotDensities.EList``. For ``EList`` (and AnnData) input, ``E`` is
+    extracted; if ``log=False``, values are exponentiated (``2 ** E``)
+    before plotting.
     RGList / MAList inputs are out of scope.
     """
     plt = _require_matplotlib()
 
-    if isinstance(object, EList):
-        E = np.asarray(object["E"], dtype=np.float64)
-        if not log:
-            E = 2.0**E
-        colnames = None
-        if isinstance(object.get("E"), pd.DataFrame):
-            colnames = list(object["E"].columns)
-    elif isinstance(object, dict) and "E" in object:
-        E = np.asarray(object["E"], dtype=np.float64)
-        if not log:
-            E = 2.0**E
-        colnames = None
-    elif isinstance(object, pd.DataFrame):
-        E = object.values.astype(np.float64)
-        colnames = list(object.columns)
-    else:
-        E = np.asarray(object, dtype=np.float64)
-        colnames = None
-
-    if E.ndim != 2:
-        raise ValueError("plotDensities requires a 2D expression matrix")
+    E, _, colnames, _ = _expression_matrix(object)
+    # R: plotDensities.EList(log=FALSE) plots 2^E (an AnnData as an EList)
+    if not log and (_is_anndata(object) or isinstance(object, dict) and "E" in object):
+        E = 2.0**E
     narray = E.shape[1]
     # R: group defaults to colnames(E), else the integers 1:narray
     if colnames is None:
@@ -958,15 +944,7 @@ def plot_mds(
         mds = dict(x)
         sample_names = mds.get("sample_names")
     else:
-        if isinstance(x, EList):
-            x_mat = np.asarray(x["E"], dtype=np.float64)
-            sample_names = list(x["E"].columns) if isinstance(x["E"], pd.DataFrame) else None
-        elif isinstance(x, pd.DataFrame):
-            x_mat = x.values.astype(np.float64)
-            sample_names = list(x.columns)
-        else:
-            x_mat = np.asarray(x, dtype=np.float64)
-            sample_names = None
+        x_mat, _, sample_names, _ = _expression_matrix(x)
         # R: top <- min(top, nprobes), any number of 1 or more (Inf for all)
         if not (isinstance(top, numbers.Real) and top >= 1):
             raise ValueError(f"top must be a number of 1 or more, not {top!r}")
@@ -2208,19 +2186,13 @@ def plot_ma_3by2(
         col_names = object.get("contrast_names") or object.get("coef_names")
     else:
         # R: A <- rowMeans(E) (no na.rm), M <- E - A, plotted as an MAList
-        E, w = _get_matrix_E(object, want_weights=True)
+        E, w, col_names, genes = _expression_matrix(object, want_weights=True)
         n_arrays = E.shape[1]
         A = np.mean(E, axis=1)
         M = E - A[:, np.newaxis]
         if not zero_weights and w is not None:
             # R: object$M[object$weights <= 0] <- NA (an NA weight keeps M)
             M = np.where(np.asarray(w) <= 0, np.nan, M)
-        col_names = None
-        if isinstance(object, pd.DataFrame):
-            col_names = list(object.columns)
-        elif isinstance(object, dict) and isinstance(object.get("E"), pd.DataFrame):
-            col_names = list(object["E"].columns)
-        genes = object.get("genes") if isinstance(object, dict) else None
         status = (
             genes["Status"].to_numpy()
             if isinstance(genes, pd.DataFrame) and "Status" in genes.columns

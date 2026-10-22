@@ -797,3 +797,47 @@ def test_plot_argument_errors_are_clear():
         mdplot(np.ones((10, 3)), columns=(0,))
     with pytest.raises(ValueError, match="not None"):
         venn_diagram(None)
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_functions_accept_anndata(monkeypatch):
+    """An AnnData (samples x genes) plots as its genes x samples matrix, with
+    obs_names as sample names."""
+    anndata = pytest.importorskip("anndata")
+    import pylimma
+
+    plotting = __import__("pylimma.plotting", fromlist=["plot_with_highlights"])
+    X = np.random.default_rng(3).normal(8, 1, size=(6, 200))
+    adata = anndata.AnnData(X)
+    adata.obs_names = [f"s{i}" for i in range(1, 7)]
+    E = pd.DataFrame(X.T, columns=adata.obs_names)
+
+    mds_a = pylimma.plot_mds(adata, plot=False)
+    mds_e = pylimma.plot_mds(E, plot=False)
+    np.testing.assert_allclose(mds_a["x"], mds_e["x"])
+    assert mds_a["sample_names"] == list(adata.obs_names)
+
+    seen = []
+    monkeypatch.setattr(
+        plotting, "plot_with_highlights", lambda x, y, **kw: seen.append((x, y, kw))
+    )
+    pylimma.plot_md(adata, column=2)
+    pylimma.plot_md(E, column=2)
+    np.testing.assert_allclose(seen[0][0], seen[1][0])
+    np.testing.assert_allclose(seen[0][1], seen[1][1])
+    assert seen[0][2]["main"] == "s3"
+
+    from pylimma import EList
+
+    unlogged = pylimma.plot_densities(adata, log=False)
+    elist = pylimma.plot_densities(EList({"E": E}), log=False)
+    np.testing.assert_allclose(unlogged.lines[0].get_xdata(), elist.lines[0].get_xdata())
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_functions_need_a_2d_matrix():
+    from pylimma import EList, plot_densities
+
+    for data in (np.arange(10.0), EList({"E": np.arange(10.0)})):
+        with pytest.raises(ValueError, match="2D expression matrix"):
+            plot_densities(data)
