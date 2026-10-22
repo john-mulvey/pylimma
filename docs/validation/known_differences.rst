@@ -441,3 +441,21 @@ design is "extracted from the data object if available", and its
 ``getEAWP`` call returns it, but the code never reads it and uses an
 intercept-only design. pylimma follows the documentation;
 ``generate_all_fixtures.R`` records R's literal behaviour.
+
+Deliberate interface difference: plot markers and colours
+---------------------------------------------------------
+
+The plot functions take matplotlib markers (``"o"``, ``"^"``, ...) for
+``pch``. An integer such as R's ``pch=16`` raises "pch must be a
+matplotlib marker ... R's integer pch codes are not translated" (it was
+matplotlib's "Unrecognized marker style 16"). Default colours are
+pylimma's (red, blue, green, ...), not R's ``palette()``; which points,
+lines and legend entries share a colour follows R.
+
+``decide_tests`` returns a plain array, not R's ``TestResults`` class, so a
+status taken from it (``plot_md(fit, status=decide_tests(fit))``) is read
+like any other status: its values -1, 0 and 1 are the labels, the most
+frequent is the background and the rest are highlighted by frequency. R
+relabels a ``TestResults`` status as Down / NotSig / Up and highlights Up
+and Down in red and blue.
+

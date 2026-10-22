@@ -841,3 +841,23 @@ def test_plot_functions_need_a_2d_matrix():
     for data in (np.arange(10.0), EList({"E": np.arange(10.0)})):
         with pytest.raises(ValueError, match="2D expression matrix"):
             plot_densities(data)
+
+
+def test_integer_pch_codes_raise_a_clear_error():
+    """R's integer pch codes are not translated to matplotlib markers."""
+    from pylimma import plot_mds, plot_with_highlights
+
+    x = np.arange(10.0)
+    with pytest.raises(ValueError, match="R's integer pch codes are not translated"):
+        plot_with_highlights(x, x, bg_pch=16)
+    with pytest.raises(ValueError, match="R's integer pch codes are not translated"):
+        plot_mds(np.random.default_rng(0).normal(size=(50, 4)), pch=16)
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_tuple_markers_are_accepted():
+    """A tuple is one matplotlib marker, (numsides, style, angle)."""
+    from pylimma import plot_mds
+
+    ax = plot_mds(np.random.default_rng(0).normal(size=(50, 4)), pch=(5, 0, 0))
+    assert len(ax.collections) == 1

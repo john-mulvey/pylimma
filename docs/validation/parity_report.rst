@@ -79,6 +79,7 @@ literal behaviour (for example the ``genas`` logFC / predFC
 re-centring, ``decide_tests(method="hierarchical")`` with a supplied
 ``genewise_p_value`` and missing values in ``normalize_cyclic_loess``
 with ``"pairs"`` / ``"affy"``); the cases where pylimma raises a clear
-error where R fails obscurely or behaves accidentally; and the EList
-design and weights slots that ``voom`` and
-``voom_with_quality_weights`` use, with a warning, where R drops them.
+error where R fails obscurely or behaves accidentally; the EList design
+and weights slots that ``voom`` and ``voom_with_quality_weights`` use,
+with a warning, where R drops them; and the plot functions' matplotlib
+markers and default colours.

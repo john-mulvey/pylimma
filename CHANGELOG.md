@@ -287,6 +287,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   an MArrayLM" (it raised `KeyError`), and `mdplot` with fewer than two
   columns and `venn_diagram(None)` raise clear errors where R fails
   obscurely (see known differences).
+- The plot functions raise a clear error for an integer `pch` (R's codes
+  such as 16 are not translated to matplotlib markers; see known
+  differences), where matplotlib raised "Unrecognized marker style 16".
 
 ### Added
 

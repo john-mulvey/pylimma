@@ -77,6 +77,21 @@ def _require_matplotlib():
     return plt
 
 
+def _check_pch(*pchs):
+    """Markers are matplotlib's; R's integer pch codes (16, 1, ...) are not
+    translated (known_differences.rst)."""
+    for pch in pchs:
+        # a list or array gives one marker per group; a tuple is one marker,
+        # such as (5, 0, 0)
+        values = list(pch) if isinstance(pch, (list, np.ndarray)) else [pch]
+        for value in values:
+            if isinstance(value, numbers.Integral) and not isinstance(value, (bool, np.bool_)):
+                raise ValueError(
+                    f"pch must be a matplotlib marker such as 'o' or '^', not {value!r}: "
+                    "R's integer pch codes are not translated"
+                )
+
+
 def _resolve_legend(legend):
     """Translate R's ``legend`` parameter into (show, matplotlib_loc)."""
     if legend is False or legend == "none":
@@ -142,6 +157,7 @@ def plot_with_highlights(
     Returns the matplotlib Axes so callers can further decorate.
     """
     plt = _require_matplotlib()
+    _check_pch(hl_pch, bg_pch, pch)
 
     x = np.asarray(x, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
@@ -483,6 +499,7 @@ def volcano_plot(
     The ``highlight`` labels default, as in R, to the ``ID`` column of
     ``fit["genes"]``, else to row numbers.
     """
+    _check_pch(pch)
     plt = _require_matplotlib()
     if not isinstance(fit, dict) or fit.get("coefficients") is None:
         raise ValueError("fit must be an MArrayLM")
@@ -558,6 +575,7 @@ def plot_sa(
     identified via ``p_adjust(2 * pmin(pdn, pup), method='BH') <= 0.5``
     and plotted in ``col[1]``.
     """
+    _check_pch(pch)
     plt = _require_matplotlib()
     from scipy.stats import f as f_dist
 
@@ -929,6 +947,7 @@ def plot_mds(
     as ``x`` to plot it, also for other ``dim_plot`` (R's
     ``plotMDS.MDS``). Otherwise the Axes are returned.
     """
+    _check_pch(pch)
     is_mds = isinstance(x, dict) and "eigen_vectors" in x
     # R: plotMDS.MDS keeps x$dim.plot unless dim.plot is given; plotMDS.default
     # takes c(1, 2)
@@ -1798,9 +1817,8 @@ def plot_rldf(
         Emit a scatter of the two selected discriminant functions.
     labels_y, labels_z : array-like, optional
         Sample labels for y/z; used as scatter annotations.
-    pch_y, pch_z : str or int, optional
-        Matplotlib marker for scatter (character-style R pch is mapped
-        loosely).
+    pch_y, pch_z : str, optional
+        Matplotlib marker for the points (R's integer pch codes raise).
     col_y, col_z : str, default "black"
         Colours for scatter points.
     show_dimensions : tuple, default (0, 1)
@@ -1826,6 +1844,7 @@ def plot_rldf(
     ``predicting`` is also populated. Backwards-compatible aliases
     ``training_scores``, ``top_probes`` and ``test_scores`` are kept.
     """
+    _check_pch(pch_y, pch_z)
     from .squeeze_var import squeeze_var
 
     y = np.asarray(y, dtype=np.float64)
