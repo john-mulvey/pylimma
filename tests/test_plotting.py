@@ -845,6 +845,47 @@ def test_plot_functions_need_a_2d_matrix():
             plot_densities(data)
 
 
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_functions_read_an_anndata_layer(monkeypatch):
+    """layer= plots adata.layers[layer] in place of X, as in lm_fit; a layer
+    for another input (a matrix, a fit, an MDS result) raises."""
+    anndata = pytest.importorskip("anndata")
+    import pylimma
+
+    plotting = __import__("pylimma.plotting", fromlist=["plot_with_highlights"])
+    rng = np.random.default_rng(4)
+    adata = anndata.AnnData(rng.normal(8, 1, size=(6, 200)))
+    adata.layers["voom_E"] = rng.normal(5, 2, size=(6, 200))
+    E = adata.layers["voom_E"].T
+
+    mds_layer = pylimma.plot_mds(adata, layer="voom_E", plot=False)
+    np.testing.assert_allclose(mds_layer["x"], pylimma.plot_mds(E, plot=False)["x"])
+
+    seen = []
+    monkeypatch.setattr(plotting, "plot_with_highlights", lambda x, y, **kw: seen.append((x, y)))
+    pylimma.plot_md(adata, column=2, layer="voom_E")
+    pylimma.plot_md(E, column=2)
+    np.testing.assert_allclose(seen[0][0], seen[1][0])
+    np.testing.assert_allclose(seen[0][1], seen[1][1])
+
+    design = np.column_stack(
+        [np.ones(6), np.repeat([0.0, 1.0, 0.0], 2), np.repeat([0.0, 0.0, 1.0], 2)]
+    )
+    rldf = pylimma.plot_rldf(adata, design, z=E, layer="voom_E", plot=False)
+    np.testing.assert_allclose(rldf["predicting"], rldf["training"])
+
+    fit = pylimma.lm_fit(E)
+    with pytest.raises(TypeError, match="only supported for AnnData"):
+        pylimma.plot_densities(E, layer="voom_E")
+    with pytest.raises(TypeError, match="only supported for AnnData"):
+        pylimma.plot_md(fit, layer="voom_E")
+    with pytest.raises(TypeError, match="only supported for AnnData"):
+        pylimma.plot_ma_3by2(fit, layer="voom_E")
+    with pytest.raises(TypeError, match="only supported for AnnData"):
+        pylimma.plot_mds(mds_layer, layer="voom_E", plot=False)
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_integer_pch_codes_raise_a_clear_error():
     """R's integer pch codes are not translated to matplotlib markers."""
     from pylimma import plot_mds, plot_with_highlights

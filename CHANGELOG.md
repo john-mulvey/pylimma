@@ -326,6 +326,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   iterations stop once the transformed data have changed by less than
   `cvg_eps` three times in a row. The default 0 runs all `cvg_niter`
   iterations, as before and as in R.
+- `layer=` for `plot_md`, `plot_ma`, `plot_ma_3by2`, `plot_mds`,
+  `plot_densities`, `coolmap` and `plot_rldf`: an AnnData's layer is
+  plotted in place of `X`, as in `lm_fit`.
 
 ### Fixed
 

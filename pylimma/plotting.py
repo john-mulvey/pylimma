@@ -309,13 +309,14 @@ def plot_with_highlights(
 # ----------------------------------------------------------------------------
 
 
-def _expression_matrix(object, *, want_weights=False):
+def _expression_matrix(object, *, layer=None, want_weights=False):
     """(E, weights, sample names, genes) of an expression input: an ndarray,
     DataFrame, EList or dict with E, or an AnnData (through get_eawp, so
-    samples x genes is turned to genes x samples). weights is None unless
+    samples x genes is turned to genes x samples, reading ``layer`` in place
+    of X; a layer for another input raises). weights is None unless
     ``want_weights``; sample names and genes are None when absent."""
-    if _is_anndata(object):
-        y = get_eawp(object)
+    if _is_anndata(object) or layer is not None:
+        y = get_eawp(object, layer=layer)
         targets = y.get("targets")
         names = list(targets.index) if targets is not None else None
         return y["exprs"], y["weights"] if want_weights else None, names, y.get("probes")
@@ -330,6 +331,15 @@ def _expression_matrix(object, *, want_weights=False):
     if E.ndim != 2:
         raise ValueError("plot requires a 2D expression matrix")
     return E, w, names, genes
+
+
+def _reject_layer(object, layer):
+    """get_eawp's error for a layer given with an input that has no layers
+    (a fit or an MDS result)."""
+    if layer is not None:
+        raise TypeError(
+            f"layer={layer!r} is only supported for AnnData input; got {type(object).__name__}"
+        )
 
 
 def _ma_from_matrix(E, col, weights=None, zero_weights=False):
@@ -368,7 +378,7 @@ def _column_index(column, names, ncol):
     return int(np.arange(ncol)[int(column)])
 
 
-def _md_inputs(object, column, main, status, zero_weights, *, column_of_status):
+def _md_inputs(object, column, main, status, zero_weights, layer, *, column_of_status):
     """x, y, title and status as R's plotMA / plotMD methods take them. For
     an MArrayLM: Amean against coefficients[, column], the column defaulting
     to the last, the title to its name and the status to genes$Status (with
@@ -377,9 +387,10 @@ def _md_inputs(object, column, main, status, zero_weights, *, column_of_status):
     the title defaulting to the column name and, for an EList, the status
     to genes$Status."""
     if isinstance(object, MArrayLM):
+        _reject_layer(object, layer)
         genes = object.get("genes")
     else:
-        E, w, colnames, genes = _expression_matrix(object, want_weights=True)
+        E, w, colnames, genes = _expression_matrix(object, layer=layer, want_weights=True)
     if isinstance(genes, pd.DataFrame) and "Status" in genes.columns and status is None:
         status = genes["Status"].to_numpy()
 
@@ -417,6 +428,7 @@ def plot_ma(
     status=None,
     zero_weights: bool = False,
     ax=None,
+    layer: str | None = None,
     **kwargs,
 ):
     """MA plot for a matrix, EList, or MArrayLM.
@@ -432,14 +444,15 @@ def plot_ma(
     As in R, ``main`` defaults to the column or coefficient name, ``ylab``
     to "log-fold-change" for a fit and "Expression log-ratio (this sample
     vs others)" otherwise, and ``status`` to the ``Status`` column of
-    ``genes`` when there is one.
+    ``genes`` when there is one. For an AnnData, ``layer`` names the layer
+    to plot in place of ``X``.
 
     Index convention: ``array`` and ``coef`` are 0-based (matching
     ``top_table``'s convention throughout pylimma); names also work.
     """
     column = coef if isinstance(object, MArrayLM) else array
     x, y, main, status = _md_inputs(
-        object, column, main, status, zero_weights, column_of_status=False
+        object, column, main, status, zero_weights, layer, column_of_status=False
     )
     if ylab is None:
         ylab = "log-fold-change" if isinstance(object, MArrayLM) else _EXPRESSION_YLAB
@@ -458,6 +471,7 @@ def plot_md(
     status=None,
     zero_weights: bool = False,
     ax=None,
+    layer: str | None = None,
     **kwargs,
 ):
     """Mean-difference plot. Port of R limma's ``plotMD``.
@@ -468,12 +482,13 @@ def plot_md(
     MArrayLM, and a status with one column per coefficient (such as
     ``decide_tests`` output) is reduced to the plotted column; another
     multi-column status raises, where R's test for it is always true (see
-    :doc:`/validation/known_differences`).
+    :doc:`/validation/known_differences`). ``layer`` is as in
+    :func:`plot_ma`.
     """
     if isinstance(object, MArrayLM) and coef is not None:
         column = coef
     x, y, main, status = _md_inputs(
-        object, column, main, status, zero_weights, column_of_status=True
+        object, column, main, status, zero_weights, layer, column_of_status=True
     )
     if ylab is None:
         ylab = "log-fold-change" if isinstance(object, MArrayLM) else _EXPRESSION_YLAB
@@ -739,6 +754,7 @@ def plot_densities(
     main: str | None = None,
     legend: str | bool = "topleft",
     ax=None,
+    layer: str | None = None,
     **kwargs,
 ):
     """Kernel-density plots of sample intensities.
@@ -747,11 +763,12 @@ def plot_densities(
     ``plotDensities.EList``. For ``EList`` (and AnnData) input, ``E`` is
     extracted; if ``log=False``, values are exponentiated (``2 ** E``)
     before plotting.
-    RGList / MAList inputs are out of scope.
+    RGList / MAList inputs are out of scope. For an AnnData, ``layer``
+    names the layer to plot in place of ``X``.
     """
     plt = _require_matplotlib()
 
-    E, _, colnames, _ = _expression_matrix(object)
+    E, _, colnames, _ = _expression_matrix(object, layer=layer)
     # R: plotDensities.EList(log=FALSE) plots 2^E (an AnnData as an EList)
     if not log and (_is_anndata(object) or isinstance(object, dict) and "E" in object):
         E = 2.0**E
@@ -944,6 +961,7 @@ def plot_mds(
     plot: bool = True,
     var_explained: bool = True,
     ax=None,
+    layer: str | None = None,
     **kwargs,
 ):
     """Multidimensional-scaling plot. Port of R limma's ``plotMDS``.
@@ -954,7 +972,8 @@ def plot_mds(
     ``distance_matrix_squared``, ``top``, ``gene_selection`` and
     ``axislabel``) without drawing, and such a result can be passed back
     as ``x`` to plot it, also for other ``dim_plot`` (R's
-    ``plotMDS.MDS``). Otherwise the Axes are returned.
+    ``plotMDS.MDS``). Otherwise the Axes are returned. For an AnnData,
+    ``layer`` names the layer to use in place of ``X``.
     """
     _check_pch(pch)
     is_mds = isinstance(x, dict) and "eigen_vectors" in x
@@ -969,10 +988,11 @@ def plot_mds(
     if min(dim_plot) < 0:
         raise ValueError("dim_plot must give 0-based dimension numbers")
     if is_mds:
+        _reject_layer(x, layer)
         mds = dict(x)
         sample_names = mds.get("sample_names")
     else:
-        x_mat, _, sample_names, _ = _expression_matrix(x)
+        x_mat, _, sample_names, _ = _expression_matrix(x, layer=layer)
         # R: top <- min(top, nprobes), any number of 1 or more (Inf for all)
         if not (isinstance(top, numbers.Real) and top >= 1):
             raise ValueError(f"top must be a number of 1 or more, not {top!r}")
@@ -1329,6 +1349,7 @@ def coolmap(
     linkage_col: str = "complete",
     show_dendrogram: str = "both",
     ax=None,
+    layer: str | None = None,
     **kwargs,
 ):
     """Clustered heatmap with log2-expression colour scheme.
@@ -1338,7 +1359,8 @@ def coolmap(
     in matplotlib: the colour key top left, the column dendrogram on top,
     the row dendrogram on the left (as ``show_dendrogram`` asks) and the
     rows drawn from the bottom up in dendrogram order. ``ax`` and further
-    arguments, which R passes on to ``heatmap.2``, are not supported.
+    arguments, which R passes on to ``heatmap.2``, are not supported. For
+    an AnnData, ``layer`` names the layer to plot in place of ``X``.
 
     Returns
     -------
@@ -1379,7 +1401,7 @@ def coolmap(
         cmap = col
 
     # R: as.matrix(x), an EList's E; rows and columns named as R's dimnames
-    M, _, col_names, _ = _expression_matrix(x)
+    M, _, col_names, _ = _expression_matrix(x, layer=layer)
     if _is_anndata(x):
         row_names = [str(v) for v in x.var_names]
     elif isinstance(x, pd.DataFrame):
@@ -2023,6 +2045,7 @@ def plot_rldf(
     trend: bool = False,
     robust: bool = False,
     ax=None,
+    layer: str | None = None,
 ):
     """
     Regularised linear discriminant function plot.
@@ -2067,6 +2090,8 @@ def plot_rldf(
         Use robust variance shrinkage.
     ax : matplotlib Axes, optional
         Target axes for the plot.
+    layer : str, optional
+        For an AnnData ``y`` (and ``z``), the layer to use in place of ``X``.
 
     Returns
     -------
@@ -2080,7 +2105,7 @@ def plot_rldf(
     from .lmfit import _qr_r_style
     from .squeeze_var import squeeze_var
 
-    y, _, colnames, _ = _expression_matrix(y)
+    y, _, colnames, _ = _expression_matrix(y, layer=layer)
     g, n = y.shape
 
     # R: labels.y default colnames(y), else 1:n; a given one has length n
@@ -2091,7 +2116,7 @@ def plot_rldf(
     labels_y = [str(v) for v in _r_as_character(labels_y)]
 
     if z is not None:
-        z, _, z_colnames, _ = _expression_matrix(z)
+        z, _, z_colnames, _ = _expression_matrix(z, layer=layer if _is_anndata(z) else None)
         if z.shape[0] != g:
             raise ValueError("nrow(z) disagrees with nrow(y)")
         if labels_z is None:
@@ -2455,6 +2480,7 @@ def plot_ma_3by2(
     zero_weights: bool = False,
     common_lim: bool = True,
     device: str = "png",
+    layer: str | None = None,
     **kwargs,
 ) -> list[str]:
     """
@@ -2492,6 +2518,8 @@ def plot_ma_3by2(
         Output format. One of ``"png"``, ``"jpeg"``, ``"pdf"``,
         ``"postscript"`` (passed to matplotlib's ``savefig``; matplotlib
         chooses the backend from the file extension).
+    layer : str, optional
+        For an AnnData, the layer to plot in place of ``X``.
     **kwargs
         Forwarded to ``plot_ma``.
 
@@ -2514,6 +2542,7 @@ def plot_ma_3by2(
 
     # Resolve substrate matrix and per-column labels.
     if isinstance(object, MArrayLM):
+        _reject_layer(object, layer)
         if object.get("coefficients") is None:
             raise ValueError("fit must contain coefficients")
         if object.get("Amean") is None:
@@ -2525,7 +2554,7 @@ def plot_ma_3by2(
         col_names = object.get("contrast_names") or object.get("coef_names")
     else:
         # R: A <- rowMeans(E) (no na.rm), M <- E - A, plotted as an MAList
-        E, w, col_names, genes = _expression_matrix(object, want_weights=True)
+        E, w, col_names, genes = _expression_matrix(object, layer=layer, want_weights=True)
         n_arrays = E.shape[1]
         A = np.mean(E, axis=1)
         M = E - A[:, np.newaxis]
