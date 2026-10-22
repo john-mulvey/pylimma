@@ -99,10 +99,7 @@ Interpretation
 - **Core pipeline** (``lm_fit`` -> ``contrasts_fit`` -> ``e_bayes`` ->
   ``top_table``): pylimma is within 15% of R across all datasets.
 - **voom pipeline**: pylimma is ~2x slower than R on both GSE60450
-  and Yoruba. The bottleneck is the LOWESS fit inside ``voom``'s
-  mean-variance modelling - R's ``voom`` calls base R's compiled
-  ``lowess()`` while pylimma uses
-  ``statsmodels.nonparametric.lowess``.
+  and Yoruba.
 - **Splicing** (``diff_splice`` + ``top_splice``) on Pasilla: pylimma
   is within 15% of R.
 

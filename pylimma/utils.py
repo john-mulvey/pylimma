@@ -27,6 +27,14 @@
 #                              Copyright (C) 2003-2004 Gordon Smyth
 #   combine.R (make_unique)    Copyright (C) 2003-2016 Gordon Smyth
 #
+# _r_lowess() is a port of base R's lowess (not from limma), which limma's
+# loessFit, voom and vooma call:
+#   stats/src/lowess.c         Copyright (C) 1996 Robert Gentleman and Ross
+#                              Ihaka; (C) 1999-2025 The R Core Team;
+#                              GPL (>= 2)
+#   stats/R/lowess.R           Copyright (C) 1995-2016 The R Core Team;
+#                              GPL (>= 2)
+#
 # logmdigamma() is a port of the same-named function from the R statmod
 # package (not from limma):
 #   statmod::logmdigamma       Copyright (C) Gordon Smyth, Lizhong Chen;
@@ -49,7 +57,6 @@ from scipy import optimize as _scipy_optimize
 from scipy import sparse as _scipy_sparse
 from scipy import stats as _scipy_stats
 from scipy.special import betaln, digamma, ndtri_exp, polygamma
-from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 
 def trigamma_inverse(x: np.ndarray | float) -> np.ndarray | float:
@@ -426,6 +433,182 @@ def choose_lowess_span(
     return float(min(min_span + (1 - min_span) * ratio**power, 1.0))
 
 
+def _seq_sum(values: np.ndarray) -> float:
+    """Left-to-right sum, as a C loop adds. np.sum adds pairwise, which
+    changes the last bits; in lowess fits through two points the
+    robustness weights then follow that noise."""
+    return float(np.cumsum(values)[-1]) if values.size else 0.0
+
+
+def _r_lowest(x, y, xs, nleft, nright, userw, rw):
+    """Port of lowest() in R's stats/src/lowess.c: the local fit at ``xs``
+    over ``x[nleft:nright+1]`` (0-based), widened to the right to take in
+    ties. Returns the fitted value, or None when all weights are zero.
+    ``rw`` holds the robustness weights, used if ``userw``. Products are
+    written out as in C (``t * t * t``, not ``t**3``, which calls pow())."""
+    n = len(x)
+    x_range = x[n - 1] - x[0]
+    h = max(xs - x[nleft], x[nright] - xs)
+    h9 = 0.999 * h
+    h1 = 0.001 * h
+
+    # C scans j = nleft, nleft+1, ... and stops at the first point right of
+    # xs farther than h9; x is sorted, so that point lies at or before the
+    # first x > xs + 2h, and the exact test runs on that segment only
+    seg = slice(nleft, min(n, int(np.searchsorted(x, xs + 2 * h, side="right")) + 1))
+    r = np.abs(x[seg] - xs)
+    beyond = (r > h9) & (x[seg] > xs)
+    nrt = nleft + (int(np.argmax(beyond)) if beyond.any() else r.size) - 1
+    window = slice(nleft, nrt + 1)
+    r = r[: nrt - nleft + 1]
+    t = r / h
+    cube = 1.0 - t * t * t
+    tricube = cube * cube * cube
+    weights = np.where(r <= h9, np.where(r <= h1, 1.0, tricube), 0.0)
+    if userw:
+        weights = weights * rw[window]
+    a = _seq_sum(weights)
+    if a <= 0.0:
+        return None
+
+    # weighted least squares, with the weights summing to 1
+    weights = weights / a
+    xw = x[window]
+    if h > 0.0:
+        a = _seq_sum(weights * xw)
+        b = xs - a
+        # C: w[j]*fsquare(x[j]-a), the square first
+        c = _seq_sum(weights * ((xw - a) * (xw - a)))
+        if np.sqrt(c) > 0.001 * x_range:
+            # points are spread out enough to compute a slope
+            b /= c
+            weights = weights * (b * (xw - a) + 1.0)
+    return _seq_sum(weights * y[window])
+
+
+def _r_clowess(x, y, f, nsteps, delta):
+    """Port of clowess() in R's stats/src/lowess.c: lowess on ``x`` sorted
+    ascending, fitting every point more than ``delta`` beyond the last
+    fitted one and interpolating linearly in between. Returns the fitted
+    values in the same order."""
+    n = len(x)
+    if n < 2:
+        return y.copy()
+    ys = np.empty(n)
+    rw = np.empty(n)
+    # at least two, at most n points (f * n can overflow to inf)
+    ns = max(2, int(min(n, f * n + 1e-7)))
+
+    # robustness iterations
+    for iteration in range(1, nsteps + 2):
+        nleft, nright = 0, ns - 1
+        last = -1  # index of the previous fitted point
+        i = 0  # index of the current point
+        while True:
+            # move the window right while that brings the radius down
+            if nright < n - 1 and x[i] - x[nleft] > x[nright + 1] - x[i]:
+                nleft += 1
+                nright += 1
+                continue
+
+            fitted = _r_lowest(x, y, x[i], nleft, nright, iteration > 1, rw)
+            # all weights zero: copy over the value
+            ys[i] = y[i] if fitted is None else fitted
+
+            if last < i - 1:
+                # skipped points: interpolate
+                skipped = np.arange(last + 1, i)
+                alpha = (x[skipped] - x[last]) / (x[i] - x[last])
+                ys[skipped] = alpha * ys[i] + (1.0 - alpha) * ys[last]
+
+            # ties with the fitted point take its value; the next point fitted
+            # is the last one within delta of it
+            last = i
+            tie_end = int(np.searchsorted(x, x[last], side="right")) - 1
+            ys[last + 1 : tie_end + 1] = ys[last]
+            last = tie_end
+            beyond_cut = int(np.searchsorted(x, x[i] + delta, side="right"))
+            i = max(last + 1, beyond_cut - 1)
+            if last >= n - 1:
+                break
+
+        residuals = y - ys
+        # overall scale estimate
+        scale = _seq_sum(np.abs(residuals)) / n
+        # compute robustness weights, except the last time
+        if iteration > nsteps:
+            break
+        abs_res = np.abs(residuals)
+        ordered = np.sort(abs_res)
+        m1 = n // 2
+        if n % 2 == 0:
+            cmad = 3.0 * (ordered[m1] + ordered[n - m1 - 1])
+        else:
+            cmad = 6.0 * ordered[m1]
+        if cmad < 1e-7 * scale:
+            # effectively zero
+            break
+        q = abs_res / cmad
+        bisquare = (1.0 - q * q) * (1.0 - q * q)
+        rw = np.where(abs_res <= 0.999 * cmad, bisquare, 0.0)
+        rw[abs_res <= 0.001 * cmad] = 1.0
+    return ys
+
+
+def _r_lowess(x, y, f=2 / 3, iter=3, delta=None):
+    """R's ``stats::lowess(x, y, f, iter, delta)``: returns ``x`` sorted
+    (a stable sort, as R's ``order()``) and the fitted values in that order.
+    ``delta`` defaults to 1% of the range of ``x``, as in R."""
+    x = np.asarray(x, dtype=np.float64)
+    y = np.asarray(y, dtype=np.float64)
+    if x.shape != y.shape:
+        raise ValueError("'x' and 'y' lengths differ")
+    if x.size == 0:
+        raise ValueError("invalid input")
+    if delta is None:
+        delta = 0.01 * (np.max(x) - np.min(x))
+    if not (np.isfinite(f) and f > 0):
+        raise ValueError("'f' must be finite and > 0")
+    # R: asInteger(iter) truncates before the check, so -0.5 runs as 0; it
+    # is NA beyond the int range
+    if not (np.isfinite(iter) and 0 <= int(iter) <= np.iinfo(np.int32).max):
+        raise ValueError("'iter' must be finite and >= 0")
+    if not (np.isfinite(delta) and delta >= 0):
+        raise ValueError("'delta' must be finite and > 0")
+    order = np.argsort(x, kind="stable")
+    x_sorted = x[order]
+    # as C: 0/0 in the weights where h = 0 is never used; NaN in y propagates
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return x_sorted, _r_clowess(x_sorted, y[order], f, int(iter), delta)
+
+
+def _r_approx_rule2(x, y, xout):
+    """R's ``approx(x, y, xout, rule=2, ties=mean)$y`` (and ``approxfun``):
+    linear interpolation, constant beyond the ends. As in R, pairs with NA
+    are dropped, y is averaged over tied x with R's mean() (second pass only
+    for a finite mean) and each value is approx1()'s
+    ``y[i] + (y[j] - y[i]) * ((v - x[i]) / (x[j] - x[i]))``."""
+    keep = ~(np.isnan(x) | np.isnan(y))
+    y = y[keep]
+    x_unique, tie_group, ties = np.unique(x[keep], return_inverse=True, return_counts=True)
+    if x_unique.size < 2:
+        raise ValueError("need at least two non-NA values to interpolate")
+    y_mean = np.bincount(tie_group, weights=y) / ties
+    with np.errstate(invalid="ignore"):
+        correction = np.bincount(tie_group, weights=y - y_mean[tie_group]) / ties
+        y_mean = np.where(np.isfinite(y_mean), y_mean + correction, y_mean)
+
+        v = np.asarray(xout, dtype=np.float64)
+        i = np.clip(np.searchsorted(x_unique, v, side="right") - 1, 0, x_unique.size - 2)
+        j = i + 1
+        t = (v - x_unique[i]) / (x_unique[j] - x_unique[i])
+        values = y_mean[i] + (y_mean[j] - y_mean[i]) * t
+    values = np.where(v == x_unique[i], y_mean[i], values)
+    values = np.where(v == x_unique[j], y_mean[j], values)
+    values = np.where(v < x_unique[0], y_mean[0], values)
+    return np.where(v > x_unique[-1], y_mean[-1], values)
+
+
 _LOWESS_THRESHOLD = 1e-7
 
 
@@ -657,20 +840,10 @@ def loess_fit(
             weights = None
 
     if weights is None:
-        # Base R lowess(x, y, f=span, iter=iterations-1), which defaults
-        # delta = 0.01 * diff(range(x)).
+        # R: lowess(x=xobs, y=yobs, f=span, iter=iterations-1)
         order = np.argsort(x_obs, kind="stable")
-        lowess_y = sm_lowess(
-            y_obs[order],
-            x_obs[order],
-            frac=span,
-            it=iterations - 1,
-            delta=0.01 * (x_obs.max() - x_obs.min()),
-            return_sorted=False,
-            is_sorted=True,
-        )
         fitted_obs = np.empty(n_obs)
-        fitted_obs[order] = lowess_y
+        fitted_obs[order] = _r_lowess(x_obs, y_obs, f=span, iter=iterations - 1)[1]
         fitted[obs] = fitted_obs
         residuals[obs] = y_obs - fitted_obs
         return {"fitted": fitted, "residuals": residuals}

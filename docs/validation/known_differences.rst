@@ -12,9 +12,10 @@ porting.
 Accepted differences
 --------------------
 
-Three differences remain after porting. All three are statistical
-artefacts of numerical-algorithm choices, not porting bugs. All are
-quantified, reproducible, and inside published tolerances.
+Four differences remain after porting. None is a porting bug: three
+come from numerical-algorithm choices and one (lowess) from how R
+itself is built on different platforms. Each is quantified and
+reproducible, and the parity tests stay within the tolerances given.
 
 normexp saddle-point fit drifts up to ~2e-4 from R
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -88,6 +89,28 @@ change that aligns the two patterns is detected automatically.
 ``sigma`` is also at machine epsilon, t-statistics are inf/NaN,
 and the empirical-Bayes posterior is dominated by the prior
 regardless of which "garbage" stdev was returned.
+
+lowess fits through three or fewer points follow rounding noise
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+pylimma's lowess (used by ``voom``, ``vooma``, ``loess_fit`` and so the
+trends of ``e_bayes`` and ``squeeze_var``, and cyclic loess) is a port of
+R's ``stats`` ``lowess.c``. It gives the same result, bit for bit, as
+that C code compiled without fused multiply-adds, as R is on x86-64
+Linux (8,800 test cases).
+
+**Root cause.** R on macOS arm64 is compiled with multiply-adds fused
+(clang's default), which changes the last bit of some sums. Where every
+local fit uses three points or fewer (fewer than about 20 points with
+a small span), each fit passes exactly through its points, and the
+robustness weights are then set by that last-bit noise, so R itself
+gives different curves on the two platforms (up to 18.8 apart on an
+8,800-case grid). With four or more points per
+fit, pylimma matches R on macOS arm64 to 4e-11 relative on the same
+grid.
+
+**Tolerance.** The parity fixtures use at least four points per fit
+and are compared at ``rtol=1e-6`` or tighter.
 
 Deliberate divergences: intended rather than literal R behaviour
 ----------------------------------------------------------------

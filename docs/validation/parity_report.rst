@@ -48,7 +48,7 @@ gene-set tests) use looser tolerances documented in
 Known differences from R limma
 ------------------------------
 
-Three families of small, non-bug-for-bug numerical divergences are
+Four families of small, non-bug-for-bug numerical divergences are
 documented in :doc:`known_differences`:
 
 - ``normexp_fit(method="saddle")`` drifts up to ~2e-4 from R because
@@ -66,6 +66,12 @@ documented in :doc:`known_differences`:
   because LINPACK ``DQRDC2`` and LAPACK SVD produce different
   noise patterns. Real-world residuals are 6+ orders of magnitude
   above the trigger condition.
+- lowess fits through three or fewer points (fewer than about 20
+  points with a small span) follow last-bit rounding, which differs
+  between builds of R: R on macOS arm64 fuses multiply-adds. pylimma
+  follows R's ``lowess.c`` without fused multiply-adds, as R is on x86-64
+  Linux; with four or more points per fit it matches R on macOS arm64 to
+  4e-11 relative.
 
 The same page also documents three deliberate divergences: ``genas``
 applies the logFC / predFC re-centring that limma's code intends but

@@ -34,7 +34,14 @@ from scipy.special import polygamma
 from scipy.stats import f as f_dist
 
 from .lmfit import _qr_r_style
-from .utils import _f_logsf, _r_trimmed_mean, loess_fit, logmdigamma, trigamma_inverse
+from .utils import (
+    _f_logsf,
+    _r_approx_rule2,
+    _r_trimmed_mean,
+    loess_fit,
+    logmdigamma,
+    trigamma_inverse,
+)
 
 # Pre-compute 128-point Gauss-Legendre quadrature nodes and weights
 _GAUSS_NODES, _GAUSS_WEIGHTS = np.polynomial.legendre.leggauss(128)
@@ -610,7 +617,7 @@ def fit_f_dist_robustly(
             scale = x.copy()
             scale[ok] = sub_fit["scale"]
             scale[~ok] = np.exp(
-                _approx_rule2_ties_mean(covariate[ok], np.log(sub_fit["scale"]), covariate[~ok])
+                _r_approx_rule2(covariate[ok], np.log(sub_fit["scale"]), covariate[~ok])
             )
         return {"scale": scale, "df2": sub_fit["df2"], "df2_shrunk": df2_shrunk}
 
@@ -770,14 +777,6 @@ def fit_f_dist_robustly(
         "df2_outlier": df2_outlier,
         "df2_shrunk": df2_shrunk,
     }
-
-
-def _approx_rule2_ties_mean(x: np.ndarray, y: np.ndarray, xout: np.ndarray) -> np.ndarray:
-    """R's approx(x, y, xout, rule=2, ties=mean)$y: linear interpolation with
-    constant extrapolation, averaging y over tied x."""
-    ux, inverse = np.unique(x, return_inverse=True)
-    uy = np.bincount(inverse, weights=y) / np.bincount(inverse)
-    return np.interp(xout, ux, uy)
 
 
 def fit_f_dist_unequal_df1(

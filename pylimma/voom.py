@@ -23,12 +23,11 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from scipy import interpolate, linalg
-from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
+from scipy import linalg
 
 from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
 from .lmfit import _fit_genes, _numeric_design, _parse_design, _qr_r_style, lm_fit
-from .utils import choose_lowess_span
+from .utils import _r_approx_rule2, _r_lowess, choose_lowess_span
 
 
 def _named_design(design: np.ndarray, names: list[str] | None):
@@ -365,24 +364,8 @@ def voom(
         sx_fit = sx
         sy_fit = sy
 
-    # Fit LOWESS trend using statsmodels (matches R's lowess closely)
-    # it=3 matches R's default of 3 robustifying iterations
-    # delta=0.01*range(x) matches R's default delta parameter
-    x_range = sx_fit.max() - sx_fit.min()
-    lowess_result = sm_lowess(
-        sy_fit, sx_fit, frac=span, it=3, delta=0.01 * x_range, return_sorted=True
-    )
-    x_sorted = lowess_result[:, 0]
-    y_sorted = lowess_result[:, 1]
-
-    # approxfun with rule=2 extrapolates using boundary values
-    f = interpolate.interp1d(
-        x_sorted,
-        y_sorted,
-        kind="linear",
-        bounds_error=False,
-        fill_value=(y_sorted[0], y_sorted[-1]),
-    )
+    # R: l <- lowess(sx, sy, f=span)
+    x_sorted, y_sorted = _r_lowess(sx_fit, sy_fit, f=span)
 
     # Compute fitted values from linear model
     # fitted.values = coefficients %*% t(design)
@@ -406,7 +389,8 @@ def voom(
 
     # Apply trend to individual observations
     # w = 1/f(fitted.logcount)^4
-    trend_values = f(fitted_logcount)
+    # R: f <- approxfun(l, rule=2, ties=list("ordered", mean))
+    trend_values = _r_approx_rule2(x_sorted, y_sorted, fitted_logcount)
     w = 1 / trend_values**4
 
     # Build output
@@ -814,23 +798,12 @@ def vooma(
         else:
             span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1 / 3)
 
-    # Fit LOWESS trend using statsmodels (matches R's lowess closely)
-    # delta=0.01*range(x) matches R's default delta parameter
-    x_range = sx.max() - sx.min()
-    lowess_result = sm_lowess(sy, sx, frac=span, it=3, delta=0.01 * x_range, return_sorted=True)
-    x_sorted = lowess_result[:, 0]
-    y_sorted = lowess_result[:, 1]
-
-    f = interpolate.interp1d(
-        x_sorted,
-        y_sorted,
-        kind="linear",
-        bounds_error=False,
-        fill_value=(y_sorted[0], y_sorted[-1]),
-    )
+    # R: l <- lowess(sx, sy, f=span)
+    x_sorted, y_sorted = _r_lowess(sx, sy, f=span)
 
     # Compute weights from fitted values (mu)
-    w = 1 / f(mu) ** 4
+    # R: approxfun(l, rule=2, ties=list("ordered", mean))
+    w = 1 / _r_approx_rule2(x_sorted, y_sorted, mu) ** 4
 
     # Build output
     out = {
@@ -1062,23 +1035,12 @@ def vooma_lm_fit(
         else:
             span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1 / 3)
 
-    # Fit LOWESS trend
-    x_range = sx.max() - sx.min()
-    lowess_result = sm_lowess(sy, sx, frac=span, it=3, delta=0.01 * x_range, return_sorted=True)
-    x_sorted = lowess_result[:, 0]
-    y_sorted = lowess_result[:, 1]
-
-    # Create interpolating function
-    f = interpolate.interp1d(
-        x_sorted,
-        y_sorted,
-        kind="linear",
-        bounds_error=False,
-        fill_value=(y_sorted[0], y_sorted[-1]),
-    )
+    # Fit LOWESS trend (R: l <- lowess(sx, sy, f=span))
+    x_sorted, y_sorted = _r_lowess(sx, sy, f=span)
 
     # Compute vooma weights
-    w = 1 / f(mu) ** 4
+    # R: approxfun(l, rule=2, ties=list("ordered", mean))
+    w = 1 / _r_approx_rule2(x_sorted, y_sorted, mu) ** 4
 
     # Combine with prior weights if provided
     if prior_weights is not None:
@@ -1144,21 +1106,11 @@ def vooma_lm_fit(
             sx = vartrend_design @ beta
             mu = beta[0] + beta[1] * mu + beta[2] * predictor
 
-        x_range = sx.max() - sx.min()
-        lowess_result = sm_lowess(sy, sx, frac=span, it=3, delta=0.01 * x_range, return_sorted=True)
-        x_sorted = lowess_result[:, 0]
-        y_sorted = lowess_result[:, 1]
-
-        f = interpolate.interp1d(
-            x_sorted,
-            y_sorted,
-            kind="linear",
-            bounds_error=False,
-            fill_value=(y_sorted[0], y_sorted[-1]),
-        )
+        x_sorted, y_sorted = _r_lowess(sx, sy, f=span)
 
         # Recompute vooma weights
-        w = 1 / f(mu) ** 4
+        # R: approxfun(l, rule=2, ties=list("ordered", mean))
+        w = 1 / _r_approx_rule2(x_sorted, y_sorted, mu) ** 4
 
         # Combine with prior weights
         if prior_weights is not None:

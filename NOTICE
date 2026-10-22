@@ -67,6 +67,18 @@ for R. All are GPL-compatible with pylimma's GPL-3.0-or-later licence.
     Copyright:  R Core Team; derived from LINPACK dqrdc (Dongarra, Bunch,
                 Moler, Stewart).
 
+  lowess (base R stats, https://www.R-project.org/)
+    Used in:    pylimma/utils.py _r_lowess() ports src/library/stats/src/
+                lowess.c (clowess, lowest) and R/lowess.R, the smoother
+                limma's loessFit, voom and vooma call. Every lowess curve in
+                pylimma (voom, vooma, loess_fit, and through it the trends of
+                e_bayes and squeeze_var, and cyclic loess) uses it.
+    Licence:    GPL (>= 2) (part of R)
+    Copyright:  Robert Gentleman and Ross Ihaka (1996); R Core Team
+                (1995-2025). Algorithm: Cleveland, W. S. (1979). Robust
+                locally weighted regression and smoothing scatterplots.
+                JASA 74, 829-836.
+
   affy (https://bioconductor.org/packages/affy)
     Used in:    pylimma/normalize.py normexp_fit(method="rma") ports
                 affy::bg.parameters (kernel-density-based RMA background

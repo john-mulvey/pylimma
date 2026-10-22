@@ -128,6 +128,26 @@ minor version (0.x.0) may change results or behaviour; a patch version
   elements."); they stay NaN in the output. They were ranked last in the
   robust selection, shifting its slice boundaries. An all-missing matrix
   raises an error.
+- `voom` (so also `voom_with_quality_weights`), `vooma`, `vooma_lm_fit`,
+  `vooma_by_group`, `loess_fit` (so also the trends of `e_bayes(trend=True)`
+  and `squeeze_var(covariate=)`) and cyclic loess normalisation fit their
+  lowess curves with a port of R's `lowess` (stats `lowess.c`) instead of
+  statsmodels' lowess. statsmodels' version fitted tied x values in an
+  order-dependent way when one value filled the window, fitted constant x
+  with the first y value, depended on the scale of x and differed from R
+  by about 2e-6 relative in voom weights on typical data. For example
+  `squeeze_var(covariate=, robust=True)` with a two-valued covariate gave a
+  prior variance of 2.16 against R's 0.84, `vooma` on 20 genes with span
+  0.2 gave weights up to 82% from R's, `e_bayes(trend=True, robust=True)`
+  on 12 genes gave prior variances up to 210% from R's and `loess_fit` with
+  x scaled by 1e-6 was 0.48 off. The trend is interpolated as R's
+  `approxfun`, which leaves out a gene with no residual df (NA sigma):
+  `vooma_lm_fit` with such a gene gave weights up to 23% from R's. The
+  smoother is about 3x slower than statsmodels' (0.38 s against 0.12 s for
+  50,000 points at span 0.7): the voom pipeline on GSE60450 takes 1.91 s
+  instead of 1.85 s, but cyclic loess, which is all lowess fits, takes
+  about 3.3 times as long (20,000 x 4: 1.77 s instead of 0.55 s for
+  `"fast"`, 2.49 s instead of 0.73 s for `"pairs"`).
 
 ### Changed behaviour
 
@@ -220,6 +240,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
   arrays) raises "L-BFGS-B needs finite values of 'fn'". Each of these
   returned numbers; `cvg_niter=0` returned the data transformed at the
   starting values, never fitted.
+- The lowess fits accept a span above 1, as R does (all points), where
+  statsmodels raised "Lowess `frac` must be in the range [0,1]!", and raise
+  R's errors for `voom(span=0)` ("'f' must be finite and > 0") and
+  `loess_fit(iterations=0)` ("'iter' must be finite and >= 0"); before,
+  `iterations` below 1 returned uninitialised memory. A voom-family trend
+  with fewer than two distinct points (one gene with a finite sigma, or all
+  genes at one average) stops with R's "need at least two non-NA values to
+  interpolate" where pylimma returned a constant trend.
 
 ### Added
 

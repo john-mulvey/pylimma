@@ -5718,3 +5718,106 @@ stopifnot(inherits(try(suppressWarnings(normalizeVSN(matrix(NA_real_, 100, 4))),
 stopifnot(identical(tryCatch(normalizeBetweenArrays(matrix(1:8, 4), method = "vsn"),
                              error = conditionMessage),
                     "vsn method no longer supported. Please use normalizeVSN instead."))
+
+# =============================================================================
+# stats::lowess, which loessFit, voom and vooma call (pylimma ports it): ties
+# that fill the window, constant x, x on a tiny scale, outliers, f > 1,
+# iter = 0 and delta = 0. Every window holds at least four points: through
+# fewer, a fit is exact and the robustness weights follow last-bit rounding,
+# which differs between builds of R (on macOS arm64 R fuses multiply-adds)
+# =============================================================================
+set.seed(21)
+.lw_case <- function(name, x, y, f = 2/3, iter = 3L, delta = NA) {
+  fit <- if (is.na(delta)) lowess(x, y, f = f, iter = iter) else
+    lowess(x, y, f = f, iter = iter, delta = delta)
+  fitted <- numeric(length(x))
+  fitted[order(x)] <- fit$y
+  data.frame(case = name, f = f, iter = iter, delta = delta, x = x, y = y, fitted = fitted)
+}
+.lw_x <- runif(200, 4, 14)
+.lw_dom <- ifelse(runif(200) < 0.55, 1, sample(2:8, 200, replace = TRUE))
+.lw_out <- runif(100)
+.lw_yout <- .lw_out + rnorm(100, sd = 0.1)
+.lw_yout[seq(5, 100, 10)] <- .lw_yout[seq(5, 100, 10)] + 5
+write.csv(rbind(
+  .lw_case("smooth", .lw_x, sin(.lw_x) + rnorm(200, sd = 0.3)),
+  .lw_case("outliers", .lw_out, .lw_yout, f = 0.1),
+  .lw_case("dominant_ties", .lw_dom, 1 / .lw_dom + rnorm(200, sd = 0.3), f = 0.3),
+  .lw_case("constant_x", rep(5, 50), rnorm(50)),
+  .lw_case("tiny_scale", .lw_x[1:100] * 1e-6, sin(.lw_x[1:100]) + rnorm(100, sd = 0.3), f = 0.3),
+  .lw_case("f_above_1", .lw_x[1:60], cos(.lw_x[1:60]) + rnorm(60, sd = 0.2), f = 2),
+  .lw_case("iter_0", .lw_x[1:80], cos(.lw_x[1:80]) + rnorm(80, sd = 0.2), f = 0.3, iter = 0L),
+  .lw_case("delta_0", .lw_x[1:80], cos(.lw_x[1:80]) + rnorm(80, sd = 0.2), f = 0.3, delta = 0)),
+  "R_lowess_cases.csv", row.names = FALSE)
+.lw_fails <- function(...) inherits(try(lowess(...), silent = TRUE), "try-error")
+# approx(rule = 2, ties = mean), as voom's approxfun and squeezeVar use it:
+# NA pairs dropped, ties averaged (an infinite one stays infinite), constant
+# beyond the ends; fewer than two x values fail
+.lw_ax <- c(3, 1, 1, NA, 2, 2, 5, 4)
+.lw_ay <- c(9, 1, 2, 7, 3, Inf, NA, 16)
+.lw_aout <- c(0, 1, 1.5, 2, 2.5, 3, 3.5, 4, 6, NA)
+write.csv(data.frame(x = c(.lw_ax, rep(NA, 2)), y = c(.lw_ay, rep(NA, 2)), xout = .lw_aout,
+                     y_out = approx(.lw_ax, .lw_ay, .lw_aout, rule = 2, ties = mean)$y),
+          "R_lowess_approx.csv", row.names = FALSE)
+stopifnot(inherits(try(approx(c(1, 1, NA), c(1, 2, 3), 2, rule = 2, ties = mean), silent = TRUE),
+                   "try-error"))
+stopifnot(.lw_fails(1:10, 1:10, f = 0), .lw_fails(1:10, 1:10, iter = -1L), .lw_fails(1:10, 1:10, delta = -1),
+          identical(lowess(.lw_x, .lw_x^2, iter = -0.5), lowess(.lw_x, .lw_x^2, iter = 0)),
+          suppressWarnings(.lw_fails(1:10, 1:10, iter = 1e10)))  # NA from asInteger
+
+# Callers of lowess: loessFit (constant x, x * 1e-6, span = 2; iterations = 0
+# fails), eBayes(trend, robust) on 12 genes, squeezeVar with a two-valued
+# covariate, voom and vooma with small spans (voom span = 0 fails),
+# voomaLmFit with an NA sigma, cyclic loess pairs / affy
+.lwc_y <- rnorm(100)
+.lwc_x <- runif(100, 4, 14)
+write.csv(data.frame(y = .lwc_y, x = .lwc_x,
+                     constant_x = loessFit(.lwc_y, rep(5, 100))$fitted,
+                     tiny_scale = loessFit(.lwc_y, .lwc_x * 1e-6)$fitted,
+                     span_2 = loessFit(.lwc_y, .lwc_x, span = 2)$fitted),
+          "R_lowess_loessfit.csv", row.names = FALSE)
+stopifnot(inherits(try(loessFit(.lwc_y, .lwc_x, iterations = 0L), silent = TRUE), "try-error"))
+.lwc_design <- cbind(1, rep(0:1, 6), rep(c(0, 0, 1, 1), 3))
+.lwc_e <- matrix(rnorm(12 * 12), 12)
+write.csv(.lwc_e, "R_lowess_ebayes_input.csv", row.names = FALSE)
+.lwc_eb <- eBayes(lmFit(.lwc_e, .lwc_design), trend = TRUE, robust = TRUE)
+write.csv(data.frame(s2_prior = .lwc_eb$s2.prior, df_prior = .lwc_eb$df.prior),
+          "R_lowess_ebayes.csv", row.names = FALSE)
+.lwc_v <- rchisq(60, 6) / 6 * exp(rnorm(60, 0, 0.3))
+.lwc_sv <- squeezeVar(.lwc_v, 5, covariate = rep(0:1, each = 30), robust = TRUE)
+write.csv(data.frame(var = .lwc_v, var_prior = .lwc_sv$var.prior, df_prior = .lwc_sv$df.prior,
+                     var_post = .lwc_sv$var.post),
+          "R_lowess_squeezevar.csv", row.names = FALSE)
+.lwc_sim <- function(n_genes, n_samples) {
+  list(counts = matrix(rnbinom(n_genes * n_samples, mu = rep(2^seq(2, 12, length.out = n_genes), n_samples),
+                               size = 5), n_genes),
+       design = cbind(1, rep(0:1, n_samples / 2)))
+}
+set.seed(4)
+.lwc_voom <- .lwc_sim(25, 10)
+write.csv(.lwc_voom$counts, "R_lowess_voom_counts.csv", row.names = FALSE)
+write.csv(voom(.lwc_voom$counts, .lwc_voom$design, span = 0.2, adaptive.span = FALSE)$weights,
+          "R_lowess_voom_weights.csv", row.names = FALSE)
+stopifnot(inherits(try(voom(.lwc_voom$counts, .lwc_voom$design, span = 0, adaptive.span = FALSE),
+                       silent = TRUE), "try-error"))
+set.seed(2)
+.lwc_vooma <- .lwc_sim(20, 8)
+write.csv(log2(.lwc_vooma$counts + 1), "R_lowess_vooma_input.csv", row.names = FALSE)
+write.csv(vooma(log2(.lwc_vooma$counts + 1), .lwc_vooma$design, span = 0.2)$weights,
+          "R_lowess_vooma_weights.csv", row.names = FALSE)
+# voomaLmFit with a gene that has no residual df: approxfun drops its NA
+# point of the trend, so no weight is NA
+set.seed(8)
+.lwc_na <- matrix(rnorm(200 * 6, 8), 200)
+.lwc_na[1, 1:4] <- NA
+.lwc_na[2, 3] <- NA
+write.csv(.lwc_na, "R_lowess_voomalmfit_input.csv", row.names = FALSE)
+.lwc_vlf <- voomaLmFit(.lwc_na, cbind(1, rep(0:1, 3)))
+stopifnot(sum(is.na(.lwc_vlf$sigma)) == 1, !anyNA(.lwc_vlf$EList$weights))
+write.csv(.lwc_vlf$EList$weights, "R_lowess_voomalmfit_weights.csv", row.names = FALSE)
+set.seed(12)
+.lwc_cyc <- matrix(rnorm(300 * 4, 8, 2), 300, 4)
+.lwc_cyc[, 2] <- .lwc_cyc[, 2] + 1 + 0.1 * .lwc_cyc[, 1]
+write.csv(.lwc_cyc, "R_lowess_cyclic_input.csv", row.names = FALSE)
+write.csv(normalizeCyclicLoess(.lwc_cyc, method = "pairs"), "R_lowess_cyclic_pairs.csv", row.names = FALSE)
+write.csv(normalizeCyclicLoess(.lwc_cyc, method = "affy"), "R_lowess_cyclic_affy.csv", row.names = FALSE)

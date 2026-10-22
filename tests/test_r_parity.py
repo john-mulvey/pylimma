@@ -2257,19 +2257,13 @@ class TestVoomBranchCoverage:
     """Forcing tests for voom branches not covered by the basic suite."""
 
     def test_voom_explicit_span(self, voom_data):
-        """voom with adaptive_span=False and explicit span matches R.
-
-        Smaller spans (0.4 here vs the adaptive ~0.86 in test_basic_weights)
-        amplify the statsmodels-vs-R lowess implementation micro-drift; about
-        45/800 cells exceed 1e-8 relative diff (max_abs ~8e-8 against weights
-        of order 3-6). rtol=1e-7 reflects this established lowess diff.
-        """
+        """voom with adaptive_span=False and explicit span matches R."""
         from pylimma import voom
 
         r_w = load_r_csv("voom_explicitspan_weights")
         v = voom(voom_data["counts"], voom_data["design"], span=0.4, adaptive_span=False)
 
-        result = compare_arrays(r_w.values, v["weights"], rtol=1e-7)
+        result = compare_arrays(r_w.values, v["weights"], rtol=1e-8)
         assert result["match"], (
             f"voom explicit-span weights differ: max_rel={result['max_rel_diff']:.2e}"
         )
@@ -2694,10 +2688,8 @@ class TestNormalizeBetweenArraysRParity:
 
         X = load_r_csv("norm_input").values
         r_out = load_r_csv("norm_cyclicloess").values
-        # cyclic LOESS uses lowess, which has the established statsmodels-vs-R
-        # implementation micro-drift; rtol=1e-6 reflects that cap.
         py_out = normalize_between_arrays(X, method="cyclicloess")
-        result = compare_arrays(r_out, py_out, rtol=1e-6)
+        result = compare_arrays(r_out, py_out, rtol=1e-8)
         assert result["match"], (
             f"normalize 'cyclicloess' differs: max_rel={result['max_rel_diff']:.2e}"
         )
@@ -2753,12 +2745,11 @@ class TestVoomNormalizeMethodRParity:
         r_w = load_r_csv("voom_normcyclicloess_weights")
         v = voom(voom_data["counts"], voom_data["design"], normalize_method="cyclicloess")
 
-        # Same lowess micro-drift caveat as TestNormalizeBetweenArraysRParity.
-        result_E = compare_arrays(r_E.values, v["E"], rtol=1e-6)
+        result_E = compare_arrays(r_E.values, v["E"], rtol=1e-10)
         assert result_E["match"], (
             f"voom normalize_method=cyclicloess E differs: max_rel={result_E['max_rel_diff']:.2e}"
         )
-        result_w = compare_arrays(r_w.values, v["weights"], rtol=1e-6)
+        result_w = compare_arrays(r_w.values, v["weights"], rtol=1e-8)
         assert result_w["match"], (
             f"voom normalize_method=cyclicloess weights differ: "
             f"max_rel={result_w['max_rel_diff']:.2e}"
@@ -5384,6 +5375,109 @@ class TestLoessFitBranchParity:
         )
         np.testing.assert_allclose(fit["fitted"], r["fitted"], rtol=1e-6)
         np.testing.assert_allclose(fit["residuals"], r["residuals"], rtol=1e-6, atol=1e-12)
+
+
+class TestLowessRParity:
+    """pylimma's port of R's stats::lowess and the functions that call it.
+    statsmodels' lowess, used before, differed where these cases go: ties
+    that fill the window, constant x, x on a tiny scale, outliers with small
+    spans and f > 1."""
+
+    CASES = ["smooth", "outliers", "dominant_ties", "constant_x", "tiny_scale"]
+
+    @pytest.mark.parametrize("case", CASES + ["f_above_1", "iter_0", "delta_0"])
+    def test_lowess_matches_r(self, case):
+        from pylimma.utils import _r_lowess
+
+        r = load_r_csv_no_index("lowess_cases").query("case == @case")
+        x, y = r["x"].to_numpy(), r["y"].to_numpy()
+        f, iterations, delta = r[["f", "iter", "delta"]].iloc[0]
+        delta = None if np.isnan(delta) else delta
+        x_sorted, fitted = _r_lowess(x, y, f=f, iter=int(iterations), delta=delta)
+        order = np.argsort(x, kind="stable")
+        np.testing.assert_array_equal(x_sorted, x[order])
+        np.testing.assert_allclose(fitted, r["fitted"].to_numpy()[order], rtol=1e-6, atol=1e-12)
+
+    def test_approx_rule2_matches_r(self):
+        """approx(rule=2, ties=mean): NA pairs dropped, ties averaged (an
+        infinite one stays infinite), constant beyond the ends."""
+        from pylimma.utils import _r_approx_rule2
+
+        r = load_r_csv_no_index("lowess_approx")
+        n = 8
+        got = _r_approx_rule2(r["x"].to_numpy()[:n], r["y"].to_numpy()[:n], r["xout"].to_numpy())
+        np.testing.assert_array_equal(np.isnan(got), np.isnan(r["y_out"]))
+        np.testing.assert_array_equal(np.isinf(got), np.isinf(r["y_out"]))
+        finite = np.isfinite(got)
+        np.testing.assert_allclose(got[finite], r["y_out"][finite], rtol=1e-12)
+
+    def test_loess_fit_matches_r(self):
+        from pylimma import loess_fit
+
+        r = load_r_csv_no_index("lowess_loessfit")
+        y, x = r["y"].to_numpy(), r["x"].to_numpy()
+        cases = {
+            "constant_x": loess_fit(y, np.full(y.size, 5.0)),
+            "tiny_scale": loess_fit(y, x * 1e-6),
+            "span_2": loess_fit(y, x, span=2),
+        }
+        for name, fit in cases.items():
+            np.testing.assert_allclose(fit["fitted"], r[name], rtol=1e-6, atol=1e-12, err_msg=name)
+
+    def test_e_bayes_robust_trend_on_few_genes_matches_r(self):
+        from pylimma import e_bayes, lm_fit
+
+        y = load_r_csv_no_index("lowess_ebayes_input").to_numpy()
+        r = load_r_csv_no_index("lowess_ebayes")
+        design = np.column_stack([np.ones(12), np.tile([0, 1], 6), np.tile([0, 0, 1, 1], 3)])
+        fit = e_bayes(lm_fit(y, design), trend=True, robust=True)
+        np.testing.assert_allclose(fit["s2_prior"], r["s2_prior"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(fit["df_prior"], 12), r["df_prior"], rtol=1e-6)
+
+    def test_squeeze_var_two_valued_covariate_matches_r(self):
+        from pylimma import squeeze_var
+
+        r = load_r_csv_no_index("lowess_squeezevar")
+        out = squeeze_var(r["var"].to_numpy(), 5, covariate=np.repeat([0.0, 1.0], 30), robust=True)
+        np.testing.assert_allclose(out["var_prior"], r["var_prior"], rtol=1e-6)
+        np.testing.assert_allclose(np.broadcast_to(out["df_prior"], 60), r["df_prior"], rtol=1e-6)
+        np.testing.assert_allclose(out["var_post"], r["var_post"], rtol=1e-6)
+
+    def test_voom_small_span_matches_r(self):
+        from pylimma import voom
+
+        counts = load_r_csv_no_index("lowess_voom_counts").to_numpy()
+        design = np.column_stack([np.ones(10), np.tile([0, 1], 5)])
+        expected = load_r_csv_no_index("lowess_voom_weights")
+        v = voom(counts, design, span=0.2, adaptive_span=False)
+        np.testing.assert_allclose(v["weights"], expected, rtol=1e-8)
+
+    def test_vooma_small_span_matches_r(self):
+        from pylimma import vooma
+
+        y = load_r_csv_no_index("lowess_vooma_input").to_numpy()
+        design = np.column_stack([np.ones(8), np.tile([0, 1], 4)])
+        expected = load_r_csv_no_index("lowess_vooma_weights")
+        np.testing.assert_allclose(vooma(y, design, span=0.2)["weights"], expected, rtol=1e-6)
+
+    def test_vooma_lm_fit_with_na_sigma_matches_r(self):
+        """A gene without residual df has NA sigma; R's approxfun drops that
+        point of the trend, so no weight is NA."""
+        from pylimma import vooma_lm_fit
+
+        y = load_r_csv_no_index("lowess_voomalmfit_input").to_numpy()
+        expected = load_r_csv_no_index("lowess_voomalmfit_weights").to_numpy()
+        fit = vooma_lm_fit(y, np.column_stack([np.ones(6), np.tile([0, 1], 3)]))
+        assert np.isnan(fit["sigma"]).sum() == 1
+        np.testing.assert_allclose(fit["EList"]["weights"], expected, rtol=1e-8)
+
+    @pytest.mark.parametrize("method", ["pairs", "affy"])
+    def test_cyclic_loess_matches_r(self, method):
+        from pylimma import normalize_cyclic_loess
+
+        x = load_r_csv_no_index("lowess_cyclic_input").to_numpy()
+        expected = load_r_csv_no_index(f"lowess_cyclic_{method}").to_numpy()
+        np.testing.assert_allclose(normalize_cyclic_loess(x, method=method), expected, rtol=1e-10)
 
 
 # =============================================================================

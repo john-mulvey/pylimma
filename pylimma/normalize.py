@@ -54,7 +54,6 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.stats import norm as _scipy_norm
 from scipy.stats import rankdata
-from statsmodels.nonparametric.smoothers_lowess import lowess as sm_lowess
 
 from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
 from .utils import _as_dense_array, choose_lowess_span
@@ -267,12 +266,9 @@ def normalize_cyclic_loess(
     - ``"affy"``: like ``"pairs"`` but accumulates all pair-wise
       adjustments then divides by ``n`` per iteration.
 
-    Probe-vector weights (length = number of rows in ``x``) are
-    supported for all three methods and are threaded through to
-    :func:`loess_fit` in the weighted path. The unweighted ``"fast"``
-    path keeps the legacy statsmodels lowess route (with ``it=3`` and
-    ``delta=0.01*range(x)``) so existing pre-computed R-parity
-    fixtures continue to pass bit-for-bit.
+    Each fit is a :func:`loess_fit` call, as in R; probe-vector weights
+    (length = number of rows in ``x``) are passed on to it for all three
+    methods.
 
     Per-observation (matrix-shaped) weights are accepted by R's
     signature but fail inside R's own ``loessFit`` call with
@@ -312,30 +308,14 @@ def normalize_cyclic_loess(
     n = x.shape[1]
 
     # Shared helper: fit loess of ``m`` vs ``a`` and return fitted
-    # values in the original ordering. Uses statsmodels' lowess for
-    # the unweighted path (legacy fixture parity) and routes through
-    # loess_fit when weights are supplied.
+    # values in the original ordering (R: loessFit(m, a, weights, span)).
     def _loess_adjust(m, a, w):
         obs = np.isfinite(m) & np.isfinite(a)
         if w is not None:
             obs &= np.isfinite(w) & (w > 0)
         if int(obs.sum()) < 2:
             return np.zeros_like(m)
-        if w is None:
-            xobs = a[obs]
-            yobs = m[obs]
-            delta = 0.01 * float(xobs.max() - xobs.min())
-            f_obs = sm_lowess(
-                yobs,
-                xobs,
-                frac=span,
-                it=3,
-                delta=delta,
-                return_sorted=False,
-            )
-        else:
-            out = loess_fit(m, a, weights=w, span=span)
-            f_obs = out["fitted"][obs]
+        f_obs = loess_fit(m, a, weights=w, span=span)["fitted"][obs]
         f = np.zeros_like(m)
         f[obs] = f_obs
         return f

@@ -273,6 +273,54 @@ class TestLoessFit:
             loess_fit(y, x)
 
 
+class TestLowessInput:
+    """R's lowess() refuses f <= 0, iter < 0 and delta < 0, so loess_fit with
+    iterations < 1 and voom with span = 0 fail in R too (fixture script)."""
+
+    def test_lowess_arguments_out_of_range_raise(self):
+        from pylimma.utils import _r_lowess
+
+        x = np.arange(10.0)
+        for kwargs, message in (
+            ({"f": 0}, "'f' must be finite and > 0"),
+            ({"f": np.nan}, "'f' must be finite and > 0"),
+            ({"iter": -1}, "'iter' must be finite and >= 0"),
+            ({"iter": 1e10}, "'iter' must be finite and >= 0"),
+            ({"delta": -1.0}, "'delta' must be finite and > 0"),
+        ):
+            with pytest.raises(ValueError, match=message):
+                _r_lowess(x, x, **kwargs)
+        # as R's asInteger(), iter is truncated before the check
+        truncated = _r_lowess(x, x**2, iter=-0.5)[1]
+        np.testing.assert_array_equal(truncated, _r_lowess(x, x**2, iter=0)[1])
+        # f * n overflows to inf: all points, as for any f > 1 (R likewise)
+        np.testing.assert_array_equal(_r_lowess(x, x, f=1e308)[1], _r_lowess(x, x, f=1)[1])
+
+    def test_approx_needs_two_x_values(self):
+        from pylimma.utils import _r_approx_rule2
+
+        with pytest.raises(ValueError, match="need at least two non-NA values to interpolate"):
+            _r_approx_rule2(np.array([1.0, 1.0, np.nan]), np.array([1.0, 2.0, 3.0]), np.array([2.0]))
+
+    def test_loess_fit_iterations_below_one_raise(self):
+        x = np.arange(10.0)
+        for iterations in (0, -1):
+            with pytest.raises(ValueError, match="'iter' must be finite and >= 0"):
+                loess_fit(x, x, iterations=iterations)
+        # iter = iterations - 1 = -0.5 runs as 0 in R
+        np.testing.assert_array_equal(
+            loess_fit(x**2, x, iterations=0.5)["fitted"], loess_fit(x**2, x, iterations=1)["fitted"]
+        )
+
+    def test_voom_span_zero_raises(self):
+        from pylimma import voom
+
+        counts = np.random.default_rng(0).poisson(50, size=(30, 6))
+        design = np.column_stack([np.ones(6), np.tile([0, 1], 3)])
+        with pytest.raises(ValueError, match="'f' must be finite and > 0"):
+            voom(counts, design, span=0, adaptive_span=False)
+
+
 def test_r_as_character_matches_r():
     """R: as.character(c(1, 0.5, 0.1 + 0.2, NaN, Inf, -Inf, TRUE)); NA (None) stays missing."""
     from pylimma.utils import _r_as_character
