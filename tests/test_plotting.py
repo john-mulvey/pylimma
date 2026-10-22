@@ -519,6 +519,47 @@ def test_heat_diagram_needs_one_name_per_row():
             data[["results.1", "results.2"]], data[["coef.1", "coef.2"]], names=[1.5, 2, 3]
         )
 
+
+def test_plot_ma_3by2_matrix_matches_r(tmp_path, monkeypatch):
+    """Each array's M = E - rowMeans(E) against A = rowMeans(E), common
+    limits over all of A and M, the legend on the first plot of a page."""
+    from pylimma import plot_ma_3by2
+
+    plotting = __import__("pylimma.plotting", fromlist=["plot_with_highlights"])
+    original = plotting.plot_with_highlights
+    calls = []
+
+    def record(x, y, **kwargs):
+        calls.append((x, y, kwargs))
+        return original(x, y, **kwargs)
+
+    monkeypatch.setattr(plotting, "plot_with_highlights", record)
+    E = pd.read_csv(FIXTURES / "R_p32_E.csv")
+    plot_ma_3by2(E, path=str(tmp_path))
+    r = pd.read_csv(FIXTURES / "R_p32_calls.csv")
+    assert len(calls) == r["array"].nunique()
+    for (x, y, kwargs), (_, expected) in zip(calls, r.groupby("array", sort=True)):
+        np.testing.assert_allclose(x, expected["A"], rtol=1e-12)
+        np.testing.assert_allclose(y, expected["M"], rtol=1e-12, atol=1e-12)
+        assert kwargs["main"] == expected["main"].iloc[0]
+        assert kwargs["legend"] == bool(expected["legend"].iloc[0])
+        assert (kwargs["xlab"], kwargs["ylab"]) == ("A", "M")
+        ax = kwargs["ax"]
+        np.testing.assert_allclose(ax.get_xlim(), expected[["xlim1", "xlim2"]].iloc[0], rtol=1e-12)
+        np.testing.assert_allclose(ax.get_ylim(), expected[["ylim1", "ylim2"]].iloc[0], rtol=1e-12)
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plot_ma_3by2_passes_status_and_labels_on(tmp_path):
+    """R's plotMA3by2 passes ... on to plotMA, so status and labels can be
+    given."""
+    from pylimma import plot_ma_3by2
+
+    E = pd.read_csv(FIXTURES / "R_p32_E.csv")
+    files = plot_ma_3by2(E, path=str(tmp_path), status=np.repeat(["a", "b"], 10), xlab="mean")
+    assert len(files) == 2
+
+
 # ----------------------------------------------------------------------------
 # coolmap
 # ----------------------------------------------------------------------------

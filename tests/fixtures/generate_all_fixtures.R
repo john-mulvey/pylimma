@@ -6078,3 +6078,25 @@ write.csv(rbind(.hd_out("default"), .hd_out("limit", limit = 1.6),
 stopifnot(identical(.hd_out("numeric", names = as.numeric(1:7))$name, .hd_out("default")$name),
           anyNA(.hd_out("short", names = c(1.5, 2, 3))$name))
 
+# =============================================================================
+# plotMA3by2 on a matrix: each array's M = E - rowMeans(E) against
+# A = rowMeans(E), common limits over all A and M, the legend on the first
+# plot of a page (plotMA's arguments recorded, files not written)
+# =============================================================================
+set.seed(61)
+.p32_E <- matrix(rnorm(20 * 8, 8, 1.5), 20, dimnames = list(NULL, paste0("a", 1:8)))
+write.csv(.p32_E, "R_p32_E.csv", row.names = FALSE)
+.p32_calls <- list()
+.p32_plotMA <- function(object, array, ...) {
+  args <- list(...)
+  .p32_calls[[length(.p32_calls) + 1]] <<- data.frame(
+    array = array, gene = seq_len(nrow(object$M)), A = object$A[, array], M = object$M[, array],
+    xlim1 = args$xlim[1], xlim2 = args$xlim[2], ylim1 = args$ylim[1], ylim2 = args$ylim[2],
+    legend = args$legend, main = args$main)
+}
+.p32 <- plotMA3by2
+environment(.p32) <- list2env(list(plotMA = .p32_plotMA, png = function(...) NULL,
+                                   dev.off = function(...) NULL, par = function(...) NULL),
+                              parent = asNamespace("limma"))
+.p32(.p32_E)
+write.csv(do.call(rbind, .p32_calls), "R_p32_calls.csv", row.names = FALSE)

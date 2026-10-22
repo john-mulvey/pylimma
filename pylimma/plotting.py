@@ -2114,10 +2114,12 @@ def plot_ma_3by2(
     Parameters
     ----------
     object : ndarray, EList, or MArrayLM
-        Matrix-like or pylimma fit. ``ndarray`` and ``EList`` go through
-        ``plot_ma``'s matrix path; ``MArrayLM`` plots ``coefficients``
-        column by column. RGList / MAList / EListRaw inputs (R's
-        two-colour S4 wrappers) are out of scope.
+        Matrix-like or pylimma fit. For an ``ndarray`` or ``EList``, as in
+        R, each array's ``M = E - rowMeans(E)`` is plotted against
+        ``A = rowMeans(E)`` (labelled "A" and "M", with the legend on the
+        first plot of each page); an ``MArrayLM`` (a pylimma extension)
+        plots ``coefficients`` column by column. RGList / MAList /
+        EListRaw inputs (R's two-colour S4 wrappers) are out of scope.
     prefix : str, default "MA"
         Filename prefix. Files are written as
         ``{path}/{prefix}-{i1}-{i2}.{ext}`` where ``i1``..``i2`` are
@@ -2125,7 +2127,8 @@ def plot_ma_3by2(
     path : str, optional
         Output directory. Defaults to the current working directory.
     main : list of str, optional
-        Per-array title. Defaults to column names where available.
+        Per-array title. Defaults to column names where available, else
+        no title (as R).
     zero_weights : bool, default False
         Forwarded to ``plot_ma``.
     common_lim : bool, default True
@@ -2167,20 +2170,28 @@ def plot_ma_3by2(
         n_arrays = coefs.shape[1]
         col_names = object.get("contrast_names") or object.get("coef_names")
     else:
-        E, _ = _get_matrix_E(object, want_weights=True)
+        # R: A <- rowMeans(E) (no na.rm), M <- E - A, plotted as an MAList
+        E, w = _get_matrix_E(object, want_weights=True)
         n_arrays = E.shape[1]
+        A = np.mean(E, axis=1)
+        M = E - A[:, np.newaxis]
+        if not zero_weights and w is not None:
+            # R: object$M[object$weights <= 0] <- NA (an NA weight keeps M)
+            M = np.where(np.asarray(w) <= 0, np.nan, M)
         col_names = None
-        if hasattr(object, "var_names"):
-            pass  # AnnData has var_names but we want sample/array names
-        if hasattr(object, "obs_names"):
-            col_names = list(getattr(object, "obs_names"))
+        if isinstance(object, pd.DataFrame):
+            col_names = list(object.columns)
+        elif isinstance(object, dict) and isinstance(object.get("E"), pd.DataFrame):
+            col_names = list(object["E"].columns)
+        genes = object.get("genes") if isinstance(object, dict) else None
+        status = (
+            genes["Status"].to_numpy()
+            if isinstance(genes, pd.DataFrame) and "Status" in genes.columns
+            else None
+        )
 
     if main is None:
-        main = (
-            list(col_names)
-            if col_names is not None
-            else [f"Array {i + 1}" for i in range(n_arrays)]
-        )
+        main = list(col_names) if col_names is not None else [None] * n_arrays
     elif len(main) != n_arrays:
         raise ValueError(f"len(main)={len(main)} does not match n_arrays={n_arrays}")
 
@@ -2191,17 +2202,8 @@ def plot_ma_3by2(
             x_all = np.asarray(object["Amean"], dtype=np.float64)
             y_all = coefs
         else:
-            E, w = _get_matrix_E(object, want_weights=True)
-            # A and M for each column: A_i = mean of remaining cols,
-            # M_i = E[:, i] - A_i. Vectorised.
-            n = E.shape[1]
-            row_sum = np.nansum(E, axis=1, keepdims=True)
-            A_all = (row_sum - E) / max(n - 1, 1)
-            M_all = E - A_all
-            if not zero_weights and w is not None:
-                M_all = np.where(w > 0, M_all, np.nan)
-            x_all = A_all
-            y_all = M_all
+            x_all = A
+            y_all = M
         common_xlim = (np.nanmin(x_all), np.nanmax(x_all))
         common_ylim = (np.nanmin(y_all), np.nanmax(y_all))
 
@@ -2224,15 +2226,27 @@ def plot_ma_3by2(
             if array_idx >= n_arrays:
                 ax.set_axis_off()
                 continue
-            plot_ma(
-                object,
-                array=array_idx,
-                coef=array_idx if isinstance(object, MArrayLM) else None,
-                main=main[array_idx],
-                zero_weights=zero_weights,
-                ax=ax,
-                **kwargs,
-            )
+            if isinstance(object, MArrayLM):
+                plot_ma(
+                    object,
+                    coef=array_idx,
+                    main=main[array_idx],
+                    zero_weights=zero_weights,
+                    ax=ax,
+                    **kwargs,
+                )
+            else:
+                # R: plotMA.MAList(array=i, legend=(i %% 6 == 1)), xlab "A", ylab
+                # "M", status from genes; ... can set status, xlab and ylab
+                options = {"status": status, "xlab": "A", "ylab": "M", **kwargs}
+                plot_with_highlights(
+                    A,
+                    M[:, array_idx],
+                    main=main[array_idx],
+                    legend=slot == 0,
+                    ax=ax,
+                    **options,
+                )
             if common_lim:
                 ax.set_xlim(common_xlim)
                 ax.set_ylim(common_ylim)

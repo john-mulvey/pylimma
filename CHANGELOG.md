@@ -148,6 +148,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
   instead of 1.85 s, but cyclic loess, which is all lowess fits, takes
   about 3.3 times as long (20,000 x 4: 1.77 s instead of 0.55 s for
   `"fast"`, 2.49 s instead of 0.73 s for `"pairs"`).
+- `plot_ma_3by2` on a matrix or EList plots what R's `plotMA3by2` plots:
+  each array's M = E - rowMeans(E) against A = rowMeans(E), labelled "A"
+  and "M", with common limits over all of A and M, the legend on the first
+  plot of each page and the status from `genes`. It plotted each array
+  against the mean of the other arrays, with M off by a factor n/(n-1) and
+  limits from those values. Without column names there is no title (it was
+  "Array i").
 
 ### Changed behaviour
 
