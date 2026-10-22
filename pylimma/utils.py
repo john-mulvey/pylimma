@@ -433,6 +433,20 @@ def choose_lowess_span(
     return float(min(min_span + (1 - min_span) * ratio**power, 1.0))
 
 
+# Speed of the lowess port (_seq_sum, _r_lowest, _r_clowess, _r_lowess).
+# It is about 3x slower than statsmodels' compiled lowess, which it
+# replaced: 0.38 s against 0.12 s for 50,000 points at f = 0.7, and cyclic
+# loess on 20,000 x 4 takes 1.77 s instead of 0.55 s ("fast"). About half
+# of the time is the np.cumsum in _seq_sum, which keeps C's left-to-right
+# order; the rest is the Python loop over fitted points and the window
+# moving one point per step. It could be made faster, for example by
+# compiling _r_lowest / _r_clowess (numba, Cython or a C extension), or by
+# finding each window with a search instead of stepping. Any change must
+# keep the results bit-identical to lowess.c: check it against R's
+# lowess.c compiled with `clang -O2 -ffp-contract=off` on a grid with ties,
+# constant x, tiny and huge scales, outliers, f > 1, delta = 0 and small n
+# (the port was validated on 8,800 such cases), and not only against R,
+# since R on macOS arm64 fuses multiply-adds (known_differences.rst).
 def _seq_sum(values: np.ndarray) -> float:
     """Left-to-right sum, as a C loop adds. np.sum adds pairwise, which
     changes the last bits; in lowess fits through two points the
