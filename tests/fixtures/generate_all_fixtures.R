@@ -6056,3 +6056,25 @@ write.csv(rbind(
   .vn_text("two_scalar_cex", .vn_tests[, 1:2], cex = 1)),
   "R_venn_text.csv", row.names = FALSE)
 write.csv(.vn_tests, "R_venn_tests.csv", row.names = FALSE)
+
+# =============================================================================
+# heatDiagram: names are numbered over all rows, then the DE rows taken; rows
+# are ordered (stably) on the untruncated primary coefficient, then clipped
+# =============================================================================
+.hd_results <- cbind(c(0, 1, 0, 1, -1, 1, 1), c(1, 0, 1, 1, 0, 0, 1))
+.hd_coef <- cbind(c(0.2, 3, 0.1, 2, -2, 2, 1.5), c(1, 0.5, -1, 1.2, 0.3, 0.2, 2))
+write.csv(data.frame(results = .hd_results, coef = .hd_coef), "R_hd_input.csv", row.names = FALSE)
+.hd_out <- function(case, ...) {
+  pdf(NULL)
+  on.exit(dev.off())
+  out <- heatDiagram(.hd_results, .hd_coef, ...)
+  data.frame(case = case, name = rownames(out), out)
+}
+write.csv(rbind(.hd_out("default"), .hd_out("limit", limit = 1.6),
+                .hd_out("names", names = paste0("gene", 1:7))),
+          "R_hd_output.csv", row.names = FALSE)
+# names go through as.character; names shorter than the rows give NA names
+# (pylimma raises)
+stopifnot(identical(.hd_out("numeric", names = as.numeric(1:7))$name, .hd_out("default")$name),
+          anyNA(.hd_out("short", names = c(1.5, 2, 3))$name))
+

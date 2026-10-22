@@ -428,6 +428,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   each other's circles, and with one set the counts inside and outside the
   circle were swapped. A scalar `cex` works (it raised `TypeError`), and a
   given `circle_col` also fills the circles lightly, as in R.
+- `heat_diagram` labels rows by their position in the full matrix, as R
+  does (it renumbered the significant rows 1..k, so the labels did not
+  identify the genes), and orders rows on the coefficients before they are
+  truncated at `limit`, with a stable sort, so truncated values keep R's
+  order. Names are R's `as.character` (`1.0` is "1"), and `names` must
+  give one name per row (R labels the rows past its end NA).
 
 ### Documentation and examples
 

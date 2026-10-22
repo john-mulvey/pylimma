@@ -486,6 +486,39 @@ def test_venn_diagram_unsupported_sets():
         venn_diagram(dec_4col)
 
 
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+@pytest.mark.parametrize(
+    "case,kwargs",
+    [
+        ("default", {}),
+        ("limit", {"limit": 1.6}),
+        ("names", {"names": [f"gene{i}" for i in range(1, 8)]}),
+        ("default", {"names": np.arange(1.0, 8.0)}),
+    ],
+)
+def test_heat_diagram_rows_match_r(case, kwargs):
+    """Names numbered over all rows; rows ordered on the untruncated primary
+    coefficient (stable), then truncated at limit."""
+    from pylimma import heat_diagram
+
+    data = pd.read_csv(FIXTURES / "R_hd_input.csv")
+    out = heat_diagram(data[["results.1", "results.2"]], data[["coef.1", "coef.2"]], **kwargs)
+    expected = pd.read_csv(FIXTURES / "R_hd_output.csv").query("case == @case")
+    assert out["names"] == expected["name"].astype(str).tolist()
+    np.testing.assert_allclose(out["coef"], expected[["X1", "X2"]].to_numpy())
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_heat_diagram_needs_one_name_per_row():
+    """R takes names[DE], so short names label rows NA (fixture script)."""
+    from pylimma import heat_diagram
+
+    data = pd.read_csv(FIXTURES / "R_hd_input.csv")
+    with pytest.raises(ValueError, match="one name per row"):
+        heat_diagram(
+            data[["results.1", "results.2"]], data[["coef.1", "coef.2"]], names=[1.5, 2, 3]
+        )
+
 # ----------------------------------------------------------------------------
 # coolmap
 # ----------------------------------------------------------------------------

@@ -396,6 +396,12 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     "Elements of argument 'Sstrat' must be in ascending order".
     ``generate_all_fixtures.R`` records the R behaviour.
 
+``heat_diagram`` with ``names`` of the wrong length
+    Raises "names must give one name per row of results". R takes
+    ``names[DE]``, so the rows past the end of a short ``names`` are
+    labelled NA, and a long one is cut. ``generate_all_fixtures.R`` records
+    the R behaviour.
+
 ``normalize_cyclic_loess`` with ``iterations`` below 1
     Raises "iterations must be a finite number of 1 or more". R's loop
     ``for (k in 1:iterations)`` runs one pass for values between 0 and 1,

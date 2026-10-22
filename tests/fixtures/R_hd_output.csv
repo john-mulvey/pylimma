@@ -1,0 +1,16 @@
+"case","name","X1","X2"
+"default","2",3,NA
+"default","4",2,1.2
+"default","6",2,NA
+"default","7",1.5,2
+"default","5",-2,NA
+"limit","2",1.6,NA
+"limit","4",1.6,1.2
+"limit","6",1.6,NA
+"limit","7",1.5,1.6
+"limit","5",-1.6,NA
+"names","gene2",3,NA
+"names","gene4",2,1.2
+"names","gene6",2,NA
+"names","gene7",1.5,2
+"names","gene5",-2,NA

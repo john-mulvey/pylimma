@@ -1715,19 +1715,22 @@ def heat_diagram(
         _w.warn("Nothing significant to plot")
         return None
 
+    # R: substring(as.character(names), 1, 15), numbered over all rows before
+    # the DE rows are taken
+    names = _r_as_character(np.arange(1, len(DE) + 1) if names is None else names)
+    if len(names) != len(DE):
+        raise ValueError("names must give one name per row of results")
+    names = ["NA" if name is None else name[:15] for name in names[DE]]
     results = results[DE]
     coef_mat = coef_mat[DE]
     coef_mat[np.abs(results) < 0.5] = np.nan
-    if names is None:
-        names = [str(i + 1) for i in range(coef_mat.shape[0])]
-    else:
-        original_names = list(names)
-        names = [str(n)[:15] for i, n in enumerate(original_names) if DE[i]]
+    # R: order(coef[, primary], decreasing=TRUE), stable with NA last, on the
+    # coefficients before they are truncated at limit
+    order = np.argsort(-coef_mat[:, primary], kind="stable")
 
     if limit is not None and limit > 0:
         coef_mat = np.clip(coef_mat, -limit, limit)
 
-    order = np.argsort(-coef_mat[:, primary])
     coef_mat = coef_mat[order]
     names = [names[i] for i in order]
 
