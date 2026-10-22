@@ -6118,3 +6118,10 @@ write.csv(rbind(.pd_rec("character", group = c("b", "a", "b", "a")),
                 .pd_rec("short", group = c(1, 2)),
                 .pd_rec("numeric", group = c(10, 2, 2, 10))),
           "R_pd_groups.csv", row.names = FALSE)
+
+# =============================================================================
+# plotlines recycles col over the rows (col <- rep(col, ngenes))
+# =============================================================================
+.pl_rec <- .plot_record("plotlines", matrix(seq_len(20), 5), col = c("red", "blue"))
+write.csv(.pl_rec[.pl_rec$fun == "lines" & .pl_rec$arg == "col", c("call", "value")],
+          "R_plotlines_col.csv", row.names = FALSE)

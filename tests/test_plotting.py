@@ -618,6 +618,23 @@ def test_plot_densities_missing_groups_as_r():
         assert [t.get_text() for t in ax.get_legend().get_texts()] == ["a", "b"]
 
 
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plotlines_recycles_col_as_r():
+    from pylimma import plotlines
+
+    ax = plotlines(np.arange(1.0, 21.0).reshape(4, 5).T, col=["red", "blue"])
+    expected = pd.read_csv(FIXTURES / "R_plotlines_col.csv")["value"].tolist()
+    assert [line.get_color() for line in ax.lines] == expected
+
+
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
+def test_plotlines_takes_one_rgb_colour():
+    from pylimma import plotlines
+
+    ax = plotlines(np.ones((4, 3)), col=(0.1, 0.2, 0.3))
+    assert [line.get_color() for line in ax.lines] == [(0.1, 0.2, 0.3)] * 4
+
+
 # ----------------------------------------------------------------------------
 # coolmap
 # ----------------------------------------------------------------------------

@@ -1646,10 +1646,11 @@ def plotlines(
     ngenes, ntime = x.shape
     if ax is None:
         _fig, ax = plt.subplots()
-    if isinstance(col, (list, tuple, np.ndarray)) and len(col) == ngenes:
-        colours = list(col)
-    else:
-        colours = [col] * ngenes
+    # R: col <- rep(col, ngenes), so the colours are recycled over the rows
+    from matplotlib.colors import is_color_like
+
+    col = [col] if is_color_like(col) else list(col)
+    colours = [col[i % len(col)] for i in range(ngenes)]
     t = np.arange(1, ntime + 1)
     for i in range(ngenes):
         ax.plot(t, x[i, :], color=colours[i], linewidth=lwd, **kwargs)

@@ -447,6 +447,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
   over the arrays as in R, where it raised `IndexError`. A missing group
   (None, pandas NA, or NaN among strings) gets no line, as R's NA; a NaN
   among numbers is a group of its own, as in R.
+- `plotlines` recycles a list of colours over the rows, as R does; a list
+  whose length was not the number of rows raised `ValueError`.
 
 ### Documentation and examples
 
