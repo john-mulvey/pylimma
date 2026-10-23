@@ -5115,7 +5115,43 @@ class TestQqfRParity:
         assert res_y["match"], f"qqf y differs: max_rel={res_y['max_rel_diff']:.3e}"
 
 
+_ZSCORE_CASES = pd.read_csv(FIXTURES_DIR / "R_zscore_distributions.csv")
+
+
 class TestZscoreRParity:
+    @pytest.mark.parametrize(
+        "case, distribution, args",
+        _ZSCORE_CASES[["case", "distribution", "args"]].drop_duplicates().itertuples(index=False),
+    )
+    def test_distribution_with_r_argument_names(self, case, distribution, args):
+        """zscore calls any supported p<distribution> with R's argument
+        names; "hyper" is plain phyper, as R."""
+        from pylimma import zscore
+
+        ref = _ZSCORE_CASES[_ZSCORE_CASES["case"] == case]
+        kwargs = {name: float(value) for name, value in (a.split("=") for a in args.split(";"))}
+        np.testing.assert_allclose(
+            zscore(ref["q"].to_numpy(), distribution, **kwargs),
+            ref["z"].to_numpy(),
+            rtol=1e-6,
+            atol=1e-12,
+        )
+
+    def test_q_recycled_against_longer_parameters(self):
+        """R: zscore(1, "norm", mean = c(0, 1)) is c(1, 0) (fixture script)."""
+        from pylimma import zscore
+
+        np.testing.assert_allclose(zscore(1.0, "norm", mean=[0.0, 1.0]), [1.0, 0.0], atol=1e-12)
+
+    def test_parameters_by_position_follow_r_order(self):
+        from pylimma import zscore
+
+        q = np.arange(0.0, 11.0, 2.0)
+        np.testing.assert_array_equal(
+            zscore(q, "hyper", 10, 20, 10), zscore(q, "hyper", m=10, n=20, k=10)
+        )
+        np.testing.assert_array_equal(zscore(q, "f", 3, df2=9), zscore(q, "f", df1=3, df2=9))
+
     def test_t_gamma_hyper(self):
         from pylimma import zscore, zscore_gamma, zscore_hyper
 

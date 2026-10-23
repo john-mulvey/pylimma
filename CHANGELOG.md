@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `zscore(q, "hyper", m, n, k)` maps the plain hypergeometric tail
+  probabilities, as R's `zscore`; it gave the mid-p values of
+  `zscore_hyper` (R's `zscoreHyper`), which differ.
 - `normalize_quantiles` (and `normalize_between_arrays(method="quantile")`)
   interpolates as R's `approx()`, so a value interpolated next to an
   infinite one is NaN, as in R (tied `-Inf` values, or a column with
@@ -238,6 +241,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `zscore` takes a distribution's parameters with R's names, order and
+  defaults (`df1`/`df2` for "f", `shape1`/`shape2` for "beta", `rate` for
+  "exp", `size`/`prob` for "binom", positional arguments as R); it passed
+  them to scipy under scipy's names, contrary to its docstring. It also
+  supports R's nbinom, geom, unif, logis, cauchy, lnorm and weibull and
+  the noncentral t, F and chi-squared (`ncp`).
 - `top_table` with a `genelist` puts its columns first, as R (they came
   after the statistics for a single coefficient), and names the rows
   after the fit's gene names, as R: an explicit genelist replaced them

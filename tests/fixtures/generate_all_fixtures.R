@@ -6863,3 +6863,37 @@ set.seed(1307)
 write.csv(.nqi_x, "R_nq_inf_input.csv", row.names = FALSE)
 write.csv(normalizeQuantiles(.nqi_x), "R_nq_inf_ties.csv", row.names = FALSE)
 write.csv(normalizeQuantiles(.nqi_x, ties = FALSE), "R_nq_inf_noties.csv", row.names = FALSE)
+
+# =============================================================================
+# zscore: any p<distribution> function, with its own argument names (hyper is
+# plain phyper, not zscoreHyper)
+# =============================================================================
+.zs_cases <- list(
+  list("norm", c(-3, 0.5, 4), list(mean = 1, sd = 2)),
+  list("t", c(-30, -1, 2, 40), list(df = 5)),
+  list("t", c(-3, 1, 6), list(df = 5, ncp = 1)),
+  list("f", c(0.2, 1, 3, 30), list(df1 = 3, df2 = 9)),
+  list("f", c(0.2, 1, 3, 30), list(df1 = 3, df2 = 9, ncp = 2)),
+  list("chisq", c(0.5, 3, 25), list(df = 4)),
+  list("chisq", c(0.5, 3, 25), list(df = 4, ncp = 1.5)),
+  list("beta", c(0.1, 0.5, 0.9), list(shape1 = 2, shape2 = 3)),
+  list("exp", c(0.1, 1, 8), list(rate = 2)),
+  list("gamma", c(0.2, 2, 9), list(shape = 2, rate = 1.5)),
+  list("binom", c(0, 3, 7, 10), list(size = 10, prob = 0.3)),
+  list("pois", c(0, 2, 9), list(lambda = 2)),
+  list("hyper", c(0, 1, 3, 5, 8, 10), list(m = 10, n = 20, k = 10)),
+  list("nbinom", c(0, 3, 12), list(size = 3, prob = 0.4)),
+  list("nbinom", c(0, 3, 12), list(size = 3, mu = 2)),
+  list("geom", c(0, 2, 9), list(prob = 0.3)),
+  list("unif", c(-0.5, 1, 2.5), list(min = -1, max = 3)),
+  list("logis", c(-2, 0, 2), list(location = 0.5, scale = 2)),
+  list("cauchy", c(-50, 0, 3), list(location = 1, scale = 0.5)),
+  list("lnorm", c(0.1, 1, 20), list(meanlog = 0.5, sdlog = 1.5)),
+  list("weibull", c(0.1, 1, 4), list(shape = 1.5, scale = 2)))
+write.csv(do.call(rbind, lapply(seq_along(.zs_cases), function(i) {
+  cs <- .zs_cases[[i]]
+  data.frame(case = i, distribution = cs[[1]], args = paste(names(cs[[3]]), unlist(cs[[3]]), sep = "=", collapse = ";"),
+             q = cs[[2]], z = do.call(zscore, c(list(cs[[2]], cs[[1]]), cs[[3]])))
+})), "R_zscore_distributions.csv", row.names = FALSE)
+# q is recycled against longer parameters
+stopifnot(identical(zscore(1, "norm", mean = c(0, 1)), c(1, 0)))

@@ -1164,22 +1164,94 @@ def p_adjust(p: np.ndarray, method: str = "BH") -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
+_REQUIRED = object()
+
+
+def _noncentral(central, noncentral):
+    """scipy distribution for an R p-function whose ncp may be missing (R
+    calls a separate algorithm when it is given)."""
+    return lambda *args: central(*args[:-1]) if args[-1] is None else noncentral(*args)
+
+
+def _beta(shape1, shape2, ncp):
+    if ncp is not None:
+        raise ValueError("zscore: the noncentral beta distribution (ncp) is not supported")
+    return _scipy_stats.beta(shape1, shape2)
+
+
+def _nbinom(size, prob, mu):
+    # R: pnbinom(q, size, prob, mu) takes prob or mu
+    if (prob is None) == (mu is None):
+        raise ValueError("zscore: specify 'prob' or 'mu' for nbinom, but not both")
+    return _scipy_stats.nbinom(size, prob if mu is None else size / (size + np.asarray(mu)))
+
+
+# R's p<distribution> functions that zscore calls: their parameters in R's
+# order with R's defaults (_REQUIRED for none; None for an argument R
+# treats as missing), and the scipy distribution they define. gamma goes
+# to zscore_gamma, as its parameters are R's pgamma's.
 _ZSCORE_DISTRIBUTIONS = {
-    "norm": _scipy_stats.norm,
-    "t": _scipy_stats.t,
-    "f": _scipy_stats.f,
-    "chisq": _scipy_stats.chi2,
-    "beta": _scipy_stats.beta,
-    "exp": _scipy_stats.expon,
-    "binom": _scipy_stats.binom,
-    "pois": _scipy_stats.poisson,
+    "norm": ((("mean", 0.0), ("sd", 1.0)), lambda mean, sd: _scipy_stats.norm(mean, sd)),
+    "t": ((("df", _REQUIRED), ("ncp", None)), _noncentral(_scipy_stats.t, _scipy_stats.nct)),
+    "f": (
+        (("df1", _REQUIRED), ("df2", _REQUIRED), ("ncp", None)),
+        _noncentral(_scipy_stats.f, _scipy_stats.ncf),
+    ),
+    "chisq": (
+        (("df", _REQUIRED), ("ncp", None)),
+        _noncentral(_scipy_stats.chi2, _scipy_stats.ncx2),
+    ),
+    "beta": ((("shape1", _REQUIRED), ("shape2", _REQUIRED), ("ncp", None)), _beta),
+    "exp": ((("rate", 1.0),), lambda rate: _scipy_stats.expon(scale=1 / np.asarray(rate))),
+    "binom": ((("size", _REQUIRED), ("prob", _REQUIRED)), _scipy_stats.binom),
+    "pois": ((("lambda", _REQUIRED),), _scipy_stats.poisson),
+    # scipy's hypergeom(M, n, N): M objects, n of them white, N drawn
+    "hyper": (
+        (("m", _REQUIRED), ("n", _REQUIRED), ("k", _REQUIRED)),
+        lambda m, n, k: _scipy_stats.hypergeom(np.asarray(m) + n, m, k),
+    ),
+    "nbinom": ((("size", _REQUIRED), ("prob", None), ("mu", None)), _nbinom),
+    # R counts the failures before the first success, scipy's geom the trials
+    "geom": ((("prob", _REQUIRED),), lambda prob: _scipy_stats.nbinom(1, prob)),
+    "unif": (
+        (("min", 0.0), ("max", 1.0)),
+        lambda low, high: _scipy_stats.uniform(low, np.asarray(high) - low),
+    ),
+    "logis": ((("location", 0.0), ("scale", 1.0)), _scipy_stats.logistic),
+    "cauchy": ((("location", 0.0), ("scale", 1.0)), _scipy_stats.cauchy),
+    "lnorm": (
+        (("meanlog", 0.0), ("sdlog", 1.0)),
+        lambda meanlog, sdlog: _scipy_stats.lognorm(sdlog, scale=np.exp(meanlog)),
+    ),
+    "weibull": (
+        (("shape", _REQUIRED), ("scale", 1.0)),
+        lambda shape, scale: _scipy_stats.weibull_min(shape, scale=scale),
+    ),
 }
+
+
+def _bind_r_arguments(params, args, kwargs, function: str) -> list:
+    """Match arguments to an R function's parameters as R does for exact
+    names: named ones first, then the positional ones in order."""
+    names = [name for name, _ in params]
+    unknown = [name for name in kwargs if name not in names]
+    if unknown:
+        raise TypeError(f"unused argument {unknown[0]!r} for {function} (arguments: {names})")
+    free = [name for name in names if name not in kwargs]
+    if len(args) > len(free):
+        raise TypeError(f"too many arguments for {function} (arguments: {names})")
+    bound = {**dict(zip(free, args)), **kwargs}
+    missing = [name for name, default in params if default is _REQUIRED and name not in bound]
+    if missing:
+        raise TypeError(f'argument "{missing[0]}" is missing for {function}, with no default')
+    return [bound.get(name, default) for name, default in params]
 
 
 def zscore(
     q: np.ndarray | float,
     distribution: str,
-    **dist_kwargs,
+    *args,
+    **kwargs,
 ) -> np.ndarray:
     """
     Z-score equivalents for deviates from a specified distribution.
@@ -1194,40 +1266,43 @@ def zscore(
     q : array_like
         Deviates whose z-score equivalents are wanted.
     distribution : str
-        Distribution name. R's naming convention (without the leading
-        ``p``) is used: ``"norm"``, ``"t"``, ``"f"``, ``"chisq"``,
-        ``"beta"``, ``"exp"``, ``"binom"``, ``"pois"``. Use the
-        dedicated :func:`zscore_gamma` and :func:`zscore_hyper`
-        functions for the gamma and hypergeometric cases.
-    **dist_kwargs
-        Distribution parameters passed through to scipy.stats. Names
-        mirror R's ``p<distribution>`` arguments (e.g. ``df`` for
-        ``"t"``; ``df1`` and ``df2`` for ``"f"``).
+        Distribution name, as R's ``p<distribution>`` function without
+        the ``p``: ``"norm"``, ``"t"``, ``"f"``, ``"chisq"``, ``"beta"``,
+        ``"exp"``, ``"gamma"``, ``"binom"``, ``"pois"``, ``"hyper"``,
+        ``"nbinom"``, ``"geom"``, ``"unif"``, ``"logis"``, ``"cauchy"``,
+        ``"lnorm"`` or ``"weibull"``. R's ``signrank``, ``wilcox``,
+        ``tukey`` and the noncentral beta are not supported.
+    *args, **kwargs
+        The distribution's parameters with R's names, order and defaults
+        (e.g. ``df1`` and ``df2`` for ``"f"``; ``m``, ``n`` and ``k`` for
+        ``"hyper"``). Python reserves ``lambda``, so give ``"pois"`` its
+        mean by position or as ``**{"lambda": 2}``.
 
     Returns
     -------
     ndarray
         Z-scores with the same shape as ``q``.
+
+    Notes
+    -----
+    As in R, ``"hyper"`` maps the plain hypergeometric tail probabilities;
+    :func:`zscore_hyper` is the mid-p version (R's ``zscoreHyper``).
     """
     from scipy.special import ndtri_exp
 
     if distribution == "gamma":
-        return zscore_gamma(q, **dist_kwargs)
-    if distribution == "hyper":
-        return zscore_hyper(q, **dist_kwargs)
+        return zscore_gamma(q, *args, **kwargs)
     if distribution not in _ZSCORE_DISTRIBUTIONS:
         raise ValueError(
-            f"distribution '{distribution}' not recognised. "
-            "Must be one of 'norm', 't', 'f', 'gamma', 'hyper', "
-            "'chisq', 'beta', 'exp', 'binom', 'pois'."
+            f"distribution {distribution!r} not supported. Must be one of "
+            f"{['gamma', *_ZSCORE_DISTRIBUTIONS]}."
         )
-    dist = _ZSCORE_DISTRIBUTIONS[distribution]
+    params, make_distribution = _ZSCORE_DISTRIBUTIONS[distribution]
+    dist = make_distribution(*_bind_r_arguments(params, args, kwargs, f"p{distribution}"))
 
-    q = np.asarray(q, dtype=np.float64)
-    z = q.astype(np.float64, copy=True)
-
-    pupper = dist.logsf(q, **dist_kwargs)
-    plower = dist.logcdf(q, **dist_kwargs)
+    # R's pdist recycles q and the parameters against each other
+    pupper, plower = np.broadcast_arrays(dist.logsf(q), dist.logcdf(q))
+    z = np.empty(pupper.shape)
     up = pupper < plower
     if np.any(up):
         z[up] = -ndtri_exp(pupper[up])
