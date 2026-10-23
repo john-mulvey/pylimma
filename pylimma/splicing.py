@@ -30,7 +30,7 @@ from scipy.stats import t as t_dist
 
 from .classes import MArrayLM, _fit_var, _resolve_fit_input
 from .squeeze_var import squeeze_var
-from .utils import p_adjust
+from .utils import _r_as_character, _r_factor, p_adjust
 
 
 def _rowsum_sorted(values: np.ndarray, group_codes: np.ndarray, n_groups: int) -> np.ndarray:
@@ -141,22 +141,21 @@ def diff_splice(
             exon_genes["ExonID"] = exonid_arr
             exoncolname = "ExonID"
 
-    # Treat NA geneids as genes with one exon each
-    geneid_arr = np.array([str(v) for v in geneid_arr.tolist()], dtype=object)
-    isna_mask = pd.isna(geneid_arr) | (geneid_arr == "nan") | (geneid_arr == "None")
+    # Treat NA geneids as genes with one exon each. R: geneid[isna] <-
+    # paste0("NA", ...) makes the whole vector character
+    geneid_arr = np.asarray(geneid_arr, dtype=object)
+    isna_mask = pd.isna(geneid_arr)
     if isna_mask.any():
-        na_idx = np.where(isna_mask)[0]
-        geneid_arr = geneid_arr.copy()
-        for k, idx in enumerate(na_idx):
-            geneid_arr[idx] = f"NA{k + 1}"
+        geneid_arr = np.array(_r_as_character(geneid_arr), dtype=object)
+        geneid_arr[isna_mask] = [f"NA{k + 1}" for k in range(int(isna_mask.sum()))]
 
-    # Sort by (geneid, exonid). np.lexsort sorts by LAST key as primary,
-    # so pass (exonid, geneid) to sort primarily by geneid.
+    # R: order(geneid, exonid) on the values' own type, numbers numerically
+    # (strings by code point; R uses the locale). np.lexsort sorts by the
+    # last key first
     if exonid_arr is None:
-        order = np.argsort(geneid_arr, kind="stable")
+        order = np.argsort(_order_key(geneid_arr), kind="stable")
     else:
-        exonid_str = np.array([str(v) for v in exonid_arr.tolist()])
-        order = np.lexsort((exonid_str, geneid_arr))
+        order = np.lexsort((_order_key(exonid_arr), _order_key(geneid_arr)))
 
     geneid_arr = geneid_arr[order]
     exon_genes = exon_genes.iloc[order].reset_index(drop=True)
@@ -184,13 +183,9 @@ def diff_splice(
         exon_s2 = exon_s2.copy()
         exon_s2[df_residual < 1e-6] = 0.0
 
-    # Build group codes in order-of-first-appearance (reorder=FALSE).
-    unique_genes, first_idx = np.unique(geneid_arr, return_index=True)
-    # Sort unique by first_idx to preserve order-of-first-appearance
-    order_first = np.argsort(first_idx, kind="stable")
-    unique_genes_ord = unique_genes[order_first]
-    gene_to_code = {g: i for i, g in enumerate(unique_genes_ord.tolist())}
-    geneid_codes = np.array([gene_to_code[g] for g in geneid_arr.tolist()], dtype=np.int64)
+    # Build group codes in order-of-first-appearance (reorder=FALSE); a
+    # hash, so IDs of mixed types need no ordering
+    geneid_codes, unique_genes_ord = pd.factorize(geneid_arr)
     n_genes_total = len(unique_genes_ord)
 
     # Count exons per gene, sum df.residual, sum df.residual * s2
@@ -588,3 +583,11 @@ def plot_splice(
 
     ax.axhline(0.0, linestyle="--", color="gray")
     return ax
+
+
+def _order_key(values) -> np.ndarray:
+    """A sort key that orders as R's order(): the level codes of R's factor
+    (numbers numerically, text by its as.character() label, a categorical
+    by its categories), missing values last."""
+    levels, codes = _r_factor(values)
+    return np.where(codes < 0, len(levels), codes)

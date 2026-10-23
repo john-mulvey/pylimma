@@ -6785,3 +6785,23 @@ stopifnot(grepl("NAs are not allowed", try(fitmixture(.fm_y, rep(0.5, 4)), silen
 .sm_y <- matrix(rnorm(36), 6)
 .sm_dl <- list(cbind(1, rep(0:1, 3)), matrix(1, 6, 1))
 stopifnot(identical(selectModel(.sm_y, .sm_dl, criterion = NULL)$pref, selectModel(.sm_y, .sm_dl)$pref))
+
+# =============================================================================
+# diffSplice orders genes and exons with order(geneid, exonid) on their own
+# type: numeric IDs numerically (12 after 2)
+# =============================================================================
+set.seed(1304)
+.ds_nex <- c(3, 2, 12, 4, 1, 5, 3, 3, 2, 4, 3, 3)
+.ds_gid <- rep(1:12, .ds_nex)
+.ds_eid <- unlist(lapply(.ds_nex, seq_len))
+.ds_p <- sample(length(.ds_gid))
+.ds_gid <- .ds_gid[.ds_p]
+.ds_eid <- .ds_eid[.ds_p]
+.ds_y <- matrix(rnorm(length(.ds_gid) * 8), ncol = 8)
+write.csv(data.frame(geneid = .ds_gid, exonid = .ds_eid, .ds_y), "R_ds_numeric_input.csv", row.names = FALSE)
+.ds <- diffSplice(eBayes(lmFit(.ds_y, cbind(1, rep(0:1, each = 4)))), geneid = .ds_gid, exonid = .ds_eid,
+                  verbose = FALSE)
+write.csv(data.frame(GeneID = .ds$genes$GeneID, ExonID = .ds$genes$ExonID, t = .ds$t[, 2]),
+          "R_ds_numeric_exons.csv", row.names = FALSE)
+write.csv(data.frame(GeneID = .ds$gene.genes$GeneID, F = .ds$gene.F[, 2]), "R_ds_numeric_genes.csv",
+          row.names = FALSE)

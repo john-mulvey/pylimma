@@ -263,3 +263,40 @@ def test_diffsplice_without_residual_df_gives_nan_as_r():
     ds = diff_splice(lm_fit(y, design), geneid=np.repeat(["G0", "G1"], 3), verbose=False)
     assert np.isnan(ds["gene_s2"]).all() and np.isnan(ds["gene_s2_post"]).all()
     assert np.isnan(ds["t"]).all() and np.isnan(ds["gene_F"]).all()
+
+
+def test_diffsplice_orders_numeric_ids_numerically_as_r():
+    """R's order(geneid, exonid) on numbers: gene 12 after gene 2, exon 10
+    after exon 9 (fixture script)."""
+    from pylimma import diff_splice, e_bayes, lm_fit
+
+    data = pd.read_csv(FIXTURES / "R_ds_numeric_input.csv")
+    y = data.drop(columns=["geneid", "exonid"]).to_numpy()
+    design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    ds = diff_splice(
+        e_bayes(lm_fit(y, design)),
+        geneid=data["geneid"].to_numpy(),
+        exonid=data["exonid"].to_numpy(),
+        verbose=False,
+    )
+    exons = pd.read_csv(FIXTURES / "R_ds_numeric_exons.csv")
+    genes = pd.read_csv(FIXTURES / "R_ds_numeric_genes.csv")
+    np.testing.assert_array_equal(np.asarray(ds["genes"]["GeneID"], dtype=float), exons["GeneID"])
+    np.testing.assert_array_equal(np.asarray(ds["genes"]["ExonID"], dtype=float), exons["ExonID"])
+    np.testing.assert_allclose(ds["t"][:, 1], exons["t"], rtol=1e-6)
+    np.testing.assert_array_equal(np.asarray(ds["gene_genes"]["GeneID"], dtype=float), genes["GeneID"])
+    np.testing.assert_allclose(ds["gene_F"][:, 1], genes["F"], rtol=1e-6)
+
+
+def test_diff_splice_gene_ids_of_mixed_types():
+    """Gene IDs mixing numbers and text are grouped without ordering them
+    against each other (R's IDs would all be character)."""
+    import pylimma
+
+    rng = np.random.default_rng(1)
+    design = np.column_stack([np.ones(6), np.tile([0, 1], 3)])
+    fit = pylimma.e_bayes(pylimma.lm_fit(rng.normal(size=(9, 6)), design))
+    geneid = np.array([101, 101, 101, "ENSG1", "ENSG1", "ENSG1", "ENSG2", "ENSG2", "ENSG2"], dtype=object)
+    ds = pylimma.diff_splice(fit, geneid=geneid)
+    as_text = pylimma.diff_splice(fit, geneid=geneid.astype(str))
+    np.testing.assert_allclose(ds["gene_F"], as_text["gene_F"])
