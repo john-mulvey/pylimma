@@ -165,6 +165,56 @@ def logmdigamma(x: np.ndarray | float) -> np.ndarray | float:
     return np.log(x) - digamma(x)
 
 
+def _qq(y, quantile, title, plot_it, kwargs) -> dict:
+    """The theoretical quantiles of a Q-Q plot of y (NaN dropped) under the
+    distribution whose quantile function is ``quantile``, drawn when
+    ``plot_it``; shared by qqt and qqf."""
+    y = np.asarray(y)
+    y = y[~np.isnan(y)]
+    n = len(y)
+    if n == 0:
+        raise ValueError("y is empty or all NaN")
+
+    # Probability points
+    p = (np.arange(1, n + 1) - 0.5) / n
+
+    # Theoretical quantiles
+    x = quantile(p)[np.argsort(np.argsort(y))]
+
+    if plot_it:
+        try:
+            import matplotlib.pyplot as plt
+
+            plot_kwargs = {
+                "marker": "o",
+                "linestyle": "none",
+                "markersize": 3,
+            }
+            plot_kwargs.update(kwargs)
+
+            fig, ax = plt.subplots()
+            ax.plot(x, y, **plot_kwargs)
+
+            # Add reference line
+            ylim = ax.get_ylim()
+            xlim = ax.get_xlim()
+            min_val = max(xlim[0], ylim[0])
+            max_val = min(xlim[1], ylim[1])
+            ax.plot([min_val, max_val], [min_val, max_val], "r--", alpha=0.7)
+
+            ax.set_xlabel("Theoretical Quantiles")
+            ax.set_ylabel("Sample Quantiles")
+            ax.set_title(title)
+            plt.tight_layout()
+
+        except ImportError:
+            import warnings
+
+            warnings.warn("matplotlib not available for plotting")
+
+    return {"x": x, "y": y}
+
+
 def qqt(
     y: np.ndarray,
     df: float = np.inf,
@@ -204,51 +254,8 @@ def qqt(
     """
     from scipy import stats
 
-    y = np.asarray(y)
-    y = y[~np.isnan(y)]
-    n = len(y)
-    if n == 0:
-        raise ValueError("y is empty or all NaN")
-
-    # Probability points
-    p = (np.arange(1, n + 1) - 0.5) / n
-
-    # Theoretical quantiles
-    x = stats.t.ppf(p, df)[np.argsort(np.argsort(y))]
-
-    if plot_it:
-        try:
-            import matplotlib.pyplot as plt
-
-            plot_kwargs = {
-                "marker": "o",
-                "linestyle": "none",
-                "markersize": 3,
-            }
-            plot_kwargs.update(kwargs)
-
-            fig, ax = plt.subplots()
-            ax.plot(x, y, **plot_kwargs)
-
-            # Add reference line
-            ylim = ax.get_ylim()
-            xlim = ax.get_xlim()
-            min_val = max(xlim[0], ylim[0])
-            max_val = min(xlim[1], ylim[1])
-            ax.plot([min_val, max_val], [min_val, max_val], "r--", alpha=0.7)
-
-            ax.set_xlabel("Theoretical Quantiles")
-            ax.set_ylabel("Sample Quantiles")
-            title = "Student's t Q-Q Plot" if np.isfinite(df) else "Normal Q-Q Plot"
-            ax.set_title(title)
-            plt.tight_layout()
-
-        except ImportError:
-            import warnings
-
-            warnings.warn("matplotlib not available for plotting")
-
-    return {"x": x, "y": y}
+    title = "Student's t Q-Q Plot" if np.isfinite(df) else "Normal Q-Q Plot"
+    return _qq(y, lambda p: stats.t.ppf(p, df), title, plot_it, kwargs)
 
 
 def qqf(
@@ -287,50 +294,7 @@ def qqf(
     """
     from scipy import stats
 
-    y = np.asarray(y)
-    y = y[~np.isnan(y)]
-    n = len(y)
-    if n == 0:
-        raise ValueError("y is empty or all NaN")
-
-    # Probability points
-    p = (np.arange(1, n + 1) - 0.5) / n
-
-    # Theoretical quantiles
-    x = stats.f.ppf(p, df1, df2)[np.argsort(np.argsort(y))]
-
-    if plot_it:
-        try:
-            import matplotlib.pyplot as plt
-
-            plot_kwargs = {
-                "marker": "o",
-                "linestyle": "none",
-                "markersize": 3,
-            }
-            plot_kwargs.update(kwargs)
-
-            fig, ax = plt.subplots()
-            ax.plot(x, y, **plot_kwargs)
-
-            # Add reference line
-            ylim = ax.get_ylim()
-            xlim = ax.get_xlim()
-            min_val = max(xlim[0], ylim[0])
-            max_val = min(xlim[1], ylim[1])
-            ax.plot([min_val, max_val], [min_val, max_val], "r--", alpha=0.7)
-
-            ax.set_xlabel("Theoretical Quantiles")
-            ax.set_ylabel("Sample Quantiles")
-            ax.set_title("F Distribution Q-Q Plot")
-            plt.tight_layout()
-
-        except ImportError:
-            import warnings
-
-            warnings.warn("matplotlib not available for plotting")
-
-    return {"x": x, "y": y}
+    return _qq(y, lambda p: stats.f.ppf(p, df1, df2), "F Distribution Q-Q Plot", plot_it, kwargs)
 
 
 def _as_dense_array(x, dtype=None) -> np.ndarray:
