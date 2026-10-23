@@ -365,6 +365,34 @@ def test_pool_var_matches_r(case, kwargs):
         np.testing.assert_allclose(out[key], r[key], rtol=1e-10)
 
 
+def test_au_roc_matches_r():
+    """auROC with ties, without stat, on matrices (read column by column),
+    with logical and character stat and with R's logical strings as truth."""
+    from pylimma import au_roc
+
+    data = pd.read_csv(FIXTURES_DIR / "R_auroc_input.csv")
+    truth, stat = data["truth"].to_numpy(), data["stat"].to_numpy()
+    r = pd.read_csv(FIXTURES_DIR / "R_auroc.csv").set_index("case")["auc"]
+    observed = {
+        "stat": au_roc(truth, stat),
+        "no_stat": au_roc(truth),
+        "matrix": au_roc(truth.reshape((4, 2), order="F"), stat),
+        "logical_stat": au_roc(truth, stat > 1),
+        "character_stat": au_roc(truth, np.array(list("daccbcab"))),
+        "character_truth": au_roc(["TRUE", "F", "T", "true", "FALSE", "false", "True", "F"], stat),
+    }
+    for case, value in observed.items():
+        np.testing.assert_allclose(value, r[case], rtol=1e-12, err_msg=case)
+
+
+def test_au_roc_rejects_non_logical_strings():
+    """R stops with "missing value where TRUE/FALSE needed" (fixture script)."""
+    from pylimma import au_roc
+
+    with pytest.raises(ValueError, match="truth must be logical"):
+        au_roc(["a", "b", "a"], [1, 2, 3])
+
+
 def test_r_as_character_matches_r():
     """R: as.character(c(1, 0.5, 0.1 + 0.2, NaN, Inf, -Inf, TRUE)); NA (None) stays missing."""
     from pylimma.utils import _r_as_character

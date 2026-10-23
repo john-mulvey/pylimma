@@ -371,6 +371,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `au_roc` takes a matrix `truth` (read column by column, as R's
+  `as.vector`; it raised `IndexError`), a logical or character `stat`
+  (ranked as R's `order()`; they raised `TypeError` / `ValueError`) and
+  R's logical strings ("TRUE", "F", ...) as `truth`; another string as
+  `truth` raises a clear error (see known differences).
 - A fit from `lm_fit` on an AnnData or a DataFrame with row names keeps
   those names as its row names (`fit.dimnames`), as R's `rownames(fit)`,
   so `fit[["g3", "g1"], :]` selects genes by name; it raised "invalid

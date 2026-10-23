@@ -329,6 +329,15 @@ Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     logical subscript has ... values for ... rows". R recycles a shorter
     one silently.
 
+``au_roc`` with a ``truth`` that is not logical
+    ``truth`` is read as R's ``as.logical``: numbers, or the strings R
+    recognises ("TRUE", "true", "True", "T" and the FALSE forms). Any other
+    string raises "truth must be logical, numeric or 'TRUE' / 'FALSE'
+    strings"; R turns it into NA and stops with "missing value where
+    TRUE/FALSE needed". A character ``stat`` is ranked by code point, where
+    R's ``order()`` follows the locale. ``generate_all_fixtures.R``
+    records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

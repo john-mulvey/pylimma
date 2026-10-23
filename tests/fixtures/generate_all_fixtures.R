@@ -6387,3 +6387,20 @@ write.csv(rbind(
 stopifnot(identical(poolVar(matrix(c(1.2, 0.7, 2.5, 1.1), 2), df = 3:6, multiplier = c(1, 2, 1, 2)),
                     poolVar(c(1.2, 0.7, 2.5, 1.1), df = 3:6, multiplier = c(1, 2, 1, 2))))
 
+# =============================================================================
+# auROC: ties averaged, stat=NULL, matrices read as vectors (column-major),
+# logical and character stat ordered by order(); truth through as.logical
+# (a string that is not a logical stops obscurely; pylimma raises)
+# =============================================================================
+.ar_truth <- c(1, 0, 1, 1, 0, 0, 1, 0)
+.ar_stat <- c(2.5, 0.3, 1.1, 1.1, 0.9, 1.1, -0.2, 0.0)
+write.csv(data.frame(truth = .ar_truth, stat = .ar_stat), "R_auroc_input.csv", row.names = FALSE)
+write.csv(data.frame(
+  case = c("stat", "no_stat", "matrix", "logical_stat", "character_stat", "character_truth"),
+  auc = c(auROC(.ar_truth, .ar_stat), auROC(.ar_truth),
+          auROC(matrix(.ar_truth, 4), matrix(.ar_stat, 4)),
+          auROC(.ar_truth, .ar_stat > 1),
+          auROC(.ar_truth, c("d", "a", "c", "c", "b", "c", "a", "b")),
+          auROC(c("TRUE", "F", "T", "true", "FALSE", "false", "True", "F"), .ar_stat))),
+  "R_auroc.csv", row.names = FALSE)
+stopifnot(inherits(try(auROC(c("a", "b", "a"), 1:3), silent = TRUE), "try-error"))
