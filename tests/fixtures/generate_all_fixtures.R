@@ -6912,3 +6912,8 @@ stopifnot(identical(makeUnique(c(NA, "a", NA)), c(NA, "a", NA)),
           grepl("NAs are not allowed", try(makeUnique(c(NA, "a", "a")), silent = TRUE)),
           identical(makeUnique(c(1, 1.0, 2)), c("11", "12", "2")),
           identical(makeUnique(c(rep("c", 10), "d")), c(sprintf("c%02d", 1:10), "d")))
+
+# =============================================================================
+# logsumexp recycles x and y of different lengths
+# =============================================================================
+stopifnot(isTRUE(all.equal(logsumexp(c(1, 2), c(3, 4, 5, 6)), log(exp(c(1, 2, 1, 2)) + exp(3:6)))))

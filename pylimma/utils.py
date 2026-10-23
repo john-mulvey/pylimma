@@ -2219,7 +2219,9 @@ def logsumexp(x, y=None) -> np.ndarray:
 
     Port of R limma's ``logsumexp(x, y)`` (``logsumexp.R``). When only
     one positional argument is given it reduces to the standard
-    ``scipy.special.logsumexp`` of an array.
+    ``scipy.special.logsumexp`` of an array. ``x`` and ``y`` of different
+    lengths raise, unless one is a single value; R recycles the shorter
+    (see :doc:`/validation/known_differences`).
     """
     if y is None:
         from scipy.special import logsumexp as _lse
@@ -2228,6 +2230,12 @@ def logsumexp(x, y=None) -> np.ndarray:
 
     x = np.asarray(x, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)
+    if x.size != y.size and 1 not in (x.size, y.size):
+        # R's pmin / pmax recycle the shorter; a clear error instead
+        raise ValueError(
+            f"x and y must have the same length or one of them a single value, not "
+            f"{x.size} and {y.size}"
+        )
     x, y = np.broadcast_arrays(x, y)
     mi = np.minimum(x, y)
     ma = np.maximum(x, y)

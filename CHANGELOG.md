@@ -479,6 +479,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `logsumexp(x, y)` with `x` and `y` of different lengths (neither a
+  single value) raises a clear error; it raised numpy's broadcast error
+  (R recycles the shorter, see known differences).
 - `make_unique` compares values as R's `as.character` (1 and 1.0 are the
   same value) and keeps missing values missing, as R's NA; they became
   the text "None" or "nan" and were numbered.

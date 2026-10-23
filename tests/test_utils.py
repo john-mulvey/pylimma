@@ -12,6 +12,7 @@ from pylimma.utils import (
     is_numeric,
     loess_fit,
     logmdigamma,
+    logsumexp,
     make_unique,
     p_adjust,
     qqf,
@@ -451,3 +452,10 @@ def test_make_unique_keeps_missing_values_and_compares_as_r():
     assert list(make_unique([None, "a", "a"])) == [None, "a1", "a2"]
     assert list(make_unique([1, 1.0, 2])) == ["11", "12", "2"]
     assert list(make_unique(["c"] * 10 + ["d"])) == [f"c{k:02d}" for k in range(1, 11)] + ["d"]
+
+
+def test_logsumexp_lengths_must_match():
+    # R recycles the shorter of x and y
+    with pytest.raises(ValueError, match="same length or one of them a single value"):
+        logsumexp([1.0, 2.0], [3.0, 4.0, 5.0, 6.0])
+    np.testing.assert_allclose(logsumexp([1.0, 2.0], 3.0), np.log(np.exp([1.0, 2.0]) + np.exp(3.0)))

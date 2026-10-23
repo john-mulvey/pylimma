@@ -455,6 +455,12 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     assignments" (it keeps NA when no other value repeats).
     ``generate_all_fixtures.R`` records the R behaviour.
 
+``logsumexp`` with ``x`` and ``y`` of different lengths
+    Raises unless one of them is a single value. R's ``pmin`` / ``pmax``
+    recycle the shorter one, so ``logsumexp(c(1, 2), c(3, 4, 5, 6))`` pairs
+    1 with 5 and 2 with 6. ``generate_all_fixtures.R`` records the R
+    behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign
