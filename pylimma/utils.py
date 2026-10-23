@@ -505,11 +505,11 @@ def _r_trimmed_mean(x: np.ndarray, trim: float) -> float:
 
 
 def choose_lowess_span(
-    n: int = 1000,
+    n: int | np.ndarray = 1000,
     small_n: int = 50,
     min_span: float = 0.3,
     power: float = 1 / 3,
-) -> float:
+) -> float | np.ndarray:
     """
     Choose optimal span for LOWESS smoothing of variance trends.
 
@@ -518,8 +518,9 @@ def choose_lowess_span(
 
     Parameters
     ----------
-    n : int, default 1000
-        Number of data points.
+    n : int or array_like, default 1000
+        Number of data points; an array gives a span for each value, as
+        R's ``pmin``.
     small_n : int, default 50
         Threshold below which maximum smoothing is used.
     min_span : float, default 0.3
@@ -529,13 +530,14 @@ def choose_lowess_span(
 
     Returns
     -------
-    float
-        Recommended LOWESS span parameter.
+    float or ndarray
+        Recommended LOWESS span parameter (an array for array ``n``).
     """
-    # numpy division as R's double arithmetic: n = 0 gives Inf, clamped to 1.
-    with np.errstate(divide="ignore"):
-        ratio = np.divide(small_n, n)
-    return float(min(min_span + (1 - min_span) * ratio**power, 1.0))
+    # numpy arithmetic as R's doubles: n = 0 gives Inf, clamped to 1, and a
+    # negative n NaN
+    with np.errstate(divide="ignore", invalid="ignore"):
+        span = np.minimum(min_span + (1 - min_span) * np.divide(small_n, n) ** power, 1.0)
+    return float(span) if np.ndim(span) == 0 else span
 
 
 # Speed of the lowess port (_seq_sum, _r_lowest, _r_clowess, _r_lowess).

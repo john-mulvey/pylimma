@@ -6917,3 +6917,9 @@ stopifnot(identical(makeUnique(c(NA, "a", NA)), c(NA, "a", NA)),
 # logsumexp recycles x and y of different lengths
 # =============================================================================
 stopifnot(isTRUE(all.equal(logsumexp(c(1, 2), c(3, 4, 5, 6)), log(exp(c(1, 2, 1, 2)) + exp(3:6)))))
+
+# =============================================================================
+# chooseLowessSpan is vectorised in n (pmin): n = 0 gives 1, a negative n NaN
+# =============================================================================
+stopifnot(identical(chooseLowessSpan(c(0, -5)), c(1, NaN)),
+          identical(chooseLowessSpan(c(20, 1000)), c(chooseLowessSpan(20), chooseLowessSpan(1000))))

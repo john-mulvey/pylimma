@@ -3061,6 +3061,17 @@ class TestVoomaByGroupDispatch:
 class TestChooseLowessSpanRParity:
     """Direct parity for chooseLowessSpan across an n grid."""
 
+    def test_vector_n_as_r_pmin(self):
+        """R's pmin gives a span per n; n = 0 gives 1 and a negative n NaN
+        (generate_all_fixtures.R, "chooseLowessSpan is vectorised")."""
+        from pylimma.utils import choose_lowess_span
+
+        r_grid = load_r_csv_no_index("chooselowess_default")
+        np.testing.assert_allclose(
+            choose_lowess_span(r_grid["n"].to_numpy()), r_grid["span"].to_numpy(), rtol=1e-12
+        )
+        np.testing.assert_array_equal(choose_lowess_span(np.array([0, -5])), [1.0, np.nan])
+
     def test_default_grid(self):
         from pylimma.utils import choose_lowess_span
 

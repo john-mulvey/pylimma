@@ -479,6 +479,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `choose_lowess_span` takes an array `n` and returns a span for each
+  value, as R's `pmin`, and gives NaN for a negative `n`, as R; an array
+  raised numpy's "truth value is ambiguous" error and a negative `n` a
+  TypeError.
 - `logsumexp(x, y)` with `x` and `y` of different lengths (neither a
   single value) raises a clear error; it raised numpy's broadcast error
   (R recycles the shorter, see known differences).
