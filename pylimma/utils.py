@@ -48,6 +48,7 @@ Internal helper functions used throughout the package.
 
 from __future__ import annotations
 
+import math
 import sys
 import warnings
 
@@ -163,6 +164,20 @@ def logmdigamma(x: np.ndarray | float) -> np.ndarray | float:
     """
     x = np.asarray(x)
     return np.log(x) - digamma(x)
+
+
+def _whole_count(value, name: str) -> int:
+    """A count argument (nrot, nsim, ...) as a whole number of at least 1.
+    R fails obscurely below 1 or silently truncates a fraction (nrot gave
+    meaningless p-values: random numbers recycled into a smaller rotation
+    matrix, the fraction in the denominators); clear errors instead.
+    Whole-number floats such as 1e4 are accepted."""
+    if not math.isfinite(float(value)) or float(value) != int(value):
+        raise ValueError(f"{name} must be a whole number")
+    count = int(value)
+    if count < 1:
+        raise ValueError(f"{name} must be at least 1")
+    return count
 
 
 def _r_ppoints(n: int) -> np.ndarray:
