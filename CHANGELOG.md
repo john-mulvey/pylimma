@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `duplicate_correlation` decides the design's rank as R does (relative
+  to each column, R's `qr()` and statmod's `lm.fit`), so a design column
+  on a tiny scale (e.g. 1e-12) is kept; an absolute 1e-10 cutoff dropped
+  it and gave a different correlation.
 - `pool_var` gives R's `NaN` df when every variance is 0 and `NaN` (R's
   NA) when a variance is missing, where it gave `inf`; an infinite df
   still comes only from infinite input df, as in R.

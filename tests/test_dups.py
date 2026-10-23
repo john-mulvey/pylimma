@@ -289,3 +289,18 @@ class TestDuplicateCorrelationInputs:
             assert duplicate_correlation(y, np.eye(12), block=block)["consensus_correlation"] == 0
         with pytest.raises(ValueError, match="block must have at least two levels"):
             duplicate_correlation(y, block=np.ones(12))
+
+    @pytest.mark.parametrize("case", ["trend", "block_column"])
+    def test_tiny_scale_design_column_keeps_its_rank_as_r(self, case):
+        """qr() and mixedModel2Fit (lm.fit) decide rank relative to each
+        column, so a column scaled by 1e-12 is kept (an absolute 1e-10
+        cutoff dropped it)."""
+        from pylimma import duplicate_correlation
+
+        y = pd.read_csv(self.FIXTURES / "R_dct_y.csv").to_numpy()
+        block = np.repeat([1, 2, 3], 2)
+        column = np.arange(1.0, 7.0) if case == "trend" else (block == 2).astype(float)
+        design = np.column_stack([np.ones(6), 1e-12 * column])
+        expected = pd.read_csv(self.FIXTURES / "R_dct.csv").set_index("case")["cor"][case]
+        out = duplicate_correlation(y, design, block=block)
+        np.testing.assert_allclose(out["consensus_correlation"], expected, rtol=1e-6)

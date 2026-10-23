@@ -74,9 +74,11 @@ def _mixed_model_2_fit(
     Z = np.atleast_2d(Z)
     mx = X.shape[0]
 
-    # QR decomposition of X
-    Q, R, pivot = linalg.qr(X, pivoting=True)
-    r = np.sum(np.abs(np.diag(R)) > 1e-10)  # rank
+    # QR decomposition of X. statmod: lm.fit(X, ...)$rank, R's LINPACK rule
+    # (tol 1e-7 relative to each column)
+    from .lmfit import _qr_r_style
+
+    Q, _, _, r = _qr_r_style(X)
 
     if r == 0:
         return None
@@ -728,9 +730,11 @@ def duplicate_correlation(
         for j, b in enumerate(unique_blocks[1:]):
             block_indicators[:, j] = (block == b).astype(float)
 
-        # QR decomposition of design
-        q, r = np.linalg.qr(design, mode="complete")
-        rank = np.sum(np.abs(np.diag(r[: design.shape[1], :])) > 1e-10)
+        # R: QR <- qr(design), rank by R's rule (tol 1e-7 relative to
+        # each column)
+        from .lmfit import _qr_r_style
+
+        q, _, _, rank = _qr_r_style(design)
 
         # Project block indicators through Q'
         qt_block = q.T @ block_indicators

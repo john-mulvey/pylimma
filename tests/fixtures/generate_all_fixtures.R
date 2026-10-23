@@ -6426,3 +6426,18 @@ write.csv(data.frame(
   case = c("character_block", "vector_design"),
   cor = c(.dci_cor, duplicateCorrelation(.dci_y, design = rep(1, 12), block = .dci_block)$consensus.correlation)),
   "R_dci.csv", row.names = FALSE)
+
+# =============================================================================
+# duplicateCorrelation with a design column on a tiny scale: qr() and
+# statmod's mixedModel2Fit (lm.fit) decide rank relative to each column
+# (tol 1e-7), so the column is kept
+# =============================================================================
+set.seed(1214)
+.dct_y <- matrix(rnorm(60), 10, 6)
+.dct_block <- rep(1:3, each = 2)
+write.csv(.dct_y, "R_dct_y.csv", row.names = FALSE)
+write.csv(data.frame(
+  case = c("trend", "block_column"),
+  cor = c(duplicateCorrelation(.dct_y, cbind(1, 1e-12 * (1:6)), block = .dct_block)$consensus.correlation,
+          duplicateCorrelation(.dct_y, cbind(1, 1e-12 * (.dct_block == 2)), block = .dct_block)$consensus.correlation)),
+  "R_dct.csv", row.names = FALSE)
