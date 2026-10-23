@@ -6897,3 +6897,9 @@ write.csv(do.call(rbind, lapply(seq_along(.zs_cases), function(i) {
 })), "R_zscore_distributions.csv", row.names = FALSE)
 # q is recycled against longer parameters
 stopifnot(identical(zscore(1, "norm", mean = c(0, 1)), c(1, 0)))
+
+# =============================================================================
+# isNumeric: factors, logicals and complex values are not numeric
+# =============================================================================
+stopifnot(!isNumeric(factor(1:2)), !isNumeric(data.frame(a = factor(1:2))), !isNumeric(TRUE),
+          !isNumeric(1i), isNumeric(1:2), isNumeric(data.frame(a = 1)))

@@ -479,6 +479,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `is_numeric` is False for categorical values (R's factors), as for
+  logical and complex values, as R's `is.numeric`; a categorical with
+  numeric categories was reported numeric.
 - `background_correct` raises R's "non-conformable arrays" for a
   `background` of another shape (numpy broadcast a column, row or scalar,
   or gave its own error), a clear error for `method="minimum"` when an

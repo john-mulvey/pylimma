@@ -9,6 +9,7 @@ import pytest
 from pylimma.utils import (
     choose_lowess_span,
     fit_gamma_intercept,
+    is_numeric,
     loess_fit,
     logmdigamma,
     p_adjust,
@@ -422,3 +423,22 @@ def test_r_nelder_mead_needs_a_finite_start():
 
     with pytest.raises(ValueError, match="cannot be evaluated at initial parameters"):
         _r_nelder_mead(lambda p: np.inf, np.array([1.0, 1.0]))
+
+
+# R's behaviour for the cases below is recorded in generate_all_fixtures.R
+
+
+@pytest.mark.parametrize(
+    "x, expected",
+    [
+        (pd.Categorical([1, 2]), False),
+        (pd.Series(pd.Categorical([1, 2])), False),
+        (pd.DataFrame({"a": pd.Categorical([1, 2])}), False),
+        (True, False),
+        (np.array([1j]), False),
+        ([1, 2], True),
+        (pd.DataFrame({"a": [1.0]}), True),
+    ],
+)
+def test_is_numeric_as_r(x, expected):
+    assert is_numeric(x) is expected

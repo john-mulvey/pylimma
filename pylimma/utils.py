@@ -2122,17 +2122,26 @@ def is_numeric(x) -> bool:
     Test whether the argument is numeric.
 
     Port of R limma's ``isNumeric(x)`` (``utility.R``). True for numeric
-    arrays / scalars, and for DataFrames whose columns are all numeric.
+    arrays / scalars, and for DataFrames whose columns are all numeric. As
+    R's ``is.numeric``, logical, complex and categorical (factor) values
+    are not numeric.
     """
+
+    def numeric(dtype) -> bool:
+        return (
+            pd.api.types.is_numeric_dtype(dtype)
+            and not pd.api.types.is_bool_dtype(dtype)
+            and not pd.api.types.is_complex_dtype(dtype)
+        )
+
     if isinstance(x, pd.DataFrame):
-        if x.shape[1] == 0:
-            return False
-        return bool(x.select_dtypes(include="number").shape[1] == x.shape[1])
+        return x.shape[1] > 0 and all(numeric(dtype) for dtype in x.dtypes)
+    if hasattr(x, "dtype"):
+        return numeric(x.dtype)
     try:
-        arr = np.asarray(x)
-    except Exception:
+        return numeric(np.asarray(x).dtype)
+    except (TypeError, ValueError):
         return False
-    return np.issubdtype(arr.dtype, np.number)
 
 
 def block_diag(*matrices) -> np.ndarray:
