@@ -6952,3 +6952,15 @@ stopifnot(grepl("do not match the length of object", .inv_err(lmFit(.inv_y, .inv
           grepl("do not match the length of object", .inv_err(unwrapdups(.inv_y, ndups = 3))),
           .inv_err(arrayWeights(.inv_y, .inv_d[1:7, ])) == "incompatible dimensions",
           is.list(suppressWarnings(voom(.inv_counts, cbind(1, rep(0:1, each = 3)), lib.size = rep(1e6, 5)))))
+
+# =============================================================================
+# vooma: any NA or infinite value in y fails in lm.fit, with or without block
+# =============================================================================
+.vna_y <- matrix(rnorm(160, 8), 20)
+.vna_d <- cbind(1, rep(0:1, each = 4))
+.vna_err <- function(y, ...) conditionMessage(tryCatch(vooma(y, .vna_d, ...), error = identity))
+.vna_y[4, 3] <- NA
+stopifnot(.vna_err(.vna_y) == "NA/NaN/Inf in 'y'",
+          .vna_err(.vna_y, block = rep(1:4, 2), correlation = 0.3) == "NA/NaN/Inf in 'y'")
+.vna_y[4, 3] <- Inf
+stopifnot(.vna_err(.vna_y) == "NA/NaN/Inf in 'y'")

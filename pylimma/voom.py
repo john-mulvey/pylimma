@@ -715,6 +715,13 @@ def vooma(
     A = np.nanmean(y, axis=1)
     if np.any(np.isnan(A)):
         raise ValueError("y contains entirely NA rows")
+    # R fails in lm.fit with "NA/NaN/Inf in 'y'", with or without a block
+    n_not_finite = int((~np.isfinite(y)).sum())
+    if n_not_finite:
+        raise ValueError(
+            f"y contains {n_not_finite} missing or infinite values; vooma needs finite values "
+            "(R's lm.fit: NA/NaN/Inf in 'y')"
+        )
 
     # Validate predictor (matches R's shape + NA handling)
     if predictor is not None:

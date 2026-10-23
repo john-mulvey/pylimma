@@ -479,6 +479,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `vooma` raises a clear error when `y` has missing or infinite values, as
+  R fails in `lm.fit` ("NA/NaN/Inf in 'y'"); it returned NaN weights for
+  the whole gene, or failed in lowess for an infinite value.
 - Clear errors for invalid shapes where R fails obscurely or recycles:
   rows that are not a multiple of `ndups * spacing` (`lm_fit`,
   `unwrap_dups`, `ave_dups`; numpy's reshape error, R's "dims do not

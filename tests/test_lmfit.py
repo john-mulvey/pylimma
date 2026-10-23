@@ -1190,3 +1190,17 @@ def test_invalid_shapes_raise_clear_errors():
     counts = rng.poisson(20, (200, 6)).astype(float)
     with pytest.raises(ValueError, match="lib_size must have one value per sample"):
         pylimma.voom(counts, np.column_stack([np.ones(6), np.repeat([0, 1], 3)]), lib_size=np.ones(5))
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf])
+@pytest.mark.parametrize("block", [None, np.tile([1, 2, 3, 4], 2)])
+def test_vooma_with_missing_or_infinite_y_raises(bad, block):
+    """R fails in lm.fit with "NA/NaN/Inf in 'y'", with or without a block
+    (generate_all_fixtures.R, "vooma: any NA or infinite value")."""
+    import pylimma
+
+    y = np.random.default_rng(1310).normal(8, 1, (20, 8))
+    y[3, 2] = bad
+    design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    with pytest.raises(ValueError, match="y contains 1 missing or infinite values"):
+        pylimma.vooma(y, design, block=block, correlation=0.3 if block is not None else None)
