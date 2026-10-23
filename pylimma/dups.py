@@ -631,7 +631,8 @@ def duplicate_correlation(
         - "topbottom": spacing of n_spots/2 (duplicates in top/bottom halves)
     block : array_like, optional
         Block indicator for correlated samples. If provided, ndups and
-        spacing are ignored.
+        spacing are ignored. A single block raises, where R fails in
+        ``model.matrix`` (see :doc:`/validation/known_differences`).
     trim : float, default 0.15
         Trimmed mean proportion for consensus correlation, as R's
         ``mean(x, trim=)``: values >= 0.5 give the median, values <= 0 the
@@ -685,10 +686,14 @@ def duplicate_correlation(
         else:
             raise ValueError(f"Unknown spacing shortcut: {spacing}. Use 'columns' or 'topbottom'.")
 
-    # Check design
+    # Check design. R: as.matrix(design), so a vector is one column
     if design is None:
         design = np.ones((n_arrays, 1))
     design = np.asarray(design, dtype=np.float64)
+    if design.ndim == 1:
+        design = design.reshape(-1, 1)
+    if design.shape[0] != n_arrays:
+        raise ValueError("Number of rows of design matrix does not match number of arrays")
     n_coefs = design.shape[1]
 
     # Normalise weight shape through asMatrixWeights; helper returns
@@ -703,31 +708,46 @@ def duplicate_correlation(
 
     # Check if block is already encoded in design matrix
     if block is not None:
+        block = np.asarray(block)
+        if len(block) != n_arrays:
+            raise ValueError("Length of block does not match number of arrays")
+        # R: blocks all of size 1 are checked first
+        unique_blocks, counts = np.unique(block, return_counts=True)
+        if np.max(counts) == 1:
+            warnings.warn("Blocks all of size 1: setting correlation to zero.")
+            return {
+                "consensus_correlation": 0.0,
+                "cor": 0.0,
+                "atanh_correlations": np.zeros(n_genes),
+            }
+        # R: model.matrix(~factor(block)) stops for a single block
+        if len(unique_blocks) < 2:
+            raise ValueError("block must have at least two levels")
         # One-hot encode block (sans intercept, like R's model.matrix)
-        unique_blocks = np.unique(block)
-        if len(unique_blocks) > 1:
-            block_indicators = np.zeros((len(block), len(unique_blocks) - 1))
-            for j, b in enumerate(unique_blocks[1:]):
-                block_indicators[:, j] = (block == b).astype(float)
+        block_indicators = np.zeros((len(block), len(unique_blocks) - 1))
+        for j, b in enumerate(unique_blocks[1:]):
+            block_indicators[:, j] = (block == b).astype(float)
 
-            # QR decomposition of design
-            q, r = np.linalg.qr(design, mode="complete")
-            rank = np.sum(np.abs(np.diag(r[: design.shape[1], :])) > 1e-10)
+        # QR decomposition of design
+        q, r = np.linalg.qr(design, mode="complete")
+        rank = np.sum(np.abs(np.diag(r[: design.shape[1], :])) > 1e-10)
 
-            # Project block indicators through Q'
-            qt_block = q.T @ block_indicators
+        # Project block indicators through Q'
+        qt_block = q.T @ block_indicators
 
-            # Check if projection below design rank is essentially zero
-            if rank < q.shape[0] and np.max(np.abs(qt_block[rank:, :])) < 1e-8:
-                warnings.warn(
-                    "Block factor already encoded in the design matrix: "
-                    "setting intrablock correlation to zero."
-                )
-                return {
-                    "consensus_correlation": 0.0,
-                    "cor": 0.0,
-                    "atanh_correlations": np.zeros(n_genes),
-                }
+        # Check if projection below design rank is essentially zero. R:
+        # max(abs(QtBlock[-(1:rank), ])) is -Inf for a saturated design,
+        # so the check passes
+        if rank == q.shape[0] or np.max(np.abs(qt_block[rank:, :])) < 1e-8:
+            warnings.warn(
+                "Block factor already encoded in the design matrix: "
+                "setting intrablock correlation to zero."
+            )
+            return {
+                "consensus_correlation": 0.0,
+                "cor": 0.0,
+                "atanh_correlations": np.zeros(n_genes),
+            }
 
     # Setup blocking structure
     if block is None:
@@ -751,21 +771,8 @@ def duplicate_correlation(
         Array = np.repeat(np.arange(n_arrays), ndups)
     else:
         # Sample blocking
-        block = np.asarray(block)
-        if len(block) != n_arrays:
-            raise ValueError("Length of block does not match number of arrays")
         Array = block
-
-        # Check for singleton blocks
-        unique_blocks, counts = np.unique(block, return_counts=True)
         max_block_size = np.max(counts)
-        if max_block_size == 1:
-            warnings.warn("Blocks all of size 1: setting correlation to zero.")
-            return {
-                "consensus_correlation": 0.0,
-                "cor": 0.0,
-                "atanh_correlations": np.zeros(n_genes),
-            }
 
     # Compute gene-wise correlations using mixed model
     rho = np.full(n_genes, np.nan)

@@ -6404,3 +6404,25 @@ write.csv(data.frame(
           auROC(c("TRUE", "F", "T", "true", "FALSE", "false", "True", "F"), .ar_stat))),
   "R_auroc.csv", row.names = FALSE)
 stopifnot(inherits(try(auROC(c("a", "b", "a"), 1:3), silent = TRUE), "try-error"))
+
+# =============================================================================
+# duplicateCorrelation input forms: a character block (factor(block)) and a
+# design given as a vector (as.matrix) give the same correlation as their
+# numeric / matrix forms
+# =============================================================================
+set.seed(1213)
+.dci_y <- matrix(rnorm(20 * 12), 20, 12)
+.dci_y[, 1:6] <- .dci_y[, 1:6] + rnorm(20)
+.dci_block <- rep(c("b", "a", "c"), each = 4)
+.dci_x <- rep(c(0, 1), 6)
+write.csv(.dci_y, "R_dci_y.csv", row.names = FALSE)
+.dci_cor <- duplicateCorrelation(.dci_y, design = cbind(1, .dci_x), block = .dci_block)$consensus.correlation
+stopifnot(grepl("2 or more levels", try(duplicateCorrelation(.dci_y, block = rep(1, 12)), silent = TRUE)),
+          suppressWarnings(duplicateCorrelation(.dci_y, diag(12), block = .dci_block)$consensus.correlation) == 0,
+          all.equal(duplicateCorrelation(.dci_y, design = cbind(1, .dci_x), block = match(.dci_block, c("b", "a", "c")))$consensus.correlation, .dci_cor),
+          all.equal(duplicateCorrelation(.dci_y, design = rep(1, 12), block = .dci_block)$consensus.correlation,
+                    duplicateCorrelation(.dci_y, design = matrix(1, 12, 1), block = .dci_block)$consensus.correlation))
+write.csv(data.frame(
+  case = c("character_block", "vector_design"),
+  cor = c(.dci_cor, duplicateCorrelation(.dci_y, design = rep(1, 12), block = .dci_block)$consensus.correlation)),
+  "R_dci.csv", row.names = FALSE)

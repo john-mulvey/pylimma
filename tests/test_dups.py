@@ -243,3 +243,49 @@ class TestAvereps:
         assert list(out.var_names) == ["a", "b", "c", "d"]
         # var columns picked from first-occurrence row per group
         assert "symbol" in out.var.columns
+
+
+class TestDuplicateCorrelationInputs:
+    """Input forms R accepts (fixture script)."""
+
+    FIXTURES = __import__("pathlib").Path(__file__).parent / "fixtures"
+
+    def _data(self):
+        y = pd.read_csv(self.FIXTURES / "R_dci_y.csv").to_numpy()
+        expected = pd.read_csv(self.FIXTURES / "R_dci.csv").set_index("case")["cor"]
+        return y, expected
+
+    def test_character_block_as_r_factor(self):
+        from pylimma import duplicate_correlation
+
+        y, expected = self._data()
+        block = list(np.repeat(["b", "a", "c"], 4))
+        design = np.column_stack([np.ones(12), np.tile([0.0, 1.0], 6)])
+        out = duplicate_correlation(y, design, block=block)
+        np.testing.assert_allclose(
+            out["consensus_correlation"], expected["character_block"], rtol=1e-6
+        )
+
+    def test_vector_design_is_one_column(self):
+        from pylimma import duplicate_correlation
+
+        y, expected = self._data()
+        out = duplicate_correlation(y, np.ones(12), block=np.repeat(["b", "a", "c"], 4))
+        np.testing.assert_allclose(
+            out["consensus_correlation"], expected["vector_design"], rtol=1e-6
+        )
+        with pytest.raises(ValueError, match="Number of rows of design matrix"):
+            duplicate_correlation(y, np.ones((11, 1)), block=np.repeat(["b", "a", "c"], 4))
+
+    def test_block_checks_follow_r(self):
+        """R: a saturated design passes the block-in-design check (the
+        residual part is empty), giving 0; a single block stops in
+        model.matrix (pylimma: a clear error)."""
+        from pylimma import duplicate_correlation
+
+        y, _ = self._data()
+        block = np.repeat(["b", "a", "c"], 4)
+        with pytest.warns(UserWarning, match="already encoded"):
+            assert duplicate_correlation(y, np.eye(12), block=block)["consensus_correlation"] == 0
+        with pytest.raises(ValueError, match="block must have at least two levels"):
+            duplicate_correlation(y, block=np.ones(12))

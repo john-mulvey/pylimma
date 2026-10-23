@@ -371,6 +371,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `duplicate_correlation` takes a `block` given as a list of strings (it
+  raised `AttributeError`) and a design given as a vector, which is one
+  column as R's `as.matrix` (it raised `IndexError`); a design whose rows
+  do not match the arrays raises R's error, and blocks all of size 1 are
+  checked before the block-in-design check, as in R.
 - `au_roc` takes a matrix `truth` (read column by column, as R's
   `as.vector`; it raised `IndexError`), a logical or character `stat`
   (ranked as R's `order()`; they raised `TypeError` / `ValueError`) and

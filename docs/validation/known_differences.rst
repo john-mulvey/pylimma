@@ -350,6 +350,12 @@ Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     10.5, R recycles random numbers into a 10-row rotation matrix and uses
     10.5 in the p-value denominators, which is not meaningful.
 
+``duplicate_correlation`` with a single block
+    Raises "block must have at least two levels". R fails in
+    ``model.matrix(~factor(block))`` with "contrasts can be applied only to
+    factors with 2 or more levels". ``generate_all_fixtures.R`` records the
+    R behaviour.
+
 ``top_table`` / ``top_table_f`` with ``number=NaN``
     Raises "number must not be NaN" (R: "missing value where TRUE/FALSE
     needed"). Other values of ``number`` follow R: capped at the number of
