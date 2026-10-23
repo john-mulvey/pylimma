@@ -231,6 +231,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `decide_tests(p_value=NaN)` and `classify_tests_f` with a `p_value`
+  outside 0..1, a `df` of 0 or NaN or an unusable `cor_matrix` raise clear
+  errors; they silently returned all zeros (R gives NA or fails obscurely;
+  see known differences). `decide_tests` takes a single p-value as a 1 x 1
+  matrix, as R's `as.matrix` does (it raised `IndexError`), and
+  `summarize_test_results` checks its input and `coef_names`.
 - Formula designs (`model_matrix`, `lm_fit("~ ...")`, the voom family)
   raise R's "contrasts can be applied only to factors with 2 or more
   levels" for a factor with one level, where patsy gave it a constant

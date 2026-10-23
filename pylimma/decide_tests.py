@@ -13,6 +13,7 @@ Implements decision procedures for classifying genes as differentially expressed
 
 from __future__ import annotations
 
+import numbers
 import warnings
 from typing import TYPE_CHECKING
 
@@ -74,6 +75,10 @@ def classify_tests_f(
     if tstat.ndim == 1:
         tstat = tstat.reshape(-1, 1)
     n_genes, n_tests = tstat.shape
+    # R's qf / pt with such a p.value give NaN or NA results, then fail in an
+    # if() ("missing value where TRUE/FALSE needed")
+    if not fstat_only and not (isinstance(p_value, numbers.Real) and 0 <= p_value <= 1):
+        raise ValueError(f"p_value must be between 0 and 1, not {p_value!r}")
 
     # df resolution: explicit kwarg takes precedence, otherwise derive
     # from df_prior + df_residual on the fit (matches R decidetests.R:190
@@ -116,7 +121,13 @@ def classify_tests_f(
         cor_matrix = cov / np.outer(std, std)
 
     if cor_matrix is not None:
+        # R's eigen() fails for missing values, and an all-zero matrix gives
+        # 0/0 in the rank rule
+        if not np.isfinite(cor_matrix).all():
+            raise ValueError("cor_matrix must not contain missing or infinite values")
         eigvals, eigvecs = np.linalg.eigh(cor_matrix)
+        if not eigvals[-1] > 0:
+            raise ValueError("cor_matrix has no positive eigenvalue")
         r = int(np.sum(eigvals / eigvals[-1] > 1e-8))
         Q = eigvecs[:, -r:] / np.sqrt(eigvals[-r:]) / np.sqrt(r)
     else:
@@ -153,6 +164,9 @@ def classify_tests_f(
             continue
         if not conformable:
             raise ValueError("non-conformable arguments: cor_matrix does not match the number of tests")
+        # R: if(... > qF[i]) fails when df makes qF NaN
+        if np.isnan(qF[i]):
+            raise ValueError(f"df must be positive: no F threshold for gene {i} (df = {df2_arr[i]})")
 
         # Check if overall F-test is significant
         if (x @ Q @ Q.T @ x) > qF[i]:
@@ -277,6 +291,10 @@ def decide_tests(
     full-rank design), ``method="hierarchical"`` or ``"nestedF"`` raises a
     ``ValueError``; R returns all zeros by accident.
     """
+    # R: p < NA is NA, so p.value = NaN gives an all-NA result; a clear error
+    # instead (known_differences.rst)
+    if not isinstance(p_value, numbers.Real) or np.isnan(p_value):
+        raise ValueError(f"p_value must be a number, not {p_value!r}")
     method = _match_arg(method, _DECIDE_METHODS, "method")
     adjust_method = _match_arg(adjust_method, _ADJUST_METHODS, "adjust.method")
     if adjust_method == "fdr":
@@ -416,7 +434,8 @@ def _decide_tests_default(
     if method == "nestedF":
         raise ValueError("nestedF adjust method requires an MArrayLM object")
     p = np.array(p, dtype=np.float64)
-    if p.ndim == 1:
+    # R: as.matrix(p), a scalar or vector as one column
+    if p.ndim < 2:
         p = p.reshape(-1, 1)
     if np.isnan(p).any():
         # R: `if(any(p>1) || any(p<0))` fails on NA
@@ -487,14 +506,20 @@ def summarize_test_results(
     >>> summary = summarize_test_results(results)
     >>> print(f"Up: {summary['up']}, Down: {summary['down']}")
     """
+    if results is None:
+        raise ValueError("results is None")
     results = np.asarray(results)
-    if results.ndim == 1:
+    if results.ndim < 2:
         results = results.reshape(-1, 1)
+    if results.ndim != 2:
+        raise ValueError(f"results must be a matrix (genes x coefficients), not {results.ndim}-D")
 
     n_genes, n_coefs = results.shape
 
     if coef_names is None:
         coef_names = [f"coef_{i}" for i in range(n_coefs)]
+    elif len(coef_names) != n_coefs:
+        raise ValueError(f"coef_names has {len(coef_names)} names for {n_coefs} columns")
 
     # Count each category, handling NaN
     down = np.sum(results == -1, axis=0)

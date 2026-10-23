@@ -412,6 +412,14 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     ``eigen()``; pylimma returned an all-NaN fit and ``False``.
     ``generate_all_fixtures.R`` records the R behaviour.
 
+``decide_tests`` / ``classify_tests_f`` with unusable arguments
+    ``decide_tests(p_value=NaN)`` raises "p_value must be a number"; R's
+    ``p < NA`` gives an all-NA result. ``classify_tests_f`` raises for a
+    ``p_value`` outside 0..1, a ``df`` that leaves no F threshold (0 or NaN)
+    and a ``cor_matrix`` with missing values or no positive eigenvalue; R
+    fails in ``qf`` / ``eigen`` / ``if()`` ("missing value where TRUE/FALSE
+    needed"). ``generate_all_fixtures.R`` records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

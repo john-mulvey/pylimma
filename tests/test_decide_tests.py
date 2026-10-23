@@ -245,3 +245,46 @@ class TestDecideTestsAnnDataAutoEBayes:
         t_after = np.asarray(adata.uns["pylimma"]["t"])
         # No re-run, no drift.
         np.testing.assert_array_equal(t_before, t_after)
+
+
+class TestUnusableArguments:
+    """R gives NA results or fails deep in qf / eigen / if() (fixture
+    script); pylimma raises clear errors."""
+
+    @pytest.fixture
+    def fit(self):
+        rng = np.random.default_rng(1)
+        design = np.column_stack([np.ones(6), [0.0, 0, 0, 1, 1, 1], [0.0, 1, 0, 1, 0, 1]])
+        return e_bayes(lm_fit(rng.normal(size=(20, 6)), design))
+
+    def test_decide_tests_p_value_nan(self, fit):
+        with pytest.raises(ValueError, match="p_value must be a number"):
+            decide_tests(fit, p_value=np.nan)
+
+    @pytest.mark.parametrize(
+        "kwargs,match",
+        [
+            ({"p_value": np.nan}, "between 0 and 1"),
+            ({"p_value": 2}, "between 0 and 1"),
+            ({"df": 0}, "df must be positive"),
+            ({"df": np.nan}, "df must be positive"),
+            ({"cor_matrix": np.full((3, 3), np.nan)}, "missing or infinite"),
+            ({"cor_matrix": np.zeros((3, 3))}, "no positive eigenvalue"),
+        ],
+    )
+    def test_classify_tests_f(self, fit, kwargs, match):
+        with pytest.raises(ValueError, match=match):
+            classify_tests_f(fit, **kwargs)
+
+    def test_scalar_p_value_is_one_by_one(self):
+        np.testing.assert_array_equal(decide_tests(0.5), [[0]])
+
+    def test_summarize_test_results_checks_its_input(self):
+        from pylimma.decide_tests import summarize_test_results
+
+        with pytest.raises(ValueError, match="results is None"):
+            summarize_test_results(None)
+        with pytest.raises(ValueError, match="must be a matrix"):
+            summarize_test_results(np.zeros((2, 2, 2)))
+        with pytest.raises(ValueError, match="1 names for 2 columns"):
+            summarize_test_results(np.zeros((3, 2)), coef_names=["a"])
