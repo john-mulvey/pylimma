@@ -225,6 +225,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `lm_fit(method="robust")` / `mrlm` raise a clear error for `k <= 0`; `k=0`
+  returned zero coefficients and a negative `k` a LAPACK error (R fails
+  obscurely; see known differences).
 - `lm_fit` raises R's "NAs not allowed in design matrix" (scipy raised "array
   must not contain infs or NaNs") and a clear error for a matrix with no
   samples (it returned an all-NaN fit); `is_fullrank` raises for missing or

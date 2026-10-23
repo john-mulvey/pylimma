@@ -27,6 +27,7 @@ Implements the core linear model fitting from limma:
 from __future__ import annotations
 
 import io
+import numbers
 import tokenize
 import warnings
 from typing import TYPE_CHECKING
@@ -595,6 +596,10 @@ def mrlm(
 
     # MASS::rlm loops over 1L:maxit; a fraction raises (as nrot / nsim)
     maxit = _whole_count(maxit, "maxit")
+    # R passes k to MASS::rlm, which fails obscurely for k <= 0 (chol2inv
+    # "size" for 0, lm.wfit "negative weights" for a negative k)
+    if not (isinstance(k, numbers.Real) and np.isfinite(k) and k > 0):
+        raise ValueError(f"k must be a positive number, not {k!r}")
 
     # Unwrap duplicates if needed
     if ndups > 1:

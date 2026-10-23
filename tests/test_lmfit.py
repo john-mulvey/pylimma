@@ -393,6 +393,14 @@ class TestMrlm:
         with pytest.raises(ValueError, match="maxit must be a whole number"):
             lm_fit(M, design, method="robust", maxit=10.5)
 
+    @pytest.mark.parametrize("k", [0, -1, np.nan])
+    def test_k_must_be_positive(self, k):
+        """MASS::rlm fails obscurely for k <= 0 (fixture script)."""
+        M = np.random.default_rng(2).normal(size=(10, 6))
+        design = np.column_stack([np.ones(6), [0.0, 0, 0, 1, 1, 1]])
+        with pytest.raises(ValueError, match="k must be a positive number"):
+            lm_fit(M, design, method="robust", k=k)
+
 
 class TestAnnDataVoomLmFitWeightsBridge:
     """Regression tests for the voom -> lm_fit AnnData weights bridge.

@@ -6688,3 +6688,12 @@ stopifnot(identical(dim(getEAWP(new("EList", list(E = c(1, 2, 3, 4))))$exprs), c
           identical(dim(getEAWP(c(1, 2, 3, 4))$exprs), c(1L, 4L)),
           grepl("doesn't contain numeric expression values", try(getEAWP(matrix(1i, 2, 2)), silent = TRUE)),
           is.nan(getEAWP(rbind(c(1, 2), c(NA, NA)))$Amean[2]))
+
+# =============================================================================
+# lmFit(method="robust", k=): MASS::rlm fails obscurely for k <= 0
+# (pylimma raises a clear error)
+# =============================================================================
+.rk_y <- matrix(rnorm(60), 10)
+.rk_d2 <- cbind(1, c(0, 0, 0, 1, 1, 1))
+stopifnot(inherits(try(suppressWarnings(lmFit(.rk_y, .rk_d2, method = "robust", k = 0)), silent = TRUE), "try-error"),
+          grepl("negative weights", try(suppressWarnings(lmFit(.rk_y, .rk_d2, method = "robust", k = -1)), silent = TRUE)))

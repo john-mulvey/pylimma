@@ -435,6 +435,13 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     factors with 2 or more levels". ``generate_all_fixtures.R`` records the
     R behaviour.
 
+``k`` in ``lm_fit(method="robust")`` / ``mrlm``
+    Must be a positive number. ``MASS::rlm`` fails obscurely for ``k = 0``
+    ("'size' argument must be a positive integer" in ``chol2inv``) and a
+    negative ``k`` ("missing or negative weights not allowed");
+    pylimma returned zero coefficients or a LAPACK error.
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 ``maxit`` in ``lm_fit(method="robust")`` / ``mrlm``
     Must be a whole number of at least 1 (whole-number floats such as 10.0
     work). R's ``MASS::rlm`` loops over ``1L:maxit``, which truncates a
