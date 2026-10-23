@@ -6640,3 +6640,15 @@ set.seed(1301)
 .rk_sub <- .rk_fit[, c("C", "A")]
 stopifnot(identical(colnames(.rk_sub$coefficients), c("C", "A")),
           identical(rownames(.rk_sub$cov.coefficients), c("A", "C")))
+
+# =============================================================================
+# qf in both tails at large df (the chi-squared limits above 4e5), as
+# fitFDistRobustly uses it
+# =============================================================================
+.qfl_p <- c(1e-6, 0.05, 0.5, 0.9)
+.qfl <- expand.grid(p = .qfl_p, case = c("df2_1e6", "df1_5e5", "df2_inf", "finite"), lower = c(TRUE, FALSE),
+                    stringsAsFactors = FALSE)
+.qfl_df <- list(df2_1e6 = c(5, 1e6), df1_5e5 = c(5e5, 10), df2_inf = c(5, Inf), finite = c(5, 20))
+.qfl$q <- mapply(function(p, case, lower) qf(p, .qfl_df[[case]][1], .qfl_df[[case]][2], lower.tail = lower),
+                 .qfl$p, .qfl$case, .qfl$lower)
+write.csv(.qfl, "R_qf_large_df.csv", row.names = FALSE)

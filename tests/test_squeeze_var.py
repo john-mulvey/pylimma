@@ -352,3 +352,16 @@ def test_input_forms_follow_r():
         squeeze_var(var.ravel(order="F"), df=[])
     # fewer than three values come back as given, as R
     assert squeeze_var(np.array([[0.5], [0.7]]), df=4)["var_post"].shape == (2, 1)
+
+
+def test_r_qf_matches_r_in_both_tails_at_large_df():
+    """R's qf (as fitFDistRobustly and the Winsorisation use it) switches to
+    the chi-squared limits above 4e5 df, in both tails (fixture script)."""
+    from pylimma.utils import _r_qf
+
+    r = pd.read_csv(FIXTURES_DIR / "R_qf_large_df.csv")
+    dfs = {"df2_1e6": (5, 1e6), "df1_5e5": (5e5, 10), "df2_inf": (5, np.inf), "finite": (5, 20)}
+    for row in r.itertuples():
+        df1, df2 = dfs[row.case]
+        got = _r_qf(row.p, df1, df2, lower_tail=bool(row.lower))
+        np.testing.assert_allclose(got, row.q, rtol=1e-10, err_msg=f"{row.case} {row.lower}")

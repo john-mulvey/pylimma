@@ -644,14 +644,13 @@ def fit_f_dist_robustly(
                 log_upper = chi2.logsf(f * df1[i], df1[i])
                 log_lower = chi2.logcdf(f * df1[i], df1[i])
                 up = log_upper < log_lower
-                f[up] = chi2.isf(np.exp(log_upper[up]), df1_max) / df1_max
-                f[~up] = chi2.ppf(np.exp(log_lower[~up]), df1_max) / df1_max
             else:
                 log_upper = _f_logsf(f, df1[i], df2_nr)
                 log_lower = f_dist.logcdf(f, df1[i], df2_nr)
                 up = log_upper < log_lower
-                f[up] = f_dist.isf(np.exp(log_upper[up]), df1_max, df2_nr)
-                f[~up] = f_dist.ppf(np.exp(log_lower[~up]), df1_max, df2_nr)
+            # R's qf, with its chi-squared limits for a df above 4e5
+            f[up] = _r_qf(np.exp(log_upper[up]), df1_max, df2_nr, lower_tail=False)
+            f[~up] = _r_qf(np.exp(log_lower[~up]), df1_max, df2_nr)
             x = x.copy()
             x[i] = f * s
             df1 = df1_max

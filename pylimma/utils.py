@@ -230,22 +230,25 @@ def _r_ppoints(n: int) -> np.ndarray:
     return (np.arange(1, n + 1) - a) / (n + 1 - 2 * a)
 
 
-def _r_qf(p, df1: float, df2: float) -> np.ndarray:
-    """R's qf(p, df1, df2) (nmath qf.c), which takes infinite degrees of
-    freedom (scipy's f.ppf gives NaN) and uses the chi-squared limits for a
-    large df: qchisq(p, df1) / df1 when df1 <= df2 and df2 > 4e5 (1 when df1
-    is infinite too), df2 / qchisq(p, df2, lower=FALSE) when df1 > 4e5."""
+def _r_qf(p, df1: float, df2: float, lower_tail: bool = True) -> np.ndarray:
+    """R's qf(p, df1, df2, lower.tail) (nmath qf.c), which takes infinite
+    degrees of freedom (scipy's f.ppf gives NaN) and uses the chi-squared
+    limits for a large df: qchisq(p, df1, lower.tail) / df1 when df1 <= df2
+    and df2 > 4e5 (1 when df1 is infinite too), df2 / qchisq(p, df2,
+    !lower.tail) when df1 > 4e5."""
     from scipy import stats
 
     # R recycles p, df1 and df2 against each other
     p, df1, df2 = np.broadcast_arrays(*(np.asarray(v, dtype=np.float64) for v in (p, df1, df2)))
     large_df2 = (df1 <= df2) & (df2 > 4e5)
     large_df1 = ~large_df2 & (df1 > 4e5)
+    chi_lower, chi_upper = (stats.chi2.ppf, stats.chi2.isf)[:: 1 if lower_tail else -1]
+    f_quantile = stats.f.ppf if lower_tail else stats.f.isf
     with np.errstate(invalid="ignore", divide="ignore"):
         return np.where(
             large_df2,
-            np.where(np.isinf(df1), 1.0, stats.chi2.ppf(p, df1) / df1),
-            np.where(large_df1, df2 / stats.chi2.isf(p, df2), stats.f.ppf(p, df1, df2)),
+            np.where(np.isinf(df1), 1.0, chi_lower(p, df1) / df1),
+            np.where(large_df1, df2 / chi_upper(p, df2), f_quantile(p, df1, df2)),
         )
 
 

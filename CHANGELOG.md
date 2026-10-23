@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `squeeze_var(robust=True)` with unequal residual df takes its F
+  quantiles from R's `qf` rules, including the chi-squared limits for a
+  prior df above 4e5, where scipy's exact quantile was about 1e-6 from R.
 - Selecting columns of a rank-deficient fit (`fit[:, ["C", "A"]]`,
   `contrasts_fit(coefficients=...)`, `genas(coef=...)`) subsets
   `cov_coefficients` in the order of the selected columns. As R, it kept
