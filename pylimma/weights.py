@@ -580,6 +580,9 @@ def array_weights(
     design = np.asarray(design, dtype=np.float64)
     if design.ndim == 1:
         design = design.reshape(-1, 1)
+    # R fails later with "incompatible dimensions"
+    if design.shape[0] != n_samples:
+        raise ValueError("row dimension of design doesn't match column dimension of data object")
 
     # Reduce rank if not full rank (R: QR <- qr(design); design[, QR$pivot[1:p]])
     _q, _r, pivot, p = _qr_r_style(design)

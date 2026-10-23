@@ -252,6 +252,19 @@ def _glmgam_fit(
     return beta
 
 
+def _duplicate_groups(n_spots: int, ndups: int, spacing: int) -> int:
+    """Number of genes among ``n_spots`` rows of duplicate spots. R's
+    ``dim<-`` fails ("dims [product ...] do not match the length of
+    object") unless ndups * spacing divides the rows; a clear error
+    instead."""
+    if n_spots % (ndups * spacing):
+        raise ValueError(
+            f"the number of rows, {n_spots}, is not a multiple of ndups * spacing "
+            f"({ndups} * {spacing})"
+        )
+    return n_spots // ndups // spacing
+
+
 def unwrap_dups(
     M: np.ndarray,
     ndups: int = 2,
@@ -291,7 +304,7 @@ def unwrap_dups(
 
     M = _as_dense_array(M, np.float64)
     n_spots, n_arrays = M.shape
-    n_groups = n_spots // ndups // spacing
+    n_groups = _duplicate_groups(n_spots, ndups, spacing)
 
     # Use Fortran order to match R's reshape behaviour
     # R: dim(M) <- c(spacing, ndups, ngroups, nslides)
@@ -395,7 +408,7 @@ def ave_dups(
     original = x
     x = _as_dense_array(x, np.float64)
     n_spots, n_arrays = x.shape
-    n_groups = n_spots // ndups // spacing
+    n_groups = _duplicate_groups(n_spots, ndups, spacing)
 
     # Use Fortran order to match R's reshape behaviour
     # R: dim(x) <- c(spacing, ndups, ngroups*nslides)

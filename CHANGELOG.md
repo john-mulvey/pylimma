@@ -479,6 +479,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- Clear errors for invalid shapes where R fails obscurely or recycles:
+  rows that are not a multiple of `ndups * spacing` (`lm_fit`,
+  `unwrap_dups`, `ave_dups`; numpy's reshape error, R's "dims do not
+  match the length of object"), a design with the wrong number of rows
+  for `array_weights` (numpy's matmul error, R's "incompatible
+  dimensions") and a `lib_size` of the wrong length for `voom` (numpy's
+  broadcast error; R recycles it).
 - `voom`, `vooma`, `voom_with_quality_weights` and `convest` with
   `plot=True` raise the same clear ImportError as the plotting functions
   when matplotlib is not installed; voom warned and drew nothing, and

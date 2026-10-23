@@ -45,7 +45,7 @@ from .classes import (
     as_matrix_weights,
     get_eawp,
 )
-from .dups import duplicate_correlation, unique_genelist, unwrap_dups
+from .dups import _duplicate_groups, duplicate_correlation, unique_genelist, unwrap_dups
 from .utils import _as_dense_array, _block_labels, _whole_count
 
 if TYPE_CHECKING:
@@ -1389,6 +1389,10 @@ def lm_fit(
     # - so correlation is only required for the GLS (ls) path.
     # R lmfit.R:72: `if(missing(correlation)) stop(...)`; an explicit NULL is
     # passed to gls.series, which estimates it.
+    # R reduces the probes and Amean to genes (lmfit.R:57-59) before it asks
+    # for the correlation, so rows that do not fit ndups * spacing fail first
+    if ndups > 1:
+        _duplicate_groups(n_genes, _whole_count(ndups, "ndups"), _whole_count(spacing, "spacing"))
     if method == "ls" and (ndups >= 2 or block is not None) and correlation is _MISSING:
         raise ValueError("the correlation must be set, see duplicateCorrelation")
     if correlation is _MISSING:

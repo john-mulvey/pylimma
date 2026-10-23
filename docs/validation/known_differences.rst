@@ -449,6 +449,12 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     condition has length > 1" for a vector. ``generate_all_fixtures.R``
     records the R behaviour.
 
+``voom`` with a ``lib_size`` of the wrong length
+    A ``lib_size`` that is neither one value per sample nor a single value
+    raises. R's ``matrix(lib.size, n, ncol, byrow = TRUE)`` recycles it
+    across the samples. ``generate_all_fixtures.R`` records the R
+    behaviour.
+
 ``make_unique`` with a missing value and a repeated value
     Missing values stay missing and the repeated values are numbered. R's
     ``makeUnique`` fails with "NAs are not allowed in subscripted

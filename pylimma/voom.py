@@ -161,8 +161,9 @@ def voom(
         Design matrix, shape (n_samples, n_coefficients). If None, uses an
         intercept-only model.
     lib_size : ndarray, optional
-        Library sizes for each sample. If None, computed as column sums of
-        counts.
+        Library sizes for each sample (or one value for all; another
+        length raises, where R recycles it). If None, computed as column
+        sums of counts.
     offset : ndarray, optional
         Offset matrix, shape (n_genes, n_samples). If provided without
         offset_prior, offset_prior is computed as offset - rowMeans(offset).
@@ -282,8 +283,14 @@ def voom(
     if lib_size is None:
         lib_size = np.sum(counts, axis=0)
     lib_size = np.asarray(lib_size, dtype=np.float64)
+    # R's matrix(lib.size, byrow=TRUE) recycles any other length
+    if lib_size.size not in (1, n_samples):
+        raise ValueError(
+            f"lib_size must have one value per sample ({n_samples}) or a single value, "
+            f"not {lib_size.size}"
+        )
 
-    lib_size_matrix = np.broadcast_to(lib_size, (n_genes, n_samples)).copy()
+    lib_size_matrix = np.broadcast_to(lib_size.reshape(-1), (n_genes, n_samples)).copy()
 
     # Handle offset parameters
     if offset is not None:

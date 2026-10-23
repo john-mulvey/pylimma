@@ -6937,3 +6937,18 @@ stopifnot(.ptn_warn(propTrueNull(c(.ptn_p, NA), "lfdr")) == "longer object lengt
           identical(propTrueNull(c(.ptn_p, NA), "hist"), propTrueNull(.ptn_p, "hist")),
           is.nan(propTrueNull(.ptn_p, "hist", nbins = 0)),
           is.finite(propTrueNull(.ptn_p, "hist", nbins = 7.5)))
+
+# =============================================================================
+# Invalid inputs where R fails obscurely or recycles: rows that are not a
+# multiple of ndups * spacing, a design with the wrong number of rows for
+# arrayWeights, and a lib.size of the wrong length for voom
+# =============================================================================
+set.seed(1309)
+.inv_y <- matrix(rnorm(400), 50, 8)
+.inv_d <- cbind(1, rep(0:1, each = 4))
+.inv_err <- function(expr) conditionMessage(tryCatch(expr, error = identity, warning = identity))
+.inv_counts <- matrix(rpois(1200, 20), 200, 6)
+stopifnot(grepl("do not match the length of object", .inv_err(lmFit(.inv_y, .inv_d, ndups = 3))),
+          grepl("do not match the length of object", .inv_err(unwrapdups(.inv_y, ndups = 3))),
+          .inv_err(arrayWeights(.inv_y, .inv_d[1:7, ])) == "incompatible dimensions",
+          is.list(suppressWarnings(voom(.inv_counts, cbind(1, rep(0:1, each = 3)), lib.size = rep(1e6, 5)))))

@@ -1167,3 +1167,26 @@ def test_lm_fit_input_checks_follow_r():
     for bad in (np.nan, np.inf):
         with pytest.raises(ValueError, match="infinite or missing values"):
             is_fullrank(np.column_stack([np.ones(3), [1.0, bad, 3.0]]))
+
+
+def test_invalid_shapes_raise_clear_errors():
+    """R fails obscurely or recycles (generate_all_fixtures.R, "Invalid
+    inputs where R fails obscurely or recycles")."""
+    import pylimma
+
+    rng = np.random.default_rng(1309)
+    expr = rng.normal(size=(50, 8))
+    design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+    message = r"the number of rows, 50, is not a multiple of ndups \* spacing \(3 \* 1\)"
+    for call in (
+        lambda: lm_fit(expr, design, ndups=3),
+        lambda: unwrap_dups(expr, ndups=3),
+        lambda: pylimma.ave_dups(expr, ndups=3),
+    ):
+        with pytest.raises(ValueError, match=message):
+            call()
+    with pytest.raises(ValueError, match="row dimension of design doesn't match"):
+        pylimma.array_weights(expr, design[:7])
+    counts = rng.poisson(20, (200, 6)).astype(float)
+    with pytest.raises(ValueError, match="lib_size must have one value per sample"):
+        pylimma.voom(counts, np.column_stack([np.ones(6), np.repeat([0, 1], 3)]), lib_size=np.ones(5))
