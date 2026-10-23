@@ -377,6 +377,13 @@ Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     factors with 2 or more levels". ``generate_all_fixtures.R`` records the
     R behaviour.
 
+``maxit`` in ``lm_fit(method="robust")`` / ``mrlm``
+    Must be a whole number of at least 1 (whole-number floats such as 10.0
+    work). R's ``MASS::rlm`` loops over ``1L:maxit``, which truncates a
+    fraction, and fails with "invalid format '%d'" when a gene does not
+    converge within it. ``generate_all_fixtures.R`` records the R
+    behaviour.
+
 ``top_table`` / ``top_table_f`` with ``number=NaN``
     Raises "number must not be NaN" (R: "missing value where TRUE/FALSE
     needed"). Other values of ``number`` follow R: capped at the number of

@@ -6509,3 +6509,14 @@ stopifnot(grepl("var is empty", try(squeezeVar(NULL, 5), silent = TRUE)),
           identical(dim(.sv_out$var.post), c(4L, 5L)),
           grepl("different lengths", try(suppressWarnings(squeezeVar(as.vector(.sv_var), df = numeric(0))), silent = TRUE)),
           grepl("x and df1 have different lengths", try(squeezeVar(as.vector(.sv_var), df = c(5, 5)), silent = TRUE)))
+
+# =============================================================================
+# lmFit(method="robust", maxit=): MASS::rlm loops over 1L:maxit, so 10.0 is
+# 10; with a fraction, a gene that does not converge fails in rlm's warning
+# ("invalid format '%d'") (pylimma raises for a fraction)
+# =============================================================================
+.rm_y <- matrix(rnorm(60), 10)
+.rm_d <- cbind(1, c(0, 0, 0, 1, 1, 1))
+stopifnot(identical(suppressWarnings(lmFit(.rm_y, .rm_d, method = "robust", maxit = 10.0))$coefficients,
+                    suppressWarnings(lmFit(.rm_y, .rm_d, method = "robust", maxit = 10L))$coefficients),
+          grepl("invalid format", try(lmFit(.rm_y, .rm_d, method = "robust", maxit = 1.5), silent = TRUE)))

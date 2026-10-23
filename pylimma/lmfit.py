@@ -44,7 +44,7 @@ from .classes import (
     get_eawp,
 )
 from .dups import duplicate_correlation, unique_genelist, unwrap_dups
-from .utils import _as_dense_array
+from .utils import _as_dense_array, _whole_count
 
 if TYPE_CHECKING:
     pass
@@ -544,7 +544,8 @@ def mrlm(
     method : str, default "huber"
         Robust estimation method. Options: "huber", "bisquare".
     maxit : int, default 20
-        Maximum iterations for IRLS (matches R's default).
+        Maximum iterations for IRLS (matches R's default); a whole number
+        of at least 1 (R truncates a fraction).
     acc : float, default 1e-4
         Convergence tolerance (matches R's default).
     k : float, default 1.345
@@ -587,6 +588,9 @@ def mrlm(
         weights[weights <= 0] = np.nan
         M = M.copy()
         M[~np.isfinite(weights)] = np.nan
+
+    # MASS::rlm loops over 1L:maxit; a fraction raises (as nrot / nsim)
+    maxit = _whole_count(maxit, "maxit")
 
     # Unwrap duplicates if needed
     if ndups > 1:

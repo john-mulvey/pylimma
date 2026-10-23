@@ -381,6 +381,18 @@ class TestMrlm:
         # Should complete without error
         assert not np.all(np.isnan(result["coefficients"]))
 
+    def test_maxit_is_a_whole_number(self):
+        """MASS::rlm loops over 1L:maxit, so 10.0 is 10; a fraction raises,
+        where R fails obscurely when a gene does not converge (fixture
+        script)."""
+        M = np.random.default_rng(2).normal(size=(10, 6))
+        design = np.column_stack([np.ones(6), [0.0, 0, 0, 1, 1, 1]])
+        np.testing.assert_array_equal(
+            mrlm(M, design, maxit=10.0)["coefficients"], mrlm(M, design, maxit=10)["coefficients"]
+        )
+        with pytest.raises(ValueError, match="maxit must be a whole number"):
+            lm_fit(M, design, method="robust", maxit=10.5)
+
 
 class TestAnnDataVoomLmFitWeightsBridge:
     """Regression tests for the voom -> lm_fit AnnData weights bridge.

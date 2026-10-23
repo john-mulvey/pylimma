@@ -378,6 +378,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `lm_fit(method="robust")` and `mrlm` take a whole-number float
+  `maxit` (10.0), as R does; it raised `TypeError`. A fraction raises
+  "maxit must be a whole number" (see known differences).
 - `squeeze_var` takes a matrix of variances as its values, read column by
   column as R's `length(var)` does (it raised a broadcasting error),
   raises R's "var is empty" for `None` (it returned a result) and R's "x
