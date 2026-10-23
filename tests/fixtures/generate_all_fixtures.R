@@ -7006,6 +7006,7 @@ stopifnot(identical(colnames(.vbg$design), paste0("group", levels(.vbg_group))),
 write.csv(.vbg$voom.xy$x, "R_vbg_xy_x.csv", row.names = FALSE)
 write.csv(.vbg$voom.xy$y, "R_vbg_xy_y.csv", row.names = FALSE)
 write.csv(.vbg$weights, "R_vbg_weights.csv", row.names = FALSE)
+
 # =============================================================================
 # arrayWeights scoring: a singular information matrix stops solve() (prior.n
 # = 0 with 2 residual df), and REML warns when it stops unconverged

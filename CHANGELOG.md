@@ -494,6 +494,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `array_weights` stops as R's scoring iteration does: a singular
+  information matrix (for example `prior_n=0` with 2 residual df) raises a
+  clear error, where pylimma skipped the step and could return weights of
+  1, and REML warns "iteration limit reached" or "convergence tolerance
+  not achievable, stopping prematurely" when it stops unconverged, as R.
 - `vooma` raises a clear error when `y` has missing or infinite values, as
   R fails in `lm.fit` ("NA/NaN/Inf in 'y'"); it returned NaN weights for
   the whole gene, or failed in lowess for an infinite value.

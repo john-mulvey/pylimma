@@ -32,6 +32,28 @@ from .lmfit import _qr_r_style
 from .utils import _r_as_character
 
 
+def _scoring_step(info2: np.ndarray, dl: np.ndarray) -> np.ndarray:
+    """R's solve(info2, dl) for a Fisher scoring step of the variance model;
+    R stops with "Lapack routine dgesv: system is exactly singular"."""
+    try:
+        return linalg.solve(info2, dl)
+    except linalg.LinAlgError as e:
+        raise ValueError(
+            "the information matrix of the array weights model is singular, so the "
+            "weights cannot be estimated (for example with prior_n = 0 and few "
+            "residual degrees of freedom)"
+        ) from e
+
+
+def _stop_scoring(reason: str) -> None:
+    """R's warnings when the REML scoring iteration stops unconverged."""
+    message = {
+        "tolerance": "convergence tolerance not achievable, stopping prematurely",
+        "maxiter": "iteration limit reached",
+    }[reason]
+    warnings.warn(message, UserWarning)
+
+
 def _contr_sum(n: int) -> np.ndarray:
     """
     Create sum-to-zero contrast matrix.
@@ -164,10 +186,7 @@ def _array_weights_gene_by_gene(
         dl = var_design.T @ z
 
         # Update gamma
-        try:
-            gam = gam + np.linalg.solve(info2, dl)
-        except np.linalg.LinAlgError:
-            continue
+        gam = gam + _scoring_step(info2, dl)
 
         # Update array weights
         aw = np.exp(var_design @ (-gam))
@@ -328,13 +347,11 @@ def _array_weights_reml(
         z = n_genes * z + prior_n * (w - 1.0)
 
         dl = Z2.T @ z
-        try:
-            gamstep = linalg.solve(info2, dl)
-        except linalg.LinAlgError:
-            break
+        gamstep = _scoring_step(info2, dl)
 
         convcrit = float(dl @ gamstep) / n_gam / (n_genes + prior_n)
         if not np.isfinite(convcrit) or convcrit >= convcrit_last:
+            _stop_scoring("tolerance")
             break
         convcrit_last = convcrit
 
@@ -346,6 +363,8 @@ def _array_weights_reml(
 
         if convcrit < tol:
             break
+        if iteration == maxiter:
+            _stop_scoring("maxiter")
 
     return w
 
@@ -455,10 +474,7 @@ def _array_weights_pr_wts_reml(
         z_avg = z / (n_genes + prior_n)
 
         dl = Z2.T @ z_avg
-        try:
-            gamstep = linalg.solve(info2_avg, dl)
-        except linalg.LinAlgError:
-            break
+        gamstep = _scoring_step(info2_avg, dl)
 
         gam = gam + gamstep
         w = np.exp(Z2 @ (-gam))
@@ -467,10 +483,14 @@ def _array_weights_pr_wts_reml(
         if trace:
             print(f"{iteration} {convcrit:.6g} {w.min():.6g} {w.max():.6g}")
 
-        if not np.isfinite(convcrit):
+        # R: is.na(convcrit); an infinite convcrit iterates on
+        if np.isnan(convcrit):
+            _stop_scoring("tolerance")
             break
         if convcrit < tol:
             break
+        if iteration == maxiter:
+            _stop_scoring("maxiter")
 
     return w
 
