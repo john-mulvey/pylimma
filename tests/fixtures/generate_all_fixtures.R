@@ -6977,3 +6977,15 @@ stopifnot(voomaLmFit(.vn_y, .vn_d, save.plot = TRUE)$voom.xy$xlab == "Average lo
           identical(colnames(voomaLmFit(.vn_y, .vn_d, sample.weights = TRUE)$targets), "sample.weight"),
           identical(colnames(voomaLmFit(new("EList", list(E = .vn_y, targets = data.frame(g = 1:8))), .vn_d,
                                         sample.weights = TRUE)$targets), c("g", "sample.weight")))
+
+# =============================================================================
+# voom, voomWithQualityWeights, vooma and voomaLmFit name the default design
+# "GrandMean"
+# =============================================================================
+set.seed(1312)
+.gm_counts <- matrix(rpois(540, 50), 60, 9)
+stopifnot(identical(colnames(voom(.gm_counts)$design), "GrandMean"),
+          identical(colnames(lmFit(voom(.gm_counts))$coefficients), "GrandMean"),
+          identical(colnames(voomWithQualityWeights(.gm_counts)$design), "GrandMean"),
+          identical(colnames(vooma(log2(.gm_counts))$design), "GrandMean"),
+          identical(colnames(voomaLmFit(log2(.gm_counts))$coefficients), "GrandMean"))

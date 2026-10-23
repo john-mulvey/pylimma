@@ -241,6 +241,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `voom`, `voom_with_quality_weights`, `vooma` and `vooma_lm_fit` name
+  their default intercept-only design "GrandMean", as R, so the design is
+  a DataFrame and a fit of it has the coefficient "GrandMean"; it was an
+  unnamed matrix.
 - `vooma_lm_fit` returns its output as R's `voomaLmFit`: with sample
   weights, `targets` is the input's targets (or a new DataFrame named by
   the samples) with a `sample_weight` column, where it was a dict

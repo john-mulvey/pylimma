@@ -30,6 +30,14 @@ from .lmfit import _fit_genes, _numeric_design, _parse_design, _qr_r_style, lm_f
 from .utils import _block_labels, _r_approx_rule2, _r_lowess, choose_lowess_span
 
 
+def _voom_design(design, sample_data, n_samples: int) -> tuple[np.ndarray, list[str] | None]:
+    """The design of the voom family, parsed as lm_fit's; R
+    names the default intercept-only design "GrandMean"."""
+    if design is None:
+        return np.ones((n_samples, 1)), ["GrandMean"]
+    return _parse_design(design, data=sample_data, n_samples=n_samples)
+
+
 def _named_design(design: np.ndarray, names: list[str] | None):
     """Output form of a parsed design: a DataFrame when column names are
     known (R keeps colnames(design) on v$design, so lm_fit(v) recovers
@@ -277,7 +285,7 @@ def voom(
     # input is AnnData), ndarray / DataFrame / patsy DesignMatrix, or
     # None (intercept-only). Matches lm_fit's dispatch.
     sample_data = original_input.obs if _is_anndata(original_input) else None
-    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
+    design, design_names = _voom_design(design, sample_data, n_samples)
 
     # Check lib_size
     if lib_size is None:
@@ -556,7 +564,7 @@ def voom_with_quality_weights(
     # otherwise the inner calls lose the adata.obs context needed by patsy.
     sample_data = original_input.obs if _is_anndata(original_input) else None
     n_samples = counts_arr.shape[1]
-    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
+    design, design_names = _voom_design(design, sample_data, n_samples)
 
     # Initial voom without array weights
     v = voom(
@@ -709,7 +717,7 @@ def vooma(
 
     # Parse design (formula strings via patsy + adata.obs when AnnData).
     sample_data = original_input.obs if _is_anndata(original_input) else None
-    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
+    design, design_names = _voom_design(design, sample_data, n_samples)
 
     # Compute row means
     A = np.nanmean(y, axis=1)
@@ -998,7 +1006,7 @@ def vooma_lm_fit(
 
     # Parse design (formula strings via patsy + adata.obs when AnnData).
     sample_data = original_input.obs if _is_anndata(original_input) else None
-    design, design_names = _parse_design(design, data=sample_data, n_samples=n_samples)
+    design, design_names = _voom_design(design, sample_data, n_samples)
 
     # Check for conflicting weight specifications
     use_sample_weights = sample_weights or var_design is not None or var_group is not None

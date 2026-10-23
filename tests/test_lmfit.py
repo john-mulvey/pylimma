@@ -1204,3 +1204,16 @@ def test_vooma_with_missing_or_infinite_y_raises(bad, block):
     design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
     with pytest.raises(ValueError, match="y contains 1 missing or infinite values"):
         pylimma.vooma(y, design, block=block, correlation=0.3 if block is not None else None)
+
+
+def test_voom_family_names_the_default_design_grand_mean():
+    """R names the default design "GrandMean" (generate_all_fixtures.R,
+    "name the default design")."""
+    import pylimma
+
+    counts = np.random.default_rng(1312).poisson(50, (60, 9)).astype(float)
+    assert list(pylimma.voom(counts)["design"].columns) == ["GrandMean"]
+    assert lm_fit(pylimma.voom(counts))["coef_names"] == ["GrandMean"]
+    assert list(pylimma.voom_with_quality_weights(counts)["design"].columns) == ["GrandMean"]
+    assert list(pylimma.vooma(np.log2(counts))["design"].columns) == ["GrandMean"]
+    assert pylimma.vooma_lm_fit(np.log2(counts))["coef_names"] == ["GrandMean"]
