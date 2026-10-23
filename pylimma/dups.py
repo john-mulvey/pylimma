@@ -741,7 +741,7 @@ def duplicate_correlation(
         # R: blocks all of size 1 are checked first
         unique_blocks, counts = np.unique(block, return_counts=True)
         if np.max(counts) == 1:
-            warnings.warn("Blocks all of size 1: setting correlation to zero.")
+            warnings.warn("Blocks all of size 1: setting intrablock correlation to zero.")
             return {
                 "consensus_correlation": 0.0,
                 "cor": 0.0,
@@ -782,7 +782,7 @@ def duplicate_correlation(
     if block is None:
         # Within-array duplicates
         if ndups < 2:
-            warnings.warn("No duplicates: setting correlation to zero.")
+            warnings.warn("No duplicates: setting correlation between duplicates to zero.")
             return {
                 "consensus_correlation": 0.0,
                 "cor": 0.0,
