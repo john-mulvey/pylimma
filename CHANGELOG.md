@@ -494,6 +494,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `array_weights` requires `maxiter` to be a whole number of at least 1
+  and `prior_n` a finite number of 0 or more; `prior_n=Inf` gave NaN
+  weights or scipy's error and `maxiter=0` no iteration (R's `1:0`
+  iterates).
 - `array_weights` stops as R's scoring iteration does: a singular
   information matrix (for example `prior_n=0` with 2 residual df) raises a
   clear error, where pylimma skipped the step and could return weights of

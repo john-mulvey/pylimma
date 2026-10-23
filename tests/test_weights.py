@@ -36,3 +36,19 @@ def test_reml_warns_at_the_iteration_limit(weights):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         array_weights(y, method="reml", weights=weights)
+
+
+@pytest.mark.parametrize("method", ["genebygene", "reml"])
+@pytest.mark.parametrize(
+    "kwargs, message",
+    [
+        ({"prior_n": np.inf}, "prior_n must be a finite number of 0 or more"),
+        ({"prior_n": -1}, "prior_n must be a finite number of 0 or more"),
+        ({"maxiter": 0}, "maxiter must be at least 1"),
+        ({"maxiter": 2.5}, "maxiter must be a whole number"),
+    ],
+)
+def test_invalid_prior_n_and_maxiter_raise(method, kwargs, message):
+    # R: prior.n = Inf gives NaN weights or stops in lm.wfit; 1:0 iterates
+    with pytest.raises(ValueError, match=message):
+        array_weights(_fixture("aws_maxiter_input"), method=method, **kwargs)

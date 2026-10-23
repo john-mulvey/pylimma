@@ -22,6 +22,7 @@ Implements functions to estimate sample-specific quality weights:
 
 from __future__ import annotations
 
+import numbers
 import warnings
 
 import numpy as np
@@ -29,7 +30,7 @@ from scipy import linalg
 
 from .classes import _shape_error, get_eawp
 from .lmfit import _qr_r_style
-from .utils import _r_as_character
+from .utils import _r_as_character, _whole_count
 
 
 def _scoring_step(info2: np.ndarray, dl: np.ndarray) -> np.ndarray:
@@ -564,6 +565,11 @@ def array_weights(
     The weights are relative (their geometric mean is approximately 1)
     and can be incorporated into downstream analysis via lm_fit().
     """
+    # R's 1:maxiter runs twice for 0, and prior.n = Inf gives NaN weights
+    maxiter = _whole_count(maxiter, "maxiter")
+    if not (isinstance(prior_n, numbers.Real) and np.isfinite(prior_n) and prior_n >= 0):
+        raise ValueError(f"prior_n must be a finite number of 0 or more, not {prior_n!r}")
+
     # Polymorphic input: ndarray / dict / EList / AnnData.
     eawp = get_eawp(object, layer=layer, weights_layer=weights_layer)
     E = np.asarray(eawp["exprs"], dtype=np.float64)
