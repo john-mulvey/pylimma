@@ -26,14 +26,17 @@ normexp saddle-point fit drifts up to ~2e-4 from R
 ``method="rma"``, ``method="rma75"``, and ``normexp_signal`` all match
 R at floating-point precision.
 
-**Root cause.** scipy's Nelder-Mead and R's ``nmmin`` share the same
-algorithm and initial simplex but use different termination rules. R
-uses a relative f-range ``VH - VL < intol * (|VL| + intol)`` with
-``intol = sqrt(eps) = 1.49e-8``, giving ``convtol ~4e-4`` at the
-saddle objective scale (``f ~ 25000``). scipy uses absolute
-``fatol=1e-4`` and ``xatol=1e-4``. scipy consequently runs a few
-iterations further and lands at a slightly better f at a different
-point on the flat saddle-likelihood plateau.
+**Root cause.** scipy's Nelder-Mead and R's ``nmmin`` implement the same
+algorithm but differ in the initial simplex, the termination rule and
+the details of their reflection and shrink steps. R stops when
+``VH - VL < intol * (|f(x0)| + intol)`` with ``intol = sqrt(eps) =
+1.49e-8`` (``~4e-4`` at the saddle objective scale, ``f ~ 25000``);
+pylimma's scipy call uses absolute ``fatol = xatol = 1.49e-8`` and at
+most 500 iterations, so it runs further and lands at a slightly better
+f at a different point on the flat saddle-likelihood plateau. Giving
+scipy R's initial simplex and stopping rule (as ``genas`` does) does not
+bring it closer: the largest parameter difference grows from ``2e-4`` to
+``5e-4`` on the fixtures, so the fit keeps its own settings.
 
 **Tolerance.** Parity tests for ``method="saddle"`` use
 ``rtol=1e-3``. All other normexp methods are at ``rtol=1e-10`` or
