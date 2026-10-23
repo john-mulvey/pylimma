@@ -6626,3 +6626,17 @@ write.csv(data.frame(genebygene = arrayWeights(.aw_E, .aw_d, method = "genebygen
                      reml = arrayWeights(.aw_E, .aw_d, method = "reml")),
           "R_aw_vector_design.csv", row.names = FALSE)
 stopifnot(all.equal(arrayWeights(.aw_E, .aw_d, method = "genebygene"), arrayWeights(.aw_E, matrix(.aw_d), method = "genebygene")))
+
+# =============================================================================
+# Column subset of a rank-deficient fit: R takes cov.coefficients in pivot
+# order (jj <- which(pivot %in% j)), so for columns out of that order the
+# covariance does not line up with the coefficients (pylimma follows the
+# requested order)
+# =============================================================================
+set.seed(1301)
+.rk_d <- cbind(A = 1, B = rep(0:1, 4), C = rep(c(0, 0, 1, 1), 2))
+.rk_d <- cbind(.rk_d, D = .rk_d[, "B"] + .rk_d[, "C"])
+.rk_fit <- suppressWarnings(suppressMessages(lmFit(matrix(rnorm(80), 10), .rk_d)))
+.rk_sub <- .rk_fit[, c("C", "A")]
+stopifnot(identical(colnames(.rk_sub$coefficients), c("C", "A")),
+          identical(rownames(.rk_sub$cov.coefficients), c("A", "C")))

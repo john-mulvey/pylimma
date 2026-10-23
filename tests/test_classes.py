@@ -1313,3 +1313,20 @@ def test_array_weights_elist_design_slot_used_with_warning():
     np.testing.assert_array_equal(from_slot, pylimma.array_weights(E, design))
     with pytest.warns(UserWarning, match="using 'design' from the EList's design slot"):
         pylimma.array_weights({"E": E, "design": design})
+
+
+def test_rank_deficient_column_subset_keeps_cov_in_requested_order():
+    """R takes cov.coefficients in pivot order (fixture script), so for
+    fit[, c("C", "A")] its rows are A, C; pylimma's follow the selection."""
+    from pylimma import lm_fit
+
+    design = pd.DataFrame(
+        {"A": 1.0, "B": np.tile([0.0, 1.0], 4), "C": np.tile([0.0, 0.0, 1.0, 1.0], 2)}
+    )
+    design["D"] = design["B"] + design["C"]
+    with pytest.warns(UserWarning):
+        fit = lm_fit(np.random.default_rng(2).normal(size=(10, 8)), design)
+    sub = fit[:, ["C", "A"]]
+    full = np.asarray(fit["cov_coefficients"])
+    np.testing.assert_array_equal(sub["cov_coefficients"], full[np.ix_([2, 0], [2, 0])])
+    np.testing.assert_array_equal(sub["coefficients"], np.asarray(fit["coefficients"])[:, [2, 0]])

@@ -538,8 +538,10 @@ class MArrayLM(_LargeDataObject):
         """R's ``[.MArrayLM`` (subsetting.R).
 
         ``fit[i, :]`` subsets genes only. Selecting columns (anything other
-        than ``:``) also subsets cov_coefficients (through ``pivot``, in
-        pivot order, when the design was rank deficient), creates an
+        than ``:``) also subsets cov_coefficients, in the order of the
+        selected columns (R keeps pivot order for a rank-deficient design,
+        so its covariance does not line up with the coefficients; see
+        :doc:`/validation/known_differences`), creates an
         identity ``contrasts`` matrix if none is present and subsets it,
         subsets var_prior, and regenerates F and F_p_value from the kept
         columns.
@@ -554,7 +556,6 @@ class MArrayLM(_LargeDataObject):
         # cov_coefficients covers only estimable coefficients (NaN rows here,
         # fewer columns in R); selecting a non-estimable coefficient is an error
         cov = self.get("cov_coefficients")
-        cov_idx = j_idx
         if cov is not None:
             estimable = ~np.isnan(np.diag(np.asarray(cov, dtype=np.float64)))
             if not estimable.all():
@@ -563,7 +564,6 @@ class MArrayLM(_LargeDataObject):
                 pivot = np.asarray(self["pivot"])
                 if np.isin(j_idx, pivot[estimable.sum() :]).any():
                     raise ValueError("Subsetting to non-estimable coefficients is not allowed.")
-                cov_idx = pivot[np.isin(pivot, j_idx)]
 
         fit = MArrayLM(dict(self))
         if fit.get("contrasts") is None:
@@ -573,7 +573,7 @@ class MArrayLM(_LargeDataObject):
         out = super(MArrayLM, fit)._subset(i, j_idx)
 
         if cov is not None:
-            out["cov_coefficients"] = np.asarray(cov, dtype=np.float64)[np.ix_(cov_idx, cov_idx)]
+            out["cov_coefficients"] = np.asarray(cov, dtype=np.float64)[np.ix_(j_idx, j_idx)]
         out["contrasts"] = np.asarray(out["contrasts"])[:, j_idx]
         if out.get("contrast_names") is not None:
             out["contrast_names"] = [out["contrast_names"][k] for k in j_idx]

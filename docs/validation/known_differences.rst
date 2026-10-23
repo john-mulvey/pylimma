@@ -538,6 +538,19 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     two for 0 and three for -1, because ``1:0`` counts down.
     ``generate_all_fixtures.R`` records the R behaviour.
 
+Column subsets of a rank-deficient fit
+--------------------------------------
+
+For a fit whose design is not of full rank, R's ``[.MArrayLM`` takes
+``cov.coefficients`` in pivot order (``jj <- which(pivot %in% j)``), so
+``fit[, c("C", "A")]`` has coefficients in the order C, A but a
+covariance in the order A, C, and functions that read the subset (such as
+``genas``) pair each coefficient with another's variance. pylimma subsets
+``cov_coefficients`` in the order of the selected columns, so it lines up
+with the coefficients. Selections in pivot order (including every
+selection from a full-rank fit) are unaffected.
+``generate_all_fixtures.R`` records the R behaviour.
+
 Deliberate interface difference: EList design and weights slots
 ---------------------------------------------------------------
 

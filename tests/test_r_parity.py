@@ -6766,8 +6766,9 @@ class TestContrastsFitBranchParity:
 
     ``coefficients=`` returns ``fit[, coefficients]``: test statistics are
     kept and subset, F is regenerated, and cov.coefficients, contrasts and
-    var.prior are subset (cov.coefficients through pivot, in pivot order, for
-    a rank-deficient fit). The R script asserts each precondition.
+    var.prior are subset (cov.coefficients in pivot order for a
+    rank-deficient fit in R, in the requested order in pylimma). The R
+    script asserts each precondition.
     """
 
     SLOTS = {
@@ -6820,11 +6821,18 @@ class TestContrastsFitBranchParity:
         self._assert_matches(cf, "contrasted")
         self._assert_matches(contrasts_fit(cf, coefficients=[1]), "contrasted_coef2")
 
-    def test_rank_deficient_subset_in_pivot_order(self):
+    def test_rank_deficient_subset_in_requested_order(self):
+        """As R, except cov_coefficients: R keeps pivot order (here
+        Intercept, C) for the selection (C, Intercept), pylimma the
+        requested order (known_differences.rst)."""
         design = self.DESIGN.assign(dup=self.DESIGN["B"])[["Intercept", "B", "dup", "C"]]
         with pytest.warns(UserWarning):
             eb = e_bayes(lm_fit(self._y(), design))
-        self._assert_matches(contrasts_fit(eb, coefficients=[3, 0]), "singular_coef41")
+        sub = contrasts_fit(eb, coefficients=[3, 0])
+        r_cov = pd.read_csv(FIXTURES_DIR / "R_cfb_singular_coef41_cov_coefficients.csv").to_numpy()
+        np.testing.assert_allclose(sub["cov_coefficients"], r_cov[::-1, ::-1], rtol=1e-6)
+        sub["cov_coefficients"] = r_cov
+        self._assert_matches(sub, "singular_coef41")
         with pytest.raises(ValueError, match="Subsetting to non-estimable coefficients is not allowed"):
             contrasts_fit(eb, coefficients=[2])
 

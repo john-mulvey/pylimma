@@ -9,6 +9,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- Selecting columns of a rank-deficient fit (`fit[:, ["C", "A"]]`,
+  `contrasts_fit(coefficients=...)`, `genas(coef=...)`) subsets
+  `cov_coefficients` in the order of the selected columns. As R, it kept
+  pivot order, so the covariance did not line up with the coefficients
+  for columns out of that order (see known differences).
 - `duplicate_correlation` keeps a gene's correlation whatever the sign of
   its variance components, clipped to R's bounds, as R does; genes whose
   components summed to a non-positive value were left out of the
