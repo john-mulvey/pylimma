@@ -1079,6 +1079,8 @@ def _formula_design(formula: str, data) -> pd.DataFrame:
 
     The single place where pylimma builds a design from a formula, with patsy.
     """
+    if not isinstance(formula, str):
+        raise TypeError(f"formula must be a string, not {type(formula).__name__}")
     # patsy evaluates ^ as Python's bitwise XOR (I(age^2) is 3, 0, 1, ... for
     # integers) and rejects it between terms; in R it is a power or crossing
     if "^" in _formula_operators(formula):
@@ -1102,6 +1104,18 @@ def _formula_design(formula: str, data) -> pd.DataFrame:
             )
         }
     )
+    # R's model.matrix codes every factor term with contrasts, which need two
+    # levels; patsy gives a single-level factor one constant column
+    single = sorted(
+        factor.code
+        for factor, info in design_info.factor_infos.items()
+        if info.type == "categorical" and len(info.categories) < 2
+    )
+    if single:
+        raise ValueError(
+            f"formula {formula!r}: contrasts can be applied only to factors with 2 or more "
+            f"levels ({', '.join(map(repr, single))})"
+        )
     if ordered:
         raise ValueError(
             f"formula {formula!r}: ordered categorical {', '.join(map(repr, ordered))} "

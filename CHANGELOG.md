@@ -231,6 +231,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- Formula designs (`model_matrix`, `lm_fit("~ ...")`, the voom family)
+  raise R's "contrasts can be applied only to factors with 2 or more
+  levels" for a factor with one level, where patsy gave it a constant
+  column, and a clear error for a formula that is not a string (it raised
+  `AttributeError`).
 - `MArrayLM.as_dataframe` names columns as R's `as.data.frame.MArrayLM`:
   `coefficients.<coefficient name>` (it numbered them,
   `coefficients.1`), and `genes.<column>` for a genes data frame.

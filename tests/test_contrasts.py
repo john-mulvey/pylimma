@@ -206,6 +206,22 @@ class TestFormulaCaret:
         np.testing.assert_array_equal(model_matrix('~ Q("a^b")', data)[:, 1], [1, 2, 3])
 
 
+class TestFormulaChecks:
+    """R's model.matrix needs two levels for every factor term, also without
+    an intercept (fixture script); a formula that is not a string raises."""
+
+    def test_single_level_factor_raises(self):
+        data = pd.DataFrame({"f": ["a"] * 4, "x": np.arange(4.0)})
+        for formula in ("~ f", "~ 0 + f", "~ x + f"):
+            with pytest.raises(ValueError, match="2 or more levels"):
+                model_matrix(formula, data)
+        assert model_matrix("~ x", data).shape == (4, 2)
+
+    def test_formula_must_be_a_string(self):
+        with pytest.raises(TypeError, match="formula must be a string"):
+            model_matrix(None, pd.DataFrame({"x": [1.0, 2.0]}))
+
+
 class TestFormulaNames:
     """Formula names: data columns, patsy built-ins, np and pd only."""
 

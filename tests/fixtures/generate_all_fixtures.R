@@ -6735,3 +6735,12 @@ stopifnot(all(c("coefficients.a", "coefficients.bvsa", "t.bvsa", "p.value.bvsa",
 .adf_fit$genes <- data.frame(ProbeID = paste0("g", 1:7))
 .adf_fit$w <- matrix(1, 7, 1)
 stopifnot(all(c("ProbeID", "w") %in% names(as.data.frame(.adf_fit))))
+
+# =============================================================================
+# model.matrix needs two levels for every factor term, also without an
+# intercept
+# =============================================================================
+.mm_d <- data.frame(f = factor(rep("a", 4)), x = 1:4)
+stopifnot(grepl("2 or more levels", try(model.matrix(~ f, .mm_d), silent = TRUE)),
+          grepl("2 or more levels", try(model.matrix(~ 0 + f, .mm_d), silent = TRUE)),
+          identical(dim(model.matrix(~ x, .mm_d)), c(4L, 2L)))
