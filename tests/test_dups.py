@@ -314,3 +314,51 @@ class TestDuplicateCorrelationInputs:
         expected = pd.read_csv(self.FIXTURES / "R_dct.csv").set_index("case")["cor"][case]
         out = duplicate_correlation(y, design, block=block)
         np.testing.assert_allclose(out["consensus_correlation"], expected, rtol=1e-6)
+
+
+class TestDuplicateCounts:
+    """R's ndups and spacing are ordinary numbers (2 is a double), so 2.0
+    works; a fraction raises, where R fails in dim<-."""
+
+    def test_whole_number_floats_match_integers(self):
+        from pylimma import duplicate_correlation
+
+        rng = np.random.default_rng(3)
+        x = rng.normal(size=(12, 2))
+        w = rng.uniform(0.5, 2, size=(12, 2))
+        np.testing.assert_array_equal(unwrap_dups(x, ndups=2.0, spacing=1.0), unwrap_dups(x, 2, 1))
+        np.testing.assert_array_equal(unwrap_dups(x, ndups=np.array(2)), unwrap_dups(x, 2))
+        np.testing.assert_array_equal(unwrap_dups(x, ndups=np.array([2])), unwrap_dups(x, 2))
+        np.testing.assert_array_equal(
+            ave_dups(x, ndups=2.0, spacing=2.0, weights=w), ave_dups(x, 2, 2, weights=w)
+        )
+        assert unique_genelist(list("aabbccddeeff"), ndups=2.0) == unique_genelist(
+            list("aabbccddeeff"), 2
+        )
+        y = rng.normal(size=(40, 4))
+        np.testing.assert_allclose(
+            duplicate_correlation(y, ndups=2.0)["consensus_correlation"],
+            duplicate_correlation(y, ndups=2)["consensus_correlation"],
+        )
+
+    @pytest.mark.parametrize(
+        "kwargs", [{"ndups": 2.5}, {"ndups": 2, "spacing": 1.5}, {"ndups": "2"}]
+    )
+    def test_fractions_raise(self, kwargs):
+        with pytest.raises(ValueError, match="must be a whole number"):
+            unwrap_dups(np.ones((12, 2)), **kwargs)
+
+    def test_fewer_than_two_duplicates_as_r(self):
+        """R: uniquegenelist returns the list for ndups <= 1;
+        duplicateCorrelation warns 'No duplicates' for ndups < 2;
+        unwrapdups / avedups return their input for ndups == 1, whatever
+        spacing is."""
+        from pylimma import duplicate_correlation
+
+        x = np.ones((4, 2))
+        assert unwrap_dups(x, ndups=1, spacing=None) is x
+        assert ave_dups(x, ndups=1, spacing=0) is x
+
+        assert unique_genelist(list("abcd"), ndups=0) == list("abcd")
+        with pytest.warns(UserWarning, match="No duplicates"):
+            assert duplicate_correlation(np.ones((4, 3)), ndups=0)["consensus_correlation"] == 0

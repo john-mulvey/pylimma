@@ -49,6 +49,7 @@ Internal helper functions used throughout the package.
 from __future__ import annotations
 
 import math
+import numbers
 import sys
 import warnings
 
@@ -171,8 +172,16 @@ def _whole_count(value, name: str) -> int:
     R fails obscurely below 1 or silently truncates a fraction (nrot gave
     meaningless p-values: random numbers recycled into a smaller rotation
     matrix, the fraction in the denominators); clear errors instead.
-    Whole-number floats such as 1e4 are accepted."""
-    if not math.isfinite(float(value)) or float(value) != int(value):
+    Whole-number floats such as 1e4 (and one-element arrays) are accepted."""
+    # R: a length-1 vector is a scalar
+    if isinstance(value, np.ndarray) and value.size == 1:
+        value = value.item()
+    if (
+        not isinstance(value, numbers.Real)
+        or isinstance(value, (bool, np.bool_))
+        or not math.isfinite(value)
+        or value != int(value)
+    ):
         raise ValueError(f"{name} must be a whole number")
     count = int(value)
     if count < 1:

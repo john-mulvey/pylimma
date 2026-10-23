@@ -26,7 +26,7 @@ import pandas as pd
 from scipy import linalg
 
 from .classes import EList, _is_anndata, get_eawp
-from .utils import _as_dense_array, _r_trimmed_mean
+from .utils import _as_dense_array, _r_trimmed_mean, _whole_count
 
 
 def _mixed_model_2_fit(
@@ -267,7 +267,8 @@ def unwrap_dups(
     M : ndarray
         Expression matrix, shape (n_spots, n_arrays).
     ndups : int, default 2
-        Number of duplicates.
+        Number of duplicates, a whole number (2.0 works; a fraction
+        raises, where R fails in ``dim<-``).
     spacing : int, default 1
         Spacing between duplicates in the original matrix.
 
@@ -281,8 +282,10 @@ def unwrap_dups(
     This function matches R limma's unwrapdups behaviour. The output has
     columns ordered as: [dup0-array0, dup1-array0, ..., dup0-array1, ...].
     """
+    # R: if(ndups==1) return(M), whatever spacing is
     if ndups == 1:
         return M
+    ndups, spacing = _whole_count(ndups, "ndups"), _whole_count(spacing, "spacing")
 
     M = _as_dense_array(M, np.float64)
     n_spots, n_arrays = M.shape
@@ -317,7 +320,8 @@ def unique_genelist(
     genelist : array_like, DataFrame, or list
         Gene identifiers or annotation.
     ndups : int, default 2
-        Number of duplicates.
+        Number of duplicates, a whole number (2.0 works; a fraction
+        raises, where R fails in ``dim<-``).
     spacing : int, default 1
         Spacing between duplicates.
 
@@ -326,8 +330,10 @@ def unique_genelist(
     array_like, DataFrame, or list
         Gene list with duplicates removed.
     """
+    # R: if(ndups <= 1) return(genelist)
     if ndups <= 1:
         return genelist
+    ndups = _whole_count(ndups, "ndups")
 
     # Get indices of first duplicate
     n = len(genelist) if hasattr(genelist, "__len__") else genelist.shape[0]
@@ -364,7 +370,8 @@ def ave_dups(
     x : ndarray
         Expression matrix, shape (n_spots, n_arrays).
     ndups : int, default 2
-        Number of duplicates.
+        Number of duplicates, a whole number (2.0 works; a fraction
+        raises, where R fails in ``dim<-``).
     spacing : int, default 1
         Spacing between duplicates.
     weights : ndarray, optional
@@ -375,8 +382,10 @@ def ave_dups(
     ndarray
         Averaged matrix, shape (n_genes, n_arrays).
     """
+    # R: if(ndups==1) return(x), whatever spacing is
     if ndups == 1:
         return x
+    ndups, spacing = _whole_count(ndups, "ndups"), _whole_count(spacing, "spacing")
 
     x = _as_dense_array(x, np.float64)
     n_spots, n_arrays = x.shape
@@ -626,7 +635,8 @@ def duplicate_correlation(
     design : ndarray, optional
         Design matrix. If None, uses intercept-only model.
     ndups : int, default 2
-        Number of within-array duplicate spots.
+        Number of within-array duplicate spots, a whole number (a fraction
+        raises, where R fails in ``dim<-``).
     spacing : int or str, default 1
         Spacing between duplicates. Can be an integer or one of:
         - "columns": spacing of 1 (duplicates in adjacent rows)
@@ -688,6 +698,9 @@ def duplicate_correlation(
             spacing = n_genes // 2
         else:
             raise ValueError(f"Unknown spacing shortcut: {spacing}. Use 'columns' or 'topbottom'.")
+    # R: ordinary numbers, so 2.0 works (fewer than 2 duplicates warns below)
+    if block is None and ndups >= 2:
+        ndups, spacing = _whole_count(ndups, "ndups"), _whole_count(spacing, "spacing")
 
     # Check design. R: as.matrix(design), so a vector is one column
     if design is None:

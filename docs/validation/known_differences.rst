@@ -350,6 +350,11 @@ Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     10.5, R recycles random numbers into a 10-row rotation matrix and uses
     10.5 in the p-value denominators, which is not meaningful.
 
+``ndups`` / ``spacing`` in ``unwrap_dups``, ``ave_dups``, ``unique_genelist`` and ``duplicate_correlation``
+    Must be whole numbers (whole-number floats such as 2.0 work). R fails
+    in ``dim<-`` ("dims do not match the length of object") for a
+    fraction; pylimma raises "ndups must be a whole number".
+
 ``duplicate_correlation`` with a single block
     Raises "block must have at least two levels". R fails in
     ``model.matrix(~factor(block))`` with "contrasts can be applied only to

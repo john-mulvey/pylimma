@@ -378,6 +378,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `unwrap_dups`, `ave_dups`, `unique_genelist` and `duplicate_correlation`
+  take whole-number floats for `ndups` and `spacing` (2.0), as R does;
+  they raised `TypeError`. A fraction raises "ndups must be a whole
+  number" (R fails in `dim<-`).
 - `duplicate_correlation` takes a `block` given as a list of strings (it
   raised `AttributeError`) and a design given as a vector, which is one
   column as R's `as.matrix` (it raised `IndexError`); a design whose rows
