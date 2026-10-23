@@ -6778,3 +6778,10 @@ stopifnot(inherits(try(genas(.gu_fit, coef = c(1, 6)), silent = TRUE), "try-erro
 .fm_y <- matrix(rnorm(40, 8), 10)
 stopifnot(grepl("NAs are not allowed", try(fitmixture(.fm_y, rep(0.5, 4)), silent = TRUE)),
           grepl("NAs are not allowed", try(fitmixture(.fm_y[, 1, drop = FALSE], 0.3), silent = TRUE)))
+
+# =============================================================================
+# selectModel: criterion = NULL is match.arg's first choice ("aic")
+# =============================================================================
+.sm_y <- matrix(rnorm(36), 6)
+.sm_dl <- list(cbind(1, rep(0:1, 3)), matrix(1, 6, 1))
+stopifnot(identical(selectModel(.sm_y, .sm_dl, criterion = NULL)$pref, selectModel(.sm_y, .sm_dl)$pref))

@@ -72,13 +72,17 @@ def select_model(
         designs = list(design_list)
         model_names = [str(i + 1) for i in range(len(designs))]
     nmodels = len(designs)
+    if nmodels == 0:
+        # R fails later with "subscript out of bounds"
+        raise ValueError("design_list is empty")
 
     if df_prior > 0 and s2_prior is None:
         raise ValueError("s2_prior must be set when df_prior > 0")
     if df_prior == 0:
         s2_prior = 0.0
 
-    criterion = criterion.lower()
+    # R: match.arg(NULL, choices) is the first choice
+    criterion = "aic" if criterion is None else criterion.lower()
     if criterion not in ("aic", "bic", "mallowscp"):
         raise ValueError("criterion must be one of 'aic', 'bic', 'mallowscp'")
 

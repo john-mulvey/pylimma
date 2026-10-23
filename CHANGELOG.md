@@ -449,6 +449,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `select_model(criterion=None)` uses "aic", as R's `match.arg(NULL)` picks
+  the first choice (it raised `AttributeError`), and an empty
+  `design_list` raises a clear error.
 - `as_matrix_weights(None, dim)` raises a clear error; it returned a matrix
   of NaN weights (R fails in `as.matrix(NULL)`).
 - `wsva` raises R's "design matrix not specified" and "row dimension of

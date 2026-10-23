@@ -6390,10 +6390,19 @@ class TestSelectModelRParity:
         ]
         return y, (dict(zip(["null", "group", "full"], designs)) if named else designs)
 
+    def test_empty_design_list_raises(self):
+        from pylimma import select_model
+
+        y, _ = self._inputs()
+        with pytest.raises(ValueError, match="design_list is empty"):
+            select_model(y, [])
+
     @pytest.mark.parametrize(
         "case, kwargs, named",
         [
             ("aic", dict(criterion="aic"), True),
+            # R: match.arg(NULL) is the first choice (fixture script)
+            ("aic", dict(criterion=None), True),
             ("bic", dict(criterion="bic"), True),
             ("mallowscp", dict(criterion="mallowscp", s2_true="vector"), True),
             ("mallowscp_scalar", dict(criterion="mallowscp", s2_true=1.0), True),
