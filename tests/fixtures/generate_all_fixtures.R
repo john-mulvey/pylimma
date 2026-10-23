@@ -6358,3 +6358,12 @@ stopifnot(nrow(head(.sub_el, -1)) == 2, nrow(tail(.sub_el, -1)) == 2,
           inherits(try(.sub_fit[, "z"], silent = TRUE), "try-error"),
           grepl("Subscript not found in colnames", try(.sub_fit[, "z"], silent = TRUE)),
           grepl("Subscript not found in rownames", try(.sub_el["a", ], silent = TRUE)))
+
+# =============================================================================
+# A fit keeps the expression matrix's row names, so genes can be selected by
+# name
+# =============================================================================
+.rn_y <- matrix(rnorm(48), 8, dimnames = list(paste0("g", 1:8), NULL))
+.rn_fit <- eBayes(lmFit(.rn_y, cbind(1, c(0, 0, 0, 1, 1, 1))))
+stopifnot(identical(rownames(.rn_fit[c("g3", "g1"), ]), c("g3", "g1")),
+          identical(.rn_fit[c("g3", "g1"), ]$t, .rn_fit$t[c(3, 1), , drop = FALSE]))

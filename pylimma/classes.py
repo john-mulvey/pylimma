@@ -397,8 +397,12 @@ class _LargeDataObject(dict):
         targets = self.get("targets")
         row = None
         col = None
-        if genes is not None and isinstance(genes, pd.DataFrame):
+        if isinstance(genes, pd.DataFrame):
             row = list(genes.index)
+        elif genes is not None and np.ndim(genes) == 1 and len(genes) == self.nrow:
+            # row names stored as a bare list (lm_fit on AnnData or a named
+            # DataFrame), R's rownames(fit)
+            row = list(genes)
         if targets is not None and isinstance(targets, pd.DataFrame):
             col = list(targets.index)
         return (row, col)

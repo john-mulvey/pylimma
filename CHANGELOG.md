@@ -368,6 +368,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- A fit from `lm_fit` on an AnnData or a DataFrame with row names keeps
+  those names as its row names (`fit.dimnames`), as R's `rownames(fit)`,
+  so `fit[["g3", "g1"], :]` selects genes by name; it raised "invalid
+  literal for int()".
 - `prop_true_null` takes a matrix of p-values as its values, as R does;
   methods `"lfdr"`, `"mean"` and `"convest"` raised a broadcasting error.
 - `camera`, `romer` and the gene-set effects behind `roast` / `mroast` /

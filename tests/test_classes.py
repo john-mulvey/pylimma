@@ -216,6 +216,25 @@ def test_head_returns_correct_rows():
     np.testing.assert_array_equal(np.asarray(h.E), np.asarray(el.E)[:5])
 
 
+def test_fit_rows_are_selected_by_gene_name():
+    """lm_fit on a named DataFrame or an AnnData keeps the names as a list;
+    as R's rownames(fit), they select rows (fixture script)."""
+    anndata = pytest.importorskip("anndata")
+    from pylimma import e_bayes, lm_fit
+
+    rng = np.random.default_rng(1)
+    names = [f"g{i}" for i in range(1, 9)]
+    y = pd.DataFrame(rng.standard_normal((8, 6)), index=names)
+    design = np.column_stack([np.ones(6), [0.0, 0, 0, 1, 1, 1]])
+    adata = anndata.AnnData(y.to_numpy().T)
+    adata.var_names = names
+    lm_fit(adata, design)
+    for fit in (e_bayes(lm_fit(y, design)), e_bayes(adata.uns["pylimma"])):
+        sub = fit[["g3", "g1"], :]
+        assert sub.dimnames[0] == ["g3", "g1"]
+        np.testing.assert_array_equal(sub["t"], fit["t"][[2, 0]])
+
+
 def test_head_tail_and_selectors_follow_r():
     """R (fixture script): head / tail with a negative n leave out -n rows
     and truncate a fractional n; TRUE selects every row; a name that is not
