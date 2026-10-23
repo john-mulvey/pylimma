@@ -526,7 +526,8 @@ def avereps(
 def _avereps_elist(el, ID=None):
     """EList dispatch for avereps (R: avereps.EList at dups.R:267-285).
 
-    Averages ``E`` and ``weights`` across replicate probes, deduplicates
+    Averages ``E``, ``weights`` and each matrix in ``other`` across
+    replicate probes (a vector as one column, R's as.matrix), deduplicates
     ``genes``, and drops ``printer``. Default ``ID`` is ``y$genes$ID`` if
     present, otherwise the genes DataFrame's index, otherwise R's error.
     Returns a new EList with the probe axis collapsed.
@@ -552,12 +553,20 @@ def _avereps_elist(el, ID=None):
     # Average E (delegate to the matrix path for the numerics).
     E_new = avereps(E, ID=ID)
 
-    # Average weights if present (matches R's avereps.EList line 274).
-    weights_new = None
-    if weights is not None:
-        w_arr = np.asarray(weights, dtype=np.float64)
-        if w_arr.shape == E.shape:
-            weights_new = avereps(w_arr, ID=ID)
+    # R: y$weights <- avereps(x$weights), and avereps(x$other[[a]]) for
+    # each element of other; avereps.default takes as.matrix(x), so a
+    # vector is one column
+    def average(values):
+        values = np.asarray(values, dtype=np.float64)
+        values = values.reshape(-1, 1) if values.ndim == 1 else values
+        if values.shape[0] != len(ID):
+            # R: rowsum(x, ID) stops with "incorrect length for 'group'"
+            raise ValueError("incorrect length for 'group'")
+        return avereps(values, ID=ID)
+
+    weights_new = None if weights is None else average(weights)
+    other = el.get("other")
+    other_new = None if other is None else {name: average(v) for name, v in other.items()}
 
     # Deduplicate genes (matches R's avereps.EList line 275-278).
     _, first_idx = np.unique(ID, return_index=True)
@@ -572,6 +581,8 @@ def _avereps_elist(el, ID=None):
     out_dict["E"] = E_new
     if weights_new is not None:
         out_dict["weights"] = weights_new
+    if other_new is not None:
+        out_dict["other"] = other_new
     if genes_new is not None:
         out_dict["genes"] = genes_new
     return EList(out_dict)

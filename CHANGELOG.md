@@ -378,6 +378,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `avereps` on an `EList` averages every matrix in `other` and weights
+  given as a vector (as one column, R's `as.matrix`), as R does; they were
+  left with one row per probe while `E` was averaged. Weights or `other`
+  matrices whose rows do not match the probes (such as per-sample array
+  weights) raise R's "incorrect length for 'group'"; they were left out.
 - `unwrap_dups`, `ave_dups`, `unique_genelist` and `duplicate_correlation`
   take whole-number floats for `ndups` and `spacing` (2.0), as R does;
   they raised `TypeError`. A fraction raises "ndups must be a whole

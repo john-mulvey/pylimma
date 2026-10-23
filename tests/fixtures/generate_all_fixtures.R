@@ -6448,3 +6448,17 @@ write.csv(data.frame(
 # =============================================================================
 .dcn <- suppressWarnings(duplicateCorrelation(matrix(c(1, 3, 2, 5), 1), cbind(1, c(0, 1, 0, 1)), block = c(1, 1, 2, 2)))
 stopifnot(is.nan(.dcn$consensus.correlation), is.nan(.dcn$cor), all(is.na(.dcn$atanh.correlations)))
+
+# =============================================================================
+# avereps on an EList averages E, every matrix in other and the weights (a
+# vector as one column, as.matrix)
+# =============================================================================
+.ar_X <- matrix(as.numeric(0:35), 12, 3, byrow = TRUE)
+.ar_el <- avereps(new("EList", list(E = .ar_X, other = list(x = .ar_X * 2), weights = as.numeric(0:11),
+                                    genes = data.frame(ID = rep(letters[1:6], each = 2)))))
+write.csv(data.frame(E = .ar_el$E, other = .ar_el$other$x, weights = .ar_el$weights),
+          "R_avereps_elist.csv", row.names = FALSE)
+stopifnot(grepl("incorrect length for 'group'",
+                try(avereps(new("EList", list(E = .ar_X, weights = c(1, 2, 3), genes = data.frame(ID = rep(letters[1:6], each = 2))))),
+                    silent = TRUE)))
+

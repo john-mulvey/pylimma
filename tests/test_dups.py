@@ -362,3 +362,31 @@ class TestDuplicateCounts:
         assert unique_genelist(list("abcd"), ndups=0) == list("abcd")
         with pytest.warns(UserWarning, match="No duplicates"):
             assert duplicate_correlation(np.ones((4, 3)), ndups=0)["consensus_correlation"] == 0
+
+
+def test_avereps_elist_averages_other_and_vector_weights_as_r():
+    """R's avereps.EList averages E, each matrix of other and the weights;
+    avereps.default takes as.matrix, so vector weights are one column."""
+    from pylimma import EList
+
+    X = np.arange(36.0).reshape(12, 3)
+    ids = np.repeat(list("abcdef"), 2)
+    el = EList(
+        {
+            "E": X,
+            "other": {"x": X * 2},
+            "weights": np.arange(12.0),
+            "genes": pd.DataFrame({"ID": ids}),
+        }
+    )
+    out = avereps(el)
+    r = pd.read_csv(
+        __import__("pathlib").Path(__file__).parent / "fixtures" / "R_avereps_elist.csv"
+    )
+    np.testing.assert_allclose(out["E"], r.filter(like="E.").to_numpy())
+    np.testing.assert_allclose(out["other"]["x"], r.filter(like="other.").to_numpy())
+    np.testing.assert_allclose(out["weights"], r[["weights"]].to_numpy())
+    # R: rowsum() stops for weights of another length (fixture script)
+    el["weights"] = np.array([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError, match="incorrect length for 'group'"):
+        avereps(el)
