@@ -65,7 +65,7 @@ from .classes import (
     get_eawp,
     put_eawp,
 )
-from .utils import _as_dense_array, choose_lowess_span
+from .utils import _as_dense_array, _r_approx_rule2, choose_lowess_span
 
 _VALID_METHODS = ("none", "scale", "quantile", "cyclicloess")
 
@@ -219,10 +219,11 @@ def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
                 obs_idx = np.where(~isna)[0]
                 ix = np.argsort(obs_vals)
                 src_pos = np.arange(nobsj) / (nobsj - 1)
-                # R's approx default is rule=1: NA outside range. Since
-                # i_grid[0]=0 == src_pos[0] and i_grid[-1]=1 == src_pos[-1],
-                # no extrapolation occurs in practice.
-                S[:, j] = np.interp(i_grid, src_pos, obs_vals[ix])
+                # R's approx (rule=1, NA outside the range). Every point
+                # here and below lies within the range, so rule=2 is the
+                # same; approx1's arithmetic gives NaN between infinite
+                # values, as in R (np.interp gives the infinity).
+                S[:, j] = _r_approx_rule2(src_pos, obs_vals[ix], i_grid)
                 O[obs_idx, j] = obs_idx[ix]
         else:
             ix = np.argsort(col)
@@ -248,14 +249,14 @@ def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
             obs_idx = np.where(~isna)[0]
             if ties:
                 positions = (r[obs_idx] - 1) / (nobs[j] - 1)
-                out[obs_idx, j] = np.interp(positions, i_grid, m)
+                out[obs_idx, j] = _r_approx_rule2(i_grid, m, positions)
             else:
                 src_pos = np.arange(nobs[j]) / (nobs[j] - 1)
-                out[O[obs_idx, j], j] = np.interp(src_pos, i_grid, m)
+                out[O[obs_idx, j], j] = _r_approx_rule2(i_grid, m, src_pos)
         else:
             if ties:
                 positions = (r - 1) / (n_rows - 1)
-                out[:, j] = np.interp(positions, i_grid, m)
+                out[:, j] = _r_approx_rule2(i_grid, m, positions)
             else:
                 out[O[:, j], j] = m
     return out

@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `normalize_quantiles` (and `normalize_between_arrays(method="quantile")`)
+  interpolates as R's `approx()`, so a value interpolated next to an
+  infinite one is NaN, as in R (tied `-Inf` values, or a column with
+  missing values and `-Inf`); `np.interp` gave the infinity.
 - `diff_splice` orders genes and exons as R's `order()`: numeric IDs
   numerically (gene 12 after gene 2), where it sorted their text (12
   before 2); with missing gene IDs the IDs become text, as in R.

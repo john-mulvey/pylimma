@@ -2726,6 +2726,15 @@ class TestNormalizeBetweenArraysRParity:
             f"normalize 'quantile' differs: max_rel={result['max_rel_diff']:.2e}"
         )
 
+    @pytest.mark.parametrize("ties", [True, False])
+    def test_quantile_with_minus_inf(self, ties):
+        """R's approx() gives NaN between infinite values (tied -Inf)."""
+        from pylimma import normalize_quantiles
+
+        X = load_r_csv_no_index("nq_inf_input").to_numpy()
+        r_out = load_r_csv_no_index("nq_inf_ties" if ties else "nq_inf_noties").to_numpy()
+        np.testing.assert_allclose(normalize_quantiles(X, ties=ties), r_out, rtol=1e-10)
+
     def test_cyclicloess(self):
         from pylimma import normalize_between_arrays
 

@@ -6852,3 +6852,14 @@ stopifnot(all(vapply(list(matrix(1, 10, 1), matrix(1, 1, 4), 1, rep(1, 10)), fun
             "argument is not interpretable as logical",
           .bce_err(backgroundCorrect.matrix(.bce_E, matrix(1, 10, 4), offset = 1:2, verbose = FALSE)) ==
             "the condition has length > 1")
+
+# =============================================================================
+# normalizeQuantiles with -Inf: approx() gives NaN between infinite values
+# (two tied -Inf in a column with ties = TRUE)
+# =============================================================================
+set.seed(1307)
+.nqi_x <- matrix(rnorm(48, 8, 2), 12)
+.nqi_x[cbind(c(1, 6, 8, 4), c(1, 3, 3, 2))] <- c(-Inf, -Inf, -Inf, NA)
+write.csv(.nqi_x, "R_nq_inf_input.csv", row.names = FALSE)
+write.csv(normalizeQuantiles(.nqi_x), "R_nq_inf_ties.csv", row.names = FALSE)
+write.csv(normalizeQuantiles(.nqi_x, ties = FALSE), "R_nq_inf_noties.csv", row.names = FALSE)
