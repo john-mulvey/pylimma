@@ -9,6 +9,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `qqt` and `qqf` place the theoretical quantiles at R's `ppoints(n)`
+  (`(i - 3/8) / (n + 1/4)` for up to 10 values), not always at
+  `(i - 0.5) / n`, and tied values keep their order as in R's
+  `order()`. `qqf` with an infinite `df1` or `df2` gives R's quantiles
+  where it gave NaN.
 - `prop_true_null(method="hist")` counted a p-value lying on a bin edge
   (such as 0.05 or 1) in the bin above it; as R's `cut()`, the bins are
   (left, right], so it counts in the bin below.

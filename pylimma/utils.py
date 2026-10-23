@@ -165,21 +165,44 @@ def logmdigamma(x: np.ndarray | float) -> np.ndarray | float:
     return np.log(x) - digamma(x)
 
 
+def _r_ppoints(n: int) -> np.ndarray:
+    """R's ppoints(n): (1:n - a) / (n + 1 - 2a), a = 3/8 for n <= 10, else 1/2."""
+    a = 3 / 8 if n <= 10 else 0.5
+    return (np.arange(1, n + 1) - a) / (n + 1 - 2 * a)
+
+
+def _r_qf(p, df1: float, df2: float) -> np.ndarray:
+    """R's qf(p, df1, df2) (nmath qf.c), which takes infinite degrees of
+    freedom (scipy's f.ppf gives NaN) and uses the chi-squared limits for a
+    large df: qchisq(p, df1) / df1 when df1 <= df2 and df2 > 4e5 (1 when df1
+    is infinite too), df2 / qchisq(p, df2, lower=FALSE) when df1 > 4e5."""
+    from scipy import stats
+
+    # R recycles p, df1 and df2 against each other
+    p, df1, df2 = np.broadcast_arrays(*(np.asarray(v, dtype=np.float64) for v in (p, df1, df2)))
+    large_df2 = (df1 <= df2) & (df2 > 4e5)
+    large_df1 = ~large_df2 & (df1 > 4e5)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return np.where(
+            large_df2,
+            np.where(np.isinf(df1), 1.0, stats.chi2.ppf(p, df1) / df1),
+            np.where(large_df1, df2 / stats.chi2.isf(p, df2), stats.f.ppf(p, df1, df2)),
+        )
+
+
 def _qq(y, quantile, title, plot_it, kwargs) -> dict:
     """The theoretical quantiles of a Q-Q plot of y (NaN dropped) under the
     distribution whose quantile function is ``quantile``, drawn when
     ``plot_it``; shared by qqt and qqf."""
-    y = np.asarray(y)
+    # R: y[!is.na(y)], a matrix read column by column
+    y = np.asarray(y).ravel(order="F")
     y = y[~np.isnan(y)]
     n = len(y)
     if n == 0:
         raise ValueError("y is empty or all NaN")
 
-    # Probability points
-    p = (np.arange(1, n + 1) - 0.5) / n
-
-    # Theoretical quantiles
-    x = quantile(p)[np.argsort(np.argsort(y))]
+    # R: quantile(ppoints(n))[order(order(y))], ties in the order of y
+    x = quantile(_r_ppoints(n))[np.argsort(np.argsort(y, kind="stable"))]
 
     if plot_it:
         try:
@@ -292,9 +315,7 @@ def qqf(
         y : ndarray
             Sample quantiles (sorted input values).
     """
-    from scipy import stats
-
-    return _qq(y, lambda p: stats.f.ppf(p, df1, df2), "F Distribution Q-Q Plot", plot_it, kwargs)
+    return _qq(y, lambda p: _r_qf(p, df1, df2), "F Distribution Q-Q Plot", plot_it, kwargs)
 
 
 def _as_dense_array(x, dtype=None) -> np.ndarray:

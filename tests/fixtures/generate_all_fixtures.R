@@ -6310,3 +6310,24 @@ set.seed(1211)
 .ptn_p <- c(round(runif(150), 2), (1:20) / 20, 0)
 write.csv(data.frame(p = .ptn_p), "R_ptn_edges_p.csv", row.names = FALSE)
 write.csv(data.frame(pi0 = propTrueNull(.ptn_p, method = "hist")), "R_ptn_edges.csv", row.names = FALSE)
+
+# =============================================================================
+# qqt / qqf: theoretical quantiles at ppoints(n) (a = 3/8 for n <= 10), in the
+# order of the data (ties keep their order); qf handles infinite df
+# =============================================================================
+.qq_y <- c(2.1, -0.4, 0.7, 0.7, 1.5, -1.2, 3.3, 0.2, -0.9, 1.1, 0.5)
+write.csv(data.frame(y = .qq_y), "R_qq_y.csv", row.names = FALSE)
+.qq_case <- function(case, fun, n, ...) data.frame(case = case, x = fun(.qq_y[1:n], plot.it = FALSE, ...)$x)
+write.csv(rbind(
+  .qq_case("t3_n5", qqt, 5, df = 3),
+  .qq_case("t3_n10", qqt, 10, df = 3),
+  .qq_case("t3_n11", qqt, 11, df = 3),
+  .qq_case("tinf_n11", qqt, 11),
+  .qq_case("f_3_10_n5", qqf, 5, df1 = 3, df2 = 10),
+  .qq_case("f_3_inf_n11", qqf, 11, df1 = 3, df2 = Inf),
+  .qq_case("f_inf_5_n5", qqf, 5, df1 = Inf, df2 = 5),
+  .qq_case("f_inf_inf_n5", qqf, 5, df1 = Inf, df2 = Inf),
+  .qq_case("f_5_1e6_n11", qqf, 11, df1 = 5, df2 = 1e6),
+  .qq_case("f_5e5_10_n5", qqf, 5, df1 = 5e5, df2 = 10),
+  .qq_case("f_vector_df1_n5", qqf, 5, df1 = 2:6, df2 = 10)),
+  "R_qq_x.csv", row.names = FALSE)

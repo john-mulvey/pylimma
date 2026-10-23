@@ -3510,6 +3510,41 @@ class TestQqtRParity:
         result = compare_arrays(r_out["y"].values, py_out["y"], rtol=1e-12)
         assert result["match"], f"qqt sample values differ: max_rel={result['max_rel_diff']:.2e}"
 
+    @pytest.mark.parametrize(
+        "case,fun,n,kwargs",
+        [
+            ("t3_n5", "qqt", 5, {"df": 3}),
+            ("t3_n10", "qqt", 10, {"df": 3}),
+            ("t3_n11", "qqt", 11, {"df": 3}),
+            ("tinf_n11", "qqt", 11, {}),
+            ("f_3_10_n5", "qqf", 5, {"df1": 3, "df2": 10}),
+            ("f_3_inf_n11", "qqf", 11, {"df1": 3, "df2": np.inf}),
+            ("f_inf_5_n5", "qqf", 5, {"df1": np.inf, "df2": 5}),
+            ("f_inf_inf_n5", "qqf", 5, {"df1": np.inf, "df2": np.inf}),
+            ("f_5_1e6_n11", "qqf", 11, {"df1": 5, "df2": 1e6}),
+            ("f_5e5_10_n5", "qqf", 5, {"df1": 5e5, "df2": 10}),
+            ("f_vector_df1_n5", "qqf", 5, {"df1": np.arange(2.0, 7.0), "df2": 10}),
+        ],
+    )
+    def test_quantiles_at_r_ppoints(self, case, fun, n, kwargs):
+        """ppoints(n) (a = 3/8 for n <= 10), tied values kept in order, and
+        qf with infinite or large (> 4e5) degrees of freedom."""
+        import pylimma.utils
+
+        y = load_r_csv_no_index("qq_y")["y"].to_numpy()[:n]
+        r = load_r_csv_no_index("qq_x").query("case == @case")["x"].to_numpy()
+        x = getattr(pylimma.utils, fun)(y, plot_it=False, **kwargs)["x"]
+        np.testing.assert_allclose(x, r, rtol=1e-10, atol=1e-12)
+
+    def test_matrix_is_read_column_by_column(self):
+        """R: y[!is.na(y)] reads a matrix column by column."""
+        from pylimma.utils import qqt
+
+        y = np.array([[1.0, 2.0], [3.0, np.nan], [5.0, 4.0]])
+        out = qqt(y, plot_it=False)
+        np.testing.assert_array_equal(out["y"], [1.0, 3.0, 5.0, 2.0, 4.0])
+        np.testing.assert_array_equal(out["x"], qqt(out["y"], plot_it=False)["x"])
+
 
 # =============================================================================
 # Niche branches: gls.series intercept-only, eBayes mixed Inf df.prior, makeContrasts
