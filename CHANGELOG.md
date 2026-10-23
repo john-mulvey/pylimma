@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `pool_var` gives R's `NaN` df when every variance is 0 and `NaN` (R's
+  NA) when a variance is missing, where it gave `inf`; an infinite df
+  still comes only from infinite input df, as in R.
 - `zscore_gamma` (and `zscore(..., "gamma")`) gave `inf` / `-inf` in the
   far tails, where the gamma tail probability underflows (q = 1000 with
   shape 2, rate 1.5; q = 1e-200); the log tail probability is now

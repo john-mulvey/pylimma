@@ -2136,28 +2136,32 @@ def pool_var(var, df=None, multiplier=None, n=None) -> dict:
     ``1/n`` respectively when ``n`` is supplied - matching R's default
     expressions.
     """
-    var = np.atleast_1d(np.asarray(var, dtype=np.float64))
+    # R: as.vector(), a matrix read column by column
+    var = np.asarray(var, dtype=np.float64).ravel(order="F")
     if df is None:
         if n is None:
             raise ValueError("Either df or n must be provided")
-        df = np.atleast_1d(np.asarray(n, dtype=np.float64)) - 1.0
+        df = np.asarray(n, dtype=np.float64).ravel(order="F") - 1.0
     else:
-        df = np.atleast_1d(np.asarray(df, dtype=np.float64))
+        df = np.asarray(df, dtype=np.float64).ravel(order="F")
     if multiplier is None:
         if n is None:
             raise ValueError("Either multiplier or n must be provided")
-        multiplier = 1.0 / np.atleast_1d(np.asarray(n, dtype=np.float64))
+        multiplier = 1.0 / np.asarray(n, dtype=np.float64).ravel(order="F")
     else:
-        multiplier = np.atleast_1d(np.asarray(multiplier, dtype=np.float64))
+        multiplier = np.asarray(multiplier, dtype=np.float64).ravel(order="F")
     if np.min(multiplier) < 0:
         raise ValueError("Multipliers must be non-negative")
     if np.max(multiplier) == 0:
         return {"var": 0.0, "df": 0.0, "multiplier": 0.0}
     sm = float(np.sum(multiplier))
     mnorm = multiplier / sm
-    pooled_var = float(np.sum(mnorm * var))
-    denom = float(np.sum(mnorm**2 * var**2 / df))
-    pooled_df = pooled_var**2 / denom if denom > 0 else float("inf")
+    pooled_var = np.sum(mnorm * var)
+    # R divides directly: 0 / 0 (every variance 0) is NaN, a missing
+    # variance gives NA, and only infinite df give Inf
+    with np.errstate(divide="ignore", invalid="ignore"):
+        pooled_df = pooled_var**2 / np.sum(mnorm**2 * var**2 / df)
+    pooled_var, pooled_df = float(pooled_var), float(pooled_df)
     return {"var": pooled_var, "df": pooled_df, "multiplier": sm}
 
 

@@ -6367,3 +6367,23 @@ stopifnot(nrow(head(.sub_el, -1)) == 2, nrow(tail(.sub_el, -1)) == 2,
 .rn_fit <- eBayes(lmFit(.rn_y, cbind(1, c(0, 0, 0, 1, 1, 1))))
 stopifnot(identical(rownames(.rn_fit[c("g3", "g1"), ]), c("g3", "g1")),
           identical(.rn_fit[c("g3", "g1"), ]$t, .rn_fit$t[c(3, 1), , drop = FALSE]))
+
+# =============================================================================
+# poolVar: Satterthwaite pooling; the df is var^2 / sum(m^2 s2^2 / df)
+# divided directly (0/0 is NaN, an NA variance gives NA, infinite df Inf)
+# =============================================================================
+.pv_case <- function(case, ...) {
+  out <- poolVar(...)
+  data.frame(case = case, var = out$var, df = out$df, multiplier = out$multiplier)
+}
+write.csv(rbind(
+  .pv_case("n", var = c(1.2, 0.7, 2.5), n = 3:5),
+  .pv_case("df_multiplier", var = c(1.2, 0.7), df = c(4, 9), multiplier = c(0.5, 2)),
+  .pv_case("zero_var", var = c(0, 0, 0), n = 3:5),
+  .pv_case("na_var", var = c(1, NA, 3), n = 3:5),
+  .pv_case("inf_df", var = c(1, 2), df = c(Inf, Inf), multiplier = c(1, 1))),
+  "R_pool_var.csv", row.names = FALSE)
+# a matrix of variances is read as its values (as.vector)
+stopifnot(identical(poolVar(matrix(c(1.2, 0.7, 2.5, 1.1), 2), df = 3:6, multiplier = c(1, 2, 1, 2)),
+                    poolVar(c(1.2, 0.7, 2.5, 1.1), df = 3:6, multiplier = c(1, 2, 1, 2))))
+

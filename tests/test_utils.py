@@ -344,9 +344,44 @@ class TestLowessInput:
             voom(counts, design, span=0, adaptive_span=False)
 
 
+@pytest.mark.parametrize(
+    "case,kwargs",
+    [
+        ("n", {"var": [1.2, 0.7, 2.5], "n": [3, 4, 5]}),
+        ("df_multiplier", {"var": [1.2, 0.7], "df": [4, 9], "multiplier": [0.5, 2]}),
+        ("zero_var", {"var": [0.0, 0.0, 0.0], "n": [3, 4, 5]}),
+        ("na_var", {"var": [1.0, np.nan, 3.0], "n": [3, 4, 5]}),
+        ("inf_df", {"var": [1.0, 2.0], "df": [np.inf, np.inf], "multiplier": [1, 1]}),
+    ],
+)
+def test_pool_var_matches_r(case, kwargs):
+    """Satterthwaite's df divided directly, as R: 0/0 is NaN, an NA
+    variance NA and infinite df Inf."""
+    from pylimma import pool_var
+
+    r = pd.read_csv(FIXTURES_DIR / "R_pool_var.csv").set_index("case").loc[case]
+    out = pool_var(**kwargs)
+    for key in ("var", "df", "multiplier"):
+        np.testing.assert_allclose(out[key], r[key], rtol=1e-10)
+
+
 def test_r_as_character_matches_r():
     """R: as.character(c(1, 0.5, 0.1 + 0.2, NaN, Inf, -Inf, TRUE)); NA (None) stays missing."""
     from pylimma.utils import _r_as_character
 
     result = _r_as_character([1.0, 0.5, 0.1 + 0.2, np.nan, np.inf, -np.inf, True, None, "a"])
     assert list(result) == ["1", "0.5", "0.3", "NaN", "Inf", "-Inf", "TRUE", None, "a"]
+
+
+def test_pool_var_reads_a_matrix_as_its_values():
+    """R: as.vector(var), column by column (fixture script)."""
+    from pylimma import pool_var
+
+    by_matrix = pool_var(
+        np.array([[1.2, 2.5], [0.7, 1.1]]), df=[3, 4, 5, 6], multiplier=[1, 2, 1, 2]
+    )
+    by_vector = pool_var([1.2, 0.7, 2.5, 1.1], df=[3, 4, 5, 6], multiplier=[1, 2, 1, 2])
+    assert by_matrix == by_vector
+    # also when the defaults come from a matrix n
+    from_n = pool_var(np.array([[1.2, 2.5], [0.7, 1.1]]), n=np.array([[4, 6], [5, 7]]))
+    assert from_n == pool_var([1.2, 0.7, 2.5, 1.1], n=[4, 5, 6, 7])
