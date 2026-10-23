@@ -14,7 +14,7 @@ alternative) and every ``subset`` branch in R's ``.whichGenes``.
 from __future__ import annotations
 
 import numpy as np
-from scipy import linalg, optimize, stats
+from scipy import linalg, stats
 
 from .classes import MArrayLM, _resolve_fit_input
 
@@ -235,7 +235,7 @@ def genas(
     See ``docs/validation/known_differences.rst``.
     """
     from .ebayes import e_bayes
-    from .utils import fit_gamma_intercept
+    from .utils import _r_nelder_mead, fit_gamma_intercept
 
     # Accept AnnData-stored fits: unwrap adata.uns[key] into a plain dict.
     # For MArrayLM / dict input, _resolve_fit_input is a no-op.
@@ -314,22 +314,11 @@ def genas(
         df_total = np.full(B.shape[0], float(df_total))
 
     # Null fit (2 parameters: log-diagonal of V0)
-    Q2 = optimize.minimize(
-        _mult_t_loglik_null,
-        x_start,
-        args=(B, V, s, df_total, m),
-        method="Nelder-Mead",
-        options={"xatol": 1e-6, "fatol": 1e-6, "maxiter": 5000},
-    )
+    # R: optim() with its default Nelder-Mead settings
+    Q2 = _r_nelder_mead(_mult_t_loglik_null, x_start, args=(B, V, s, df_total, m))
     # Alternative fit (3 parameters: log-diagonals + off-diagonal)
     x_alt_start = np.array([Q2.x[0], Q2.x[1], 0.0])
-    Q1 = optimize.minimize(
-        _mult_t_loglik,
-        x_alt_start,
-        args=(B, V, s, df_total, m),
-        method="Nelder-Mead",
-        options={"xatol": 1e-6, "fatol": 1e-6, "maxiter": 5000},
-    )
+    Q1 = _r_nelder_mead(_mult_t_loglik, x_alt_start, args=(B, V, s, df_total, m))
 
     a1, a2, b = float(Q1.x[0]), float(Q1.x[1]), float(Q1.x[2])
     L = np.array([[1.0, 0.0], [b, 1.0]])

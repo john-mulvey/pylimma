@@ -12,7 +12,7 @@ porting.
 Accepted differences
 --------------------
 
-Four differences remain after porting. None is a porting bug: three
+Five differences remain after porting. None is a porting bug: four
 come from numerical-algorithm choices and one (lowess) from how R
 itself is built on different platforms. Each is quantified and
 reproducible, and the parity tests stay within the tolerances given.
@@ -38,6 +38,22 @@ point on the flat saddle-likelihood plateau.
 **Tolerance.** Parity tests for ``method="saddle"`` use
 ``rtol=1e-3``. All other normexp methods are at ``rtol=1e-10`` or
 better.
+
+genas covariance and correlations agree with R to ~6e-4
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``genas`` fits its two likelihoods with scipy's Nelder-Mead, given R's
+``optim()`` settings: R's initial simplex (every coordinate stepped by
+``0.1 * max|x0|``), R's stopping rule (the simplex's function values
+within ``sqrt(eps) * (|f(x0)| + sqrt(eps))``) and R's 500 evaluations.
+The reflection and shrink steps are scipy's, so the search ends at a
+slightly different point of the flat likelihood: the deviance and p-value
+agree with R to ``rtol ~2e-6``, the fitted covariance matrix and the
+biological correlation to ``rtol ~6e-4``.
+
+**Tolerance.** Parity tests use ``rtol=1e-6`` for the deviance, the
+log-scale comparison for the p-value and ``rtol=1e-3`` for the
+covariance and correlations.
 
 Monte-Carlo rotation tests (``roast``, ``mroast``, ``romer``, ``gene_set_test``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

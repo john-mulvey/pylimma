@@ -7728,3 +7728,26 @@ class TestGenasRParity:
                 genas(fit, coef=coef)
         for key in ("deviance", "p_value", "biological_correlation", "n"):
             np.testing.assert_array_equal(by_name[key], by_position[key])
+
+    @pytest.mark.parametrize("case", ["strong", "subset_all", "subset_Fpval"])
+    def test_results_match_r(self, case):
+        """Deviance and p-value as R (optim's Nelder-Mead settings); the
+        fitted covariance and correlations only to the optimiser's
+        precision, rtol 1e-3 (an approximation; known_differences.rst)."""
+        from pylimma import e_bayes, genas, lm_fit
+
+        r = load_r_csv_no_index("genas").set_index("case").loc[case]
+        if case == "strong":
+            y = load_r_csv_no_index("genas_y").to_numpy()
+            out = genas(e_bayes(lm_fit(y, np.kron(np.eye(3), np.ones((2, 1))))), coef=(0, 1))
+        else:
+            y = load_r_csv_no_index("genas_subset_y").to_numpy()
+            subset = "all" if case == "subset_all" else "Fpval"
+            out = genas(e_bayes(lm_fit(y, self.X)), coef=(1, 2), subset=subset)
+        assert out["n"] == r["n"]
+        np.testing.assert_allclose(out["deviance"], r["deviance"], rtol=1e-6)
+        assert compare_pvalues([r["p_value"]], [out["p_value"]])["match"]
+        v = out["covariance_matrix"]
+        np.testing.assert_allclose([v[0, 0], v[1, 0], v[1, 1]], r[["v11", "v21", "v22"]].astype(float), rtol=1e-3)
+        np.testing.assert_allclose(out["biological_correlation"], r["biological"], rtol=1e-3)
+        np.testing.assert_allclose(out["technical_correlation"], r["technical"], atol=1e-12)

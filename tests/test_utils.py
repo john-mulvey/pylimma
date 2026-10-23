@@ -413,3 +413,12 @@ def test_pool_var_reads_a_matrix_as_its_values():
     # also when the defaults come from a matrix n
     from_n = pool_var(np.array([[1.2, 2.5], [0.7, 1.1]]), n=np.array([[4, 6], [5, 7]]))
     assert from_n == pool_var([1.2, 0.7, 2.5, 1.1], n=[4, 5, 6, 7])
+
+
+def test_r_nelder_mead_needs_a_finite_start():
+    """R's optim stops with 'function cannot be evaluated at initial
+    parameters' (fixture script)."""
+    from pylimma.utils import _r_nelder_mead
+
+    with pytest.raises(ValueError, match="cannot be evaluated at initial parameters"):
+        _r_nelder_mead(lambda p: np.inf, np.array([1.0, 1.0]))

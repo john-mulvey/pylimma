@@ -6545,4 +6545,28 @@ write.csv(data.frame(subset = c("all", "Fpval", "p.union", "p.int", "logFC", "pr
 # =============================================================================
 .gc_y <- as.matrix(read.csv("R_genas_subset_y.csv"))
 .gc_fit <- eBayes(lmFit(.gc_y, cbind(Intercept = 1, A = (0:11) %% 2, B = ((0:11) %/% 2) %% 2)))
-stopifnot(identical(genas(.gc_fit, coef = c("A", "B")), genas(.gc_fit, coef = c(2, 3))))
+stopifnot(identical(genas(.gc_fit, coef = c("A", "B")), genas(.gc_fit, coef = c(2, 3))),
+          grepl("cannot be evaluated at initial parameters", try(optim(c(1, 1), function(p) Inf), silent = TRUE)))
+
+# =============================================================================
+# genas results (optim's Nelder-Mead): data with a strong biological
+# correlation (the null optimum is far from the alternative's) and the
+# subset-rule data
+# =============================================================================
+.gr_u <- function(n, s = 0) { i <- 1:n; z <- sin(i * 12.9898 + s) * 43758.5453; (z - floor(z)) - 0.5 }
+.gr_y <- matrix(.gr_u(1800), 300, 6)
+.gr_y[, 3:4] <- .gr_y[, 3:4] + .gr_y[, 1:2] * 0.8
+write.csv(.gr_y, "R_genas_y.csv", row.names = FALSE)
+.gr_case <- function(case, fit, ...) {
+  r <- genas(fit, ...)
+  data.frame(case = case, technical = r$technical.correlation, biological = r$biological.correlation,
+             deviance = r$deviance, p_value = r$p.value, n = r$n,
+             v11 = r$covariance.matrix[1, 1], v21 = r$covariance.matrix[2, 1], v22 = r$covariance.matrix[2, 2])
+}
+.gr_sub <- eBayes(lmFit(as.matrix(read.csv("R_genas_subset_y.csv")),
+                        cbind(1, (0:11) %% 2, ((0:11) %/% 2) %% 2)))
+write.csv(rbind(
+  .gr_case("strong", eBayes(lmFit(.gr_y, model.matrix(~ 0 + factor(c(1, 1, 2, 2, 3, 3))))), coef = c(1, 2)),
+  .gr_case("subset_all", .gr_sub, coef = c(2, 3)),
+  .gr_case("subset_Fpval", .gr_sub, coef = c(2, 3), subset = "Fpval")),
+  "R_genas.csv", row.names = FALSE)

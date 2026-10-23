@@ -189,6 +189,41 @@ def _whole_count(value, name: str) -> int:
     return count
 
 
+def _r_nelder_mead(fun, x0, args=()):
+    """scipy's Nelder-Mead with the settings of R's optim(method =
+    "Nelder-Mead"): the initial simplex steps every coordinate by
+    0.1 * max(|x0|) (0.1 when x0 is all zero), the search stops when the
+    function values of the simplex lie within reltol * (|f(x0)| + reltol)
+    of each other (reltol = sqrt(machine epsilon), fixed from the start, as
+    optim's "scaled convergence tolerance"), and it allows 500 function
+    evaluations (maxit). scipy's reflection and shrink rules are kept, so
+    results are close to R's, not always identical."""
+    from scipy.optimize import minimize
+
+    x0 = np.asarray(x0, dtype=np.float64)
+    step = 0.1 * np.max(np.abs(x0)) if np.any(x0 != 0) else 0.1
+    simplex = np.vstack([x0, x0 + step * np.eye(x0.size)])
+    reltol = np.sqrt(np.finfo(np.float64).eps)
+    f0 = fun(x0, *args)
+    if not np.isfinite(f0):
+        raise ValueError("function cannot be evaluated at initial parameters")
+    fatol = reltol * (abs(f0) + reltol)
+    return minimize(
+        fun,
+        x0,
+        args=args,
+        method="Nelder-Mead",
+        options={
+            "initial_simplex": simplex,
+            "xatol": np.inf,
+            "fatol": fatol,
+            "maxfev": 500,
+            "maxiter": np.iinfo(np.int64).max,
+            "adaptive": False,
+        },
+    )
+
+
 def _r_ppoints(n: int) -> np.ndarray:
     """R's ppoints(n): (1:n - a) / (n + 1 - 2a), a = 3/8 for n <= 10, else 1/2."""
     a = 3 / 8 if n <= 10 else 0.5

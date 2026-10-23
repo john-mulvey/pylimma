@@ -9,6 +9,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `genas` fits its likelihoods with R's `optim()` Nelder-Mead settings
+  (initial simplex, stopping rule, 500 evaluations). With a start of 0
+  for the correlation parameter, scipy's default simplex barely moved it
+  and the search stopped at the null fit: a strongly correlated data set
+  gave p = 0.99999981 where R gives 9.2e-12. The deviance and p-value now
+  agree with R to about 2e-6 (see known differences).
 - `duplicate_correlation` returns R's NaN consensus correlation when no
   gene can be fitted (too few observations per gene); it returned 0,
   which reads as an estimated zero correlation.
