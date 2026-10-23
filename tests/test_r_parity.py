@@ -7714,3 +7714,17 @@ class TestGenasRParity:
         from_anndata = genas(adata, coef=(1, 2), subset="Fpval")
         assert from_anndata["n"] == from_matrix["n"]
         np.testing.assert_allclose(from_anndata["deviance"], from_matrix["deviance"])
+
+    def test_coef_by_name(self):
+        """R: fit[, coef] takes coefficient names (fixture script)."""
+        from pylimma import e_bayes, genas, lm_fit
+
+        y = load_r_csv_no_index("genas_subset_y").to_numpy()
+        design = pd.DataFrame(self.X, columns=["Intercept", "A", "B"])
+        fit = e_bayes(lm_fit(y, design))
+        by_name, by_position = genas(fit, coef=("A", "B")), genas(fit, coef=(1, 2))
+        for coef in ("AB", 1):
+            with pytest.raises(ValueError, match="exactly two coefficients"):
+                genas(fit, coef=coef)
+        for key in ("deviance", "p_value", "biological_correlation", "n"):
+            np.testing.assert_array_equal(by_name[key], by_position[key])

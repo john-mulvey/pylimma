@@ -176,51 +176,6 @@ def _which_genes(fit_subset, subset: str):
     raise ValueError(f"Unknown subset rule: {subset!r}")
 
 
-def _subset_fit_to_two_coefs(fit, coef):
-    """Return a shallow MArrayLM-like dict keeping only the two chosen
-    coefficient columns, with ``F`` / ``F_p_value`` recomputed from
-    the subset. Matches R's ``fit <- fit[, coef]`` slicing which
-    re-derives the F statistic from only the selected contrasts.
-    """
-    from scipy import stats as _stats
-
-    from .classes import MArrayLM
-    from .decide_tests import classify_tests_f
-
-    new_fit = MArrayLM(fit)
-    idx = list(coef)
-    for slot in ("coefficients", "stdev_unscaled", "t", "p_value", "lods"):
-        if new_fit.get(slot) is not None:
-            arr = np.asarray(new_fit[slot])
-            if arr.ndim >= 2 and arr.shape[1] >= max(idx) + 1:
-                new_fit[slot] = arr[:, idx]
-    cov = new_fit.get("cov_coefficients")
-    if cov is not None:
-        cov_arr = np.asarray(cov)
-        new_fit["cov_coefficients"] = cov_arr[np.ix_(idx, idx)]
-
-    # Re-derive F / F_p_value from the 2-col subset, matching limma's
-    # ``[.MArrayLM`` behaviour (it discards and recomputes F so the
-    # downstream .whichGenes "Fpval" branch sees the subset-scoped F).
-    if new_fit.get("t") is not None and new_fit.get("cov_coefficients") is not None:
-        f_stat, df1, df2 = classify_tests_f(new_fit, fstat_only=True)
-        df2_arr = np.asarray(df2, dtype=np.float64)
-        if df2_arr.ndim == 0:
-            if np.isinf(df2_arr):
-                fp = _stats.chi2.sf(f_stat * df1, df1)
-            else:
-                fp = _stats.f.sf(f_stat, df1, df2_arr)
-        else:
-            mask_inf = np.isinf(df2_arr)
-            df2_safe = np.where(mask_inf, 1.0, df2_arr)
-            fp = _stats.f.sf(f_stat, df1, df2_safe)
-            if mask_inf.any():
-                fp = np.where(mask_inf, _stats.chi2.sf(f_stat * df1, df1), fp)
-        new_fit["F"] = f_stat
-        new_fit["F_p_value"] = fp
-    return new_fit
-
-
 # ---------------------------------------------------------------------------
 # Public entry point (port of R genas.R:3-106)
 # ---------------------------------------------------------------------------
@@ -247,8 +202,10 @@ def genas(
     ----------
     fit : MArrayLM / dict
         Fit from :func:`lm_fit` followed by :func:`e_bayes`.
-    coef : sequence of two ints, default ``(0, 1)``
-        Zero-based coefficient indices (R uses 1-based).
+    coef : sequence of two ints or names, default ``(0, 1)``
+        Zero-based coefficient indices (R uses 1-based) or coefficient
+        names. As in R, they are used only when the fit has more than two
+        coefficients.
     subset : {"all", "Fpval", "p.union", "p.int", "logFC", "predFC"}
         Gene-subset rule used to pre-filter before fitting. Matches
         R's ``.whichGenes``; ``"n"`` is accepted as a backwards-compat
@@ -301,7 +258,8 @@ def genas(
     if subset not in ("all", "Fpval", "p.union", "p.int", "logFC", "predFC"):
         raise ValueError(f"Unknown subset rule: {subset!r}")
 
-    coef = tuple(int(c) for c in coef)
+    # R: a single name is one coefficient, not its characters
+    coef = [coef] if np.ndim(coef) == 0 else list(coef)
     if len(coef) != 2:
         raise ValueError("coef must specify exactly two coefficients")
 
@@ -311,8 +269,11 @@ def genas(
     trend = np.atleast_1d(np.asarray(fit["s2_prior"])).size > 1
     robust = np.atleast_1d(np.asarray(fit["df_prior"])).size > 1
 
-    # Subset to the two coefs being correlated (R: fit <- fit[,coef])
-    fit2 = _subset_fit_to_two_coefs(fit, coef)
+    # Keep the two coefs being correlated (R: if(ncol(fit)>2) fit <-
+    # fit[,coef], by position or name; the subset regenerates F)
+    fit2 = MArrayLM(fit)
+    if fit2.ncol > 2:
+        fit2 = fit2[:, coef]
 
     coefs = np.asarray(fit2["coefficients"], dtype=np.float64)
     cov = np.asarray(fit2["cov_coefficients"], dtype=np.float64)

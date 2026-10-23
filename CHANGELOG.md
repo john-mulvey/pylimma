@@ -378,6 +378,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `genas` takes `coef` as coefficient names (`coef=("A", "B")`), as R's
+  `fit[, coef]` does; it raised "invalid literal for int()".
 - `genas` with a `subset` rule keeps the selected genes as R's
   `fit[genes, ]` does: on a fit from AnnData it raised `TypeError`, and on
   a fit with two genes it also sliced `cov_coefficients` (of the same

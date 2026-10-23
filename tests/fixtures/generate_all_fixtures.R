@@ -6539,3 +6539,10 @@ write.csv(.gn_y, "R_genas_subset_y.csv", row.names = FALSE)
 write.csv(data.frame(subset = c("all", "Fpval", "p.union", "p.int", "logFC", "predFC"),
                      n80 = .gn_n(.gn_y), n2 = .gn_n(.gn_y[c(1, 20), ])),
           "R_genas_subset_n.csv", row.names = FALSE)
+
+# =============================================================================
+# genas takes coef by name as fit[, coef] does
+# =============================================================================
+.gc_y <- as.matrix(read.csv("R_genas_subset_y.csv"))
+.gc_fit <- eBayes(lmFit(.gc_y, cbind(Intercept = 1, A = (0:11) %% 2, B = ((0:11) %/% 2) %% 2)))
+stopifnot(identical(genas(.gc_fit, coef = c("A", "B")), genas(.gc_fit, coef = c(2, 3))))
