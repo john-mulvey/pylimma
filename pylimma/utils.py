@@ -2174,11 +2174,16 @@ def make_unique(x) -> np.ndarray:
     occurs ``n`` times (``n > 1``) each occurrence is replaced with
     ``<value><k>`` where ``k`` is ``1..n`` left-padded to
     ``floor(log10(n)) + 1`` digits. Values that occur only once are
-    unchanged.
+    unchanged. Values are compared as R's ``as.character`` gives them, and
+    missing values (None, NaN) stay missing (None), as R's NA; R fails
+    with "NAs are not allowed in subscripted assignments" when there is
+    also a repeated value.
     """
-    x = np.asarray([str(v) for v in x], dtype=object)
-    # Count occurrences, order by first appearance to match R's table().
-    unique_vals, counts = np.unique(x, return_counts=True)
+    values = np.asarray(x, dtype=object).ravel()
+    missing = pd.isna(values)
+    x = _r_as_character(values)
+    x[missing] = None
+    unique_vals, counts = np.unique(x[~missing].astype(str), return_counts=True)
     for val, n in zip(unique_vals, counts):
         if n <= 1:
             continue

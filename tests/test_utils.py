@@ -12,6 +12,7 @@ from pylimma.utils import (
     is_numeric,
     loess_fit,
     logmdigamma,
+    make_unique,
     p_adjust,
     qqf,
     qqt,
@@ -442,3 +443,11 @@ def test_r_nelder_mead_needs_a_finite_start():
 )
 def test_is_numeric_as_r(x, expected):
     assert is_numeric(x) is expected
+
+
+def test_make_unique_keeps_missing_values_and_compares_as_r():
+    assert list(make_unique([None, "a", np.nan])) == [None, "a", None]
+    # R fails with "NAs are not allowed in subscripted assignments" here
+    assert list(make_unique([None, "a", "a"])) == [None, "a1", "a2"]
+    assert list(make_unique([1, 1.0, 2])) == ["11", "12", "2"]
+    assert list(make_unique(["c"] * 10 + ["d"])) == [f"c{k:02d}" for k in range(1, 11)] + ["d"]

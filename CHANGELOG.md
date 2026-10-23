@@ -479,6 +479,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `make_unique` compares values as R's `as.character` (1 and 1.0 are the
+  same value) and keeps missing values missing, as R's NA; they became
+  the text "None" or "nan" and were numbered.
 - `is_numeric` is False for categorical values (R's factors), as for
   logical and complex values, as R's `is.numeric`; a categorical with
   numeric categories was reported numeric.

@@ -449,6 +449,12 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     condition has length > 1" for a vector. ``generate_all_fixtures.R``
     records the R behaviour.
 
+``make_unique`` with a missing value and a repeated value
+    Missing values stay missing and the repeated values are numbered. R's
+    ``makeUnique`` fails with "NAs are not allowed in subscripted
+    assignments" (it keeps NA when no other value repeats).
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

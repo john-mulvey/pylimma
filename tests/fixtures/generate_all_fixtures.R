@@ -6903,3 +6903,12 @@ stopifnot(identical(zscore(1, "norm", mean = c(0, 1)), c(1, 0)))
 # =============================================================================
 stopifnot(!isNumeric(factor(1:2)), !isNumeric(data.frame(a = factor(1:2))), !isNumeric(TRUE),
           !isNumeric(1i), isNumeric(1:2), isNumeric(data.frame(a = 1)))
+
+# =============================================================================
+# makeUnique: NA stays NA (and fails alongside a repeated value); values are
+# compared as as.character gives them
+# =============================================================================
+stopifnot(identical(makeUnique(c(NA, "a", NA)), c(NA, "a", NA)),
+          grepl("NAs are not allowed", try(makeUnique(c(NA, "a", "a")), silent = TRUE)),
+          identical(makeUnique(c(1, 1.0, 2)), c("11", "12", "2")),
+          identical(makeUnique(c(rep("c", 10), "d")), c(sprintf("c%02d", 1:10), "d")))
