@@ -37,6 +37,7 @@ from .lmfit import _qr_r_style
 from .utils import (
     _f_logsf,
     _r_approx_rule2,
+    _r_qf,
     _r_trimmed_mean,
     loess_fit,
     logmdigamma,
@@ -77,16 +78,9 @@ def _winsorized_moments(
     """
     prob_lower, prob_upper = winsor_tail_p
 
-    # Quantiles of F-distribution at Winsorization points
-    if np.isinf(df2):
-        # F with df2=Inf is chi-squared(df1)/df1
-        from scipy.stats import chi2
-
-        fq_lower = chi2.ppf(prob_lower, df1) / df1
-        fq_upper = chi2.ppf(1 - prob_upper, df1) / df1
-    else:
-        fq_lower = f_dist.ppf(prob_lower, df1, df2)
-        fq_upper = f_dist.ppf(1 - prob_upper, df1, df2)
+    # Quantiles of F-distribution at Winsorization points (R's qf, which
+    # takes infinite df)
+    fq_lower, fq_upper = _r_qf(np.array([prob_lower, 1 - prob_upper]), df1, df2)
 
     # Log quantiles (Winsorization bounds for z = log(F))
     zq_lower = np.log(fq_lower)
