@@ -9,6 +9,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `avereps` forms its groups as R does: IDs are compared as R's
+  `as.character` (1 and 1.0 are one probe), missing IDs form one group
+  with R's "missing values for 'group'" warning (each was a row of NaN of
+  its own), and an ID of the wrong length raises R's "incorrect length
+  for 'group'" (it raised `IndexError`). Grouping no longer loops over the
+  IDs, so large inputs average faster.
 - `squeeze_var(robust=True)` with unequal residual df takes its F
   quantiles from R's `qf` rules, including the chi-squared limits for a
   prior df above 4e5, where scipy's exact quantile was about 1e-6 from R.

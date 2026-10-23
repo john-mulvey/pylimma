@@ -182,6 +182,21 @@ class TestAvereps:
         )
         np.testing.assert_allclose(result, expected)
 
+    def test_ids_as_r_forms_groups(self):
+        """R (fixture script): IDs compared as as.character, NA IDs one
+        group with rowsum's warning, an ID of the wrong length stops."""
+        x = np.arange(1.0, 7.0).reshape(2, 3).T
+        with pytest.warns(UserWarning, match="missing values for 'group'"):
+            np.testing.assert_array_equal(avereps(x, ID=["a", None, None]), [[1, 4], [2.5, 5.5]])
+        # NaN and pandas NA are missing too, in the same group
+        with pytest.warns(UserWarning, match="missing values for 'group'"):
+            np.testing.assert_array_equal(avereps(x, ID=["a", np.nan, pd.NA]), [[1, 4], [2.5, 5.5]])
+        np.testing.assert_array_equal(avereps(x, ID=[1, 1.0, 2]), [[1.5, 4.5], [3, 6]])
+        with pytest.raises(ValueError, match="incorrect length for 'group'"):
+            avereps(x, ID=["a", "b"])
+        with pytest.raises(ValueError, match="ID must be a vector"):
+            avereps(x, ID=np.array([["a"], ["a"], ["b"]]))
+
     def test_preserves_order(self):
         """Test that unique IDs are in order of first appearance (via
         DataFrame round-trip so we can inspect the row labels)."""

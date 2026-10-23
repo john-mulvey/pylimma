@@ -23,10 +23,10 @@ import warnings
 
 import numpy as np
 import pandas as pd
-from scipy import linalg
+from scipy import linalg, sparse
 
 from .classes import EList, _is_anndata, get_eawp
-from .utils import _as_dense_array, _block_labels, _r_trimmed_mean, _whole_count
+from .utils import _as_dense_array, _block_labels, _r_as_character, _r_trimmed_mean, _whole_count
 
 
 def _mixed_model_2_fit(
@@ -503,24 +503,48 @@ def avereps(
             )
 
     arr = _as_dense_array(x, np.float64)
-    ID = np.asarray(ID)
+    if arr.ndim == 1:
+        arr = arr.reshape(-1, 1)  # R: as.matrix(x)
+    ID = np.asarray(ID, dtype=object)
+    if ID.ndim != 1:
+        raise ValueError("ID must be a vector of probe identifiers")
+    if len(ID) != arr.shape[0]:
+        # R: rowsum(x, ID) stops with this
+        raise ValueError("incorrect length for 'group'")
+    codes, first = _replicate_groups(ID)
+    unique_ids = ID[first]
 
-    # Unique IDs in order of first appearance (matches R's
-    # factor(ID, levels=unique(ID)) combined with rowsum(reorder=FALSE)).
-    _, idx = np.unique(ID, return_index=True)
-    unique_ids = ID[np.sort(idx)]
-
-    result = np.zeros((len(unique_ids), arr.shape[1]))
-    for i, uid in enumerate(unique_ids):
-        mask = ID == uid
-        if mask.sum() == 1:
-            result[i, :] = arr[mask, :][0]
-        else:
-            result[i, :] = np.nanmean(arr[mask, :], axis=0)
+    # R: rowsum(x, ID, reorder=FALSE, na.rm=TRUE) / rowsum(1 - is.na(x), ID),
+    # as a product with the group indicator matrix (rows summed in order)
+    observed = ~np.isnan(arr)
+    indicator = sparse.csr_matrix(
+        (np.ones(len(codes)), (codes, np.arange(len(codes)))), shape=(len(unique_ids), len(codes))
+    )
+    sums = indicator @ np.where(observed, arr, 0.0)
+    counts = indicator @ observed.astype(np.float64)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        result = sums / counts
 
     if is_df:
         return pd.DataFrame(result, index=unique_ids, columns=columns)
     return result
+
+
+def _replicate_groups(ID: np.ndarray, warn: bool = True) -> tuple[np.ndarray, np.ndarray]:
+    """The group of each probe and the position of each group's first
+    probe, as R's avereps forms them: IDs compared as as.character(ID) (1
+    and 1.0 are one probe), groups in order of first appearance, and
+    missing IDs (None, NaN) one group of their own, which R's rowsum warns
+    about."""
+    # missing on the raw IDs: as.character text turns NaN into "NaN"
+    missing = pd.isna(np.asarray(ID, dtype=object))
+    keys = _r_as_character(ID)
+    keys[missing] = None
+    if warn and missing.any():
+        warnings.warn("missing values for 'group'")
+    codes, _ = pd.factorize(keys, use_na_sentinel=False)
+    _, first = np.unique(codes, return_index=True)
+    return codes, first
 
 
 def _avereps_elist(el, ID=None):
@@ -568,9 +592,8 @@ def _avereps_elist(el, ID=None):
     other = el.get("other")
     other_new = None if other is None else {name: average(v) for name, v in other.items()}
 
-    # Deduplicate genes (matches R's avereps.EList line 275-278).
-    _, first_idx = np.unique(ID, return_index=True)
-    keep = np.sort(first_idx)
+    # Deduplicate genes (R: x$genes[!duplicated(ID), ])
+    _, keep = _replicate_groups(np.asarray(ID, dtype=object), warn=False)
     genes_new = None
     if isinstance(genes, pd.DataFrame):
         genes_new = genes.iloc[keep].reset_index(drop=True)
@@ -607,8 +630,7 @@ def _avereps_anndata(adata, ID=None):
 
     # First occurrence of each ID, in order of appearance - the row order
     # of avereps' output (rowsum(..., reorder=FALSE)).
-    _, first_idx = np.unique(ID, return_index=True)
-    keep_order = np.sort(first_idx)
+    _, keep_order = _replicate_groups(np.asarray(ID, dtype=object), warn=False)
 
     out = adata[:, keep_order].copy()
     out.var_names = pd.Index(ID[keep_order].astype(str))

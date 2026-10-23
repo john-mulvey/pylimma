@@ -6708,3 +6708,12 @@ stopifnot(grepl("design matrix not specified", try(wsva(.ws_y, NULL), silent = T
           grepl("design matrix not specified",
                 try(wsva(new("EList", list(E = .ws_y, design = cbind(1, rep(0:1, each = 3)))), NULL), silent = TRUE)),
           grepl("row dimension of design matrix must match", try(wsva(.ws_y, cbind(1, 1:5)), silent = TRUE)))
+
+# =============================================================================
+# avereps probe IDs: as.character(ID) (1 and 1.0 are one probe), NA IDs one
+# group (rowsum warns), an ID of the wrong length stops
+# =============================================================================
+.ai_x <- matrix(as.numeric(1:6), 3)
+stopifnot(identical(unname(suppressWarnings(avereps(.ai_x, ID = c("a", NA, NA)))), cbind(c(1, 2.5), c(4, 5.5))),
+          identical(unname(avereps(.ai_x, ID = c(1, 1.0, 2))), cbind(c(1.5, 3), c(4.5, 6))),
+          grepl("incorrect length for 'group'", try(avereps(.ai_x, ID = c("a", "b")), silent = TRUE)))
