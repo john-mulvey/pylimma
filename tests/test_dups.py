@@ -290,6 +290,16 @@ class TestDuplicateCorrelationInputs:
         with pytest.raises(ValueError, match="block must have at least two levels"):
             duplicate_correlation(y, block=np.ones(12))
 
+    def test_correlation_from_any_variance_components(self, monkeypatch):
+        """R: rho <- s[2]/sum(s) whenever the fit succeeds, then clipped to
+        [rhomin, 0.99]; components (1, -2) give rho = 2, clipped to 0.99."""
+        import pylimma.dups as dups
+
+        y, _ = self._data()
+        monkeypatch.setattr(dups, "_mixed_model_2_fit", lambda *a, **k: (1.0, -2.0))
+        out = dups.duplicate_correlation(y, block=np.repeat(["b", "a", "c"], 4))
+        np.testing.assert_allclose(out["consensus_correlation"], 0.99)
+
     def test_no_fitted_gene_gives_nan_as_r(self):
         """R: the consensus is mean(numeric(0)), NaN (fixture script)."""
         from pylimma import duplicate_correlation

@@ -838,11 +838,12 @@ def duplicate_correlation(
         # Fit mixed model using statmod-compatible algorithm
         result = _mixed_model_2_fit(y_obs, X, Z, w=w, maxit=20)
 
+        # R: if(!is.na(s[1])) rho[i] <- s[2]/sum(s), whatever the sign of
+        # sum(s); the result is clipped to [rhomin, rhomax] below
         if result is not None:
             var_resid, var_block = result
-            total_var = var_resid + var_block
-            if total_var > 0:
-                rho[i] = var_block / total_var
+            with np.errstate(divide="ignore", invalid="ignore"):
+                rho[i] = var_block / (var_resid + var_block)
 
     # Bound correlations to ensure positive-definite correlation matrix
     rho_max = 0.99

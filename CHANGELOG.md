@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `duplicate_correlation` keeps a gene's correlation whatever the sign of
+  its variance components, clipped to R's bounds, as R does; genes whose
+  components summed to a non-positive value were left out of the
+  consensus.
 - `diff_splice` gives R's NaN gene variances, t and F statistics for a gene
   with no residual degrees of freedom (R's 0/0); it gave a variance of 0
   and infinite t and F, which read as real, extreme results.
