@@ -177,6 +177,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `qqt` and `qqf` draw what R draws: the points only (pylimma added a
+  dashed reference line), titled "Student's t Q-Q Plot" also for
+  `df=np.inf` (it said "Normal Q-Q Plot"), and take R's `main`, `xlab`,
+  `ylab` and `ylim`. Without matplotlib they raise the same `ImportError`
+  as the other plot functions; they warned and returned.
 - `gene_set_test`, `wilcox_gst`, `rank_sum_test_with_correlation` and
   `barcode_plot` raise for a set position outside 0..n-1; a negative
   position counted from the end and one past the end raised an

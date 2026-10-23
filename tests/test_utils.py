@@ -138,6 +138,29 @@ class TestQQT:
         with pytest.raises(ValueError, match="empty"):
             qqt(np.array([]), plot_it=False)
 
+    def test_draws_what_r_draws(self):
+        """R's plot(x, y, main, xlab, ylab, ylim): the points only (no
+        reference line), with R's title also for df = Inf."""
+        plt = pytest.importorskip("matplotlib.pyplot")
+        y = np.array([1.5, -0.3, 0.8, 2.2, -1.1])
+        for fun, kwargs, title in (
+            (qqt, {}, "Student's t Q-Q Plot"),
+            (qqf, {"df1": 3, "df2": 10}, "F Distribution Q-Q Plot"),
+        ):
+            out = fun(y, **kwargs)
+            ax = plt.gca()
+            assert len(ax.lines) == 1
+            np.testing.assert_array_equal(ax.lines[0].get_xdata(), out["x"])
+            assert ax.get_title() == title
+            assert ax.get_xlabel() == "Theoretical Quantiles"
+            assert ax.get_ylabel() == "Sample Quantiles"
+            plt.close("all")
+        qqt(y, main="m", xlab="a", ylab="b", ylim=(-3, 3))
+        ax = plt.gca()
+        assert (ax.get_title(), ax.get_xlabel(), ax.get_ylabel()) == ("m", "a", "b")
+        assert ax.get_ylim() == (-3, 3)
+        plt.close("all")
+
 
 class TestQQF:
     """Tests for qqf function."""

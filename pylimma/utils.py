@@ -190,10 +190,11 @@ def _r_qf(p, df1: float, df2: float) -> np.ndarray:
         )
 
 
-def _qq(y, quantile, title, plot_it, kwargs) -> dict:
+def _qq(y, quantile, plot_it, main, xlab, ylab, ylim, kwargs) -> dict:
     """The theoretical quantiles of a Q-Q plot of y (NaN dropped) under the
-    distribution whose quantile function is ``quantile``, drawn when
-    ``plot_it``; shared by qqt and qqf."""
+    distribution whose quantile function is ``quantile``, drawn as R's
+    plot(x, y, main, xlab, ylab, ylim) when ``plot_it``; shared by qqt and
+    qqf."""
     # R: y[!is.na(y)], a matrix read column by column
     y = np.asarray(y).ravel(order="F")
     y = y[~np.isnan(y)]
@@ -205,35 +206,16 @@ def _qq(y, quantile, title, plot_it, kwargs) -> dict:
     x = quantile(_r_ppoints(n))[np.argsort(np.argsort(y, kind="stable"))]
 
     if plot_it:
-        try:
-            import matplotlib.pyplot as plt
+        from .plotting import _require_matplotlib
 
-            plot_kwargs = {
-                "marker": "o",
-                "linestyle": "none",
-                "markersize": 3,
-            }
-            plot_kwargs.update(kwargs)
-
-            fig, ax = plt.subplots()
-            ax.plot(x, y, **plot_kwargs)
-
-            # Add reference line
-            ylim = ax.get_ylim()
-            xlim = ax.get_xlim()
-            min_val = max(xlim[0], ylim[0])
-            max_val = min(xlim[1], ylim[1])
-            ax.plot([min_val, max_val], [min_val, max_val], "r--", alpha=0.7)
-
-            ax.set_xlabel("Theoretical Quantiles")
-            ax.set_ylabel("Sample Quantiles")
-            ax.set_title(title)
-            plt.tight_layout()
-
-        except ImportError:
-            import warnings
-
-            warnings.warn("matplotlib not available for plotting")
+        plt = _require_matplotlib()
+        _fig, ax = plt.subplots()
+        ax.plot(x, y, **{"marker": "o", "linestyle": "none", "markersize": 3, **kwargs})
+        if ylim is not None:
+            ax.set_ylim(ylim)
+        ax.set_xlabel(xlab)
+        ax.set_ylabel(ylab)
+        ax.set_title(main)
 
     return {"x": x, "y": y}
 
@@ -242,6 +224,10 @@ def qqt(
     y: np.ndarray,
     df: float = np.inf,
     plot_it: bool = True,
+    main: str = "Student's t Q-Q Plot",
+    xlab: str = "Theoretical Quantiles",
+    ylab: str = "Sample Quantiles",
+    ylim=None,
     **kwargs,
 ) -> dict:
     """
@@ -259,6 +245,11 @@ def qqt(
         Use np.inf for a normal distribution.
     plot_it : bool, default True
         If True, produce the Q-Q plot. Requires matplotlib.
+    main, xlab, ylab : str
+        Title and axis labels, R's defaults.
+    ylim : tuple, optional
+        y-axis limits (R's default ``range(y)`` is matplotlib's own
+        autoscaling here).
     **kwargs
         Additional arguments passed to matplotlib's plot function.
 
@@ -268,7 +259,8 @@ def qqt(
         x : ndarray
             Theoretical quantiles.
         y : ndarray
-            Sample quantiles (sorted input values).
+            The input values with NaN dropped, in their original order (a
+            matrix read column by column), as R.
 
     Examples
     --------
@@ -277,8 +269,7 @@ def qqt(
     """
     from scipy import stats
 
-    title = "Student's t Q-Q Plot" if np.isfinite(df) else "Normal Q-Q Plot"
-    return _qq(y, lambda p: stats.t.ppf(p, df), title, plot_it, kwargs)
+    return _qq(y, lambda p: stats.t.ppf(p, df), plot_it, main, xlab, ylab, ylim, kwargs)
 
 
 def qqf(
@@ -286,6 +277,10 @@ def qqf(
     df1: float,
     df2: float,
     plot_it: bool = True,
+    main: str = "F Distribution Q-Q Plot",
+    xlab: str = "Theoretical Quantiles",
+    ylab: str = "Sample Quantiles",
+    ylim=None,
     **kwargs,
 ) -> dict:
     """
@@ -304,6 +299,11 @@ def qqf(
         Denominator degrees of freedom.
     plot_it : bool, default True
         If True, produce the Q-Q plot. Requires matplotlib.
+    main, xlab, ylab : str
+        Title and axis labels, R's defaults.
+    ylim : tuple, optional
+        y-axis limits (R's default ``range(y)`` is matplotlib's own
+        autoscaling here).
     **kwargs
         Additional arguments passed to matplotlib's plot function.
 
@@ -313,9 +313,10 @@ def qqf(
         x : ndarray
             Theoretical quantiles.
         y : ndarray
-            Sample quantiles (sorted input values).
+            The input values with NaN dropped, in their original order (a
+            matrix read column by column), as R.
     """
-    return _qq(y, lambda p: _r_qf(p, df1, df2), "F Distribution Q-Q Plot", plot_it, kwargs)
+    return _qq(y, lambda p: _r_qf(p, df1, df2), plot_it, main, xlab, ylab, ylim, kwargs)
 
 
 def _as_dense_array(x, dtype=None) -> np.ndarray:
