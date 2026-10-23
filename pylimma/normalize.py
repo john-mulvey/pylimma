@@ -51,6 +51,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+from scipy import special
 from scipy.optimize import minimize
 from scipy.stats import norm as _scipy_norm
 from scipy.stats import rankdata
@@ -884,7 +885,9 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     convolution model.
 
     Faithful port of R limma's ``normexp.signal``
-    (``limma/R/background-normexp.R:3-23``).
+    (``limma/R/background-normexp.R:3-23``). When ``sigma^2 / alpha`` is
+    large the signal is computed without cancellation and is more accurate
+    than R's (see :doc:`/validation/known_differences`).
     """
     par = np.asarray(par, dtype=np.float64)
     x = np.asarray(x, dtype=np.float64)
@@ -897,10 +900,27 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     if sigma <= 0:
         raise ValueError("sigma must be positive")
     mu_sf = x - mu - sigma2 / alpha
-    # dnorm(0, mu_sf, sigma, log=TRUE) - pnorm(0, mu_sf, sigma, lower.tail=FALSE, log.p=TRUE)
-    # = logpdf((0-mu_sf)/sigma) - log(sigma) - logsf((0-mu_sf)/sigma)
+    # R: mu.sf + sigma2 * exp(dnorm(0, mu.sf, sigma, log=TRUE) -
+    # pnorm(0, mu.sf, sigma, lower.tail=FALSE, log.p=TRUE)), i.e.
+    # mu.sf + sigma * h(z) with z = -mu.sf / sigma and h the normal hazard
+    # pdf / sf. For z > 0 this is sigma * (h(z) - z), a small difference of
+    # large terms: for z > 3, h(z) - z is taken directly from the Mills-ratio
+    # continued fraction 1 / (z + 2 / (z + 3 / (z + ...))), without
+    # cancellation; for 0 < z <= 3, h = sqrt(2 / pi) / erfcx(z / sqrt(2)) is
+    # exact and the remaining subtraction loses at most about one digit.
+    # R's own value is off by up to ~3% when sigma^2 / alpha is large
+    # (known_differences.rst)
     z = -mu_sf / sigma
-    signal = mu_sf + sigma2 * np.exp(_scipy_norm.logpdf(z) - np.log(sigma) - _scipy_norm.logsf(z))
+    signal = np.asarray(mu_sf + sigma * np.exp(_scipy_norm.logpdf(z) - _scipy_norm.logsf(z)))
+    mid = (z > 0) & (z <= 3)
+    signal[mid] = mu_sf[mid] + sigma * np.sqrt(2.0 / np.pi) / special.erfcx(z[mid] / np.sqrt(2.0))
+    far = z > 3
+    if np.any(far):
+        zf = z[far]
+        tail = zf.copy()
+        for k in range(200, 1, -1):
+            tail = zf + k / tail
+        signal[far] = sigma / tail
     obs = ~np.isnan(signal)
     if np.any(signal[obs] < 0):
         warnings.warn(

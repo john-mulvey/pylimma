@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `normexp_signal` is exact to rounding when the normal part is narrow
+  next to the exponential mean (large `sigma^2 / alpha`), where the
+  signal is a small difference of large terms; it was off by up to 9%
+  (R's own value is off by up to ~3% there; see known differences).
 - `background_correct` on an `EList` with an `Eb` slot corrects with it,
   as R's `backgroundCorrect` does for an EListRaw, and drops it from the
   result; it ignored the slot, so `method="auto"` ran normexp and

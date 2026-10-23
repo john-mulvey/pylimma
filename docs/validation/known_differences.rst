@@ -12,7 +12,7 @@ porting.
 Accepted differences
 --------------------
 
-Five differences remain after porting. None is a porting bug: four
+Six differences remain after porting. None is a porting bug: five
 come from numerical-algorithm choices and one (lowess) from how R
 itself is built on different platforms. Each is quantified and
 reproducible, and the parity tests stay within the tolerances given.
@@ -57,6 +57,27 @@ biological correlation to ``rtol ~6e-4``.
 **Tolerance.** Parity tests use ``rtol=1e-6`` for the deviance, the
 log-scale comparison for the p-value and ``rtol=1e-3`` for the
 covariance and correlations.
+
+normexp_signal is more accurate than R when sigma^2 / alpha is large
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When the normal part is narrow next to the exponential mean, the
+expected signal ``mu.sf + sigma * h(z)`` (``h`` the normal hazard, ``z``
+in the thousands) is a small difference of large terms. R computes ``h``
+as ``exp(dnorm(log=TRUE) - pnorm(log.p=TRUE))``, whose exponent carries
+rounding error of order ``eps * z^2``: for ``par = (100, log(10),
+log(0.002))`` R's signals jitter between 0.0019998 and 0.0020545 where
+the exact values (asymptotic Mills-ratio series) rise smoothly from
+0.0019984 to 0.0020161, an error of up to 2.8%. For ``z > 0`` pylimma
+computes ``sigma * (h(z) - z)`` without the cancellation: ``h(z) - z``
+from the Mills-ratio continued fraction ``1 / (z + 2 / (z + 3 / ...))``
+for ``z > 3`` and ``h = sqrt(2/pi) / erfcx(z / sqrt(2))`` for ``0 < z <=
+3``. It is exact to rounding, so it differs from R by R's error in this
+regime and matches R to 1e-12 elsewhere.
+
+**Tolerance.** Parity tests compare with the exact values at
+``rtol=1e-12`` and with R at ``rtol=1e-4`` (``alpha = 0.01``) and
+``rtol=1e-12`` (``alpha = 20``).
 
 Monte-Carlo rotation tests (``roast``, ``mroast``, ``romer``, ``gene_set_test``)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

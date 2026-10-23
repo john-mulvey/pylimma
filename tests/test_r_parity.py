@@ -4113,6 +4113,34 @@ class TestNormalisationBatchBranchCoverage:
 
     # --- normexp_signal branches ----------------------------------------------
 
+    def test_signal_with_a_narrow_normal_part(self):
+        """With sigma^2 / alpha large the signal is a small difference of
+        large terms. pylimma gives the exact value (the asymptotic Mills-
+        ratio series, to rounding); R agrees where it is accurate (alpha
+        20 to 1e-12, alpha 0.01 to its own error of ~7e-5) and is off by up
+        to ~3% at alpha 0.002 (known_differences.rst)."""
+        from decimal import Decimal, getcontext
+
+        r = load_r_csv_no_index("normexp_signal_tails")
+        x = r["x"].to_numpy()
+
+        def exact(xi, alpha):
+            getcontext().prec = 60
+            mu_sf = Decimal(int(xi)) - 100 - Decimal(100) / Decimal(str(alpha))
+            z = -mu_sf / 10
+            series, term = Decimal(0), Decimal(1)
+            for k in range(1, 13):
+                series += term
+                term = -term * (2 * k - 1) / (z * z)
+            return float(mu_sf + 10 * z / series)
+
+        for alpha, rtol in ((20, 1e-12), (0.01, 1e-4)):
+            got = normexp_signal(np.array([100, np.log(10), np.log(alpha)]), x)
+            np.testing.assert_allclose(got, r[f"alpha_{alpha}"], rtol=rtol)
+        for alpha in (0.01, 0.002, 1e-5):
+            got = normexp_signal(np.array([100, np.log(10), np.log(alpha)]), x)
+            np.testing.assert_allclose(got, [exact(xi, alpha) for xi in x], rtol=1e-12)
+
     def test_signal_alpha_nonpositive_raises(self):
         with pytest.raises(ValueError, match="alpha must be positive"):
             normexp_signal(np.array([50.0, 1.0, -np.inf]), np.ones(5))
@@ -4123,21 +4151,21 @@ class TestNormalisationBatchBranchCoverage:
 
     def test_signal_warning_emitted_on_clip(self, monkeypatch):
         # R: warning + pmax(signal, 1e-6) when any(signal<0).
-        # scipy's logsf is numerically stable enough that the
-        # leading-order cancellation signal = mu_sf + sigma*z holds
-        # tightly in practice, so the R-documented "very low intensity
-        # or very high background" warning branch is hard to trigger
-        # naturally in Python. Force it by monkeypatching logsf so the
-        # exp ratio underflows to 0, leaving signal = mu_sf (negative).
+        # The erfcx hazard keeps signal = mu_sf + sigma * h(z) accurate, so
+        # the R-documented "very low intensity or very high background"
+        # warning branch is hard to trigger naturally in Python. Force it
+        # by monkeypatching erfcx so the hazard is 0, leaving signal =
+        # mu_sf (negative).
         from pylimma import normalize as _normalize
 
         monkeypatch.setattr(
-            _normalize._scipy_norm,
-            "logsf",
+            _normalize.special,
+            "erfcx",
             lambda z: np.full_like(np.asarray(z, dtype=np.float64), np.inf),
         )
         par = np.array([50.0, np.log(10.0), np.log(200.0)])
-        x = np.array([10.0, 12.0, 14.0, 16.0, 18.0])  # x < mu -> mu_sf < 0
+        # x < mu, with 0 < z <= 3 so the erfcx branch is used
+        x = np.array([30.0, 35.0, 40.0, 45.0, 48.0])
         with pytest.warns(UserWarning, match="Limit of numerical accuracy"):
             out = normexp_signal(par, x)
         assert np.all(out >= 1e-6)

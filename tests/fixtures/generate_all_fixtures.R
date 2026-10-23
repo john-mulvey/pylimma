@@ -6580,3 +6580,15 @@ write.csv(rbind(
 stopifnot(identical(.bc_raw$E, backgroundCorrect.matrix(.bc_E, .bc_Eb, method = "subtract")),
           is.null(.bc_raw$Eb),
           identical(backgroundCorrect(new("EListRaw", list(E = .bc_E, Eb = .bc_Eb)), verbose = FALSE)$E, .bc_raw$E))
+
+# =============================================================================
+# normexp.signal where the normal part is narrow next to the exponential
+# mean (large sigma^2 / alpha): the result is a small difference of large
+# terms
+# =============================================================================
+.ns_x <- c(60, 80, 100, 120, 150, 500)
+write.csv(data.frame(x = .ns_x,
+                     alpha_0.01 = normexp.signal(c(100, log(10), log(0.01)), .ns_x),
+                     alpha_0.002 = normexp.signal(c(100, log(10), log(0.002)), .ns_x),
+                     alpha_20 = normexp.signal(c(100, log(10), log(20)), .ns_x)),
+          "R_normexp_signal_tails.csv", row.names = FALSE)
