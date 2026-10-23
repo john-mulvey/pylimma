@@ -6717,3 +6717,8 @@ stopifnot(grepl("design matrix not specified", try(wsva(.ws_y, NULL), silent = T
 stopifnot(identical(unname(suppressWarnings(avereps(.ai_x, ID = c("a", NA, NA)))), cbind(c(1, 2.5), c(4, 5.5))),
           identical(unname(avereps(.ai_x, ID = c(1, 1.0, 2))), cbind(c(1.5, 3), c(4.5, 6))),
           grepl("incorrect length for 'group'", try(avereps(.ai_x, ID = c("a", "b")), silent = TRUE)))
+
+# =============================================================================
+# asMatrixWeights(NULL) fails inside as.matrix (pylimma raises a clear error)
+# =============================================================================
+stopifnot(grepl("must be of a vector type", try(limma:::asMatrixWeights(NULL, c(2, 2)), silent = TRUE)))

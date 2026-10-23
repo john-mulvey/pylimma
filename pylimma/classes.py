@@ -120,6 +120,10 @@ def as_matrix_weights(
 def _as_matrix_weights_with_flag(weights, dim=None) -> tuple[np.ndarray, bool]:
     """as_matrix_weights plus R's "arrayweights" attribute: True when the
     weights were array weights broadcast down the rows (branches 2 and 5)."""
+    # R fails in as.matrix(NULL) ("'data' must be of a vector type");
+    # np.asarray(None, float) would be a NaN weight
+    if weights is None:
+        raise ValueError("weights is None")
     arr = np.asarray(weights, dtype=np.float64)
     if arr.ndim == 0:
         arr = arr.reshape(1, 1)

@@ -1361,3 +1361,11 @@ def test_get_eawp_reads_numbers_held_as_objects():
     np.testing.assert_array_equal(get_eawp(EList({"E": frame}))["exprs"], [[1.0, 1.0], [2.0, np.nan]])
     with pytest.raises(TypeError, match="doesn't contain numeric expression values"):
         get_eawp(EList({"E": np.array([["a", 1.0]], dtype=object)}))
+
+
+def test_as_matrix_weights_rejects_none():
+    """R fails in as.matrix(NULL) (fixture script); None was a NaN weight."""
+    from pylimma import as_matrix_weights
+
+    with pytest.raises(ValueError, match="weights is None"):
+        as_matrix_weights(None, (2, 2))

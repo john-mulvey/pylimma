@@ -428,6 +428,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `as_matrix_weights(None, dim)` raises a clear error; it returned a matrix
+  of NaN weights (R fails in `as.matrix(NULL)`).
 - `wsva` raises R's "design matrix not specified" and "row dimension of
   design matrix must match column dimension of data" (it raised
   `IndexError` or a matrix-multiplication error). As R, an EList's design
