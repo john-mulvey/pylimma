@@ -101,7 +101,9 @@ def top_table(
     coef : int, str, list, or None
         Coefficient(s) to extract. If None or multiple coefficients,
         returns F-statistic results. If single coefficient (int or str),
-        returns t-statistic results for that coefficient.
+        returns t-statistic results for that coefficient. A float is
+        truncated, as R does; an empty coef raises, where R returns an
+        empty table (see :doc:`/validation/known_differences`).
     number : int, default 10
         Maximum number of genes to return. Use np.inf for all genes.
     genelist : DataFrame, list, or array, optional
@@ -215,10 +217,16 @@ def top_table(
                     pass  # No intercept found
         else:
             coef_idx = [n_coefs - 1]  # Use last coefficient (like R)
-    elif isinstance(coef, (list, tuple)):
-        coef_idx = list(coef)
-    else:
+    elif np.ndim(coef) == 0:
         coef_idx = [coef]
+    else:
+        coef_idx = list(coef)
+    # R's logical coef (a subscript) fails in topTable's table building
+    if any(isinstance(c, (bool, np.bool_)) for c in coef_idx):
+        raise ValueError("coef must be coefficient positions or names, not logical")
+    # R: fit$coefficients[, integer(0)] gives an empty table
+    if len(coef_idx) == 0:
+        raise ValueError("coef must give at least one coefficient")
 
     # Convert string coefficient/contrast names to indices
     # Use contrast_names if available (after contrasts_fit), otherwise coef_names
@@ -235,6 +243,8 @@ def top_table(
             else:
                 new_coef_idx.append(c)
         coef_idx = new_coef_idx
+    # R truncates a double subscript (coef = 1.0 is column 1)
+    coef_idx = [c if isinstance(c, str) else int(c) for c in coef_idx]
 
     # Get genelist from fit if not provided. Track whether the value
     # came from the user (explicit) or from `fit["genes"]` (auto-default

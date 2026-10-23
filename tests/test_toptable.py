@@ -419,3 +419,19 @@ def test_multiple_coefficients_do_not_warn_obsolete():
     with pytest.warns(DeprecationWarning, match="top_table_f is obsolete"):
         via_top_table_f = top_table_f(fit, number=5)
     pd.testing.assert_frame_equal(via_top_table, via_top_table_f)
+
+
+def test_coef_forms_follow_r():
+    """R truncates a double subscript (coef = 1.0); an empty coef gives R an
+    empty data frame, pylimma a clear error (fixture script)."""
+    rng = np.random.default_rng(3)
+    fit = e_bayes(
+        lm_fit(rng.normal(size=(10, 6)), np.column_stack([np.ones(6), np.repeat([0, 1], 3)]))
+    )
+    pd.testing.assert_frame_equal(top_table(fit, coef=1.0), top_table(fit, coef=1))
+    pd.testing.assert_frame_equal(top_table(fit, coef=np.array([1])), top_table(fit, coef=1))
+    with pytest.raises(ValueError, match="coef must give at least one coefficient"):
+        top_table(fit, coef=[])
+    # R's logical coef fails while building the table
+    with pytest.raises(ValueError, match="not logical"):
+        top_table(fit, coef=True)

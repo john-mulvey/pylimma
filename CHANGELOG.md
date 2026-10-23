@@ -378,6 +378,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `top_table` takes a float `coef` (1.0) or an array of coefficients, as
+  R truncates a double subscript (it raised `IndexError`), and raises a
+  clear error for an empty `coef`, where it raised `IndexError` (R returns
+  an empty table; see known differences).
 - `contrasts_fit` takes a float scalar `coefficients` (1.0), as R does
   (it raised `TypeError`), raises R's "fit must contain coefficients
   component" for a missing fit (it raised `AttributeError`), and raises a

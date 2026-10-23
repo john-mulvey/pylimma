@@ -345,6 +345,15 @@ Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     pylimma returned a result without complaint. ``generate_all_fixtures.R``
     records the R behaviour.
 
+``top_table`` with an empty or logical ``coef``
+    Raises "coef must give at least one coefficient". R's
+    ``fit$coefficients[, integer(0)]`` is empty, and ``topTable`` returns
+    an empty data frame. A logical ``coef`` raises "coef must be
+    coefficient positions or names, not logical"; R's ``coef = TRUE``
+    fails while building the table ("duplicate 'row.names' are not
+    allowed"). ``generate_all_fixtures.R`` records the R
+    behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

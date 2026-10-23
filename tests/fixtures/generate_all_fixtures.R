@@ -6473,3 +6473,12 @@ stopifnot(grepl("incorrect length for 'group'",
 stopifnot(identical(dim(contrasts.fit(.cf_fit, coefficients = 1)$coefficients), c(10L, 1L)),
           grepl("non-conformable", try(contrasts.fit(.cf_bad, cbind(c(0, 1))), silent = TRUE)),
           grepl("fit must contain coefficients component", try(contrasts.fit(NULL, cbind(c(0, 1))), silent = TRUE)))
+
+# =============================================================================
+# topTable coef forms: a double subscript is truncated (coef = 2.0 is column
+# 2); an empty coef gives an empty data frame (pylimma raises)
+# =============================================================================
+.tt_fit <- eBayes(lmFit(matrix(rnorm(60), 10), cbind(1, c(0, 0, 0, 1, 1, 1))))
+stopifnot(identical(topTable(.tt_fit, coef = 2.0), topTable(.tt_fit, coef = 2L)),
+          inherits(try(suppressWarnings(topTable(.tt_fit, coef = TRUE)), silent = TRUE), "try-error"),
+          identical(dim(topTable(.tt_fit, coef = integer(0))), c(0L, 0L)))
