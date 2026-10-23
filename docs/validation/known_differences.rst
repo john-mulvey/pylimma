@@ -323,6 +323,12 @@ Gene-set positions outside the statistics (``gene_set_test``, ``wilcox_gst``, ``
     have one value per statistic: R recycles a shorter one and gives NA
     for a longer one. ``generate_all_fixtures.R`` records the R behaviour.
 
+Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
+    A logical row or column subscript must be a single value (recycled, as
+    R's ``TRUE``) or have one value per row or column; pylimma raises "a
+    logical subscript has ... values for ... rows". R recycles a shorter
+    one silently.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

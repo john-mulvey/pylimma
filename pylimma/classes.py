@@ -206,27 +206,42 @@ def _is_anndata(obj: Any) -> bool:
     return isinstance(obj, AnnData)
 
 
-def _resolve_index(idx, names):
+def _resolve_index(idx, names, n: int, dim: str):
     """Resolve a row/column selector to an integer array or slice.
 
-    Accepts bool masks, int arrays, string lists (resolved against names),
-    or slices. Returns a form usable as a numpy index.
+    Accepts slices, logical masks (a single TRUE or FALSE selects every or
+    no position, as R recycles it; other lengths must be ``n``), integer
+    positions and names (matched against ``names``; R's
+    subsetListOfArrays stops with "Subscript not found in rownames" /
+    "colnames" for a name that is not there, or when there are no names).
+    ``dim`` is "rownames" or "colnames". Returns a numpy index.
     """
     if idx is None:
         return slice(None)
     if isinstance(idx, slice):
         return idx
     arr = np.atleast_1d(np.asarray(idx))
+    # a mask held in an object array (an object-dtype pandas column) is logical
+    if arr.dtype.kind == "O" and arr.size and all(isinstance(v, (bool, np.bool_)) for v in arr):
+        arr = arr.astype(bool)
     if arr.dtype == bool:
+        if arr.size == 1:
+            arr = np.repeat(arr, n)
+        elif arr.size != n:
+            what = "rows" if dim == "rownames" else "columns"
+            raise ValueError(f"a logical subscript has {arr.size} values for {n} {what}")
         return np.where(arr)[0]
-    if arr.dtype.kind in ("U", "S", "O") and names is not None:
-        names_list = list(names)
-        out = []
-        for name in arr:
-            if name not in names_list:
-                raise KeyError(f"Subscript not found: {name!r}")
-            out.append(names_list.index(name))
-        return np.asarray(out, dtype=int)
+    if arr.dtype.kind in ("U", "S") or (
+        arr.dtype.kind == "O" and any(isinstance(v, str) for v in arr)
+    ):
+        # R's match(): the first of repeated names
+        position = {}
+        for k, name in enumerate([] if names is None else names):
+            position.setdefault(name, k)
+        missing = [name for name in arr if name not in position]
+        if missing:
+            raise KeyError(f"Subscript not found in {dim}: {missing[0]!r}")
+        return np.asarray([position[name] for name in arr], dtype=int)
     return arr.astype(int)
 
 
@@ -390,14 +405,20 @@ class _LargeDataObject(dict):
 
     # ---- head / tail ----
 
+    def _head_count(self, n) -> float:
+        """R's head / tail n: a negative n leaves out -n rows."""
+        if np.ndim(n) != 0:
+            raise ValueError("n must be a single number")
+        return max(self.nrow + n, 0) if n < 0 else min(n, self.nrow)
+
     def head(self, n: int = 6) -> "_LargeDataObject":
-        n = min(max(n, 0), self.nrow)
-        return self._subset(slice(0, n), slice(None))
+        # R: seq_len(n) truncates a fraction
+        return self._subset(slice(0, int(self._head_count(n))), slice(None))
 
     def tail(self, n: int = 6) -> "_LargeDataObject":
-        n = min(max(n, 0), self.nrow)
-        start = max(self.nrow - n, 0)
-        return self._subset(slice(start, self.nrow), slice(None))
+        # R: seq.int(to = nrow, length.out = n) rounds a fraction up
+        count = int(np.ceil(self._head_count(n)))
+        return self._subset(slice(self.nrow - count, self.nrow), slice(None))
 
     # ---- subsetting ----
 
@@ -413,8 +434,8 @@ class _LargeDataObject(dict):
 
     def _subset(self, i, j) -> "_LargeDataObject":
         row_names, col_names = self.dimnames
-        i_idx = _resolve_index(i, row_names)
-        j_idx = _resolve_index(j, col_names)
+        i_idx = _resolve_index(i, row_names, self.nrow, "rownames")
+        j_idx = _resolve_index(j, col_names, self.ncol, "colnames")
 
         out = deepcopy(self)
 
@@ -524,7 +545,7 @@ class MArrayLM(_LargeDataObject):
 
         names = self.get("contrast_names") or self.get("coef_names")
         ncoef = self.ncol
-        j_idx = np.arange(ncoef)[_resolve_index(j, names)]
+        j_idx = np.arange(ncoef)[_resolve_index(j, names, ncoef, "colnames")]
 
         # cov_coefficients covers only estimable coefficients (NaN rows here,
         # fewer columns in R); selecting a non-estimable coefficient is an error

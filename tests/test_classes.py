@@ -216,6 +216,36 @@ def test_head_returns_correct_rows():
     np.testing.assert_array_equal(np.asarray(h.E), np.asarray(el.E)[:5])
 
 
+def test_head_tail_and_selectors_follow_r():
+    """R (fixture script): head / tail with a negative n leave out -n rows
+    and truncate a fractional n; TRUE selects every row; a name that is not
+    among the names stops with subsetListOfArrays' message."""
+    from pylimma import lm_fit
+
+    el = EList({"E": np.arange(9.0).reshape(3, 3)})
+    assert el.head(-1)["E"].shape == (2, 3)
+    np.testing.assert_array_equal(el.tail(-1)["E"], np.arange(9.0).reshape(3, 3)[1:])
+    assert el.head(2.5)["E"].shape == (2, 3)
+    # R: tail's seq.int(length.out = n) rounds a fraction up
+    assert el.tail(2.5)["E"].shape == (3, 3)
+    assert el.tail(-1.5)["E"].shape == (2, 3)
+    assert el.head(-5)["E"].shape == (0, 3)
+    assert el[True, :]["E"].shape == (3, 3)
+    # a mask held in an object array is logical
+    mask = np.array([True, False, True], dtype=object)
+    np.testing.assert_array_equal(el[mask, :]["E"], el[[0, 2], :]["E"])
+    # integer positions held in an object array are positions, not names
+    np.testing.assert_array_equal(el[np.array([0, 2], dtype=object), :]["E"], el[[0, 2], :]["E"])
+    with pytest.raises(ValueError, match="2 values for 3 rows"):
+        el[[True, False], :]
+    with pytest.raises(KeyError, match="Subscript not found in rownames: 'a'"):
+        el["a", :]
+    design = pd.DataFrame({"Intercept": np.ones(6), "x": [0.0, 0, 0, 1, 1, 1]})
+    fit = lm_fit(np.random.default_rng(1).normal(size=(10, 6)), design)
+    with pytest.raises(KeyError, match="Subscript not found in colnames: 'z'"):
+        fit[:, ["z"]]
+
+
 # -----------------------------------------------------------------------------
 # Part 2: polymorphic-input (ndarray / EList / AnnData) equivalence for voom,
 # normalize_between_arrays, array_weights and duplicate_correlation

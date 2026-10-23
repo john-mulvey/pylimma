@@ -182,6 +182,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- Subsetting an `EList` or `MArrayLM` follows R: `head` / `tail` with a
+  negative `n` leave out the last / first `-n` rows (they returned no
+  rows) and a fractional `n` is truncated (it raised `TypeError`);
+  `obj[True, :]` selects every row (it selected the first); a name that
+  is not among the row or column names raises R's "Subscript not found in
+  rownames" / "colnames", also when there are no names (it raised "invalid
+  literal for int()"), which `contrasts_fit(coefficients=...)` reports
+  too.
 - `qqt` and `qqf` draw what R draws: the points only (pylimma added a
   dashed reference line), titled "Student's t Q-Q Plot" also for
   `df=np.inf` (it said "Normal Q-Q Plot"), and take R's `main`, `xlab`,

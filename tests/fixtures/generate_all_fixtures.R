@@ -6343,3 +6343,18 @@ write.csv(data.frame(q = .zg_q,
           "R_zscore_gamma_tails.csv", row.names = FALSE)
 stopifnot(is.nan(suppressWarnings(zscoreGamma(5, shape = -0.5))))
 
+# =============================================================================
+# Subsetting limma objects: head/tail take a negative n as "all but the last
+# (first) -n" and truncate a fractional n; TRUE selects every row; a name
+# not among the row or column names stops (subsetListOfArrays)
+# =============================================================================
+.sub_el <- new("EList", list(E = matrix(as.numeric(0:8), 3, 3)))
+.sub_fit <- lmFit(matrix(rnorm(60), 10), cbind(Intercept = 1, x = c(0, 0, 0, 1, 1, 1)))
+stopifnot(nrow(head(.sub_el, -1)) == 2, nrow(tail(.sub_el, -1)) == 2,
+          nrow(tail(.sub_el, 2.5)) == 3, nrow(tail(.sub_el, -1.5)) == 2,
+          identical(tail(.sub_el, -1)$E, .sub_el$E[2:3, ]),
+          nrow(head(.sub_el, 2.5)) == 2, nrow(head(.sub_el, -5)) == 0,
+          nrow(.sub_el[TRUE, ]) == 3,
+          inherits(try(.sub_fit[, "z"], silent = TRUE), "try-error"),
+          grepl("Subscript not found in colnames", try(.sub_fit[, "z"], silent = TRUE)),
+          grepl("Subscript not found in rownames", try(.sub_el["a", ], silent = TRUE)))
