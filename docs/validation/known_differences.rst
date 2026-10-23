@@ -449,6 +449,15 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     condition has length > 1" for a vector. ``generate_all_fixtures.R``
     records the R behaviour.
 
+``vooma_by_group`` with a missing group label, or only singleton groups
+    A missing group label raises; R gives that sample no group, so its
+    "weights" are its expression values. A level with no samples (an
+    unused category) raises a clear error; R fails in ``vooma`` on the
+    empty subset ("y contains entirely NA rows"). When every group has one sample
+    (possible with a design other than the default ``~0 + group``), the
+    span is that of the fit to all samples; R fails with "object 'voomi'
+    not found".
+
 ``voom`` with a ``lib_size`` of the wrong length
     A ``lib_size`` that is neither one value per sample nor a single value
     raises. R's ``matrix(lib.size, n, ncol, byrow = TRUE)`` recycles it

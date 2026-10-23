@@ -6989,3 +6989,94 @@ stopifnot(identical(colnames(voom(.gm_counts)$design), "GrandMean"),
           identical(colnames(voomWithQualityWeights(.gm_counts)$design), "GrandMean"),
           identical(colnames(vooma(log2(.gm_counts))$design), "GrandMean"),
           identical(colnames(voomaLmFit(log2(.gm_counts))$coefficients), "GrandMean"))
+
+# =============================================================================
+# voomaByGroup: voom.xy holds each group's trend data (singleton groups take
+# the fit to all samples), the default design is ~0+group (columns
+# group<level>), and span is that of the last group fitted on its own
+# =============================================================================
+set.seed(1313)
+.vbg_y <- matrix(rnorm(450, 8, 2), 50)
+.vbg_group <- factor(c(0, 0, 0, 1, 1, 1, 1, 2, 3))
+write.csv(.vbg_y, "R_vbg_input.csv", row.names = FALSE)
+.vbg <- voomaByGroup(.vbg_y, .vbg_group)
+stopifnot(identical(colnames(.vbg$design), paste0("group", levels(.vbg_group))),
+          identical(colnames(.vbg$voom.xy$x), levels(.vbg_group)),
+          .vbg$span == vooma(.vbg_y[, 4:7], .vbg$design[4:7, ])$span)
+write.csv(.vbg$voom.xy$x, "R_vbg_xy_x.csv", row.names = FALSE)
+write.csv(.vbg$voom.xy$y, "R_vbg_xy_y.csv", row.names = FALSE)
+write.csv(.vbg$weights, "R_vbg_weights.csv", row.names = FALSE)
+# =============================================================================
+# arrayWeights scoring: a singular information matrix stops solve() (prior.n
+# = 0 with 2 residual df), and REML warns when it stops unconverged
+# =============================================================================
+set.seed(1314)
+.aws_y <- matrix(rnorm(90), 10, 9)
+write.csv(.aws_y, "R_aws_singular_input.csv", row.names = FALSE)
+.aws_err <- function(expr) conditionMessage(tryCatch(expr, error = identity, warning = identity))
+stopifnot(all(vapply(c("genebygene", "reml"), function(m)
+            grepl("exactly singular", .aws_err(arrayWeights(.aws_y, diag(9)[, 1:7], method = m, prior.n = 0))), TRUE)))
+.aws_y2 <- matrix(rnorm(300), 50, 6)
+.aws_y2[, 1] <- .aws_y2[, 1] * 3
+write.csv(.aws_y2, "R_aws_maxiter_input.csv", row.names = FALSE)
+.aws_w <- function(expr) {
+  msgs <- character()
+  value <- withCallingHandlers(expr, warning = function(w) {
+    msgs <<- c(msgs, conditionMessage(w))
+    invokeRestart("muffleWarning")
+  })
+  list(value = value, warnings = msgs)
+}
+.aws_reml2 <- .aws_w(arrayWeights(.aws_y2, method = "reml", maxiter = 2))
+.aws_prw2 <- .aws_w(arrayWeights(.aws_y2, method = "reml", weights = matrix(1, 50, 6), maxiter = 2))
+stopifnot(identical(.aws_reml2$warnings, "iteration limit reached"),
+          identical(.aws_prw2$warnings, "iteration limit reached"))
+write.csv(data.frame(reml = .aws_reml2$value, prwts = .aws_prw2$value), "R_aws_maxiter2.csv", row.names = FALSE)
+
+# =============================================================================
+# arrayWeights: prior.n = Inf gives NaN weights (genebygene stops in lm.wfit,
+# reml warns) and maxiter = 0 still iterates (1:0)
+# =============================================================================
+.awp_y <- as.matrix(read.csv("R_aws_maxiter_input.csv"))
+.awp_err <- function(expr) conditionMessage(tryCatch(expr, error = identity, warning = identity))
+stopifnot(grepl("missing or negative weights not allowed",
+                .awp_err(arrayWeights(.awp_y, method = "genebygene", prior.n = Inf))),
+          grepl("convergence tolerance not achievable", .awp_err(arrayWeights(.awp_y, method = "reml", prior.n = Inf))),
+          !isTRUE(all.equal(suppressWarnings(arrayWeights(.awp_y, method = "reml", maxiter = 0)), rep(1, 6))))
+
+# =============================================================================
+# modifyWeights: weights default to 1 for each status
+# =============================================================================
+stopifnot(identical(modifyWeights(status = c("a", "b"), values = "a", multipliers = 0), matrix(c(0, 1))))
+
+# =============================================================================
+# selectModel with a vector y: lmFit fits it as one gene, but narrays is
+# ncol(as.matrix(y)) = 1; pylimma uses the one-gene matrix's values
+# =============================================================================
+set.seed(1315)
+.smv_y <- rnorm(6)
+.smv_dl <- list(cbind(1, rep(0:1, 3)), matrix(1, 6, 1))
+.smv_row <- selectModel(matrix(.smv_y, 1), .smv_dl)$IC
+stopifnot(!isTRUE(all.equal(unname(selectModel(.smv_y, .smv_dl)$IC), unname(.smv_row))))
+write.csv(data.frame(y = .smv_y), "R_selmod_vector_y.csv", row.names = FALSE)
+write.csv(.smv_row, "R_selmod_vector_ic.csv", row.names = FALSE)
+
+# =============================================================================
+# classifyTestsF takes its threshold from qf, which uses the chi-squared
+# limit for df > 4e5: a gene between that limit and the exact F quantile
+# =============================================================================
+.ctf_x <- matrix(sqrt(4.60518), 1, 2)
+stopifnot(qf(0.01, 2, 1e6, lower.tail = FALSE) < 4.60518,
+          all(classifyTestsF(.ctf_x, df = 1e6, p.value = 0.01) != 0))
+
+# =============================================================================
+# voomaByGroup with a missing group label: that sample is in no group, so
+# its weights keep its expression values; an unused level fails in vooma
+# (pylimma raises clear errors)
+# =============================================================================
+.vbn_y <- as.matrix(read.csv("R_vbg_input.csv"))
+.vbn <- voomaByGroup(.vbn_y, c(0, 0, 0, 1, 1, 1, 2, 2, NA))
+stopifnot(identical(unname(.vbn$weights[, 9]), unname(.vbn_y[, 9])),
+          grepl("entirely NA rows", try(voomaByGroup(.vbn_y, factor(rep(c("a", "b", "c"), each = 3),
+                                                                    levels = c("a", "b", "c", "d"))),
+                                        silent = TRUE)))

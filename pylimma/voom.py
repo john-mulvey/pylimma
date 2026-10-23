@@ -26,8 +26,15 @@ import pandas as pd
 from scipy import linalg
 
 from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
-from .lmfit import _fit_genes, _numeric_design, _parse_design, _qr_r_style, lm_fit
-from .utils import _block_labels, _r_approx_rule2, _r_lowess, choose_lowess_span
+from .lmfit import (
+    _design_names,
+    _fit_genes,
+    _numeric_design,
+    _parse_design,
+    _qr_r_style,
+    lm_fit,
+)
+from .utils import _block_labels, _r_approx_rule2, _r_factor, _r_lowess, choose_lowess_span
 
 
 def _voom_design(design, sample_data, n_samples: int) -> tuple[np.ndarray, list[str] | None]:
@@ -1281,10 +1288,16 @@ def vooma_by_group(
 
     - AnnData in: writes ``adata.layers[out_layer]`` (copy of E),
       ``adata.layers[weights_layer]`` (computed weights), and
-      ``adata.uns[uns_key]`` (design + group). Returns ``None``.
+      ``adata.uns[uns_key]`` (design, group, voom_xy and span). Returns
+      ``None``.
     - EList in: returns a new ``EList`` with updated slots.
     - ndarray / dict in: returns a dict with ``E``, ``weights``,
-      ``design``, ``group``.
+      ``design``, ``group``, ``voom_xy`` and ``span``.
+
+    As R, ``voom_xy["x"]`` and ``voom_xy["y"]`` hold each group's trend
+    data, one column per group level (a singleton group takes the fit to
+    all samples), and the default design is ``~0 + group`` with columns
+    ``group<level>``.
 
     The default ``uns_key="vooma"`` means ``lm_fit(adata, layer="vooma_E")``
     picks up the design via the usual :func:`get_eawp` fallback.
@@ -1322,22 +1335,31 @@ def vooma_by_group(
             UserWarning,
         )
 
-    group_arr = np.asarray(pd.Categorical(group))
-    levels = list(pd.Categorical(group).categories)
+    # R: as.factor(group); the level labels as R's as.character gives them
+    levels, group_codes = _r_factor(group)
     ngroups = len(levels)
-    if group_arr.size != narrays:
+    if group_codes.size != narrays:
         raise ValueError("length(group) must equal ncol(y)")
+    # R leaves such a sample's weights as its expression values
+    if (group_codes < 0).any():
+        raise ValueError("group contains missing values")
+    group_sizes = np.bincount(group_codes, minlength=ngroups)
+    # an unused level of a categorical; R fails in vooma on its empty
+    # subset ("y contains entirely NA rows")
+    if group_sizes.min() == 0:
+        empty = [levels[j] for j in np.flatnonzero(group_sizes == 0)]
+        raise ValueError(f"group levels with no samples: {empty}")
 
     if design is None:
-        # ~0 + group one-hot
-        design = np.zeros((narrays, ngroups))
-        for j, lev in enumerate(levels):
-            design[group_arr == lev, j] = 1.0
-    design = _numeric_design(design)
+        # R: model.matrix(~0+group), columns named group<level>
+        design = np.column_stack([group_codes == j for j in range(ngroups)]).astype(np.float64)
+        design_names = [f"group{lev}" for lev in levels]
+    else:
+        design, design_names = _numeric_design(design), _design_names(design)
 
     # Singleton levels take their weights from one fit to all samples (R's
     # voomall, computed once before the loop).
-    if min(int(np.sum(group_arr == lev)) for lev in levels) == 1:
+    if group_sizes.min() == 1:
         v_all = vooma(
             {"E": E},
             design=design,
@@ -1346,33 +1368,53 @@ def vooma_by_group(
             span=span,
             legacy_span=legacy_span,
             plot=False,
+            save_plot=True,
         )
 
+    # Each group's trend data. R: span <- voomi$span, of the last group
+    # fitted on its own (the same for every group: it depends only on the
+    # number of genes); voomall's when every group is a singleton, where R
+    # fails ("object 'voomi' not found"; known differences)
     weights = np.empty_like(E)
-    for lev in levels:
-        mask = group_arr == lev
+    sx = np.zeros((ngenes, ngroups))
+    sy = np.zeros((ngenes, ngroups))
+    fitted_span = None
+    for j in range(ngroups):
+        mask = group_codes == j
         if mask.sum() < 2:
-            weights[:, mask] = v_all["weights"][:, mask]
-            continue
-        # R: vooma(y[, i], design = design[i, , drop = FALSE], block = block[i],
-        #          correlation = correlation)
-        v = vooma(
-            {"E": E[:, mask]},
-            design=design[mask, :],
-            block=None if block is None else np.asarray(block)[mask],
-            correlation=correlation,
-            span=span,
-            legacy_span=legacy_span,
-            plot=False,
-        )
-        weights[:, mask] = v["weights"]
+            v = v_all
+            group_weights = v_all["weights"][:, mask]
+        else:
+            # R: vooma(y[, i], design = design[i, , drop = FALSE], block = block[i],
+            #          correlation = correlation)
+            v = vooma(
+                {"E": E[:, mask]},
+                design=design[mask, :],
+                block=None if block is None else np.asarray(block)[mask],
+                correlation=correlation,
+                span=span,
+                legacy_span=legacy_span,
+                plot=False,
+                save_plot=True,
+            )
+            group_weights = v["weights"]
+            fitted_span = v["span"]
+        weights[:, mask] = group_weights
+        sx[:, j], sy[:, j] = v["voom_xy"]["x"], v["voom_xy"]["y"]
 
     return put_eawp(
         {
             "E": E,
             "weights": weights,
-            "design": design,
-            "group": group_arr,
+            "design": _named_design(design, design_names),
+            "group": np.asarray(group),
+            "voom_xy": {
+                "x": pd.DataFrame(sx, columns=levels),
+                "y": pd.DataFrame(sy, columns=levels),
+                "xlab": "Average log-expression",
+                "ylab": "Sqrt( standard deviation )",
+            },
+            "span": v_all["span"] if fitted_span is None else fitted_span,
         },
         original_input,
         out_layer=out_layer,

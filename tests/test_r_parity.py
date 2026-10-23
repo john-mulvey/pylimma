@@ -3032,6 +3032,50 @@ class TestVoomInterfaceParams:
         assert sw.shape == (expr.shape[1],)
 
 
+def test_vooma_by_group_trend_data_design_and_span_match_r():
+    """voom.xy per group (a singleton takes the fit to all samples), the
+    ~0+group design names and R's single span."""
+    from pylimma.voom import vooma, vooma_by_group
+
+    y = load_r_csv_no_index("vbg_input").to_numpy()
+    group = np.array([0, 0, 0, 1, 1, 1, 1, 2, 3])
+    out = vooma_by_group(y, group)
+    assert list(out["design"].columns) == ["group0", "group1", "group2", "group3"]
+    for slot in ("x", "y"):
+        r_xy = load_r_csv_no_index(f"vbg_xy_{slot}")
+        assert list(out["voom_xy"][slot].columns) == list(r_xy.columns)
+        np.testing.assert_allclose(out["voom_xy"][slot].to_numpy(), r_xy.to_numpy(), rtol=1e-6)
+    np.testing.assert_allclose(
+        out["weights"], load_r_csv_no_index("vbg_weights").to_numpy(), rtol=1e-6
+    )
+    assert out["span"] == vooma(y[:, 3:7], out["design"].to_numpy()[3:7])["span"]
+
+
+def test_vooma_by_group_names_levels_as_r_and_rejects_missing_groups():
+    """Levels as R's as.character (1.0 is "1"); R gives a sample with a
+    missing group its expression values as weights (known differences)."""
+    from pylimma.voom import vooma_by_group
+
+    y = load_r_csv_no_index("vbg_input").to_numpy()
+    out = vooma_by_group(y, np.array([0, 0, 0, 1, 1, 1, 1, 2, 3], dtype=float))
+    assert list(out["design"].columns) == ["group0", "group1", "group2", "group3"]
+    assert list(out["voom_xy"]["x"].columns) == ["0", "1", "2", "3"]
+    with pytest.raises(ValueError, match="group contains missing values"):
+        vooma_by_group(y, np.array([0, 0, 0, 1, 1, 1, 2, 2, np.nan]))
+    unused = pd.Categorical(list("aaabbbccc"), categories=list("abcd"))
+    with pytest.raises(ValueError, match=r"group levels with no samples: \['d'\]"):
+        vooma_by_group(y, unused)
+
+
+def test_vooma_by_group_keeps_dataframe_design_names():
+    from pylimma.voom import vooma_by_group
+
+    y = load_r_csv_no_index("vbg_input").to_numpy()
+    group = np.array([0, 0, 0, 1, 1, 1, 1, 2, 3])
+    design = pd.DataFrame(np.eye(4)[group], columns=list("abcd"))
+    assert list(vooma_by_group(y, group, design=design)["design"].columns) == list("abcd")
+
+
 class TestVoomaByGroupDispatch:
     """Polymorphic dispatch tests for vooma_by_group.
 
