@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `duplicate_correlation` returns R's NaN consensus correlation when no
+  gene can be fitted (too few observations per gene); it returned 0,
+  which reads as an estimated zero correlation.
 - `duplicate_correlation` decides the design's rank as R does (relative
   to each column, R's `qr()` and statmod's `lm.fit`), so a design column
   on a tiny scale (e.g. 1e-12) is kept; an absolute 1e-10 cutoff dropped

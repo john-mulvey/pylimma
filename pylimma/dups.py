@@ -648,7 +648,8 @@ def duplicate_correlation(
     -------
     dict
         consensus_correlation : float
-            Consensus correlation (trimmed mean on Fisher z scale).
+            Consensus correlation (trimmed mean on Fisher z scale); NaN, as
+            in R, when no gene could be fitted.
         cor : float
             Same as consensus_correlation (for compatibility).
         atanh_correlations : ndarray
@@ -831,12 +832,10 @@ def duplicate_correlation(
     # Fisher z-transformation
     arho = np.arctanh(rho)
 
-    # Trimmed mean on z scale
-    valid = np.isfinite(arho)
-    if np.sum(valid) > 0:
-        mrho = np.tanh(_r_trimmed_mean(arho[valid], trim))
-    else:
-        mrho = 0.0
+    # Trimmed mean on z scale. R: mean(arho, trim, na.rm=TRUE), NaN when no
+    # gene could be fitted
+    valid = ~np.isnan(arho)
+    mrho = np.tanh(_r_trimmed_mean(arho[valid], trim)) if np.any(valid) else np.nan
 
     return {
         "consensus_correlation": float(mrho),

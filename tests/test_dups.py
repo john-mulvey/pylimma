@@ -290,6 +290,16 @@ class TestDuplicateCorrelationInputs:
         with pytest.raises(ValueError, match="block must have at least two levels"):
             duplicate_correlation(y, block=np.ones(12))
 
+    def test_no_fitted_gene_gives_nan_as_r(self):
+        """R: the consensus is mean(numeric(0)), NaN (fixture script)."""
+        from pylimma import duplicate_correlation
+
+        y = np.array([[1.0, 3.0, 2.0, 5.0]])
+        design = np.column_stack([np.ones(4), [0.0, 1.0, 0.0, 1.0]])
+        out = duplicate_correlation(y, design, block=[1, 1, 2, 2])
+        assert np.isnan(out["consensus_correlation"]) and np.isnan(out["cor"])
+        assert np.isnan(out["atanh_correlations"]).all()
+
     @pytest.mark.parametrize("case", ["trend", "block_column"])
     def test_tiny_scale_design_column_keeps_its_rank_as_r(self, case):
         """qr() and mixedModel2Fit (lm.fit) decide rank relative to each

@@ -6441,3 +6441,10 @@ write.csv(data.frame(
   cor = c(duplicateCorrelation(.dct_y, cbind(1, 1e-12 * (1:6)), block = .dct_block)$consensus.correlation,
           duplicateCorrelation(.dct_y, cbind(1, 1e-12 * (.dct_block == 2)), block = .dct_block)$consensus.correlation)),
   "R_dct.csv", row.names = FALSE)
+
+# =============================================================================
+# duplicateCorrelation with no gene that can be fitted (too few observations):
+# the consensus is mean(numeric(0)), NaN
+# =============================================================================
+.dcn <- suppressWarnings(duplicateCorrelation(matrix(c(1, 3, 2, 5), 1), cbind(1, c(0, 1, 0, 1)), block = c(1, 1, 2, 2)))
+stopifnot(is.nan(.dcn$consensus.correlation), is.nan(.dcn$cor), all(is.na(.dcn$atanh.correlations)))
