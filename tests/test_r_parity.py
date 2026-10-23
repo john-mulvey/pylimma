@@ -7684,3 +7684,33 @@ def test_fit_f_dist_robustly_unequal_df1_infinite_df2_matches_r():
     np.testing.assert_allclose(out["scale"], r["scale"].iloc[0], rtol=1e-6)
     np.testing.assert_allclose(out["tail_p_value"], r["tail_p_value"], rtol=1e-6, atol=1e-12)
     np.testing.assert_array_equal(out["df2_shrunk"], r["df2_shrunk"])
+
+
+class TestGenasRParity:
+    """genas(): the genes each subset rule keeps, as R's fit[genes, ]."""
+
+    X = np.column_stack([np.ones(12), np.arange(12) % 2, (np.arange(12) // 2) % 2]).astype(float)
+
+    @pytest.mark.parametrize("subset", ["all", "Fpval", "p.union", "p.int", "logFC", "predFC"])
+    @pytest.mark.parametrize("rows", ["n80", "n2"])
+    def test_subset_rules_keep_r_genes(self, subset, rows):
+        from pylimma import e_bayes, genas, lm_fit
+
+        y = load_r_csv_no_index("genas_subset_y").to_numpy()
+        if rows == "n2":
+            y = y[[0, 19]]
+        expected = load_r_csv_no_index("genas_subset_n").set_index("subset")[rows][subset]
+        assert genas(e_bayes(lm_fit(y, self.X)), coef=(1, 2), subset=subset)["n"] == expected
+
+    def test_anndata_fit_subsets_as_a_matrix_fit(self):
+        anndata = pytest.importorskip("anndata")
+        from pylimma import e_bayes, genas, lm_fit
+
+        y = load_r_csv_no_index("genas_subset_y").to_numpy()
+        adata = anndata.AnnData(y.T)
+        lm_fit(adata, self.X)
+        e_bayes(adata)
+        from_matrix = genas(e_bayes(lm_fit(y, self.X)), coef=(1, 2), subset="Fpval")
+        from_anndata = genas(adata, coef=(1, 2), subset="Fpval")
+        assert from_anndata["n"] == from_matrix["n"]
+        np.testing.assert_allclose(from_anndata["deviance"], from_matrix["deviance"])

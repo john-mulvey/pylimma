@@ -6520,3 +6520,22 @@ stopifnot(grepl("var is empty", try(squeezeVar(NULL, 5), silent = TRUE)),
 stopifnot(identical(suppressWarnings(lmFit(.rm_y, .rm_d, method = "robust", maxit = 10.0))$coefficients,
                     suppressWarnings(lmFit(.rm_y, .rm_d, method = "robust", maxit = 10L))$coefficients),
           grepl("invalid format", try(lmFit(.rm_y, .rm_d, method = "robust", maxit = 1.5), silent = TRUE)))
+
+# =============================================================================
+# genas subset rules: the genes each rule keeps (fit[genes, ], R's MArrayLM
+# subset), also for a fit with two genes
+# =============================================================================
+set.seed(1216)
+.gn_X <- cbind(1, (0:11) %% 2, ((0:11) %/% 2) %% 2)
+.gn_y <- matrix(rnorm(80 * 12), 80, 12)
+.gn_y[1:8, .gn_X[, 2] == 1] <- .gn_y[1:8, .gn_X[, 2] == 1] + 2
+.gn_y[5:14, .gn_X[, 3] == 1] <- .gn_y[5:14, .gn_X[, 3] == 1] + 1.5
+write.csv(.gn_y, "R_genas_subset_y.csv", row.names = FALSE)
+.gn_n <- function(y) {
+  fit <- eBayes(lmFit(y, .gn_X))
+  vapply(c("all", "Fpval", "p.union", "p.int", "logFC", "predFC"),
+         function(s) genas(fit, coef = c(2, 3), subset = s)$n, 0)
+}
+write.csv(data.frame(subset = c("all", "Fpval", "p.union", "p.int", "logFC", "predFC"),
+                     n80 = .gn_n(.gn_y), n2 = .gn_n(.gn_y[c(1, 20), ])),
+          "R_genas_subset_n.csv", row.names = FALSE)

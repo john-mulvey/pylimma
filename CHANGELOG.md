@@ -378,6 +378,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `genas` with a `subset` rule keeps the selected genes as R's
+  `fit[genes, ]` does: on a fit from AnnData it raised `TypeError`, and on
+  a fit with two genes it also sliced `cov_coefficients` (of the same
+  size) and failed with "cor_matrix does not match the number of tests".
 - `lm_fit(method="robust")` and `mrlm` take a whole-number float
   `maxit` (10.0), as R does; it raised `TypeError`. A fraction raises
   "maxit must be a whole number" (see known differences).

@@ -16,7 +16,7 @@ from __future__ import annotations
 import numpy as np
 from scipy import linalg, optimize, stats
 
-from .classes import _resolve_fit_input
+from .classes import MArrayLM, _resolve_fit_input
 
 # ---------------------------------------------------------------------------
 # Log-likelihoods ported verbatim from genas.R:108-159
@@ -221,25 +221,6 @@ def _subset_fit_to_two_coefs(fit, coef):
     return new_fit
 
 
-def _filter_fit_by_mask(fit, mask):
-    """Return a fit subset to rows where mask is True.  Per-gene slots
-    (coefs, stdev, t, p, Amean, sigma, df_residual, s2_post, df_total,
-    df_prior if per-gene, s2_prior if per-gene, lods, F, F_p_value,
-    genes) are sliced; scalar slots are untouched."""
-    from .classes import MArrayLM
-
-    out = MArrayLM(fit)
-    for key, value in list(out.items()):
-        if value is None:
-            continue
-        arr = np.asarray(value) if not hasattr(value, "iloc") else None
-        if arr is not None and arr.ndim >= 1 and arr.shape[0] == mask.shape[0]:
-            out[key] = value[mask] if arr.ndim == 1 else value[mask, ...]
-        elif hasattr(value, "iloc") and len(value) == mask.shape[0]:
-            out[key] = value.iloc[mask].reset_index(drop=True)
-    return out
-
-
 # ---------------------------------------------------------------------------
 # Public entry point (port of R genas.R:3-106)
 # ---------------------------------------------------------------------------
@@ -357,7 +338,8 @@ def genas(
         keep_mask, new_coef = _which_genes(fit2, subset)
         if not keep_mask.any():
             return out
-        fit2 = _filter_fit_by_mask(fit2, keep_mask)
+        # R: fit[genes, ], the MArrayLM subset of the per-gene slots
+        fit2 = MArrayLM(fit2)[keep_mask, :]
         if new_coef is not None:
             fit2["coefficients"] = new_coef[keep_mask, :]
         # R re-runs eBayes on the filtered subset
