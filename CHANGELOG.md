@@ -466,6 +466,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `background_correct` raises R's "non-conformable arrays" for a
+  `background` of another shape (numpy broadcast a column, row or scalar,
+  or gave its own error), a clear error for `method="minimum"` when an
+  array has no value above background (it raised numpy's "zero-size
+  array" error; R gives Inf) and for a NaN or vector `offset` (a NaN
+  offset returned all NaN).
 - Outputs no longer share memory with their inputs, as R's
   copy-on-modify: `lm_fit`'s `design` slot, the `E` of `vooma` and
   `vooma_by_group` (every expression matrix returned through `put_eawp`

@@ -6836,3 +6836,19 @@ rownames(.tg_y)[19:20] <- "g5"
 .tg_fit <- eBayes(lmFit(.tg_y, .tg_d))
 write.csv(topTable(.tg_fit, coef = 2, number = 5, genelist = data.frame(ID = paste0("id", 1:20), Sym = letters[1:20])),
           "R_toptable_genelist_dup.csv")
+
+# =============================================================================
+# backgroundCorrect: R fails or warns on a background of another shape, a
+# column with no value above background (method "minimum") and a NaN or vector offset
+# =============================================================================
+.bce_E <- matrix(1:40 + 0, 10)
+.bce_err <- function(expr) conditionMessage(tryCatch(expr, error = identity, warning = identity))
+stopifnot(all(vapply(list(matrix(1, 10, 1), matrix(1, 1, 4), 1, rep(1, 10)), function(Eb)
+            .bce_err(backgroundCorrect.matrix(.bce_E, Eb, method = "subtract", verbose = FALSE)), "") ==
+            "non-conformable arrays"),
+          .bce_err(backgroundCorrect.matrix(.bce_E, .bce_E + 1, method = "minimum", verbose = FALSE)) ==
+            "no non-missing arguments to min; returning Inf",
+          .bce_err(backgroundCorrect.matrix(.bce_E, matrix(1, 10, 4), offset = NaN, verbose = FALSE)) ==
+            "argument is not interpretable as logical",
+          .bce_err(backgroundCorrect.matrix(.bce_E, matrix(1, 10, 4), offset = 1:2, verbose = FALSE)) ==
+            "the condition has length > 1")

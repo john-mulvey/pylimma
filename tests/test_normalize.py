@@ -4,7 +4,12 @@ cases is recorded in tests/fixtures/generate_all_fixtures.R)."""
 import numpy as np
 import pytest
 
-from pylimma import normalize_between_arrays, normalize_cyclic_loess, normalize_vsn
+from pylimma import (
+    background_correct,
+    normalize_between_arrays,
+    normalize_cyclic_loess,
+    normalize_vsn,
+)
 
 
 @pytest.fixture
@@ -98,3 +103,28 @@ class TestNormalizeCyclicLoessInput:
 def test_normalize_between_arrays_vsn_points_to_normalize_vsn(intensities):
     with pytest.raises(ValueError, match="Please use normalize_vsn instead"):
         normalize_between_arrays(intensities, method="vsn")
+
+
+class TestBackgroundCorrectErrors:
+    """R's cases recorded in generate_all_fixtures.R ("backgroundCorrect:
+    R fails or warns on")."""
+
+    E = np.arange(1, 41, dtype=float).reshape(10, 4)
+
+    @pytest.mark.parametrize("background", [np.ones((10, 1)), np.ones((1, 4)), 1.0, np.ones(10)])
+    def test_background_of_another_shape_raises(self, background):
+        # R: "non-conformable arrays" (numpy would broadcast)
+        with pytest.raises(ValueError, match="non-conformable arrays"):
+            background_correct(self.E, background=background, method="subtract")
+
+    def test_minimum_without_a_positive_value_raises(self):
+        # R: min() of nothing is Inf, with a warning
+        with pytest.raises(ValueError, match="array 1 has no value above the background"):
+            background_correct(self.E, background=self.E + 1, method="minimum")
+
+    @pytest.mark.parametrize("offset", [np.nan, [1.0, 2.0]])
+    def test_offset_not_a_single_number_raises(self, offset):
+        # R's if(offset): "argument is not interpretable as logical" for NaN,
+        # "the condition has length > 1" for a vector
+        with pytest.raises(ValueError, match="offset must be a single number"):
+            background_correct(self.E, background=np.ones((10, 4)), offset=offset)

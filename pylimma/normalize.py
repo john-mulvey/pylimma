@@ -1000,6 +1000,11 @@ def background_correct(
     ``NotImplementedError``; the ``printer`` parameter is accepted for R
     signature compatibility but is only used by those out-of-scope paths.
 
+    ``background`` must have the shape of the expression matrix and
+    ``offset`` must be a single number (not NaN); with ``method="minimum"``,
+    an array with no value above background raises, where R gives Inf (see
+    :doc:`/validation/known_differences`).
+
     Notes
     -----
     **AnnData views.** Results are written into the AnnData. If it is a
@@ -1029,10 +1034,23 @@ def background_correct(
     if own_eb:
         background = object.get("Eb")
     Eb = None if background is None else np.asarray(background, dtype=np.float64)
-    if Eb is not None and Eb.ndim == 2 and Eb.shape != E.shape and Eb.shape == E.shape[::-1]:
-        # R's E - Eb stops with "non-conformable arrays"; numpy would give a
-        # broadcasting error that does not mention the orientation.
-        raise _shape_error("background", Eb.shape, E.shape, "non-conformable arrays")
+    if Eb is not None:
+        # R: Eb <- as.matrix(Eb), and E - Eb stops with "non-conformable
+        # arrays" unless the shapes are equal (numpy would broadcast)
+        if Eb.ndim < 2:
+            Eb = Eb.reshape(-1, 1)
+        if Eb.shape != E.shape:
+            raise _shape_error(
+                "background",
+                Eb.shape,
+                E.shape,
+                f"non-conformable arrays: background has shape {Eb.shape}, the "
+                f"expression matrix {E.shape}",
+            )
+    # R's `if(offset)` fails on NA ("argument is not interpretable as
+    # logical") and on more than one value; a clear error instead
+    if not isinstance(offset, numbers.Real) or np.isnan(offset):
+        raise ValueError(f"offset must be a single number, not {offset!r}")
 
     if method == "auto":
         method = "normexp" if Eb is None else "subtract"
@@ -1056,6 +1074,12 @@ def background_correct(
             col = E[:, j]
             below = col < 1e-18
             if np.any(below & ~np.isnan(col)):
+                if not np.any(col >= 1e-18):
+                    # R's min() of nothing is Inf, with a warning
+                    raise ValueError(
+                        f"method='minimum': array {j + 1} has no value above the "
+                        "background to take the minimum of"
+                    )
                 m = np.nanmin(col[~below])
                 col[below] = m / 2
                 E[:, j] = col

@@ -438,6 +438,17 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     whole number, as ``nrot`` (R's ``1:niter`` truncates).
     ``generate_all_fixtures.R`` records the R behaviour.
 
+``background_correct`` with degenerate input
+    A ``background`` not of the shape of the expression matrix raises
+    R's "non-conformable arrays" (numpy would broadcast a column, row or
+    scalar). A column with no value above background under
+    ``method="minimum"`` raises; R's ``min()`` of nothing gives ``Inf``
+    (with a warning), so every value below background became ``Inf``. An
+    ``offset`` that is NaN or more than one value raises; R's ``if(offset)``
+    fails with "argument is not interpretable as logical" for NaN and "the
+    condition has length > 1" for a vector. ``generate_all_fixtures.R``
+    records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign
