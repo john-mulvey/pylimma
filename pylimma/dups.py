@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from scipy import linalg, sparse
 
-from .classes import EList, _is_anndata, get_eawp
+from .classes import EList, _frame_like, _is_anndata, get_eawp
 from .utils import _as_dense_array, _block_labels, _r_as_character, _r_trimmed_mean, _whole_count
 
 
@@ -381,8 +381,10 @@ def ave_dups(
 
     Returns
     -------
-    ndarray
-        Averaged matrix, shape (n_genes, n_arrays).
+    ndarray or DataFrame
+        Averaged matrix, shape (n_genes, n_arrays). A DataFrame for
+        DataFrame input, as R keeps dimnames: the same columns, and each
+        row named after the first spot of its duplicate set.
     """
     # R: if(ndups==1) return(x), whatever spacing is (a copy, as R's
     # copy-on-modify)
@@ -390,6 +392,7 @@ def ave_dups(
         return deepcopy(x)
     ndups, spacing = _whole_count(ndups, "ndups"), _whole_count(spacing, "spacing")
 
+    original = x
     x = _as_dense_array(x, np.float64)
     n_spots, n_arrays = x.shape
     n_groups = n_spots // ndups // spacing
@@ -420,7 +423,15 @@ def ave_dups(
 
     # Reshape back: R: dim(x) <- c(spacing*ngroups, nslides)
     result = result.reshape((spacing * n_groups, n_arrays), order="F")
-    return result
+    if not isinstance(original, pd.DataFrame):
+        return result
+    # R: rownames(x) <- avedups(rn, ...), the first name of each duplicate set
+    first_names = (
+        original.index.to_numpy()
+        .reshape((spacing, ndups, n_groups), order="F")[:, 0, :]
+        .reshape(-1, order="F")
+    )
+    return _frame_like(result, original, index=first_names)
 
 
 def avereps(

@@ -234,6 +234,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- A pandas DataFrame input gives a DataFrame result with its index and
+  columns, as R keeps dimnames, where pylimma returned a bare ndarray:
+  `normalize_quantiles`, `normalize_median_values`,
+  `normalize_cyclic_loess`, `normalize_between_arrays`,
+  `background_correct`, `remove_batch_effect`, the `E` of `voom`, `vooma`
+  and `voom_with_quality_weights`, `ave_dups` (rows named after the first
+  spot of each duplicate set) and `aver_arrays` (the unique IDs as
+  columns). ndarray input still gives an ndarray.
 - `fitmixture` raises a clear error for one array or one `mixprop` value,
   where it returned a minimum-norm fit (R fails), and takes a whole-number
   float `niter` (it raised `TypeError`; a fraction raises).

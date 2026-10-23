@@ -1297,6 +1297,68 @@ def test_fit_and_vooma_outputs_do_not_alias_inputs():
 
 
 # ---------------------------------------------------------------------------
+# DataFrame in, DataFrame out: matrix results keep the input's labels, as R
+# keeps dimnames (generate_all_fixtures.R, "Matrix results keep the input's
+# dimnames")
+# ---------------------------------------------------------------------------
+
+_SHAPE_PRESERVING_CALLS = {
+    "normalize_quantiles": pylimma.normalize_quantiles,
+    "normalize_median_values": pylimma.normalize_median_values,
+    "normalize_cyclic_loess": pylimma.normalize_cyclic_loess,
+    "normalize_between_arrays": lambda x: pylimma.normalize_between_arrays(x, method="scale"),
+    "remove_batch_effect": lambda x: pylimma.remove_batch_effect(x, batch=[1, 2] * 4),
+    "voom": lambda x: pylimma.voom(2**x)["E"],
+}
+
+
+def _labelled_matrix():
+    return pd.DataFrame(
+        np.random.default_rng(1305).normal(8, 1, (8, 8)),
+        index=list("abcdefgh"),
+        columns=list("ABCDEFGH"),
+    )
+
+
+@pytest.mark.parametrize("name", list(_SHAPE_PRESERVING_CALLS))
+def test_shape_preserving_result_keeps_dataframe_labels(name):
+    x = _labelled_matrix()
+    result = _SHAPE_PRESERVING_CALLS[name](x)
+    assert isinstance(result, pd.DataFrame)
+    pd.testing.assert_index_equal(result.index, x.index)
+    pd.testing.assert_index_equal(result.columns, x.columns)
+    np.testing.assert_array_equal(result.to_numpy(), _SHAPE_PRESERVING_CALLS[name](x.to_numpy()))
+
+
+def test_shape_preserving_functions_take_their_first_argument_by_name():
+    x = _labelled_matrix()
+    assert list(pylimma.normalize_quantiles(A=x).columns) == list(x.columns)
+    assert list(pylimma.normalize_median_values(x=x).columns) == list(x.columns)
+
+
+def test_dataframe_with_gene_id_column_keeps_the_sample_columns():
+    # get_eawp takes a leading non-numeric column as the gene IDs
+    x = _labelled_matrix()
+    with_ids = x.reset_index(names="id")
+    result = pylimma.normalize_between_arrays(with_ids, method="scale")
+    assert list(result.columns) == list(x.columns)
+    np.testing.assert_array_equal(
+        result.to_numpy(), pylimma.normalize_between_arrays(x.to_numpy(), method="scale")
+    )
+
+
+def test_averaging_results_keep_dataframe_labels():
+    x = _labelled_matrix()
+    dups = pylimma.ave_dups(x, ndups=2, spacing=2)
+    assert list(dups.index) == ["a", "b", "e", "f"]
+    assert list(dups.columns) == list("ABCDEFGH")
+    for weights in (None, np.ones((8, 8))):
+        arrays = pylimma.aver_arrays(x, ["p", "q"] * 4, weights=weights)
+        assert list(arrays.index) == list("abcdefgh")
+        assert list(arrays.columns) == ["p", "q"]
+
+
+# ---------------------------------------------------------------------------
 # vooma_lm_fit uses an EList weights slot as prior weights, with a warning
 # (R's voomaLmFit uses it only in its first lmFit; known_differences.rst)
 # ---------------------------------------------------------------------------

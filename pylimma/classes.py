@@ -27,14 +27,16 @@ R achieves input-class-preserving output through S3/S4 method dispatch on the
 input class - normalizeBetweenArrays.EList vs .matrix vs .RGList are separate
 methods, each knowing what class to return because it only ever sees one input
 type. Python lacks that machinery. To get EList-in EList-out, ndarray-in
-ndarray-out, and AnnData-in AnnData-mutate from a single Python function, we
-need an explicit output-side dispatcher. Without put_eawp we would re-duplicate
+ndarray-out, DataFrame-in DataFrame-out and AnnData-in AnnData-mutate from
+a single Python function, we need an explicit output-side dispatcher. Without put_eawp we would re-duplicate
 the very pattern get_eawp was built to eliminate, just at the tail of every
 shape-preserving function.
 """
 
 from __future__ import annotations
 
+import functools
+import inspect
 import numbers
 import warnings
 from copy import deepcopy
@@ -990,6 +992,32 @@ def _elist_from_layer(y, layer: str | None = None, weights_layer: str | None = N
 # ----------------------------------------------------------------------------
 
 
+def _frame_like(matrix, original, index=None, columns=None):
+    """A matrix result as a DataFrame with the labels of a DataFrame input
+    (R keeps dimnames); the bare matrix for any other input. ``index`` and
+    ``columns`` replace the input's labels for a result of another shape."""
+    if not isinstance(original, pd.DataFrame):
+        return matrix
+    if columns is None:
+        # the sample columns: get_eawp drops a leading gene-ID column
+        columns = original.columns[original.shape[1] - np.shape(matrix)[1] :]
+    return pd.DataFrame(matrix, index=original.index if index is None else index, columns=columns)
+
+
+def _keeps_frame_labels(func):
+    """Decorator for a matrix function whose result is shaped like its first
+    argument: a DataFrame argument gives a DataFrame result with the same
+    labels (see _frame_like)."""
+
+    first = next(iter(inspect.signature(func).parameters))
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        return _frame_like(func(*args, **kwargs), args[0] if args else kwargs.get(first))
+
+    return wrapper
+
+
 def put_eawp(
     slots: dict,
     original,
@@ -1031,6 +1059,9 @@ def put_eawp(
     -------
     np.ndarray, dict, EList, or None
         - ndarray when original is ndarray and single_matrix=True.
+        - DataFrame with the input's labels when original is a DataFrame
+          and single_matrix=True; with single_matrix=False, a dict whose
+          'E' is that DataFrame (R keeps dimnames).
         - dict when original is ndarray (default) or a plain dict.
         - EList when original is an EList.
         - None when original is AnnData (side-effects on adata).
@@ -1097,10 +1128,11 @@ def put_eawp(
                 out[k] = v
         return out
 
-    # ndarray (or anything else coerced to array)
+    # ndarray or DataFrame (or anything else coerced to array)
+    E = _frame_like(np.asarray(slots["E"]), original)
     if single_matrix:
-        return np.asarray(slots["E"])
-    return {k: v for k, v in slots.items() if v is not None}
+        return E
+    return {k: v for k, v in {**slots, "E": E}.items() if v is not None}
 
 
 # ----------------------------------------------------------------------------

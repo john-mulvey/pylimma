@@ -55,6 +55,13 @@ class TestNormalizeVSNInput:
 
 
 class TestNormalizeCyclicLoessInput:
+    def test_infinite_value_warning_points_at_the_caller(self, intensities):
+        infinite = intensities.copy()
+        infinite[0, 0] = np.inf
+        with pytest.warns(UserWarning, match="infinite values in 1 row") as record:
+            normalize_cyclic_loess(infinite)
+        assert record[0].filename == __file__
+
     def test_iterations_below_one_raise(self, intensities):
         # R: for (k in 1:iterations) runs two passes for 0 (fixture script)
         for iterations in (0, -1, 0.5, np.nan, np.inf):

@@ -6805,3 +6805,18 @@ write.csv(data.frame(GeneID = .ds$genes$GeneID, ExonID = .ds$genes$ExonID, t = .
           "R_ds_numeric_exons.csv", row.names = FALSE)
 write.csv(data.frame(GeneID = .ds$gene.genes$GeneID, F = .ds$gene.F[, 2]), "R_ds_numeric_genes.csv",
           row.names = FALSE)
+
+# =============================================================================
+# Matrix results keep the input's dimnames: shape-preserving functions,
+# avedups (first name of each duplicate set) and avearrays (unique IDs)
+# =============================================================================
+set.seed(1305)
+.dn_x <- matrix(rnorm(64, 8), 8, dimnames = list(letters[1:8], LETTERS[1:8]))
+.dn_same <- list(normalizeQuantiles(.dn_x), normalizeMedianValues(.dn_x), normalizeCyclicLoess(.dn_x),
+                 normalizeBetweenArrays(.dn_x, method = "scale"), removeBatchEffect(.dn_x, batch = rep(1:2, 4)),
+                 voom(2^.dn_x)$E)
+stopifnot(all(vapply(.dn_same, function(m) identical(dimnames(m), dimnames(.dn_x)), TRUE)),
+          identical(lapply(dimnames(avedups(.dn_x, ndups = 2, spacing = 2)), as.vector),
+                    list(c("a", "b", "e", "f"), LETTERS[1:8])),
+          identical(dimnames(avearrays(.dn_x, rep(c("p", "q"), 4))), list(letters[1:8], c("p", "q"))),
+          identical(colnames(avearrays(.dn_x, rep(c("p", "q"), 4), weights = matrix(1, 8, 8))), c("IDp", "IDq")))

@@ -56,7 +56,15 @@ from scipy.optimize import minimize
 from scipy.stats import norm as _scipy_norm
 from scipy.stats import rankdata
 
-from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
+from .classes import (
+    EList,
+    _frame_like,
+    _is_anndata,
+    _keeps_frame_labels,
+    _shape_error,
+    get_eawp,
+    put_eawp,
+)
 from .utils import _as_dense_array, choose_lowess_span
 
 _VALID_METHODS = ("none", "scale", "quantile", "cyclicloess")
@@ -155,12 +163,16 @@ def normalize_between_arrays(
     )
 
 
+@_keeps_frame_labels
 def normalize_median_values(x: np.ndarray) -> np.ndarray:
     """
     Scale columns so they have the same median.
 
     Faithful port of R limma's ``normalizeMedianValues``
     (``limma/R/norm.R:523-533``).
+
+    A DataFrame input gives a DataFrame with the same labels, as R keeps
+    dimnames.
     """
     x = _as_dense_array(x, np.float64)
     if x.ndim == 1 or x.shape[1] == 1:
@@ -170,6 +182,7 @@ def normalize_median_values(x: np.ndarray) -> np.ndarray:
     return x / cmed[np.newaxis, :]
 
 
+@_keeps_frame_labels
 def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
     """
     Quantile-normalize columns of a matrix.
@@ -177,6 +190,9 @@ def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
     Faithful port of R limma's ``normalizeQuantiles``
     (``limma/R/norm.R:468-509``). Handles missing values via
     interpolation.
+
+    A DataFrame input gives a DataFrame with the same labels, as R keeps
+    dimnames.
     """
     A = _as_dense_array(A, np.float64).copy()
     if A.ndim == 1:
@@ -245,6 +261,7 @@ def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
     return out
 
 
+@_keeps_frame_labels
 def normalize_cyclic_loess(
     x: np.ndarray,
     weights: np.ndarray | None = None,
@@ -264,6 +281,9 @@ def normalize_cyclic_loess(
     - ``"pairs"``: pairwise loess over every column pair.
     - ``"affy"``: like ``"pairs"`` but accumulates all pair-wise
       adjustments then divides by ``n`` per iteration.
+
+    A DataFrame input gives a DataFrame with the same labels, as R keeps
+    dimnames.
 
     Each fit is a :func:`loess_fit` call, as in R; probe-vector weights
     (length = number of rows in ``x``) are passed on to it for all three
@@ -324,7 +344,7 @@ def normalize_cyclic_loess(
         warnings.warn(
             f"x has infinite values in {n_infinite} {'row' if n_infinite == 1 else 'rows'}, "
             "which are returned as NaN, as in R. Use NaN for missing values.",
-            stacklevel=2,
+            stacklevel=3,  # the caller of the _keeps_frame_labels wrapper
         )
 
     # R: f <- loessFit(m, a, weights=weights, span=span)$fitted, which is NA
@@ -1100,6 +1120,10 @@ def aver_arrays(
 
     ``avearrays.MAList`` is out of scope (two-colour data only).
 
+    A DataFrame input gives a DataFrame with the same index and the unique
+    ids as columns, as R keeps dimnames (R's weighted path names the
+    columns after its design, ``IDp``; pylimma uses the ids there too).
+
     For ``AnnData`` input, ``id`` defaults to ``adata.obs_names`` and a
     new ``AnnData`` is returned (obs axis collapsed to the unique ids);
     the input is not modified. The change in shape means the result
@@ -1139,7 +1163,7 @@ def aver_arrays(
     if arr.dtype.kind in ("U", "S", "O") and not np.issubdtype(arr.dtype, np.number):
         _, first_idx = np.unique(id_arr, return_index=True)
         keep = np.sort(first_idx)
-        return arr[:, keep]
+        return _frame_like(arr[:, keep], x, columns=id_arr[keep])
 
     arr = np.asarray(arr, dtype=np.float64)
 
@@ -1159,7 +1183,7 @@ def aver_arrays(
             .reindex(unique_order)
         )
         y = sums.values / counts.values
-        return y.T
+        return _frame_like(y.T, x, columns=unique_order)
 
     # Weighted path: lm_fit on one-hot design.
     from .lmfit import lm_fit
@@ -1168,8 +1192,7 @@ def aver_arrays(
     for j, level in enumerate(unique_order):
         one_hot[id_arr == level, j] = 1.0
     fit = lm_fit(arr, design=one_hot, weights=np.asarray(weights, dtype=np.float64))
-    coef = np.asarray(fit["coefficients"], dtype=np.float64)
-    return coef
+    return _frame_like(np.asarray(fit["coefficients"], dtype=np.float64), x, columns=unique_order)
 
 
 def _aver_arrays_elist(x: EList, id=None, weights=None) -> EList:
