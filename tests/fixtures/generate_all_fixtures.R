@@ -6613,3 +6613,16 @@ write.csv(.dsz_y, "R_diffsplice_nodf_y.csv", row.names = FALSE)
 .dsz <- suppressWarnings(diffSplice(lmFit(.dsz_y, cbind(1, c(0, 1, 0), c(0, 0, 1))),
                                     geneid = rep(c("G0", "G1"), each = 3), verbose = FALSE))
 stopifnot(all(is.nan(.dsz$gene.s2)), all(is.na(.dsz$t)), all(is.na(.dsz$gene.F)))
+
+# =============================================================================
+# arrayWeights with a design given as a vector: as.matrix(design), one column
+# =============================================================================
+set.seed(1221)
+.aw_E <- matrix(rnorm(40 * 9), 40, 9)
+.aw_E[, 3] <- .aw_E[, 3] * 3
+.aw_d <- c(0, 0, 0, 1, 1, 1, 0, 0, 0)
+write.csv(.aw_E, "R_aw_vector_design_E.csv", row.names = FALSE)
+write.csv(data.frame(genebygene = arrayWeights(.aw_E, .aw_d, method = "genebygene"),
+                     reml = arrayWeights(.aw_E, .aw_d, method = "reml")),
+          "R_aw_vector_design.csv", row.names = FALSE)
+stopifnot(all.equal(arrayWeights(.aw_E, .aw_d, method = "genebygene"), arrayWeights(.aw_E, matrix(.aw_d), method = "genebygene")))

@@ -399,6 +399,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `array_weights` takes a design given as a vector, as one column (R's
+  `as.matrix`); it raised "not enough values to unpack".
 - `genas` takes `coef` as coefficient names (`coef=("A", "B")`), as R's
   `fit[, coef]` does; it raised "invalid literal for int()".
 - `genas` with a `subset` rule keeps the selected genes as R's

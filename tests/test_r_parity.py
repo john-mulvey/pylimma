@@ -1858,6 +1858,16 @@ class TestVoomRParity:
 class TestArrayWeightsRParity:
     """Test array_weights matches R limma's arrayWeights."""
 
+    @pytest.mark.parametrize("method", ["genebygene", "reml"])
+    def test_vector_design_is_one_column(self, method):
+        """R: as.matrix(design), so a vector design is one column."""
+        from pylimma import array_weights
+
+        E = load_r_csv_no_index("aw_vector_design_E").to_numpy()
+        expected = load_r_csv_no_index("aw_vector_design")[method].to_numpy()
+        got = array_weights(E, np.array([0.0, 0, 0, 1, 1, 1, 0, 0, 0]), method=method)
+        np.testing.assert_allclose(got, expected, rtol=1e-6)
+
     def test_basic_array_weights(self, voom_data):
         """Test basic array weights match R."""
         from pylimma import array_weights, voom

@@ -574,10 +574,12 @@ def array_weights(
     if n_genes < 2:
         return w
 
-    # Default design
+    # Default design. R: as.matrix(design), so a vector is one column
     if design is None:
         design = np.ones((n_samples, 1))
     design = np.asarray(design, dtype=np.float64)
+    if design.ndim == 1:
+        design = design.reshape(-1, 1)
 
     # Reduce rank if not full rank (R: QR <- qr(design); design[, QR$pivot[1:p]])
     _q, _r, pivot, p = _qr_r_style(design)
