@@ -3854,6 +3854,23 @@ class TestBackgroundCorrectRParity:
         got_sub = background_correct(E, background=Eb, method="subtract", verbose=False)
         assert compare_arrays(got_auto, got_sub, rtol=1e-10)["match"]
 
+    def test_elist_uses_its_eb_as_r(self, matrices):
+        """R's backgroundCorrect on an EListRaw corrects with RG$Eb and drops
+        it (fixture script)."""
+        from pylimma import EList
+
+        E, Eb = matrices
+        expected = load_r_csv_no_index("background_correct_subtract").values
+        for method in ("subtract", "auto"):
+            out = background_correct(EList({"E": E, "Eb": Eb}), method=method, verbose=False)
+            assert compare_arrays(expected, out["E"], rtol=1e-10)["match"]
+            assert "Eb" not in out
+        # an explicit background leaves the EList's own Eb alone
+        out = background_correct(
+            EList({"E": E, "Eb": Eb}), background=Eb * 0, method="subtract", verbose=False
+        )
+        assert "Eb" in out
+
     def test_movingmin_raises(self, matrices):
         E, Eb = matrices
         with pytest.raises(NotImplementedError):

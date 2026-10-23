@@ -948,7 +948,9 @@ def background_correct(
     dict / EList / AnnData carrying the foreground, with the background
     passed separately as ``background`` (matches ``backgroundCorrect.matrix``
     ``Eb`` parameter). Even for AnnData input ``background`` is genes x
-    samples (the transpose of ``adata.layers``).
+    samples (the transpose of ``adata.layers``). As R's
+    ``backgroundCorrect`` for an EListRaw, an EList's own ``Eb`` is used
+    when ``background`` is not given and is dropped from the result.
 
     Two-colour / RGList / MAList dispatch is out of scope. ``movingmin`` and
     ``edwards`` both require a printer / spotted-array layout and raise
@@ -979,6 +981,10 @@ def background_correct(
     original_input = object
     eawp = get_eawp(object, layer=layer)
     E = np.asarray(eawp["exprs"], dtype=np.float64).copy()
+    # R: an EListRaw is corrected with its own Eb, which is then dropped
+    own_eb = background is None and isinstance(object, dict) and "E" in object
+    if own_eb:
+        background = object.get("Eb")
     Eb = None if background is None else np.asarray(background, dtype=np.float64)
     if Eb is not None and Eb.ndim == 2 and Eb.shape != E.shape and Eb.shape == E.shape[::-1]:
         # R's E - Eb stops with "non-conformable arrays"; numpy would give a
@@ -1035,7 +1041,7 @@ def background_correct(
     if offset:
         E = E + offset
 
-    return put_eawp(
+    corrected = put_eawp(
         {"E": E},
         original_input,
         out_layer=out_layer,
@@ -1043,6 +1049,10 @@ def background_correct(
         uns_key=uns_key,
         single_matrix=True,
     )
+    # R: RG$Eb <- NULL once the background is used
+    if own_eb and isinstance(corrected, dict):
+        corrected.pop("Eb", None)
+    return corrected
 
 
 # -----------------------------------------------------------------------------

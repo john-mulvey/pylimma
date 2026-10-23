@@ -6570,3 +6570,13 @@ write.csv(rbind(
   .gr_case("subset_all", .gr_sub, coef = c(2, 3)),
   .gr_case("subset_Fpval", .gr_sub, coef = c(2, 3), subset = "Fpval")),
   "R_genas.csv", row.names = FALSE)
+
+# =============================================================================
+# backgroundCorrect on an EListRaw uses its Eb (and drops it)
+# =============================================================================
+.bc_E <- as.matrix(read.csv("R_intensities_foreground.csv"))
+.bc_Eb <- as.matrix(read.csv("R_intensities_background.csv"))
+.bc_raw <- backgroundCorrect(new("EListRaw", list(E = .bc_E, Eb = .bc_Eb)), method = "subtract", verbose = FALSE)
+stopifnot(identical(.bc_raw$E, backgroundCorrect.matrix(.bc_E, .bc_Eb, method = "subtract")),
+          is.null(.bc_raw$Eb),
+          identical(backgroundCorrect(new("EListRaw", list(E = .bc_E, Eb = .bc_Eb)), verbose = FALSE)$E, .bc_raw$E))

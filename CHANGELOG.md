@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `background_correct` on an `EList` with an `Eb` slot corrects with it,
+  as R's `backgroundCorrect` does for an EListRaw, and drops it from the
+  result; it ignored the slot, so `method="auto"` ran normexp and
+  `method="subtract"` returned the foreground unchanged.
 - `genas` fits its likelihoods with R's `optim()` Nelder-Mead settings
   (initial simplex, stopping rule, 500 evaluations). With a start of 0
   for the correlation parameter, scipy's default simplex barely moved it
