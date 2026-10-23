@@ -430,6 +430,14 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     (Python's negative positions counted from the end).
     ``generate_all_fixtures.R`` records the R behaviour.
 
+``fitmixture`` with one array or one ``mixprop``
+    Raises "mixprop must take at least two different values". R's
+    ``lm.fit(cbind(mixprop, 1 - mixprop), ...)`` gives NA coefficients,
+    which fail a later assignment ("NAs are not allowed in subscripted
+    assignments"); pylimma returned a minimum-norm fit. ``niter`` must be a
+    whole number, as ``nrot`` (R's ``1:niter`` truncates).
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

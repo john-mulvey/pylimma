@@ -7849,3 +7849,24 @@ class TestGenasRParity:
         fit = contrasts_fit(e_bayes(lm_fit(y, self.X)), same)
         with pytest.raises(ValueError, match="covariance matrix is singular"):
             genas(fit)
+
+
+@pytest.mark.parametrize(
+    "y,mixprop",
+    [(np.full((10, 4), 8.0), np.full(4, 0.5)), (np.full((10, 1), 8.0), [0.3])],
+)
+def test_fitmixture_rank_deficient_design_raises(y, mixprop):
+    """R's lm.fit gives NA coefficients, which then fail an assignment
+    (fixture script)."""
+    from pylimma import fitmixture
+
+    with pytest.raises(ValueError, match="mixprop must take at least two different values"):
+        fitmixture(y, mixprop)
+
+
+def test_fitmixture_niter_is_a_whole_number():
+    from pylimma import fitmixture
+
+    y = np.random.default_rng(3).normal(8, 1, size=(10, 4))
+    with pytest.raises(ValueError, match="niter must be a whole number"):
+        fitmixture(y, [0, 0.3, 0.7, 1], niter=2.5)

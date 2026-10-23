@@ -231,6 +231,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `fitmixture` raises a clear error for one array or one `mixprop` value,
+  where it returned a minimum-norm fit (R fails), and takes a whole-number
+  float `niter` (it raised `TypeError`; a fraction raises).
 - `genas` raises clear errors for a `coef` that is out of range, negative,
   fractional or repeated, and for two coefficients with a singular
   covariance matrix (identical contrasts); it returned results (R fails in

@@ -6769,3 +6769,12 @@ set.seed(1300)
 stopifnot(inherits(try(genas(.gu_fit, coef = c(1, 6)), silent = TRUE), "try-error"),
           grepl("chol", try(genas(.gu_fit, coef = c(2, 2)), silent = TRUE)),
           grepl("chol", try(genas(contrasts.fit(.gu_fit, cbind(c(0, 1, 0), c(0, 1, 0)))), silent = TRUE)))
+
+# =============================================================================
+# fitmixture with a rank-deficient design (one array, or one mixprop):
+# lm.fit gives NA coefficients, which fail a later assignment (pylimma
+# raises a clear error)
+# =============================================================================
+.fm_y <- matrix(rnorm(40, 8), 10)
+stopifnot(grepl("NAs are not allowed", try(fitmixture(.fm_y, rep(0.5, 4)), silent = TRUE)),
+          grepl("NAs are not allowed", try(fitmixture(.fm_y[, 1, drop = FALSE], 0.3), silent = TRUE)))

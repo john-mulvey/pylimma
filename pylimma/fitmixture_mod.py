@@ -13,7 +13,8 @@ from __future__ import annotations
 import numpy as np
 from scipy import linalg
 
-from .utils import _as_dense_array, logcosh
+from .lmfit import _qr_r_style
+from .utils import _as_dense_array, _whole_count, logcosh
 
 
 def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
@@ -45,8 +46,17 @@ def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
     nprobes = log2e.shape[0]
     y = 2.0**log2e
 
-    # Linear pre-fit: y ~ cbind(mixprop, 1 - mixprop) per-probe.
+    niter = _whole_count(niter, "niter")
+    # Linear pre-fit: y ~ cbind(mixprop, 1 - mixprop) per-probe. R's lm.fit
+    # gives NA coefficients for a rank-deficient X (one array, or the same
+    # mixprop everywhere), which later fail an assignment; lstsq would
+    # return a minimum-norm fit, so a clear error instead
     X = np.column_stack([mixprop, 1 - mixprop])
+    if _qr_r_style(X)[3] < 2:
+        raise ValueError(
+            "mixprop must take at least two different values: cbind(mixprop, 1 - mixprop) "
+            "is not of full rank"
+        )
     start, _, _, _ = linalg.lstsq(X, y.T)
     start = np.maximum(start, 1.0)
     # b = log(start[0]) - log(start[1]) per probe.
