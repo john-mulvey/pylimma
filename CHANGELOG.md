@@ -9,6 +9,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `zscore_gamma` (and `zscore(..., "gamma")`) gave `inf` / `-inf` in the
+  far tails, where the gamma tail probability underflows (q = 1000 with
+  shape 2, rate 1.5; q = 1e-200); the log tail probability is now
+  computed directly there, as R's `pgamma(log.p=TRUE)`, and gives R's
+  finite z-scores.
 - `qqt` and `qqf` place the theoretical quantiles at R's `ppoints(n)`
   (`(i - 3/8) / (n + 1/4)` for up to 10 values), not always at
   `(i - 0.5) / n`, and tied values keep their order as in R's

@@ -6331,3 +6331,15 @@ write.csv(rbind(
   .qq_case("f_5e5_10_n5", qqf, 5, df1 = 5e5, df2 = 10),
   .qq_case("f_vector_df1_n5", qqf, 5, df1 = 2:6, df2 = 10)),
   "R_qq_x.csv", row.names = FALSE)
+
+# =============================================================================
+# zscoreGamma in the far tails: pgamma(log.p=TRUE) stays finite where the
+# tail probability underflows
+# =============================================================================
+.zg_q <- c(0.5, 2, 100, 1000, 5000, 1e-200, 1e-320)
+write.csv(data.frame(q = .zg_q,
+                     z_shape2 = zscoreGamma(.zg_q, shape = 2, rate = 1.5),
+                     z_shape50 = zscoreGamma(.zg_q, shape = 50, scale = 0.2)),
+          "R_zscore_gamma_tails.csv", row.names = FALSE)
+stopifnot(is.nan(suppressWarnings(zscoreGamma(5, shape = -0.5))))
+

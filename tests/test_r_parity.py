@@ -5042,6 +5042,27 @@ class TestZscoreRParity:
             )
 
 
+    def test_gamma_far_tails(self):
+        """R's pgamma(log.p=TRUE) is finite where the tail probability
+        underflows (q = 1000 or 1e-200)."""
+        from pylimma import zscore_gamma
+
+        ref = pd.read_csv(FIXTURES_DIR / "R_zscore_gamma_tails.csv")
+        for column, kwargs in (
+            ("z_shape2", {"shape": 2, "rate": 1.5}),
+            ("z_shape50", {"shape": 50, "scale": 0.2}),
+        ):
+            np.testing.assert_allclose(
+                zscore_gamma(ref["q"].to_numpy(), **kwargs), ref[column], rtol=1e-10
+            )
+        # R: pgamma with a negative shape is NaN
+        assert np.isnan(zscore_gamma(5.0, shape=-0.5))
+        # a missing shape stays NaN without holding up the others
+        z = zscore_gamma(np.array([1000.0, 1000.0]), shape=np.array([2.0, np.nan]), rate=1.5)
+        np.testing.assert_allclose(z[0], ref["z_shape2"][ref["q"] == 1000].iloc[0], rtol=1e-10)
+        assert np.isnan(z[1])
+
+
 class TestLoessFitRParity:
     def test_fitted_residuals(self):
         from pylimma import loess_fit

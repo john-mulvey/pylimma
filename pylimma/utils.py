@@ -1204,12 +1204,64 @@ def zscore_gamma(
     z_flat = z.reshape(-1)
     up = q_flat > shape * scale
     if np.any(up):
-        logp = _scipy_stats.gamma.logsf(q_flat[up], a=shape[up], scale=scale[up])
+        logp = _log_pgamma(q_flat[up] / scale[up], shape[up], upper=True)
         z_flat[up] = -ndtri_exp(logp)
     if np.any(~up):
-        logp = _scipy_stats.gamma.logcdf(q_flat[~up], a=shape[~up], scale=scale[~up])
+        logp = _log_pgamma(q_flat[~up] / scale[~up], shape[~up], upper=False)
         z_flat[~up] = ndtri_exp(logp)
     return z
+
+
+# Below exp(-644) (about 1e-280) a tail probability is near or past
+# underflow, so its logarithm is computed directly
+_LOG_TAIL_FLOOR = -644.0
+
+
+def _log_pgamma(x: np.ndarray, a: np.ndarray, upper: bool) -> np.ndarray:
+    """log of the gamma(a, 1) tail probability at x, as R's pgamma(log.p=TRUE):
+    finite where the probability underflows. scipy's value is kept where it
+    is representable; elsewhere the upper tail is exp(-x + a log x -
+    lgamma(a)) times the Legendre continued fraction (x > a, evaluated by
+    Lentz's method) and the lower tail exp(-x + a log x - lgamma(a + 1))
+    times its power series."""
+    from scipy.special import gammaln
+
+    logp = _scipy_stats.gamma.logsf(x, a) if upper else _scipy_stats.gamma.logcdf(x, a)
+    far = ~(logp > _LOG_TAIL_FLOOR) & (x > 0) & np.isfinite(x) & np.isfinite(a) & (a > 0)
+    if not np.any(far):
+        return logp
+    xf, af = x[far], a[far]
+    tiny, eps = 1e-300, 1e-16
+    if upper:
+        b = xf + 1.0 - af
+        c = np.full_like(xf, 1.0 / tiny)
+        d = 1.0 / b
+        h = d.copy()
+        for i in range(1, 10001):
+            an = -i * (i - af)
+            b = b + 2.0
+            d = an * d + b
+            d = np.where(np.abs(d) < tiny, tiny, d)
+            c = b + an / c
+            c = np.where(np.abs(c) < tiny, tiny, c)
+            d = 1.0 / d
+            step = d * c
+            h = h * step
+            if np.all(np.abs(step - 1.0) < eps):
+                break
+        logp[far] = -xf + af * np.log(xf) - gammaln(af) + np.log(h)
+    else:
+        term = np.ones_like(xf)
+        total = term.copy()
+        ap = af.copy()
+        for _ in range(10000):
+            ap = ap + 1.0
+            term = term * xf / ap
+            total = total + term
+            if np.all(term < total * eps):
+                break
+        logp[far] = -xf + af * np.log(xf) - gammaln(af + 1.0) + np.log(total)
+    return logp
 
 
 def zscore_hyper(
