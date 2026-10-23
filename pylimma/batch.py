@@ -323,7 +323,7 @@ def _lm_effects_residual(
 
 def wsva(
     y,
-    design: np.ndarray,
+    design: np.ndarray | None,
     n_sv: int = 1,
     weight_by_sd: bool = False,
     plot: bool = False,
@@ -360,11 +360,17 @@ def wsva(
     # Mirror that aliasing before dispatch.
     eawp = get_eawp(y, layer=layer)
     y_mat = np.asarray(eawp["exprs"], dtype=np.float64)
+    # R: y <- as.matrix(y) first, so an EList's design is never used, and
+    # .lmEffects stops without one
+    if design is None:
+        raise ValueError("design matrix not specified")
     design = _numeric_design(design)
     if design.ndim == 1:
         design = design.reshape(-1, 1)
 
     narrays = y_mat.shape[1]
+    if design.shape[0] != narrays:
+        raise ValueError("row dimension of design matrix must match column dimension of data")
     p = design.shape[1]
     d = narrays - p
 

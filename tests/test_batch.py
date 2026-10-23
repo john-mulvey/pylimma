@@ -37,6 +37,21 @@ def test_wsva_unweighted_rparity():
         np.testing.assert_allclose(a, b, rtol=1e-6, atol=1e-12)
 
 
+def test_wsva_design_checks_follow_r():
+    """R's .lmEffects stops for a missing design, also for an EList with a
+    design (R's as.matrix(y) drops it), and one with the wrong number of
+    rows (fixture script)."""
+    from pylimma import EList, wsva
+
+    y = np.random.default_rng(5).normal(size=(20, 6))
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    for data in (y, EList({"E": y, "design": design})):
+        with pytest.raises(ValueError, match="design matrix not specified"):
+            wsva(data, None)
+    with pytest.raises(ValueError, match="row dimension of design matrix must match"):
+        wsva(y, np.column_stack([np.ones(5), np.arange(5.0)]))
+
+
 def test_wsva_weighted_rparity():
     from pylimma import wsva
 

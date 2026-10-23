@@ -422,6 +422,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `wsva` raises R's "design matrix not specified" and "row dimension of
+  design matrix must match column dimension of data" (it raised
+  `IndexError` or a matrix-multiplication error). As R, an EList's design
+  is not used (R's `as.matrix(y)` drops it).
 - `get_eawp` (and so every function taking expression data) reads input as
   R's `getEAWP` does: an EList's vector `E` is one column, a bare vector
   one row; complex values raise R's "Data object doesn't contain numeric

@@ -6697,3 +6697,14 @@ stopifnot(identical(dim(getEAWP(new("EList", list(E = c(1, 2, 3, 4))))$exprs), c
 .rk_d2 <- cbind(1, c(0, 0, 0, 1, 1, 1))
 stopifnot(inherits(try(suppressWarnings(lmFit(.rk_y, .rk_d2, method = "robust", k = 0)), silent = TRUE), "try-error"),
           grepl("negative weights", try(suppressWarnings(lmFit(.rk_y, .rk_d2, method = "robust", k = -1)), silent = TRUE)))
+
+# =============================================================================
+# wsva's design checks (.lmEffects): a NULL design (also for an EList with a
+# design, which as.matrix(y) drops) and one with the wrong number of rows
+# stop explicitly
+# =============================================================================
+.ws_y <- matrix(rnorm(120), 20)
+stopifnot(grepl("design matrix not specified", try(wsva(.ws_y, NULL), silent = TRUE)),
+          grepl("design matrix not specified",
+                try(wsva(new("EList", list(E = .ws_y, design = cbind(1, rep(0:1, each = 3)))), NULL), silent = TRUE)),
+          grepl("row dimension of design matrix must match", try(wsva(.ws_y, cbind(1, 1:5)), silent = TRUE)))
