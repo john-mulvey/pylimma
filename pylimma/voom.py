@@ -81,17 +81,12 @@ def _draw_voom_trend(
 ) -> None:
     """Render a voom/vooma mean-variance trend plot via matplotlib.
 
-    Lazy import matches the pattern used by ``qqt``/``qqf`` in
-    ``pylimma/utils.py``: matplotlib is an optional dependency.
+    matplotlib is an optional dependency, imported here as by the other
+    plotting functions.
     """
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        import warnings
+    from .plotting import _require_matplotlib
 
-        warnings.warn("matplotlib not available for plotting")
-        return
-
+    plt = _require_matplotlib()
     if ax is None:
         _fig, ax = plt.subplots()
     ax.scatter(sx, sy, s=2, c="black")
@@ -108,14 +103,9 @@ def _draw_array_weights_bar(aw: np.ndarray, ax=None, col=None) -> None:
     keyword so ``voomWithQualityWeights(counts, design, col="red")`` in
     R translates directly.
     """
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError:
-        import warnings
+    from .plotting import _require_matplotlib
 
-        warnings.warn("matplotlib not available for plotting")
-        return
-
+    plt = _require_matplotlib()
     if ax is None:
         _fig, ax = plt.subplots()
     bar_kwargs = {}

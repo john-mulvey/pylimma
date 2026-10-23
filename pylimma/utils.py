@@ -1934,22 +1934,20 @@ def convest(
             thetas.sort()
 
         if plot:
-            try:
-                import matplotlib.pyplot as plt
+            from .plotting import _require_matplotlib
 
-                fig, ax = plt.subplots()
-                ax.plot(x_grid, f_hat)
-                ax.set_ylim(0, 1.2)
-                ax.set_title(f"{round(pi_0_hat, 5):.5f}")
-                theta_arr = np.asarray(thetas)
-                ax.plot(
-                    theta_arr,
-                    f_hat[(100.0 * theta_arr).astype(int)],
-                    "bo",
-                )
-                plt.show(block=False)
-            except ImportError:
-                pass
+            plt = _require_matplotlib()
+            fig, ax = plt.subplots()
+            ax.plot(x_grid, f_hat)
+            ax.set_ylim(0, 1.2)
+            ax.set_title(f"{round(pi_0_hat, 5):.5f}")
+            theta_arr = np.asarray(thetas)
+            ax.plot(
+                theta_arr,
+                f_hat[(100.0 * theta_arr).astype(int)],
+                "bo",
+            )
+            plt.show(block=False)
 
     if report and report_close:
         report_fh.close()

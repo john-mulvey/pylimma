@@ -787,6 +787,27 @@ def test_plot_functions_without_matplotlib_raise_a_clear_import_error(function, 
         getattr(pylimma, function)(*args)
 
 
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda pl, e, d: pl.voom(np.abs(e) * 100, d, plot=True),
+        lambda pl, e, d: pl.voom_with_quality_weights(np.abs(e) * 100, d, plot=True),
+        lambda pl, e, d: pl.convest(np.random.default_rng(0).uniform(size=200), plot=True),
+    ],
+    ids=["voom", "voom_with_quality_weights", "convest"],
+)
+def test_plot_arguments_without_matplotlib_raise_a_clear_import_error(call, monkeypatch):
+    import sys
+
+    import pylimma
+
+    monkeypatch.setitem(sys.modules, "matplotlib.pyplot", None)
+    expr = np.random.default_rng(0).normal(size=(50, 6))
+    design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])
+    with pytest.raises(ImportError, match="plotting functions require matplotlib"):
+        call(pylimma, expr, design)
+
+
 @pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_argument_errors_are_clear():
     """R: volcanoplot stops with "fit must be an MArrayLM"; mdplot with one

@@ -479,6 +479,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `voom`, `vooma`, `voom_with_quality_weights` and `convest` with
+  `plot=True` raise the same clear ImportError as the plotting functions
+  when matplotlib is not installed; voom warned and drew nothing, and
+  convest drew nothing silently.
 - `prop_true_null` raises R's convest error "Missing values in p not
   allowed" for missing p-values with `method="lfdr"` or `"mean"` (it
   returned NaN; R recycles into an arbitrary number, see known
