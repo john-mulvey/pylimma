@@ -1830,7 +1830,7 @@ def prop_true_null(
     Parameters
     ----------
     p : array_like
-        Observed p-values.
+        Observed p-values (a matrix is used as its values, as in R).
     method : {"lfdr", "mean", "hist", "convest"}, default "lfdr"
         Estimator to use.
     nbins : int, default 20
@@ -1844,7 +1844,8 @@ def prop_true_null(
     float
         Estimated proportion of true nulls.
     """
-    p = np.asarray(p, dtype=np.float64)
+    # R: length(p) and sort(p) use a matrix's values
+    p = np.asarray(p, dtype=np.float64).ravel()
     if method not in ("lfdr", "mean", "hist", "convest"):
         raise ValueError(
             f"method '{method}' not recognized. Must be one of 'lfdr', 'mean', 'hist', 'convest'."

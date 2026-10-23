@@ -467,6 +467,17 @@ def test_prop_true_null_all_methods_match_r():
         )
 
 
+def test_prop_true_null_takes_a_matrix_as_its_values():
+    """R's estimators use length(p) and sort(p), so a matrix is its values
+    (fixture script)."""
+    p = _load("R_propTrueNull_input.csv")["p"].values
+    r = pd.read_csv(FIXTURES / "R_propTrueNull.csv", header=None, names=["method", "pi0"])
+    for _, row in r.iterrows():
+        np.testing.assert_allclose(
+            prop_true_null(p.reshape(-1, 2), method=row["method"]), row["pi0"], rtol=1e-6
+        )
+
+
 def test_prop_true_null_hist_counts_edges_in_the_bin_below_as_r():
     """R's cut() bins are (left, right]: p-values on the bin edges."""
     p = _load("R_ptn_edges_p.csv")["p"].values

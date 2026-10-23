@@ -345,6 +345,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `prop_true_null` takes a matrix of p-values as its values, as R does;
+  methods `"lfdr"`, `"mean"` and `"convest"` raised a broadcasting error.
 - `camera`, `romer` and the gene-set effects behind `roast` / `mroast` /
   `fry` decide rank with R's `qr()` rule instead of an absolute 1e-10
   cutoff, so a design with a tiny-scale column is no longer rejected as

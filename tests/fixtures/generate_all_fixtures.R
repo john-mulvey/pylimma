@@ -2157,6 +2157,8 @@ for (m in c("lfdr", "mean", "hist", "convest")) {
   pi0 <- propTrueNull(p_vec, method = m)
   write(paste(m, pi0, sep = ","),
         file = "R_propTrueNull.csv", append = TRUE)
+  # a matrix of p-values is used as the vector of its values
+  stopifnot(all.equal(propTrueNull(matrix(p_vec, ncol = 2), method = m), pi0))
 }
 c1 <- convest(p_vec)
 c2 <- convest(p_vec, niter = 200)
