@@ -266,13 +266,10 @@ def e_bayes(
     if any(x is None for x in [coefficients, stdev_unscaled, sigma, df_residual]):
         raise ValueError("fit must contain coefficients, stdev_unscaled, sigma, df_residual")
 
-    if np.max(df_residual) == 0:
-        raise ValueError("No residual degrees of freedom in linear model fits")
-    if not np.any(np.isfinite(sigma)):
-        raise ValueError("No finite residual standard deviations")
+    _check_residuals(sigma, df_residual)
 
-    # Get covariate for trend estimation
-    if isinstance(trend, bool):
+    # Get covariate for trend estimation. R: is.logical(trend)
+    if isinstance(trend, (bool, np.bool_)):
         if trend:
             covariate = fit.get("Amean")
             if covariate is None:
@@ -411,6 +408,16 @@ def e_bayes(
     return fit
 
 
+def _check_residuals(sigma, df_residual) -> None:
+    """R's eBayes / treat checks: no residual df, then no finite sigma. R's
+    max() of an empty fit is -Inf, so an empty fit fails the second."""
+    df_residual = np.asarray(df_residual)
+    if df_residual.size and np.max(df_residual) == 0:
+        raise ValueError("No residual degrees of freedom in linear model fits")
+    if not np.any(np.isfinite(sigma)):
+        raise ValueError("No finite residual standard deviations")
+
+
 def treat(
     data,
     fc: float = 1.2,
@@ -509,10 +516,7 @@ def treat(
     if any(x is None for x in [coefficients, stdev_unscaled, sigma, df_residual]):
         raise ValueError("fit must contain coefficients, stdev_unscaled, sigma, df_residual")
 
-    if np.max(df_residual) == 0:
-        raise ValueError("No residual degrees of freedom in linear model fits")
-    if not np.any(np.isfinite(sigma)):
-        raise ValueError("No finite residual standard deviations")
+    _check_residuals(sigma, df_residual)
 
     # Clear any existing lods (B-statistics not computed for TREAT)
     fit["lods"] = None
@@ -547,8 +551,11 @@ def treat(
     df_total = np.minimum(df_total, df_pooled)
     fit["df_total"] = df_total
 
-    # Determine log fold-change threshold
+    # Determine log fold-change threshold. R: log2(NULL) fails ("non-numeric
+    # argument to mathematical function")
     if lfc is None:
+        if fc is None:
+            raise ValueError("fc must be a number when lfc is not given")
         lfc = np.log2(fc)
     lfc = abs(lfc)
     fit["treat_lfc"] = lfc

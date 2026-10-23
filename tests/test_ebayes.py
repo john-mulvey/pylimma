@@ -276,3 +276,30 @@ class TestTmixtureVector:
 
         # Result should be finite (not inf due to underflow handling)
         assert np.isfinite(v0)
+
+
+class TestEBayesArgumentChecks:
+    """R behaviour recorded in the fixture script."""
+
+    def _fit(self):
+        rng = np.random.default_rng(1)
+        y = rng.normal(size=(50, 6))
+        y[:, 3:] += 1
+        return lm_fit(y, np.column_stack([np.ones(6), [0.0, 0, 0, 1, 1, 1]]))
+
+    def test_numpy_logical_trend_is_logical(self):
+        fit = self._fit()
+        np.testing.assert_array_equal(
+            e_bayes(fit, trend=np.True_)["t"], e_bayes(fit, trend=True)["t"]
+        )
+        np.testing.assert_array_equal(e_bayes(fit, trend=np.False_)["t"], e_bayes(fit)["t"])
+
+    def test_fit_without_genes_raises_r_error(self):
+        fit = self._fit()[:0, :]
+        for fn in (e_bayes, treat):
+            with pytest.raises(ValueError, match="No finite residual standard deviations"):
+                fn(fit)
+
+    def test_treat_without_fc_or_lfc_raises(self):
+        with pytest.raises(ValueError, match="fc must be a number"):
+            treat(self._fit(), fc=None)

@@ -6482,3 +6482,13 @@ stopifnot(identical(dim(contrasts.fit(.cf_fit, coefficients = 1)$coefficients), 
 stopifnot(identical(topTable(.tt_fit, coef = 2.0), topTable(.tt_fit, coef = 2L)),
           inherits(try(suppressWarnings(topTable(.tt_fit, coef = TRUE)), silent = TRUE), "try-error"),
           identical(dim(topTable(.tt_fit, coef = integer(0))), c(0L, 0L)))
+
+# =============================================================================
+# eBayes / treat argument checks: a fit with no genes fails "No finite
+# residual standard deviations" (max(numeric(0)) is -Inf, so the df check
+# passes); treat with fc = NULL and no lfc fails in log2()
+# =============================================================================
+.eb_fit <- lmFit(matrix(rnorm(60), 10), cbind(1, c(0, 0, 0, 1, 1, 1)))
+stopifnot(grepl("No finite residual standard deviations", try(suppressWarnings(eBayes(.eb_fit[0, ])), silent = TRUE)),
+          grepl("No finite residual standard deviations", try(suppressWarnings(treat(.eb_fit[0, ])), silent = TRUE)),
+          grepl("non-numeric argument", try(treat(.eb_fit, fc = NULL), silent = TRUE)))

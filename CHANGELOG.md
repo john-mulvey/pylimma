@@ -378,6 +378,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `e_bayes(trend=np.True_)` treats a numpy logical as logical (it raised
+  `TypeError`); `e_bayes` and `treat` on a fit with no genes raise R's
+  "No finite residual standard deviations" (numpy's "zero-size array"
+  error before); `treat(fc=None)` without `lfc` raises a clear error
+  (R: "non-numeric argument to mathematical function").
 - `top_table` takes a float `coef` (1.0) or an array of coefficients, as
   R truncates a double subscript (it raised `IndexError`), and raises a
   clear error for an empty `coef`, where it raised `IndexError` (R returns
