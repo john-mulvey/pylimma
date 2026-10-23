@@ -419,6 +419,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `get_eawp` (and so every function taking expression data) reads input as
+  R's `getEAWP` does: an EList's vector `E` is one column, a bare vector
+  one row; complex values raise R's "Data object doesn't contain numeric
+  expression values" (the imaginary part was dropped with a warning); an
+  `E` of `None` and an AnnData whose `X` is `None` raise clear errors
+  (they raised `AxisError`); an all-NA gene no longer warns "Mean of empty
+  slice" (its `Amean` is NaN, as in R).
 - `array_weights` takes a design given as a vector, as one column (R's
   `as.matrix`); it raised "not enough values to unpack".
 - `genas` takes `coef` as coefficient names (`coef=("A", "B")`), as R's

@@ -6678,3 +6678,13 @@ stopifnot(grepl("chol", try(lmFit(.nb_y, .nb_d, block = .nb_block, correlation =
 stopifnot(grepl("NAs not allowed in design matrix", try(lmFit(.lc_y, .lc_d), silent = TRUE)),
           grepl("0 \\(non-NA\\) cases", try(lmFit(matrix(numeric(0), 10, 0), matrix(numeric(0), 0, 1)), silent = TRUE)),
           grepl("infinite or missing values", try(is.fullrank(cbind(1, c(1, NA, 3))), silent = TRUE)))
+
+# =============================================================================
+# getEAWP input forms: an EList's vector E is one column (as.matrix), a
+# bare vector one row; complex values are not numeric; an all-NA gene has
+# Amean NaN without a warning
+# =============================================================================
+stopifnot(identical(dim(getEAWP(new("EList", list(E = c(1, 2, 3, 4))))$exprs), c(4L, 1L)),
+          identical(dim(getEAWP(c(1, 2, 3, 4))$exprs), c(1L, 4L)),
+          grepl("doesn't contain numeric expression values", try(getEAWP(matrix(1i, 2, 2)), silent = TRUE)),
+          is.nan(getEAWP(rbind(c(1, 2), c(NA, NA)))$Amean[2]))

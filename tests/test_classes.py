@@ -1330,3 +1330,34 @@ def test_rank_deficient_column_subset_keeps_cov_in_requested_order():
     full = np.asarray(fit["cov_coefficients"])
     np.testing.assert_array_equal(sub["cov_coefficients"], full[np.ix_([2, 0], [2, 0])])
     np.testing.assert_array_equal(sub["coefficients"], np.asarray(fit["coefficients"])[:, [2, 0]])
+
+
+def test_get_eawp_input_forms_follow_r():
+    """R (fixture script): an EList's vector E is one column, a bare vector
+    one row, complex values are not numeric; None and an AnnData without X
+    raise clear errors; an all-NA gene's Amean is NaN without a warning."""
+    import warnings
+
+    anndata = pytest.importorskip("anndata")
+    assert get_eawp(EList({"E": np.arange(4.0)}))["exprs"].shape == (4, 1)
+    assert get_eawp(np.arange(4.0))["exprs"].shape == (1, 4)
+    with pytest.raises(TypeError, match="doesn't contain numeric expression values"):
+        get_eawp(np.array([[1 + 1j, 2.0]]))
+    with pytest.raises(ValueError, match="no expression values"):
+        get_eawp(EList({"E": None}))
+    with pytest.raises(ValueError, match="adata.X is None"):
+        get_eawp(anndata.AnnData(X=None, shape=(4, 5)))
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", RuntimeWarning)
+        amean = get_eawp(np.array([[1.0, 2.0], [np.nan, np.nan]]))["Amean"]
+    assert np.isnan(amean[1])
+
+
+def test_get_eawp_reads_numbers_held_as_objects():
+    """pandas' nullable dtypes give an object array of numbers (and NA)."""
+    frame = pd.DataFrame(
+        {"a": pd.array([1.0, 2.0], dtype="Float64"), "b": pd.array([1, None], dtype="Int64")}
+    )
+    np.testing.assert_array_equal(get_eawp(EList({"E": frame}))["exprs"], [[1.0, 1.0], [2.0, np.nan]])
+    with pytest.raises(TypeError, match="doesn't contain numeric expression values"):
+        get_eawp(EList({"E": np.array([["a", 1.0]], dtype=object)}))

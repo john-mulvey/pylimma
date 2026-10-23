@@ -40,6 +40,7 @@ from .classes import (
     MArrayLM,
     _as_matrix_weights_with_flag,
     _is_anndata,
+    _row_means,
     as_matrix_weights,
     get_eawp,
 )
@@ -1423,12 +1424,9 @@ def lm_fit(
     # if ndups>1 reshape via `unwrapdups` and `rowMeans` again so Amean
     # has one entry per fitted gene (matching coefficients row count).
     fit = MArrayLM(fit)
-    amean = np.nanmean(expr, axis=1)
+    amean = _row_means(expr)
     if ndups > 1:
-        amean = np.nanmean(
-            unwrap_dups(amean.reshape(-1, 1), ndups=ndups, spacing=spacing),
-            axis=1,
-        )
+        amean = _row_means(unwrap_dups(amean.reshape(-1, 1), ndups=ndups, spacing=spacing))
     fit["Amean"] = amean
     fit["design"] = design
     # R lmfit.R:60: y$probes <- uniquegenelist(y$probes, ndups, spacing),

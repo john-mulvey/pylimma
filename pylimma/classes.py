@@ -35,6 +35,8 @@ shape-preserving function.
 
 from __future__ import annotations
 
+import numbers
+import warnings
 from copy import deepcopy
 from typing import Any
 
@@ -750,7 +752,9 @@ def get_eawp(
             mat = adata.layers[layer]
         else:
             mat = adata.X
-        y["exprs"] = _as_dense_array(mat, np.float64).T
+            if mat is None:
+                raise ValueError("adata.X is None: there are no expression values (pass layer=)")
+        y["exprs"] = _expression_values(mat, vector="row").T
         # Capture adata.var / adata.obs as full DataFrames even when they
         # have zero annotation columns - the index still carries
         # var_names / obs_names, and consumers (top_table genelist,
@@ -760,7 +764,7 @@ def get_eawp(
             y["probes"] = adata.var
         if adata.obs is not None:
             y["targets"] = adata.obs
-        y["Amean"] = np.nanmean(y["exprs"], axis=1)
+        y["Amean"] = _row_means(y["exprs"])
         # Load companion weights. If the caller passed weights_layer=
         # explicitly, use that layer verbatim. Otherwise fall back to
         # the voom/vooma convention: when layer ends in "_E", look for
@@ -809,9 +813,9 @@ def get_eawp(
         if "exprs" in obj:
             y.update({k: obj.get(k) for k in y.keys() if k in obj})
             if y["exprs"] is not None:
-                y["exprs"] = _as_dense_array(y["exprs"], np.float64)
+                y["exprs"] = _expression_values(y["exprs"], vector="row")
                 if y["Amean"] is None:
-                    y["Amean"] = np.nanmean(y["exprs"], axis=1)
+                    y["Amean"] = _row_means(y["exprs"])
             return y
         raise TypeError(
             "dict input to get_eawp must contain key 'E' (EList-style) "
@@ -846,19 +850,47 @@ def get_eawp(
                 {"ProbeID": obj.index.astype(str).values},
                 index=obj.index,
             )
-        y["Amean"] = np.nanmean(y["exprs"], axis=1)
+        y["Amean"] = _row_means(y["exprs"])
         return y
 
-    arr = _as_dense_array(obj)
+    y["exprs"] = _expression_values(obj, vector="row")
+    y["Amean"] = _row_means(y["exprs"])
+    return y
+
+
+def _expression_values(values, vector: str) -> np.ndarray:
+    """An expression matrix as getEAWP reads it: dense float64, a vector as
+    one row (vector="row", R's matrix(object, nrow=1)) or one column
+    (vector="column", R's as.matrix of an EList's E); not numeric (or
+    complex) raises R's "Data object doesn't contain numeric expression
+    values", and None or more than two dimensions a clear error."""
+    if values is None:
+        raise ValueError("data object isn't of a recognized data class: no expression values")
+    arr = _as_dense_array(values)
+    if arr.dtype == object:
+        # numbers held as objects, as pandas' nullable dtypes give them
+        flat = arr.ravel()
+        missing = pd.isna(flat)
+        if all(
+            isinstance(v, numbers.Real) and not isinstance(v, (bool, np.bool_))
+            for v in flat[~missing]
+        ):
+            arr = np.where(missing, np.nan, flat).astype(np.float64).reshape(arr.shape)
+    if arr.dtype == np.bool_ or not np.issubdtype(arr.dtype, np.number) or np.iscomplexobj(arr):
+        raise TypeError("Data object doesn't contain numeric expression values")
     if arr.ndim == 1:
-        arr = arr.reshape(1, -1)
+        arr = arr.reshape((1, -1) if vector == "row" else (-1, 1))
     if arr.ndim != 2:
         raise TypeError(f"expression data must be 2-dimensional, got {arr.ndim}D")
-    if not np.issubdtype(arr.dtype, np.number):
-        raise TypeError("expression data must be numeric")
-    y["exprs"] = arr.astype(np.float64, copy=False)
-    y["Amean"] = np.nanmean(y["exprs"], axis=1)
-    return y
+    return arr.astype(np.float64, copy=False)
+
+
+def _row_means(exprs: np.ndarray) -> np.ndarray:
+    """R's rowMeans(exprs, na.rm=TRUE): NaN for a row with no observed value,
+    without numpy's "Mean of empty slice" warning."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        return np.nanmean(exprs, axis=1)
 
 
 def _stored_design_for_obs(uns_payload: dict, adata, stem: str):
@@ -897,12 +929,12 @@ def _stored_design_for_obs(uns_payload: dict, adata, stem: str):
 
 def _eawp_from_elist_like(obj) -> dict:
     """Extract EAWP dict from an EList or EList-shaped dict."""
-    exprs = _as_dense_array(obj["E"], np.float64)
+    exprs = _expression_values(obj["E"], vector="column")
     return {
         "exprs": exprs,
         "weights": obj.get("weights"),
         "probes": obj.get("genes"),
-        "Amean": np.nanmean(exprs, axis=1),
+        "Amean": _row_means(exprs),
         "design": obj.get("design"),
         "targets": obj.get("targets"),
     }
