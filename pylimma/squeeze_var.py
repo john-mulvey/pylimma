@@ -1175,24 +1175,35 @@ def squeeze_var(
     assessing differential expression in microarray experiments.
     Statistical Applications in Genetics and Molecular Biology, 3(1), Article 3.
     """
-    var = np.atleast_1d(np.asarray(var, dtype=np.float64))  # R: a scalar is a length-1 vector
+    # R: length(var) counts every value of a matrix (read column by column)
+    # and length(NULL) is 0; a scalar is a length-1 vector
+    if var is None:
+        raise ValueError("var is empty")
+    var_in = np.atleast_1d(np.asarray(var, dtype=np.float64))
+    var = var_in.ravel(order="F")
     n = len(var)
 
     if n == 0:
         raise ValueError("var is empty")
 
-    # Not enough observations for empirical Bayes
+    # Not enough observations for empirical Bayes; R returns var as given
     if n < 3:
-        return {"var_post": var.copy(), "var_prior": var.copy(), "df_prior": 0.0}
+        return {"var_post": var_in.copy(), "var_prior": var_in.copy(), "df_prior": 0.0}
 
-    df = np.asarray(df, dtype=np.float64)
-    if df.ndim == 0:
-        df = np.full(n, float(df))
-
-    # Guard against missing/infinite values when df==0
-    if len(df) > 1:
+    df = np.asarray(df, dtype=np.float64).ravel(order="F")
+    # Guard against missing/infinite values when df==0 (R: only for a df
+    # vector, not a single df)
+    if df.size > 1:
+        if df.size != n:
+            # R recycles var[df == 0] and then stops in fitFDist with this
+            # message
+            raise ValueError("x and df1 have different lengths")
         var = var.copy()
         var[df == 0] = 0.0
+    elif df.size == 0:
+        raise ValueError("x and df1 have different lengths")
+    else:
+        df = np.full(n, float(df[0]))
 
     # span is only implemented for new hyperparameter function
     if span is not None:
@@ -1230,18 +1241,14 @@ def squeeze_var(
     elif not np.isscalar(df_prior) and np.any(np.isnan(df_prior)):
         raise ValueError("Could not estimate prior df")
 
-    # Compute posterior variances
+    # Compute posterior variances. R's squeezeVar returns df2.shrunk as
+    # df.prior in robust mode (per-gene values), and var.post keeps the dim
+    # of a matrix var
     if robust and df_prior_shrunk is not None:
-        # Use gene-wise shrunken df_prior for outlier robustness
-        # R's squeezeVar returns df2.shrunk as df.prior in robust mode
-        var_post = _squeeze_var_core(
-            var=var, df=df, var_prior=fit["scale"], df_prior=df_prior_shrunk
-        )
-        return {
-            "df_prior": df_prior_shrunk,  # Per-gene values, matching R
-            "var_prior": fit["scale"],
-            "var_post": var_post,
-        }
-    else:
-        var_post = _squeeze_var_core(var=var, df=df, var_prior=fit["scale"], df_prior=df_prior)
-        return {"df_prior": df_prior, "var_prior": fit["scale"], "var_post": var_post}
+        df_prior = df_prior_shrunk
+    var_post = _squeeze_var_core(var=var, df=df, var_prior=fit["scale"], df_prior=df_prior)
+    return {
+        "df_prior": df_prior,
+        "var_prior": fit["scale"],
+        "var_post": np.asarray(var_post).reshape(var_in.shape, order="F"),
+    }

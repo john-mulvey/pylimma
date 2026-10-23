@@ -378,6 +378,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `squeeze_var` takes a matrix of variances as its values, read column by
+  column as R's `length(var)` does (it raised a broadcasting error),
+  raises R's "var is empty" for `None` (it returned a result) and R's "x
+  and df1 have different lengths" for a `df` of the wrong length (it
+  raised `IndexError`); a single `df` of 0 no longer sets every variance
+  to 0, which R does only for a `df` vector.
 - `e_bayes(trend=np.True_)` treats a numpy logical as logical (it raised
   `TypeError`); `e_bayes` and `treat` on a fit with no genes raise R's
   "No finite residual standard deviations" (numpy's "zero-size array"

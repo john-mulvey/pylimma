@@ -332,3 +332,23 @@ def test_scalar_variance_is_a_length_one_vector():
     assert (fit["scale"], fit["df2"]) == (1.5, 0)
     for fn in (fit_f_dist_robustly, fit_f_dist_unequal_df1):
         assert np.isnan(fn(1.5, 5)["scale"]) and np.isnan(fn(1.5, 5)["df2"])
+
+
+def test_input_forms_follow_r():
+    """R (fixture script): a matrix of variances is its values, read column
+    by column; NULL is empty; a df of the wrong length fails with
+    fitFDist's message."""
+    var = pd.read_csv(FIXTURES_DIR / "R_sv_matrix_var.csv").to_numpy()
+    r = pd.read_csv(FIXTURES_DIR / "R_sv_matrix.csv")
+    out = squeeze_var(var, df=4)
+    assert out["var_post"].shape == var.shape  # R keeps var's dim
+    np.testing.assert_allclose(out["var_post"].ravel(order="F"), r["var_post"], rtol=1e-6)
+    np.testing.assert_allclose(out["df_prior"], r["df_prior"][0], rtol=1e-6)
+    with pytest.raises(ValueError, match="var is empty"):
+        squeeze_var(None, 5)
+    with pytest.raises(ValueError, match="x and df1 have different lengths"):
+        squeeze_var(var.ravel(order="F"), df=[5, 5])
+    with pytest.raises(ValueError, match="x and df1 have different lengths"):
+        squeeze_var(var.ravel(order="F"), df=[])
+    # fewer than three values come back as given, as R
+    assert squeeze_var(np.array([[0.5], [0.7]]), df=4)["var_post"].shape == (2, 1)

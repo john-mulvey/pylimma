@@ -6492,3 +6492,20 @@ stopifnot(identical(topTable(.tt_fit, coef = 2.0), topTable(.tt_fit, coef = 2L))
 stopifnot(grepl("No finite residual standard deviations", try(suppressWarnings(eBayes(.eb_fit[0, ])), silent = TRUE)),
           grepl("No finite residual standard deviations", try(suppressWarnings(treat(.eb_fit[0, ])), silent = TRUE)),
           grepl("non-numeric argument", try(treat(.eb_fit, fc = NULL), silent = TRUE)))
+
+# =============================================================================
+# squeezeVar input forms: a matrix of variances is its values (length(var));
+# NULL is empty; a df of the wrong length is recycled into var[df == 0] and
+# fails in fitFDist (pylimma raises that message up front)
+# =============================================================================
+set.seed(1215)
+.sv_var <- matrix(exp(rnorm(20)) * rchisq(20, df = 4) / 4, 4, 5)
+write.csv(.sv_var, "R_sv_matrix_var.csv", row.names = FALSE)
+.sv_out <- squeezeVar(.sv_var, df = 4)
+write.csv(data.frame(var_post = as.vector(.sv_out$var.post), var_prior = .sv_out$var.prior,
+                     df_prior = .sv_out$df.prior), "R_sv_matrix.csv", row.names = FALSE)
+stopifnot(grepl("var is empty", try(squeezeVar(NULL, 5), silent = TRUE)),
+          identical(dim(squeezeVar(matrix(c(0.5, 0.7)), df = 4)$var.post), c(2L, 1L)),
+          identical(dim(.sv_out$var.post), c(4L, 5L)),
+          grepl("different lengths", try(suppressWarnings(squeezeVar(as.vector(.sv_var), df = numeric(0))), silent = TRUE)),
+          grepl("x and df1 have different lengths", try(squeezeVar(as.vector(.sv_var), df = c(5, 5)), silent = TRUE)))
