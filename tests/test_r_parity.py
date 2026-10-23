@@ -7822,3 +7822,30 @@ class TestGenasRParity:
         np.testing.assert_allclose([v[0, 0], v[1, 0], v[1, 1]], r[["v11", "v21", "v22"]].astype(float), rtol=1e-3)
         np.testing.assert_allclose(out["biological_correlation"], r["biological"], rtol=1e-3)
         np.testing.assert_allclose(out["technical_correlation"], r["technical"], atol=1e-12)
+
+    @pytest.mark.parametrize(
+        "coef,match",
+        [
+            ((0, 5), "outside the 0-based positions"),
+            ((-1, 0), "outside the 0-based positions"),
+            ((0.7, 1.2), "positions or names"),
+            ((1, 1), "two different coefficients"),
+        ],
+    )
+    def test_unusable_coef_raises(self, coef, match):
+        """R fails in fit[, coef] or in chol() (fixture script)."""
+        from pylimma import e_bayes, genas, lm_fit
+
+        y = load_r_csv_no_index("genas_subset_y").to_numpy()
+        with pytest.raises(ValueError, match=match):
+            genas(e_bayes(lm_fit(y, self.X)), coef=coef)
+
+    def test_identical_contrasts_raise(self):
+        """V is singular, so R's chol() fails as the search moves."""
+        from pylimma import contrasts_fit, e_bayes, genas, lm_fit
+
+        y = load_r_csv_no_index("genas_subset_y").to_numpy()
+        same = np.array([[0.0, 0.0], [1.0, 1.0], [0.0, 0.0]])
+        fit = contrasts_fit(e_bayes(lm_fit(y, self.X)), same)
+        with pytest.raises(ValueError, match="covariance matrix is singular"):
+            genas(fit)

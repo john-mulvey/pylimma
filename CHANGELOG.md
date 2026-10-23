@@ -231,6 +231,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `genas` raises clear errors for a `coef` that is out of range, negative,
+  fractional or repeated, and for two coefficients with a singular
+  covariance matrix (identical contrasts); it returned results (R fails in
+  `fit[, coef]` or `chol()`; see known differences).
 - `decide_tests(p_value=NaN)` and `classify_tests_f` with a `p_value`
   outside 0..1, a `df` of 0 or NaN or an unusable `cor_matrix` raise clear
   errors; they silently returned all zeros (R gives NA or fails obscurely;

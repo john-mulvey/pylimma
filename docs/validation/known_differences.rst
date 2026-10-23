@@ -420,6 +420,16 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     fails in ``qf`` / ``eigen`` / ``if()`` ("missing value where TRUE/FALSE
     needed"). ``generate_all_fixtures.R`` records the R behaviour.
 
+``genas`` with unusable coefficients
+    A ``coef`` outside the coefficient positions, a fraction or a repeated
+    coefficient raises a clear error, as does a pair of coefficients whose
+    covariance matrix is singular (such as two identical contrasts). R's
+    ``fit[, coef]`` truncates a fraction and fails for an out-of-range
+    position, and a repeated coefficient or identical contrasts fail in
+    ``chol()`` while the likelihood is searched; pylimma returned results
+    (Python's negative positions counted from the end).
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

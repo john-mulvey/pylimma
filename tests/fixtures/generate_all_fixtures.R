@@ -6757,3 +6757,15 @@ stopifnot(all(is.na(decideTests(.dt_fit, p.value = NaN))),
           inherits(try(classifyTestsF(.dt_fit, df = 0), silent = TRUE), "try-error"),
           inherits(try(classifyTestsF(.dt_fit, cor.matrix = matrix(NA, 3, 3)), silent = TRUE), "try-error"),
           identical(dim(decideTests(0.5)), c(1L, 1L)))
+
+# =============================================================================
+# genas with unusable coefficients: a position out of range fails in
+# fit[, coef], a repeated coefficient or identical contrasts in chol()
+# (pylimma raises clear errors); with data where some genes pass genas's
+# criterion, as R otherwise stops earlier
+# =============================================================================
+set.seed(1300)
+.gu_fit <- eBayes(lmFit(matrix(rnorm(360), 60), cbind(1, c(0, 0, 0, 1, 1, 1), c(0, 1, 0, 1, 0, 1))))
+stopifnot(inherits(try(genas(.gu_fit, coef = c(1, 6)), silent = TRUE), "try-error"),
+          grepl("chol", try(genas(.gu_fit, coef = c(2, 2)), silent = TRUE)),
+          grepl("chol", try(genas(contrasts.fit(.gu_fit, cbind(c(0, 1, 0), c(0, 1, 0)))), silent = TRUE)))

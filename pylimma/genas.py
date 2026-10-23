@@ -13,10 +13,13 @@ alternative) and every ``subset`` branch in R's ``.whichGenes``.
 
 from __future__ import annotations
 
+import numbers
+
 import numpy as np
 from scipy import linalg, stats
 
 from .classes import MArrayLM, _resolve_fit_input
+from .lmfit import _qr_r_style
 
 # ---------------------------------------------------------------------------
 # Log-likelihoods ported verbatim from genas.R:108-159
@@ -272,11 +275,35 @@ def genas(
     # Keep the two coefs being correlated (R: if(ncol(fit)>2) fit <-
     # fit[,coef], by position or name; the subset regenerates F)
     fit2 = MArrayLM(fit)
+    if fit2.ncol < 2:
+        raise ValueError("fit must have at least two coefficients")
     if fit2.ncol > 2:
+        # R's fit[, coef] truncates a fraction and fails obscurely for a
+        # position out of range or a repeated one (in chol); clear errors
+        # instead (known_differences.rst)
+        for c in coef:
+            if not isinstance(c, str) and not (
+                isinstance(c, numbers.Integral)
+                or isinstance(c, numbers.Real) and float(c).is_integer()
+            ):
+                raise ValueError(f"coef must be coefficient positions or names, not {c!r}")
+            if not isinstance(c, str) and not 0 <= c < fit2.ncol:
+                raise ValueError(f"coef {c!r} is outside the 0-based positions 0..{fit2.ncol - 1}")
+        coef = [c if isinstance(c, str) else int(c) for c in coef]
         fit2 = fit2[:, coef]
+        if len(set(fit2.get("contrast_names") or fit2.get("coef_names") or coef)) < 2:
+            raise ValueError("coef must give two different coefficients")
 
     coefs = np.asarray(fit2["coefficients"], dtype=np.float64)
     cov = np.asarray(fit2["cov_coefficients"], dtype=np.float64)
+    # R's chol() of V0 + V fails as the search moves when V is singular (a
+    # clear error instead, known_differences.rst); singular by R's rank rule,
+    # qr(tol = 1e-7)
+    if _qr_r_style(cov)[3] < 2:
+        raise ValueError(
+            "the two coefficients' covariance matrix is singular (are they the same "
+            "coefficient or contrast?)"
+        )
     s2_post = np.asarray(fit2["s2_post"], dtype=np.float64)
 
     if coefs.shape[0] < 1:
