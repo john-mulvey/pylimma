@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `normexp_fit(method="mle")` (and `background_correct(method="normexp",
+  normexp_method="mle")`) refines with R's `nlminb` parameter tolerance
+  (1.5e-8); on Illumina-like arrays with a flat likelihood scipy's default
+  stopped early, up to 2e-3 from R's parameters.
 - `normexp_signal` is exact to rounding when the normal part is narrow
   next to the exponential mean (large `sigma^2 / alpha`), where the
   signal is a small difference of large terms; it was off by up to 9%

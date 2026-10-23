@@ -6592,3 +6592,13 @@ write.csv(data.frame(x = .ns_x,
                      alpha_0.002 = normexp.signal(c(100, log(10), log(0.002)), .ns_x),
                      alpha_20 = normexp.signal(c(100, log(10), log(20)), .ns_x)),
           "R_normexp_signal_tails.csv", row.names = FALSE)
+
+# =============================================================================
+# normexp.fit(method="mle") on an Illumina-like array (narrow normal part,
+# large exponential mean): nlminb's default x.tol (1.5e-8) is needed to
+# reach R's optimum on this flat likelihood
+# =============================================================================
+set.seed(1219)
+.nm_x <- sapply(1:4, function(i) rnorm(10000, 30, 1.2 + 0.04 * i) + rexp(10000, 1 / (150 + 5 * i)))[, 4]
+write.csv(data.frame(x = .nm_x), "R_normexp_mle_flat_x.csv", row.names = FALSE)
+write.csv(data.frame(par = normexp.fit(.nm_x, method = "mle")$par), "R_normexp_mle_flat.csv", row.names = FALSE)

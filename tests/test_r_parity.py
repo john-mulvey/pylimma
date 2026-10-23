@@ -4113,6 +4113,14 @@ class TestNormalisationBatchBranchCoverage:
 
     # --- normexp_signal branches ----------------------------------------------
 
+    def test_mle_on_a_flat_likelihood(self):
+        """An Illumina-like array (narrow normal part, large exponential
+        mean): nlminb's x.tol is needed to reach R's optimum (scipy's
+        default left log(sigma) 2e-3 away)."""
+        x = load_r_csv_no_index("normexp_mle_flat_x")["x"].to_numpy()
+        expected = load_r_csv_no_index("normexp_mle_flat")["par"].to_numpy()
+        np.testing.assert_allclose(normexp_fit(x, method="mle")["par"], expected, rtol=1e-6)
+
     def test_signal_with_a_narrow_normal_part(self):
         """With sigma^2 / alpha large the signal is a small difference of
         large terms. pylimma gives the exact value (the asymptotic Mills-

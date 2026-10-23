@@ -851,6 +851,10 @@ def normexp_fit(
         inv_sc = 1.0 / sc
         return inv_sc[:, None] * H * inv_sc[None, :]
 
+    # xtol = 1.5e-8, nlminb's default x.tol, as an approximation of R's
+    # stopping rule: scipy's Newton-CG stops when the summed absolute Newton
+    # step is at most len(x0) * xtol, nlminb on a relative parameter change
+    # (scipy's default xtol of 1e-5 stops early on a flat likelihood)
     mle_result = minimize(
         _obj_scaled,
         y0,
@@ -858,6 +862,7 @@ def normexp_fit(
         method="Newton-CG",
         jac=_jac_scaled,
         hess=_hess_scaled,
+        options={"xtol": 1.5e-8},
     )
     par_raw = np.asarray(mle_result.x, dtype=np.float64) / sc
     par_out = par_raw.copy()
