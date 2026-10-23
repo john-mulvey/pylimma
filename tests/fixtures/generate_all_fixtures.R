@@ -6964,3 +6964,16 @@ stopifnot(.vna_err(.vna_y) == "NA/NaN/Inf in 'y'",
           .vna_err(.vna_y, block = rep(1:4, 2), correlation = 0.3) == "NA/NaN/Inf in 'y'")
 .vna_y[4, 3] <- Inf
 stopifnot(.vna_err(.vna_y) == "NA/NaN/Inf in 'y'")
+
+# =============================================================================
+# voomaLmFit names: voom.xy's xlab, and sample weights as a targets column
+# "sample.weight" (added to y$targets when there is one)
+# =============================================================================
+set.seed(1311)
+.vn_y <- matrix(rnorm(400, 8), 50)
+.vn_d <- cbind(1, rep(0:1, each = 4))
+stopifnot(voomaLmFit(.vn_y, .vn_d, save.plot = TRUE)$voom.xy$xlab == "Average log2 expression",
+          voomaLmFit(.vn_y, .vn_d, predictor = .vn_y, save.plot = TRUE)$voom.xy$xlab == "Combined predictor",
+          identical(colnames(voomaLmFit(.vn_y, .vn_d, sample.weights = TRUE)$targets), "sample.weight"),
+          identical(colnames(voomaLmFit(new("EList", list(E = .vn_y, targets = data.frame(g = 1:8))), .vn_d,
+                                        sample.weights = TRUE)$targets), c("g", "sample.weight")))

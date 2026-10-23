@@ -2231,12 +2231,52 @@ class TestVoomaLmFitRParity:
         expr = np.log2(voom_data["counts"] + 1)
         fit = vooma_lm_fit(expr, voom_data["design"], sample_weights=True)
 
+        # R: a targets data frame with a sample.weight column
+        assert list(fit["targets"].columns) == ["sample_weight"]
         result = compare_arrays(
-            r_sw["sample.weights"].values, fit["targets"]["sample_weights"], rtol=1e-6
+            r_sw["sample.weights"].values, fit["targets"]["sample_weight"], rtol=1e-6
         )
         assert result["match"], (
             f"voomaLmFit sample_weights differs: max_rel={result['max_rel_diff']:.2e}"
         )
+
+    def test_sample_weights_added_to_input_targets(self, voom_data):
+        """R adds the sample.weight column to y$targets."""
+        from pylimma import EList
+        from pylimma.voom import vooma_lm_fit
+
+        expr = np.log2(voom_data["counts"] + 1)
+        targets = pd.DataFrame({"g": np.arange(expr.shape[1])})
+        fit = vooma_lm_fit(
+            EList({"E": expr, "targets": targets}), voom_data["design"], sample_weights=True
+        )
+        assert list(fit["targets"].columns) == ["g", "sample_weight"]
+        assert list(targets.columns) == ["g"]
+        fit = vooma_lm_fit(
+            EList({"E": expr, "targets": {"lib_size": np.ones(expr.shape[1])}}),
+            voom_data["design"],
+            sample_weights=True,
+        )
+        assert list(fit["targets"].columns) == ["lib_size", "sample_weight"]
+        named = pd.DataFrame(expr, columns=[f"s{j}" for j in range(expr.shape[1])])
+        for data in (named, EList({"E": named})):
+            fit = vooma_lm_fit(data, voom_data["design"], sample_weights=True)
+            assert list(fit["targets"].index) == list(named.columns)
+        with_ids = named.assign(gene=[f"g{i}" for i in range(len(named))])[["gene", *named.columns]]
+        fit = vooma_lm_fit(with_ids, voom_data["design"], sample_weights=True)
+        assert list(fit["targets"].index) == list(named.columns)
+
+    @pytest.mark.parametrize("with_predictor", [False, True])
+    def test_saved_plot_xlab(self, voom_data, with_predictor):
+        """R: "Average log2 expression", or "Combined predictor"
+        (generate_all_fixtures.R, "voomaLmFit names")."""
+        from pylimma.voom import vooma_lm_fit
+
+        expr = np.log2(voom_data["counts"] + 1)
+        predictor = expr if with_predictor else None
+        fit = vooma_lm_fit(expr, voom_data["design"], predictor=predictor, save_plot=True)
+        expected = "Combined predictor" if with_predictor else "Average log2 expression"
+        assert fit["voom_xy"]["xlab"] == expected
 
     def test_with_block_coefficients(self, voom_data):
         """Test voomaLmFit with block - coefficients."""
@@ -2437,7 +2477,7 @@ class TestVoomaLmFitBranchCoverage:
             f"voomaLmFit block+sw sigma differs: max_rel={result_s['max_rel_diff']:.2e}"
         )
         result_w = compare_arrays(
-            r_sw["sample.weights"].values, fit["targets"]["sample_weights"], rtol=1e-6
+            r_sw["sample.weights"].values, fit["targets"]["sample_weight"], rtol=1e-6
         )
         assert result_w["match"], (
             f"voomaLmFit block+sw sample_weights differ: max_rel={result_w['max_rel_diff']:.2e}"

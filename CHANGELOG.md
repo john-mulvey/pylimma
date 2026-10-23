@@ -241,6 +241,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `vooma_lm_fit` returns its output as R's `voomaLmFit`: with sample
+  weights, `targets` is the input's targets (or a new DataFrame named by
+  the samples) with a `sample_weight` column, where it was a dict
+  `{"sample_weights": ...}`, and the saved plot's `xlab` is "Average log2
+  expression" or "Combined predictor", where it was always "Average
+  log-expression". AnnData input still stores `sample_weights` in
+  `adata.uns`.
 - `zscore` takes a distribution's parameters with R's names, order and
   defaults (`df1`/`df2` for "f", `shape1`/`shape2` for "beta", `rate` for
   "exp", `size`/`prob` for "binom", positional arguments as R); it passed

@@ -929,8 +929,9 @@ def vooma_lm_fit(
         ``adata.uns[key]``, ancillaries in ``adata.uns[voom_key]``) and
         returns ``None``.
         For ndarray / EList / dict input: returns a dict with the fit
-        plus span, targets (if requested), EList (if keep_elist), and
-        voom_xy / voom_line (if save_plot).
+        plus span, targets (with sample weights: the input's targets, or a
+        new DataFrame, with a ``sample_weight`` column, as R), EList (if
+        keep_elist), and voom_xy / voom_line (if save_plot).
 
     Notes
     -----
@@ -1155,10 +1156,28 @@ def vooma_lm_fit(
     # Add span to output
     fit["span"] = span
 
-    # Add sample weights to targets
+    # R: fit$targets <- y$targets with a sample.weight column, else a data
+    # frame of the sample weights named by the samples
     if use_sample_weights:
-        fit["targets"] = {"sample_weights": sw}
+        targets = eawp.get("targets")
+        if isinstance(targets, dict):
+            # e.g. voom's {"lib_size": ...}
+            targets = pd.DataFrame(targets)
+        if isinstance(targets, pd.DataFrame):
+            targets = targets.assign(sample_weight=sw)
+        else:
+            # R: colnames(y), of a DataFrame or of an EList's E (the sample
+            # columns: get_eawp drops a leading gene-ID column)
+            source = original_input.get("E") if isinstance(original_input, dict) else original_input
+            sample_names = (
+                source.columns[source.shape[1] - n_samples :]
+                if isinstance(source, pd.DataFrame)
+                else None
+            )
+            targets = pd.DataFrame({"sample_weight": sw}, index=sample_names)
+        fit["targets"] = targets
 
+    xlab = "Combined predictor" if predictor is not None else "Average log2 expression"
     # Render trend plot if requested
     if plot:
         _draw_voom_trend(
@@ -1166,7 +1185,7 @@ def vooma_lm_fit(
             sy,
             x_sorted,
             y_sorted,
-            xlab=("Combined predictor" if predictor is not None else "Average log2 expression"),
+            xlab=xlab,
             ylab="Sqrt( standard deviation )",
             title=(
                 "vooma variance trend" if predictor is not None else "vooma mean-variance trend"
@@ -1178,7 +1197,7 @@ def vooma_lm_fit(
         fit["voom_xy"] = {
             "x": sx,
             "y": sy,
-            "xlab": "Average log-expression",
+            "xlab": xlab,
             "ylab": "Sqrt( standard deviation )",
         }
         fit["voom_line"] = {
@@ -1211,8 +1230,8 @@ def vooma_lm_fit(
         ancillary = {}
         if fit.get("span") is not None:
             ancillary["span"] = fit["span"]
-        if use_sample_weights and isinstance(fit.get("targets"), dict):
-            ancillary.update(fit["targets"])  # {"sample_weights": sw}
+        if use_sample_weights:
+            ancillary["sample_weights"] = sw
         if save_plot:
             if "voom_xy" in fit:
                 ancillary["voom_xy"] = fit["voom_xy"]
