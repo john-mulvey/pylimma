@@ -553,3 +553,33 @@ class TestContrastNamesInTopTable:
         # Columns should use contrast names
         assert "BvsA" in result.columns
         assert "CvsA" in result.columns
+
+
+class TestContrastsFitArguments:
+    """R behaviour recorded in the fixture script."""
+
+    def _fit(self):
+        from pylimma import lm_fit
+
+        design = np.column_stack([np.ones(6), [0.0, 0, 0, 1, 1, 1]])
+        return lm_fit(np.random.default_rng(1).normal(size=(10, 6)), design)
+
+    def test_float_coefficient_subsets(self):
+        fit = self._fit()
+        np.testing.assert_array_equal(
+            contrasts_fit(fit, coefficients=1.0)["coefficients"],
+            contrasts_fit(fit, coefficients=1)["coefficients"],
+        )
+
+    def test_wrong_sized_cov_coefficients_raises(self):
+        fit = self._fit()
+        fit["cov_coefficients"] = np.eye(3)
+        with pytest.raises(ValueError, match=r"has shape \(3, 3\), but the fit has 2"):
+            contrasts_fit(fit, np.array([[0.0], [1.0]]))
+        fit["cov_coefficients"] = 1.0
+        with pytest.raises(ValueError, match=r"cov_coefficients has shape \(\)"):
+            contrasts_fit(fit, np.array([[0.0], [1.0]]))
+
+    def test_missing_fit_raises_r_error(self):
+        with pytest.raises(ValueError, match="fit must contain coefficients component"):
+            contrasts_fit(None, np.array([[0.0], [1.0]]))

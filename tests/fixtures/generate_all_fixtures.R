@@ -6462,3 +6462,14 @@ stopifnot(grepl("incorrect length for 'group'",
                 try(avereps(new("EList", list(E = .ar_X, weights = c(1, 2, 3), genes = data.frame(ID = rep(letters[1:6], each = 2))))),
                     silent = TRUE)))
 
+# =============================================================================
+# contrasts.fit argument forms: coefficients = 1 (a double) subsets; a
+# cov.coefficients of the wrong size fails in chol() %*% (pylimma raises a
+# clear error); a NULL fit has no coefficients
+# =============================================================================
+.cf_fit <- lmFit(matrix(rnorm(60), 10), cbind(1, c(0, 0, 0, 1, 1, 1)))
+.cf_bad <- .cf_fit
+.cf_bad$cov.coefficients <- diag(3)
+stopifnot(identical(dim(contrasts.fit(.cf_fit, coefficients = 1)$coefficients), c(10L, 1L)),
+          grepl("non-conformable", try(contrasts.fit(.cf_bad, cbind(c(0, 1))), silent = TRUE)),
+          grepl("fit must contain coefficients component", try(contrasts.fit(NULL, cbind(c(0, 1))), silent = TRUE)))

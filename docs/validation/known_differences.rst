@@ -338,6 +338,13 @@ Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     R's ``order()`` follows the locale. ``generate_all_fixtures.R``
     records the R behaviour.
 
+``contrasts_fit`` with a ``cov_coefficients`` of the wrong size
+    Raises "cov_coefficients has shape (r, c), but the fit has p
+    coefficients". R
+    fails in ``chol(cov) %*% contrasts`` with "non-conformable arguments";
+    pylimma returned a result without complaint. ``generate_all_fixtures.R``
+    records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

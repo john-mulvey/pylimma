@@ -459,7 +459,10 @@ def contrasts_fit(
     ``adata[:, mask].copy()``; a bare ``fn(adata[:, mask])`` call
     discards the results.
 
-    Exactly one of `contrasts` or `coefficients` must be provided.
+    Exactly one of `contrasts` or `coefficients` must be provided. A
+    ``cov_coefficients`` that is not one row and column per coefficient
+    raises, where R fails in ``chol() %*% contrasts`` (see
+    :doc:`/validation/known_differences`).
 
     With `coefficients`, the result is ``fit[:, coefficients]``, as in R:
     existing test statistics are kept for the selected columns, F is
@@ -481,6 +484,9 @@ def contrasts_fit(
     assessing differential expression in microarray experiments.
     Statistical Applications in Genetics and Molecular Biology, 3(1), Article 3.
     """
+    # R: NULL$coefficients is NULL, so a missing fit fails this check
+    if data is None:
+        raise ValueError("fit must contain coefficients component")
     fit, _adata, _adata_key = _resolve_fit_input(data, key)
     is_anndata = _adata is not None
 
@@ -490,7 +496,7 @@ def contrasts_fit(
 
     # R contrasts.R:14: if coefficients are input, just subset (fit[, coefficients])
     if coefficients is not None:
-        if isinstance(coefficients, (str, int, np.integer)):
+        if np.ndim(coefficients) == 0:
             coefficients = [coefficients]
         return _return_fit(MArrayLM(fit)[:, list(coefficients)], data, key, is_anndata)
 
@@ -568,6 +574,12 @@ def contrasts_fit(
         cormatrix = np.eye(n_coef)
     else:
         cov_coefficients = np.asarray(cov_coefficients, dtype=np.float64)
+        # R fails in chol(cov) %*% contrasts ("non-conformable arguments")
+        if cov_coefficients.shape != (n_coef, n_coef):
+            raise ValueError(
+                f"cov_coefficients has shape {cov_coefficients.shape}, but the fit has "
+                f"{n_coef} coefficients"
+            )
         estimable = ~np.isnan(np.diag(cov_coefficients))
         if not estimable.all():
             if fit.get("pivot") is None:

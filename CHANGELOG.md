@@ -378,6 +378,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `contrasts_fit` takes a float scalar `coefficients` (1.0), as R does
+  (it raised `TypeError`), raises R's "fit must contain coefficients
+  component" for a missing fit (it raised `AttributeError`), and raises a
+  clear error for a `cov_coefficients` whose size does not match the
+  coefficients, where it returned a result silently (see known
+  differences).
 - `avereps` on an `EList` averages every matrix in `other` and weights
   given as a vector (as one column, R's `as.matrix`), as R does; they were
   left with one row per probe while `E` was averaged. Weights or `other`
