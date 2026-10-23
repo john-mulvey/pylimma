@@ -494,6 +494,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `modify_weights` defaults `weights` to 1 for each `status`, as R's
+  `modifyWeights` (`weights` was required, and None raised an
+  IndexError); a missing `status`, `values` or `multipliers` raises R's
+  "argument is missing" error.
 - `array_weights` requires `maxiter` to be a whole number of at least 1
   and `prior_n` a finite number of 0 or more; `prior_n=Inf` gave NaN
   weights or scipy's error and `maxiter=0` no iteration (R's `1:0`

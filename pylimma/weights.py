@@ -763,10 +763,10 @@ def array_weights_quick(
 
 
 def modify_weights(
-    weights,
-    status,
-    values,
-    multipliers,
+    weights=None,
+    status=None,
+    values=None,
+    multipliers=None,
 ) -> np.ndarray:
     """
     Multiply rows of a weights matrix by status-specific scalars.
@@ -777,12 +777,14 @@ def modify_weights(
 
     Parameters
     ----------
-    weights : array_like
+    weights : array_like, optional
         Weights matrix of shape (n_features, n_arrays). 1-D inputs are
         promoted to a single-column matrix to mirror R's
-        ``as.matrix(weights)``.
+        ``as.matrix(weights)``. Defaults to a weight of 1 for each
+        ``status``, as R.
     status : array_like
         Per-row status labels. Length must equal ``nrow(weights)``.
+        ``status``, ``values`` and ``multipliers`` are required, as in R.
     values : sequence
         Status values to act on. As in R, ``status`` and ``values`` are
         compared as R's ``as.character()`` renders them, so ``1.0`` matches
@@ -797,9 +799,13 @@ def modify_weights(
         Updated weights matrix, same shape as the input (1-D inputs
         come back as a column matrix to match R).
     """
+    for name, value in (("status", status), ("values", values), ("multipliers", multipliers)):
+        if value is None:
+            raise TypeError(f'argument "{name}" is missing, with no default')
     # R: as.character() on both status and values, then string equality
     status = _r_as_character(status)
-    weights = np.asarray(weights, dtype=np.float64)
+    # R: weights = rep(1, length(status))
+    weights = np.ones(status.size) if weights is None else np.asarray(weights, dtype=np.float64)
     if weights.ndim == 1:
         weights = weights.reshape(-1, 1)
     weights = weights.copy()

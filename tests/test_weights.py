@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pylimma.weights import array_weights
+from pylimma.weights import array_weights, modify_weights
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -52,3 +52,11 @@ def test_invalid_prior_n_and_maxiter_raise(method, kwargs, message):
     # R: prior.n = Inf gives NaN weights or stops in lm.wfit; 1:0 iterates
     with pytest.raises(ValueError, match=message):
         array_weights(_fixture("aws_maxiter_input"), method=method, **kwargs)
+
+
+def test_modify_weights_default_weights_are_one():
+    np.testing.assert_array_equal(
+        modify_weights(status=["a", "b"], values=["a"], multipliers=0), [[0.0], [1.0]]
+    )
+    with pytest.raises(TypeError, match='argument "values" is missing'):
+        modify_weights(status=["a", "b"])
