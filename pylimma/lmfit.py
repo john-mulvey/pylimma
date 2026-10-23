@@ -1447,7 +1447,7 @@ def lm_fit(
     if ndups > 1:
         amean = _row_means(unwrap_dups(amean.reshape(-1, 1), ndups=ndups, spacing=spacing))
     fit["Amean"] = amean
-    fit["design"] = design
+    fit["design"] = design.copy()
     # R lmfit.R:60: y$probes <- uniquegenelist(y$probes, ndups, spacing),
     # one annotation row per fitted (unwrapped) row.
     genes = _fit_genes(data, eawp)

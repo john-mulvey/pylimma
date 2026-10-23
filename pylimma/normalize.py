@@ -131,9 +131,7 @@ def normalize_between_arrays(
         )
 
     if method == "none":
-        # A copy, so the result never shares memory with the input (R's
-        # copy-on-modify); get_eawp does not copy.
-        normalized = arr.copy()
+        normalized = arr
     elif method == "scale":
         normalized = normalize_median_values(arr)
     elif method == "quantile":
@@ -166,7 +164,7 @@ def normalize_median_values(x: np.ndarray) -> np.ndarray:
     """
     x = _as_dense_array(x, np.float64)
     if x.ndim == 1 or x.shape[1] == 1:
-        return x
+        return x.copy()
     cmed = np.log(np.nanmedian(x, axis=0))
     cmed = np.exp(cmed - np.mean(cmed))
     return x / cmed[np.newaxis, :]

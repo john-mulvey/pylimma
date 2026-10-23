@@ -13,6 +13,7 @@ Implements the core eBayes statistics from limma:
 from __future__ import annotations
 
 import warnings
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -250,12 +251,11 @@ def e_bayes(
     fit, adata, adata_key = _resolve_fit_input(data, key)
     is_anndata = adata is not None
 
-    # Shallow-copy so e_bayes(fit) does not mutate the caller's
+    # Deep-copy so e_bayes(fit) shares no arrays with the caller's
     # lm_fit/contrasts_fit output. Matches R's copy-on-modify:
     # `fit <- eBayes(fit)` returns a new list whether or not the
-    # caller rebinds the original name. Slot arrays remain shared
-    # references (none of the code below writes into them in place).
-    fit = MArrayLM(fit)
+    # caller rebinds the original name.
+    fit = MArrayLM(deepcopy(dict(fit)))
 
     # Validate fit object
     coefficients = fit.get("coefficients")
@@ -503,9 +503,9 @@ def treat(
     fit, adata, adata_key = _resolve_fit_input(data, key)
     is_anndata = adata is not None
 
-    # Shallow-copy so treat(fit) does not mutate the caller's fit.
+    # Deep-copy so treat(fit) shares no arrays with the caller's fit.
     # Matches R's copy-on-modify; see e_bayes for rationale.
-    fit = MArrayLM(fit)
+    fit = MArrayLM(deepcopy(dict(fit)))
 
     # Validate fit object
     coefficients = fit.get("coefficients")

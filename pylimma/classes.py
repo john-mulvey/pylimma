@@ -1051,6 +1051,9 @@ def put_eawp(
     """
     if "E" not in slots:
         raise ValueError("put_eawp: slots must contain 'E'")
+    # A copy, so the result never shares memory with the input (R's
+    # copy-on-modify); get_eawp does not copy
+    slots = {**slots, "E": np.array(slots["E"])}
 
     if _is_anndata(original):
         adata = original

@@ -20,6 +20,7 @@ Provides utilities for working with within-array replicate spots.
 from __future__ import annotations
 
 import warnings
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -282,9 +283,10 @@ def unwrap_dups(
     This function matches R limma's unwrapdups behaviour. The output has
     columns ordered as: [dup0-array0, dup1-array0, ..., dup0-array1, ...].
     """
-    # R: if(ndups==1) return(M), whatever spacing is
+    # R: if(ndups==1) return(M), whatever spacing is (a copy, as R's
+    # copy-on-modify)
     if ndups == 1:
-        return M
+        return deepcopy(M)
     ndups, spacing = _whole_count(ndups, "ndups"), _whole_count(spacing, "spacing")
 
     M = _as_dense_array(M, np.float64)
@@ -382,9 +384,10 @@ def ave_dups(
     ndarray
         Averaged matrix, shape (n_genes, n_arrays).
     """
-    # R: if(ndups==1) return(x), whatever spacing is
+    # R: if(ndups==1) return(x), whatever spacing is (a copy, as R's
+    # copy-on-modify)
     if ndups == 1:
-        return x
+        return deepcopy(x)
     ndups, spacing = _whole_count(ndups, "ndups"), _whole_count(spacing, "spacing")
 
     x = _as_dense_array(x, np.float64)

@@ -377,12 +377,13 @@ class TestDuplicateCounts:
         """R: uniquegenelist returns the list for ndups <= 1;
         duplicateCorrelation warns 'No duplicates' for ndups < 2;
         unwrapdups / avedups return their input for ndups == 1, whatever
-        spacing is."""
+        spacing is (a copy, as R's copy-on-modify)."""
         from pylimma import duplicate_correlation
 
         x = np.ones((4, 2))
-        assert unwrap_dups(x, ndups=1, spacing=None) is x
-        assert ave_dups(x, ndups=1, spacing=0) is x
+        for result in (unwrap_dups(x, ndups=1, spacing=None), ave_dups(x, ndups=1, spacing=0)):
+            np.testing.assert_array_equal(result, x)
+            assert not np.shares_memory(result, x)
 
         assert unique_genelist(list("abcd"), ndups=0) == list("abcd")
         with pytest.warns(UserWarning, match="No duplicates"):

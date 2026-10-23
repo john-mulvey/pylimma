@@ -1231,12 +1231,25 @@ _PASS_THROUGH_CALLS = {
     "normalize_none": lambda x: pylimma.normalize_between_arrays(x, method="none"),
     "remove_batch_effect_no_batch": lambda x: pylimma.remove_batch_effect(x),
 }
+_ONE_COLUMN_PASS_THROUGH_CALLS = {
+    "normalize_median_values": pylimma.normalize_median_values,
+    "ave_dups_ndups_1": lambda x: pylimma.ave_dups(x, ndups=1),
+    "unwrap_dups_ndups_1": lambda x: pylimma.unwrap_dups(x, ndups=1),
+}
 
 
 @pytest.mark.parametrize("name", list(_PASS_THROUGH_CALLS))
 def test_pass_through_result_does_not_alias_matrix_input(name):
     x = np.random.default_rng(1).normal(size=(10, 4))
     result = _PASS_THROUGH_CALLS[name](x)
+    np.testing.assert_array_equal(result, x)
+    assert not np.shares_memory(result, x)
+
+
+@pytest.mark.parametrize("name", list(_ONE_COLUMN_PASS_THROUGH_CALLS))
+def test_one_column_pass_through_does_not_alias_input(name):
+    x = np.random.default_rng(1).normal(size=(10, 1))
+    result = _ONE_COLUMN_PASS_THROUGH_CALLS[name](x)
     np.testing.assert_array_equal(result, x)
     assert not np.shares_memory(result, x)
 
@@ -1249,6 +1262,38 @@ def test_pass_through_layer_does_not_alias_x(name):
     _PASS_THROUGH_CALLS[name](adata)
     (layer,) = [k for k in adata.layers]
     assert not np.shares_memory(adata.layers[layer], adata.X)
+
+
+def _shared_arrays(output, inputs):
+    """Names of (output slot, input) pairs whose arrays share memory."""
+    return [
+        (slot, name)
+        for slot, value in output.items()
+        for name, array in inputs.items()
+        if isinstance(value, (np.ndarray, pd.DataFrame))
+        and np.shares_memory(np.asarray(value), array)
+    ]
+
+
+def test_fit_and_vooma_outputs_do_not_alias_inputs():
+    rng = np.random.default_rng(1)
+    expr = rng.normal(5, 1, (60, 8))
+    design = np.column_stack([np.ones(8), [0] * 4 + [1] * 4])
+    fit = pylimma.lm_fit(expr, design)
+    assert _shared_arrays(fit, {"expr": expr, "design": design}) == []
+    assert _shared_arrays(pylimma.vooma(expr, design), {"expr": expr, "design": design}) == []
+    group = np.repeat([0, 1], 4)
+    assert _shared_arrays(pylimma.vooma_by_group(expr, group), {"expr": expr}) == []
+    vooma_fit = pylimma.vooma_lm_fit(expr, design, keep_elist=True)
+    assert _shared_arrays(vooma_fit["EList"], {"expr": expr}) == []
+
+    fit_arrays = {k: v for k, v in fit.items() if isinstance(v, np.ndarray)}
+    for derived in (
+        pylimma.e_bayes(fit),
+        pylimma.treat(fit),
+        pylimma.contrasts_fit(fit, np.eye(2)),
+    ):
+        assert _shared_arrays(derived, fit_arrays) == []
 
 
 # ---------------------------------------------------------------------------

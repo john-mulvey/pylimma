@@ -452,6 +452,14 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- Outputs no longer share memory with their inputs, as R's
+  copy-on-modify: `lm_fit`'s `design` slot, the `E` of `vooma` and
+  `vooma_by_group` (every expression matrix returned through `put_eawp`
+  is now a copy), the voom family's `design`, `vooma_lm_fit`'s kept
+  `EList`, every slot of the fits returned by `e_bayes`, `treat` and
+  `contrasts_fit`, and the inputs that `normalize_median_values` (one
+  column), `ave_dups` and `unwrap_dups` (`ndups=1`) returned unchanged.
+  Editing one in place changed the other.
 - `select_model(criterion=None)` uses "aic", as R's `match.arg(NULL)` picks
   the first choice (it raised `AttributeError`), and an empty
   `design_list` raises a clear error.

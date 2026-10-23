@@ -33,10 +33,11 @@ from .utils import _block_labels, _r_approx_rule2, _r_lowess, choose_lowess_span
 def _named_design(design: np.ndarray, names: list[str] | None):
     """Output form of a parsed design: a DataFrame when column names are
     known (R keeps colnames(design) on v$design, so lm_fit(v) recovers
-    coefficient names), otherwise the bare matrix."""
+    coefficient names), otherwise the bare matrix. Either is a copy, so the
+    output shares no memory with the caller's design."""
     if names is None:
-        return design
-    return pd.DataFrame(design, columns=names)
+        return design.copy()
+    return pd.DataFrame(design, columns=names, copy=True)
 
 
 def _validate_predictor(predictor, y: np.ndarray) -> np.ndarray:
@@ -1184,7 +1185,7 @@ def vooma_lm_fit(
     # Add EList if requested
     if keep_elist:
         fit["EList"] = {
-            "E": y,
+            "E": y.copy(),
             "weights": weights,
         }
 

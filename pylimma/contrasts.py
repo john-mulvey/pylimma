@@ -20,6 +20,7 @@ from __future__ import annotations
 import re
 import warnings
 from collections import Counter
+from copy import deepcopy
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -506,8 +507,12 @@ def contrasts_fit(
         raise ValueError("fit must contain stdev_unscaled component")
 
     # Remove test statistics in case e_bayes() has previously been run
+    # Deep-copy so the result shares no arrays with the caller's fit (R's
+    # copy-on-modify)
     fit = MArrayLM(
-        {k: v for k, v in fit.items() if k not in ("t", "p_value", "lods", "F", "F_p_value")}
+        deepcopy(
+            {k: v for k, v in fit.items() if k not in ("t", "p_value", "lods", "F", "F_p_value")}
+        )
     )
     fit_coef = np.asarray(fit["coefficients"], dtype=np.float64)
     stdev_unscaled = np.asarray(fit["stdev_unscaled"], dtype=np.float64)
