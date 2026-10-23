@@ -1793,12 +1793,12 @@ def _prop_true_null_by_mean_p(p: np.ndarray) -> float:
 def _prop_true_null_from_histogram(p: np.ndarray, nbins: int = 20) -> float:
     # bin <- c(-0.1, (1:nbins)/nbins)
     edges = np.concatenate([[-0.1], np.arange(1, nbins + 1) / nbins])
-    # tab <- tabulate(cut(p, bin))  -> counts in each bin
-    bin_counts = np.zeros(nbins, dtype=np.int64)
-    # np.histogram uses (left, right] by default (include right edge), matching
-    # R's cut() default right=TRUE.
-    counts, _ = np.histogram(p, bins=edges)
-    bin_counts[: counts.size] = counts
+    # tab <- tabulate(cut(p, bin)): cut's bins are (left, right], so a value
+    # on an edge counts in the bin below it; values outside the bins (and
+    # NaN) are not counted
+    bin_index = np.searchsorted(edges, p, side="left") - 1
+    in_bins = (bin_index >= 0) & (bin_index < nbins)
+    bin_counts = np.bincount(bin_index[in_bins], minlength=nbins)
     # tail.means <- rev(cumsum(rev(bin.counts))/(1:nbins))
     rev_counts = bin_counts[::-1]
     cum = np.cumsum(rev_counts)

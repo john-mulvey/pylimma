@@ -6299,3 +6299,12 @@ write.csv(rbind(
   .bc_draw("negative", index = .bc_index, gene.weights = -.bc_weights),
   .bc_draw("no_worm", index = .bc_index, worm = FALSE)),
   "R_bc_draw.csv", row.names = FALSE)
+
+# =============================================================================
+# propTrueNull(method="hist"): cut() bins are (left, right], so a p-value on a
+# bin edge counts in the bin below it
+# =============================================================================
+set.seed(1211)
+.ptn_p <- c(round(runif(150), 2), (1:20) / 20, 0)
+write.csv(data.frame(p = .ptn_p), "R_ptn_edges_p.csv", row.names = FALSE)
+write.csv(data.frame(pi0 = propTrueNull(.ptn_p, method = "hist")), "R_ptn_edges.csv", row.names = FALSE)

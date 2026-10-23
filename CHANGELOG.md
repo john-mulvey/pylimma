@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `prop_true_null(method="hist")` counted a p-value lying on a bin edge
+  (such as 0.05 or 1) in the bin above it; as R's `cut()`, the bins are
+  (left, right], so it counts in the bin below.
 - `gene_set_test(ranks_only=False)` compares exactly rounded means, so a
   random set with the same values ties the observed set exactly (a set of
   all genes gave p 0.78 instead of 1; tie-heavy statistics were biased).

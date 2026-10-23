@@ -467,6 +467,13 @@ def test_prop_true_null_all_methods_match_r():
         )
 
 
+def test_prop_true_null_hist_counts_edges_in_the_bin_below_as_r():
+    """R's cut() bins are (left, right]: p-values on the bin edges."""
+    p = _load("R_ptn_edges_p.csv")["p"].values
+    expected = _load("R_ptn_edges.csv")["pi0"][0]
+    np.testing.assert_allclose(prop_true_null(p, method="hist"), expected, rtol=1e-6, atol=1e-12)
+
+
 def test_prop_true_null_rejects_unknown_method():
     with pytest.raises(ValueError):
         prop_true_null(np.array([0.1, 0.5, 0.9]), method="unknown")
