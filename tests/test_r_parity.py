@@ -1429,6 +1429,39 @@ class TestTopTableEdgeCasesRParity:
         with pytest.raises(ValueError, match="number must not be NaN"):
             top_table(fit, coef=1, number=np.nan)
 
+    @pytest.mark.parametrize(
+        "case, coef, genelist, annotation",
+        [
+            ("unique", 1, [f"id{i}" for i in range(1, 21)], ["ID"]),
+            ("unique_F", [1, 2], [f"id{i}" for i in range(1, 21)], ["ProbeID"]),
+            (
+                "dup",
+                1,
+                pd.DataFrame(
+                    {"ID": [f"id{i}" for i in range(1, 21)], "Sym": list("abcdefghijklmnopqrst")}
+                ),
+                ["ID", "Sym", "ID0"],
+            ),
+        ],
+    )
+    def test_genelist_columns_first_and_fit_row_names_kept(self, case, coef, genelist, annotation):
+        """R puts the genelist columns first and names the rows after the
+        fit, moving duplicated names to an ID / ID0 column."""
+        y = load_r_csv("toptable_genelist_expr")
+        if case == "dup":
+            y.index = list(y.index[:18]) + ["g5", "g5"]
+        design = np.column_stack([np.ones(6), np.tile([0, 1], 3), [0, 0, 1, 1, 0, 1]])
+        tab = top_table(e_bayes(lm_fit(y, design)), coef=coef, number=5, genelist=genelist)
+        r_tab = load_r_csv(f"toptable_genelist_{case}")
+        assert list(r_tab.columns[: len(annotation)]) == annotation
+        assert list(tab.columns[: len(annotation)]) == annotation
+        assert [str(name) for name in tab.index] == [str(name) for name in r_tab.index]
+        pd.testing.assert_frame_equal(
+            tab[annotation].reset_index(drop=True), r_tab[annotation].reset_index(drop=True)
+        )
+        stat = "F" if case == "unique_F" else "t"
+        assert compare_arrays(r_tab[stat].to_numpy(), tab[stat].to_numpy())["match"]
+
 
 class TestTopTreatRParity:
     """Test topTreat matches R."""

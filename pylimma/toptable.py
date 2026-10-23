@@ -76,6 +76,74 @@ def _handle_duplicated_rownames(
     return genes, genelist_df
 
 
+def _fit_row_names(fit, n_genes: int) -> list | None:
+    """R's ``rownames(fit$coefficients)``: the index of a DataFrame of
+    coefficients, else the names in ``fit["genes"]`` (its index, or the
+    names themselves when lm_fit stored a list). None when the fit has no
+    row names; a default RangeIndex counts as none."""
+    coefficients = fit["coefficients"]
+    genes = fit.get("genes")
+    if isinstance(coefficients, pd.DataFrame):
+        index = coefficients.index
+    elif isinstance(genes, pd.DataFrame):
+        index = genes.index
+    elif genes is not None and np.ndim(genes) == 1 and len(genes) == n_genes:
+        return list(genes)
+    else:
+        return None
+    if isinstance(index, pd.RangeIndex) or len(index) != n_genes:
+        return None
+    return list(index)
+
+
+def _table_genes(
+    fit, genelist, explicit: bool, n_genes: int, vector_column: str
+) -> tuple[list, pd.DataFrame | None]:
+    """Row names and annotation columns of a top table (R's ``rn`` and
+    ``genelist`` in .topTableT / .topTableF).
+
+    The rows are named after the fit's row names, as R; when the fit has
+    none, after a DataFrame genelist's index, else ``gene1``..``geneN``
+    without a genelist and ``1``..``N`` with a vector genelist (R numbers
+    the rows 1..N). An explicit vector genelist becomes the column
+    ``vector_column`` (R's ``ID`` for topTable, ``ProbeID`` for
+    topTableF); the default genelist, ``fit["genes"]``, as a vector only
+    names the rows. Duplicated row names move to an ID (or ID0) column.
+    """
+    row_names = _fit_row_names(fit, n_genes)
+    if isinstance(genelist, (tuple, pd.Series, pd.Index)):
+        genelist = list(genelist)
+    # R's genelist[top, ] of a list or data frame of another length gives NA
+    # rows
+    vector_or_frame = isinstance(genelist, (list, np.ndarray, pd.DataFrame))
+    if explicit and vector_or_frame and len(genelist) != n_genes:
+        raise ValueError(
+            f"genelist must have one entry per gene ({n_genes}), not {len(genelist)}"
+        )
+    if genelist is None:
+        genes = row_names or [f"gene{i + 1}" for i in range(n_genes)]
+        genelist_df = None
+    elif isinstance(genelist, pd.DataFrame):
+        if row_names is not None:
+            genes = row_names
+        elif len(genelist.index) == n_genes:
+            genes = list(genelist.index)
+        else:
+            genes = list(range(n_genes))
+        genelist_df = genelist.copy()
+    elif isinstance(genelist, (list, np.ndarray)) and len(genelist) == n_genes:
+        if explicit:
+            genelist_df = pd.DataFrame({vector_column: list(genelist)})
+            genes = row_names or list(range(1, n_genes + 1))
+        else:
+            genes = row_names or list(genelist)
+            genelist_df = None
+    else:
+        genes = row_names or [f"gene{i + 1}" for i in range(n_genes)]
+        genelist_df = None
+    return _handle_duplicated_rownames(genes, genelist_df)
+
+
 def top_table(
     data,
     coef: int | str | list | None = None,
@@ -107,9 +175,12 @@ def top_table(
     number : int, default 10
         Maximum number of genes to return. Use np.inf for all genes.
     genelist : DataFrame, list, or array, optional
-        Gene annotations to include in output. If a DataFrame, columns
-        are merged with results. If a list/array, used as gene identifiers.
-        If None (default), uses fit["genes"] if available.
+        Gene annotations to include in output, as the first columns. A
+        list, array or Series becomes an ``ID`` column (``ProbeID`` for
+        several coefficients), as R; it must have one entry per gene. If None (default), uses fit["genes"] if
+        available. The rows are named after the fit's gene names, as R;
+        duplicated names move to an ``ID`` column (``ID0`` when the
+        genelist has an ``ID``) and the rows are numbered 1..N.
 
         For AnnData input, fit["genes"] only carries var_names; annotation
         columns in ``adata.var`` (e.g. ``symbol``, ``chromosome``) are not
@@ -370,38 +441,8 @@ def _top_table_t(
     else:
         ave_expr = np.full(n_genes, np.nan)
 
-    # Handle genelist. R toptable.R:168 wraps an explicit vector
-    # genelist as `data.frame(ID=genelist)` so it appears as an ID
-    # column. pylimma additionally auto-defaults `genelist` to
-    # `fit["genes"]` (set from rownames in lm_fit) - that auto-default
-    # is treated as the row index, NOT an ID column, to preserve
-    # rownames flow through the pipeline.
-    if genelist is None:
-        genes = [f"gene{i + 1}" for i in range(n_genes)]
-        genelist_df = None
-    elif isinstance(genelist, pd.DataFrame):
-        genes = list(genelist.index) if len(genelist.index) == n_genes else list(range(n_genes))
-        genelist_df = genelist.copy()
-    elif isinstance(genelist, (list, np.ndarray)):
-        if len(genelist) == n_genes:
-            if _genelist_explicit:
-                # Explicit vector → ID column, row index from fit rownames
-                # (or 1..N fallback matching R toptable.R:170-172).
-                genelist_df = pd.DataFrame({"ID": list(genelist)})
-                genes = list(range(1, n_genes + 1))
-            else:
-                # Auto-default from fit["genes"] → use as row index
-                genes = list(genelist)
-                genelist_df = None
-        else:
-            genes = [f"gene{i}" for i in range(n_genes)]
-            genelist_df = None
-    else:
-        genes = [f"gene{i + 1}" for i in range(n_genes)]
-        genelist_df = None
-
-    # Handle duplicated gene names (DataFrame index must be unique)
-    genes, genelist_df = _handle_duplicated_rownames(genes, genelist_df)
+    # R toptable.R:150-170: an explicit vector genelist is data.frame(ID=)
+    genes, genelist_df = _table_genes(fit, genelist, _genelist_explicit, n_genes, "ID")
 
     # Confidence intervals
     margin_error = None
@@ -542,14 +583,14 @@ def _top_table_t(
     cols["adj_p_value"] = adj_p_val
     if has_lods:
         cols["b"] = b_stat
-    df = pd.DataFrame(cols)
-
-    # Add genelist columns if DataFrame
+    # R puts the genelist columns first (a column named like a statistic
+    # gives way to the statistic)
     if genelist_df is not None:
-        for col in genelist_df.columns:
-            if col not in df.columns:
-                df[col] = genelist_df[col].values
-
+        cols = {
+            **{col: genelist_df[col].values for col in genelist_df.columns if col not in cols},
+            **cols,
+        }
+    df = pd.DataFrame(cols)
     df.index = genes
     df.index.name = "gene"
 
@@ -683,15 +724,7 @@ def _top_table_f(
     if sort_by not in ("F", "none"):
         raise ValueError(f"sort_by={sort_by!r} not recognised. Must be one of 'F', 'none'.")
 
-    # R topTableF.R:12: `rn <- rownames(M)`. When fit["coefficients"]
-    # is a DataFrame, surface its index as `coef_rownames` so duplicate
-    # detection (R-B11a topTableF.R:27-28) can promote them to an ID
-    # column. Plain ndarray inputs leave coef_rownames at None.
-    coef_obj = fit["coefficients"]
-    coef_rownames = None
-    if isinstance(coef_obj, pd.DataFrame):
-        coef_rownames = list(coef_obj.index)
-    coef_matrix = np.asarray(coef_obj)
+    coef_matrix = np.asarray(fit["coefficients"])
     if coef_idx is None:
         # R's topTableF uses the whole coefficient matrix.
         coef_idx = list(range(coef_matrix.shape[1]))
@@ -733,53 +766,8 @@ def _top_table_f(
     else:
         ave_expr = np.full(n_genes, np.nan)
 
-    # Handle genelist. R topTableF.R:85 wraps an explicit vector as
-    # `data.frame(ProbeID=genelist)` so it appears as a ProbeID column.
-    # pylimma's auto-default from `fit["genes"]` is used as the row
-    # index instead - see `_top_table_t` for the same pattern.
-    if genelist is None:
-        genes = (
-            list(coef_rownames)
-            if coef_rownames is not None
-            else [f"gene{i + 1}" for i in range(n_genes)]
-        )
-        genelist_df = None
-    elif isinstance(genelist, pd.DataFrame):
-        genes = list(genelist.index) if len(genelist.index) == n_genes else list(range(n_genes))
-        genelist_df = genelist.copy()
-    elif isinstance(genelist, (list, np.ndarray)):
-        if len(genelist) == n_genes:
-            if _genelist_explicit:
-                genelist_df = pd.DataFrame({"ProbeID": list(genelist)})
-                genes = list(range(1, n_genes + 1))
-            else:
-                genes = list(genelist)
-                genelist_df = None
-        else:
-            genes = [f"gene{i}" for i in range(n_genes)]
-            genelist_df = None
-    else:
-        genes = [f"gene{i + 1}" for i in range(n_genes)]
-        genelist_df = None
-
-    # R topTableF.R:87-100: when rownames(M) (i.e. fit$coefficients
-    # rownames) has duplicates, promote them to an ID/ID0 column and
-    # reset rn to 1..N. coef_rownames is None for ndarray fits;
-    # _handle_duplicated_rownames() catches the simpler case of
-    # duplicates inside `genes` itself.
-    if coef_rownames is not None and len(coef_rownames) != len(set(coef_rownames)):
-        if genelist_df is None:
-            genelist_df = pd.DataFrame({"ID": list(coef_rownames)})
-        elif "ID" in genelist_df.columns:
-            genelist_df = genelist_df.copy()
-            genelist_df["ID0"] = list(coef_rownames)
-        else:
-            genelist_df = genelist_df.copy()
-            genelist_df["ID"] = list(coef_rownames)
-        genes = list(range(1, n_genes + 1))
-    else:
-        # Handle duplicated gene names (DataFrame index must be unique)
-        genes, genelist_df = _handle_duplicated_rownames(genes, genelist_df)
+    # R topTableF.R:17: an explicit vector genelist is data.frame(ProbeID=)
+    genes, genelist_df = _table_genes(fit, genelist, _genelist_explicit, n_genes, "ProbeID")
 
     # Multiple testing adjustment
     adj_p_val = p_adjust(f_p_val, method=adjust_method)

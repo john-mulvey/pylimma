@@ -6820,3 +6820,19 @@ stopifnot(all(vapply(.dn_same, function(m) identical(dimnames(m), dimnames(.dn_x
                     list(c("a", "b", "e", "f"), LETTERS[1:8])),
           identical(dimnames(avearrays(.dn_x, rep(c("p", "q"), 4))), list(letters[1:8], c("p", "q"))),
           identical(colnames(avearrays(.dn_x, rep(c("p", "q"), 4), weights = matrix(1, 8, 8))), c("IDp", "IDq")))
+
+# =============================================================================
+# topTable with a genelist: the genelist columns come first and the rows keep
+# the fit's row names (an ID / ID0 column when they are duplicated)
+# =============================================================================
+set.seed(1306)
+.tg_y <- matrix(rnorm(120), 20, 6, dimnames = list(paste0("g", 1:20), NULL))
+.tg_d <- cbind(1, rep(0:1, 3), c(0, 0, 1, 1, 0, 1))
+write.csv(.tg_y, "R_toptable_genelist_expr.csv")
+.tg_fit <- eBayes(lmFit(.tg_y, .tg_d))
+write.csv(topTable(.tg_fit, coef = 2, number = 5, genelist = paste0("id", 1:20)), "R_toptable_genelist_unique.csv")
+write.csv(topTable(.tg_fit, coef = 2:3, number = 5, genelist = paste0("id", 1:20)), "R_toptable_genelist_unique_F.csv")
+rownames(.tg_y)[19:20] <- "g5"
+.tg_fit <- eBayes(lmFit(.tg_y, .tg_d))
+write.csv(topTable(.tg_fit, coef = 2, number = 5, genelist = data.frame(ID = paste0("id", 1:20), Sym = letters[1:20])),
+          "R_toptable_genelist_dup.csv")

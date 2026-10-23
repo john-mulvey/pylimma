@@ -234,6 +234,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `top_table` with a `genelist` puts its columns first, as R (they came
+  after the statistics for a single coefficient), and names the rows
+  after the fit's gene names, as R: an explicit genelist replaced them
+  with its own index or 1..N, and duplicated fit names were not moved to
+  an `ID` / `ID0` column. A Series genelist is a vector, as R (it was
+  silently dropped), and a vector genelist of the wrong length raises.
 - A pandas DataFrame input gives a DataFrame result with its index and
   columns, as R keeps dimnames, where pylimma returned a bare ndarray:
   `normalize_quantiles`, `normalize_median_values`,

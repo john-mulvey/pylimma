@@ -435,3 +435,20 @@ def test_coef_forms_follow_r():
     # R's logical coef fails while building the table
     with pytest.raises(ValueError, match="not logical"):
         top_table(fit, coef=True)
+
+
+def test_vector_genelist_as_series_and_of_wrong_length():
+    """A Series genelist is a vector, as R's data.frame(ID = genelist); one of
+    the wrong length raises (R pads with NA rows)."""
+    rng = np.random.default_rng(1)
+    design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
+    fit = e_bayes(lm_fit(rng.normal(size=(10, 8)), design))
+    ids = [f"id{i}" for i in range(10)]
+    pd.testing.assert_frame_equal(
+        top_table(fit, coef=1, genelist=pd.Series(ids, name="symbol")),
+        top_table(fit, coef=1, genelist=ids),
+    )
+    with pytest.raises(ValueError, match="one entry per gene"):
+        top_table(fit, coef=1, genelist=ids[:9])
+    with pytest.raises(ValueError, match="one entry per gene"):
+        top_table(fit, coef=1, genelist=pd.DataFrame({"ID": ids + ["extra"]}))
