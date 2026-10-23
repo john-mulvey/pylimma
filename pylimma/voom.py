@@ -27,7 +27,7 @@ from scipy import linalg
 
 from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
 from .lmfit import _fit_genes, _numeric_design, _parse_design, _qr_r_style, lm_fit
-from .utils import _r_approx_rule2, _r_lowess, choose_lowess_span
+from .utils import _block_labels, _r_approx_rule2, _r_lowess, choose_lowess_span
 
 
 def _named_design(design: np.ndarray, names: list[str] | None):
@@ -735,9 +735,7 @@ def vooma(
         s2 = np.mean(residual_effects**2, axis=0)
     else:
         # With block correlation
-        block = np.asarray(block)
-        if len(block) != n_samples:
-            raise ValueError("Length of block does not match number of arrays")
+        block = _block_labels(block, n_samples)
         if correlation is None:
             raise ValueError(
                 "correlation must be specified when block is provided. "

@@ -224,6 +224,19 @@ def _r_nelder_mead(fun, x0, args=()):
     )
 
 
+def _block_labels(block, n: int) -> np.ndarray:
+    """A block factor as an array, one label per array. R's block code has
+    no check for missing labels and fails obscurely (chol in gls.series,
+    model.matrix in duplicateCorrelation), so a missing label (None, NaN,
+    pandas NA) raises a clear error."""
+    block = np.asarray(block)
+    if len(block) != n:
+        raise ValueError("Length of block does not match number of arrays")
+    if pd.isna(block).any():
+        raise ValueError("block contains missing values; give every array a block label")
+    return block
+
+
 def _r_ppoints(n: int) -> np.ndarray:
     """R's ppoints(n): (1:n - a) / (n + 1 - 2a), a = 3/8 for n <= 10, else 1/2."""
     a = 3 / 8 if n <= 10 else 0.5

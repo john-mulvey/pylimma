@@ -1130,3 +1130,17 @@ class TestAnnDataVoomLmFitWeightsBridge:
             adata.layers["foo_weights"][0, :],
             array_w[0],
         )
+
+
+@pytest.mark.parametrize("block", [[1, 1, 2, 2, 3, np.nan], ["a", "a", "b", "b", "c", None]])
+@pytest.mark.parametrize("fn", ["lm_fit", "duplicate_correlation", "voom"])
+def test_missing_block_label_raises(fn, block):
+    """R fails obscurely in chol() / qr.qty() (fixture script)."""
+    import pylimma
+
+    rng = np.random.default_rng(3)
+    design = np.column_stack([np.ones(6), [0.0, 0, 0, 1, 1, 1]])
+    y = rng.poisson(20, (10, 6)).astype(float) if fn == "voom" else rng.normal(size=(10, 6))
+    kwargs = {} if fn == "duplicate_correlation" else {"correlation": 0.3}
+    with pytest.raises(ValueError, match="block contains missing values"):
+        getattr(pylimma, fn)(y, design, block=block, **kwargs)

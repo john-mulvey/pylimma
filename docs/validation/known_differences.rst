@@ -394,6 +394,18 @@ Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     allowed"). ``generate_all_fixtures.R`` records the R
     behaviour.
 
+A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_correlation``)
+    Raises "block contains missing values" for a NaN, None or pandas NA
+    label. R has no check: for NA, ``lmFit`` and ``voom`` fail in ``chol()``
+    ("the leading minor of order 2 is not positive") and
+    ``duplicateCorrelation`` in ``qr.qty()``. For a numeric NaN, which numpy
+    cannot tell from NA, ``lmFit`` and ``voom`` fail the same way, while
+    ``duplicateCorrelation`` makes NaN a block of its own (factor()) and
+    runs; pylimma raises in all three (John's choice; a NaN label in Python
+    usually means a missing one). ``remove_batch_effect`` keeps R's rule
+    that a numeric NaN batch is a level (see its entry).
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

@@ -26,7 +26,7 @@ import pandas as pd
 from scipy import linalg
 
 from .classes import EList, _is_anndata, get_eawp
-from .utils import _as_dense_array, _r_trimmed_mean, _whole_count
+from .utils import _as_dense_array, _block_labels, _r_trimmed_mean, _whole_count
 
 
 def _mixed_model_2_fit(
@@ -735,9 +735,7 @@ def duplicate_correlation(
 
     # Check if block is already encoded in design matrix
     if block is not None:
-        block = np.asarray(block)
-        if len(block) != n_arrays:
-            raise ValueError("Length of block does not match number of arrays")
+        block = _block_labels(block, n_arrays)
         # R: blocks all of size 1 are checked first
         unique_blocks, counts = np.unique(block, return_counts=True)
         if np.max(counts) == 1:

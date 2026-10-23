@@ -225,6 +225,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `lm_fit`, `gls_series`, `voom` and `duplicate_correlation` raise a clear
+  error for a missing `block` label (NaN, None); a NaN label became a block
+  of its own and `None` raised `TypeError` (R fails obscurely; see known
+  differences).
 - Subsetting an `EList` or `MArrayLM` follows R: `head` / `tail` with a
   negative `n` leave out the last / first `-n` rows (they returned no
   rows) and a fractional `n` is truncated (it raised `TypeError`);

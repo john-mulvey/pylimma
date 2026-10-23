@@ -44,7 +44,7 @@ from .classes import (
     get_eawp,
 )
 from .dups import duplicate_correlation, unique_genelist, unwrap_dups
-from .utils import _as_dense_array, _whole_count
+from .utils import _as_dense_array, _block_labels, _whole_count
 
 if TYPE_CHECKING:
     pass
@@ -857,9 +857,7 @@ def gls_series(
         # Correlated samples (blocking)
         ndups = 1
         spacing = 1
-        block = np.asarray(block)
-        if len(block) != n_arrays:
-            raise ValueError("Length of block does not match number of arrays")
+        block = _block_labels(block, n_arrays)
 
         # Build correlation matrix from block structure
         unique_blocks = np.unique(block)

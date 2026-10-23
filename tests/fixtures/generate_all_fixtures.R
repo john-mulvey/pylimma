@@ -6652,3 +6652,18 @@ stopifnot(identical(colnames(.rk_sub$coefficients), c("C", "A")),
 .qfl$q <- mapply(function(p, case, lower) qf(p, .qfl_df[[case]][1], .qfl_df[[case]][2], lower.tail = lower),
                  .qfl$p, .qfl$case, .qfl$lower)
 write.csv(.qfl, "R_qf_large_df.csv", row.names = FALSE)
+
+# =============================================================================
+# A missing block label: lmFit and voom fail in chol(), duplicateCorrelation
+# in qr.qty() (pylimma raises a clear error); a numeric NaN label is a
+# level in duplicateCorrelation, which then runs (pylimma raises too)
+# =============================================================================
+set.seed(1303)
+.nb_y <- matrix(rnorm(60), 10)
+.nb_d <- cbind(1, c(0, 0, 0, 1, 1, 1))
+.nb_block <- c(1, 1, 2, 2, 3, NA)
+stopifnot(grepl("chol", try(lmFit(.nb_y, .nb_d, block = .nb_block, correlation = 0.3), silent = TRUE)),
+          grepl("qr.qty", try(duplicateCorrelation(.nb_y, .nb_d, block = .nb_block), silent = TRUE)),
+          grepl("chol", try(voom(matrix(rpois(60, 20), 10), .nb_d, block = .nb_block, correlation = 0.3),
+                            silent = TRUE)),
+          is.finite(duplicateCorrelation(.nb_y, .nb_d, block = c(1, 1, 2, 2, NaN, NaN))$consensus.correlation))
