@@ -6602,3 +6602,14 @@ set.seed(1219)
 .nm_x <- sapply(1:4, function(i) rnorm(10000, 30, 1.2 + 0.04 * i) + rexp(10000, 1 / (150 + 5 * i)))[, 4]
 write.csv(data.frame(x = .nm_x), "R_normexp_mle_flat_x.csv", row.names = FALSE)
 write.csv(data.frame(par = normexp.fit(.nm_x, method = "mle")$par), "R_normexp_mle_flat.csv", row.names = FALSE)
+
+# =============================================================================
+# diffSplice with no residual df: the genewise variance is 0/0 (NaN), and so
+# are the posterior variance, t and F
+# =============================================================================
+set.seed(1220)
+.dsz_y <- matrix(rnorm(18), 6, 3)
+write.csv(.dsz_y, "R_diffsplice_nodf_y.csv", row.names = FALSE)
+.dsz <- suppressWarnings(diffSplice(lmFit(.dsz_y, cbind(1, c(0, 1, 0), c(0, 0, 1))),
+                                    geneid = rep(c("G0", "G1"), each = 3), verbose = FALSE))
+stopifnot(all(is.nan(.dsz$gene.s2)), all(is.na(.dsz$t)), all(is.na(.dsz$gene.F)))

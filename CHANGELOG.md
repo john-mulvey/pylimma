@@ -9,6 +9,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `diff_splice` gives R's NaN gene variances, t and F statistics for a gene
+  with no residual degrees of freedom (R's 0/0); it gave a variance of 0
+  and infinite t and F, which read as real, extreme results.
 - `normexp_fit(method="mle")` (and `background_correct(method="normexp",
   normexp_method="mle")`) refines with R's `nlminb` parameter tolerance
   (1.5e-8); on Illumina-like arrays with a flat likelihood scipy's default

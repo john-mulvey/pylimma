@@ -197,9 +197,10 @@ def diff_splice(
     gene_nexons = _rowsum_sorted(np.ones(n_exons), geneid_codes, n_genes_total)
     gene_df_residual = _rowsum_sorted(df_residual, geneid_codes, n_genes_total)
     gene_df_res_s2 = _rowsum_sorted(df_residual * exon_s2, geneid_codes, n_genes_total)
-    # Pooled gene variance
+    # Pooled gene variance. R divides directly, so a gene without residual
+    # df has NaN (0/0), which carries into its statistics
     with np.errstate(invalid="ignore", divide="ignore"):
-        gene_s2 = np.where(gene_df_residual > 0, gene_df_res_s2 / gene_df_residual, 0.0)
+        gene_s2 = gene_df_res_s2 / gene_df_residual
 
     if verbose:
         one_exon = int(np.sum(gene_nexons == 1))

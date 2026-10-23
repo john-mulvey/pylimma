@@ -250,3 +250,16 @@ def test_diffsplice_anndata_refuses_var_changed_after_fit():
     from_vectors = diff_splice(adata, geneid=geneid, exonid=exonid, verbose=False)
     for slot in ("coefficients", "t", "p_value", "gene_F", "gene_F_p_value"):
         np.testing.assert_array_equal(np.asarray(from_vectors[slot]), np.asarray(expected[slot]))
+
+
+def test_diffsplice_without_residual_df_gives_nan_as_r():
+    """R divides the pooled sum by the residual df, 0/0 for every gene here,
+    so the gene variances, t and F are NaN (fixture script); pylimma gave 0
+    and infinite statistics."""
+    from pylimma import diff_splice, lm_fit
+
+    y = pd.read_csv(FIXTURES / "R_diffsplice_nodf_y.csv").to_numpy()
+    design = np.column_stack([np.ones(3), [0.0, 1, 0], [0.0, 0, 1]])
+    ds = diff_splice(lm_fit(y, design), geneid=np.repeat(["G0", "G1"], 3), verbose=False)
+    assert np.isnan(ds["gene_s2"]).all() and np.isnan(ds["gene_s2_post"]).all()
+    assert np.isnan(ds["t"]).all() and np.isnan(ds["gene_F"]).all()
