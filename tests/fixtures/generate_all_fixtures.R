@@ -6722,3 +6722,16 @@ stopifnot(identical(unname(suppressWarnings(avereps(.ai_x, ID = c("a", NA, NA)))
 # asMatrixWeights(NULL) fails inside as.matrix (pylimma raises a clear error)
 # =============================================================================
 stopifnot(grepl("must be of a vector type", try(limma:::asMatrixWeights(NULL, c(2, 2)), silent = TRUE)))
+
+# =============================================================================
+# as.data.frame.MArrayLM names columns component.colname: coefficient
+# matrices by the coefficient names, a genes data frame by its columns; a
+# one-column component keeps its own column name, or the component's
+# =============================================================================
+.adf_fit <- eBayes(lmFit(matrix(rnorm(42), 7), cbind(a = 1, bvsa = c(0, 0, 1, 1, 0, 1))))
+.adf_fit$genes <- data.frame(ID = paste0("g", 1:7), Sym = letters[1:7])
+stopifnot(all(c("coefficients.a", "coefficients.bvsa", "t.bvsa", "p.value.bvsa", "genes.ID", "genes.Sym",
+                "sigma", "F") %in% names(as.data.frame(.adf_fit))))
+.adf_fit$genes <- data.frame(ProbeID = paste0("g", 1:7))
+.adf_fit$w <- matrix(1, 7, 1)
+stopifnot(all(c("ProbeID", "w") %in% names(as.data.frame(.adf_fit))))

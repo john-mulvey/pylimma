@@ -645,21 +645,38 @@ class MArrayLM(_LargeDataObject):
         if coef.ndim == 1:
             coef = coef.reshape(-1, 1)
         nprobes, ncoef = coef.shape
+        coef_names = self.get("contrast_names") or self.get("coef_names")
         columns: dict[str, np.ndarray] = {}
         for name, value in self.items():
-            arr = np.asarray(value) if value is not None else None
-            if arr is None:
+            if value is None:
                 continue
-            if arr.ndim == 0 or arr.size == 0:
+            # R: as.data.frame of the list names the columns of a component
+            # with several component.colname (a data frame's by its names, a
+            # coefficient matrix's by the coefficient names); a one-column
+            # data frame keeps its column name, a vector or one-column
+            # matrix takes the component's name
+            if isinstance(value, pd.DataFrame):
+                if len(value) == nprobes:
+                    for col in value.columns:
+                        label = col if value.shape[1] == 1 else f"{name}.{col}"
+                        columns[str(label)] = value[col].to_numpy()
                 continue
-            if arr.shape[0] != nprobes:
+            arr = np.asarray(value)
+            if arr.ndim == 0 or arr.size == 0 or arr.shape[0] != nprobes:
                 continue
-            if arr.ndim == 1:
-                columns[name] = arr
+            if arr.ndim == 1 or arr.shape[1] == 1:
+                columns[name] = arr.reshape(nprobes)
             else:
-                for j in range(arr.shape[1]):
-                    col_name = f"{name}.{j + 1}" if arr.shape[1] > 1 else name
-                    columns[col_name] = arr[:, j]
+                # coefficient names only for the slots with a column per
+                # coefficient (weights have one per sample)
+                labels = (
+                    coef_names
+                    if coef_names is not None
+                    and name in ("coefficients", "stdev_unscaled", "t", "p_value", "lods")
+                    else range(1, arr.shape[1] + 1)
+                )
+                for j, label in enumerate(labels):
+                    columns[f"{name}.{label}"] = arr[:, j]
         return pd.DataFrame(columns, index=row_names)
 
 

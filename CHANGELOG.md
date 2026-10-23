@@ -231,6 +231,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `MArrayLM.as_dataframe` names columns as R's `as.data.frame.MArrayLM`:
+  `coefficients.<coefficient name>` (it numbered them,
+  `coefficients.1`), and `genes.<column>` for a genes data frame.
 - `lm_fit(method="robust")` / `mrlm` raise a clear error for `k <= 0`; `k=0`
   returned zero coefficients and a negative `k` a LAPACK error (R fails
   obscurely; see known differences).

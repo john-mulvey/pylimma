@@ -1369,3 +1369,32 @@ def test_as_matrix_weights_rejects_none():
 
     with pytest.raises(ValueError, match="weights is None"):
         as_matrix_weights(None, (2, 2))
+
+
+def test_marraylm_as_dataframe_names_columns_as_r():
+    """R (fixture script): component.colname, coefficient matrices by the
+    coefficient names, a genes data frame by its columns."""
+    from pylimma import e_bayes, lm_fit
+
+    design = pd.DataFrame({"a": np.ones(6), "bvsa": [0.0, 0, 1, 1, 0, 1]})
+    fit = e_bayes(lm_fit(np.random.default_rng(1).normal(size=(7, 6)), design))
+    fit["genes"] = pd.DataFrame({"ID": [f"g{i}" for i in range(1, 8)], "Sym": list("abcdefg")})
+    columns = set(fit.as_dataframe().columns)
+    expected = {
+        "coefficients.a",
+        "coefficients.bvsa",
+        "t.bvsa",
+        "p_value.bvsa",
+        "genes.ID",
+        "genes.Sym",
+    }
+    assert expected <= columns
+    assert {"sigma", "F", "Amean"} <= columns
+    # weights have a column per sample (as many as coefficients here), not
+    # per coefficient
+    fit["weights"] = np.ones((7, 2))
+    assert {"weights.1", "weights.2"} <= set(fit.as_dataframe().columns)
+    # a one-column component keeps its own name: R gives "ProbeID" and "w"
+    fit["genes"] = pd.DataFrame({"ProbeID": [f"g{i}" for i in range(1, 8)]})
+    fit["w"] = np.ones((7, 1))
+    assert {"ProbeID", "w"} <= set(fit.as_dataframe().columns)
