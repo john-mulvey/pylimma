@@ -225,6 +225,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `lm_fit` raises R's "NAs not allowed in design matrix" (scipy raised "array
+  must not contain infs or NaNs") and a clear error for a matrix with no
+  samples (it returned an all-NaN fit); `is_fullrank` raises for missing or
+  infinite values, where it returned `False` (see known differences).
 - `lm_fit`, `gls_series`, `voom` and `duplicate_correlation` raise a clear
   error for a missing `block` label (NaN, None); a NaN label became a block
   of its own and `None` raised `TypeError` (R fails obscurely; see known

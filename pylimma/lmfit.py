@@ -176,9 +176,12 @@ def is_fullrank(x: np.ndarray) -> bool:
     bool
         True if x has full column rank.
     """
-    x = np.asarray(x)
+    x = np.asarray(x, dtype=np.float64)
     if x.ndim == 1:
         x = x.reshape(-1, 1)
+    # R's eigen() stops for these; pylimma returned False
+    if not np.isfinite(x).all():
+        raise ValueError("infinite or missing values in 'x'")
     # eigvalsh returns eigenvalues in ascending order (smallest first)
     # R's eigen() returns them in descending order (largest first)
     # For full rank: largest eigenvalue > 0 and smallest/largest > 1e-13
@@ -1325,6 +1328,10 @@ def lm_fit(
     # R lmfit.R:31: `if(!nrow(y$exprs)) stop("expression matrix has zero rows")`.
     if n_genes == 0:
         raise ValueError("expression matrix has zero rows")
+    # R fails later in lm.fit ("0 (non-NA) cases"); pylimma returned an
+    # all-NaN fit
+    if n_samples == 0:
+        raise ValueError("expression matrix has zero columns")
 
     # Fall back to the design carried on the input object before
     # defaulting to an intercept, matching R's lmFit one-liner:
@@ -1344,6 +1351,9 @@ def lm_fit(
         raise ValueError(
             f"Design matrix has {design.shape[0]} rows but expression data has {n_samples} samples"
         )
+    # R lmfit.R: if(anyNA(design)) stop("NAs not allowed in design matrix")
+    if np.isnan(design).any():
+        raise ValueError("NAs not allowed in design matrix")
 
     # Check for non-estimable coefficients
     ne = non_estimable(design, coef_names=design_names)

@@ -406,6 +406,12 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     that a numeric NaN batch is a level (see its entry).
     ``generate_all_fixtures.R`` records the R behaviour.
 
+``lm_fit`` with no samples, ``is_fullrank`` with missing or infinite values
+    Raise "expression matrix has zero columns" and "infinite or missing
+    values in 'x'". R fails in ``lm.fit`` ("0 (non-NA) cases") and in
+    ``eigen()``; pylimma returned an all-NaN fit and ``False``.
+    ``generate_all_fixtures.R`` records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

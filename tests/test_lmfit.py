@@ -1144,3 +1144,18 @@ def test_missing_block_label_raises(fn, block):
     kwargs = {} if fn == "duplicate_correlation" else {"correlation": 0.3}
     with pytest.raises(ValueError, match="block contains missing values"):
         getattr(pylimma, fn)(y, design, block=block, **kwargs)
+
+
+def test_lm_fit_input_checks_follow_r():
+    """R stops for NA in the design (lmfit.R) and, deep in lm.fit / eigen,
+    for no samples and a non-finite matrix (fixture script)."""
+    from pylimma.lmfit import is_fullrank
+
+    y = np.random.default_rng(4).normal(size=(10, 4))
+    with pytest.raises(ValueError, match="NAs not allowed in design matrix"):
+        lm_fit(y, np.column_stack([np.ones(4), [0.0, 0, 1, np.nan]]))
+    with pytest.raises(ValueError, match="zero columns"):
+        lm_fit(np.empty((10, 0)), np.empty((0, 1)))
+    for bad in (np.nan, np.inf):
+        with pytest.raises(ValueError, match="infinite or missing values"):
+            is_fullrank(np.column_stack([np.ones(3), [1.0, bad, 3.0]]))

@@ -6667,3 +6667,14 @@ stopifnot(grepl("chol", try(lmFit(.nb_y, .nb_d, block = .nb_block, correlation =
           grepl("chol", try(voom(matrix(rpois(60, 20), 10), .nb_d, block = .nb_block, correlation = 0.3),
                             silent = TRUE)),
           is.finite(duplicateCorrelation(.nb_y, .nb_d, block = c(1, 1, 2, 2, NaN, NaN))$consensus.correlation))
+
+# =============================================================================
+# lmFit input checks: NA in the design stops explicitly; no samples and a
+# non-finite matrix in is.fullrank fail inside lm.fit / eigen (pylimma
+# raises clear errors)
+# =============================================================================
+.lc_y <- matrix(rnorm(40), 10)
+.lc_d <- cbind(1, c(0, 0, 1, NA))
+stopifnot(grepl("NAs not allowed in design matrix", try(lmFit(.lc_y, .lc_d), silent = TRUE)),
+          grepl("0 \\(non-NA\\) cases", try(lmFit(matrix(numeric(0), 10, 0), matrix(numeric(0), 0, 1)), silent = TRUE)),
+          grepl("infinite or missing values", try(is.fullrank(cbind(1, c(1, NA, 3))), silent = TRUE)))
