@@ -2024,7 +2024,8 @@ def prop_true_null(
     method : {"lfdr", "mean", "hist", "convest"}, default "lfdr"
         Estimator to use.
     nbins : int, default 20
-        Number of histogram bins when ``method="hist"``.
+        Number of histogram bins when ``method="hist"``, a whole number of
+        at least 1.
     **convest_kwargs
         Extra keyword arguments passed to :func:`convest` when
         ``method="convest"``.
@@ -2033,6 +2034,12 @@ def prop_true_null(
     -------
     float
         Estimated proportion of true nulls.
+
+    Notes
+    -----
+    Missing p-values raise for ``"lfdr"`` and ``"mean"`` (R drops them in
+    ``sort()`` and recycles the shorter vector, an arbitrary result) and
+    for ``"convest"``, as R; ``"hist"`` leaves them out, as R.
     """
     # R: length(p) and sort(p) use a matrix's values
     p = np.asarray(p, dtype=np.float64).ravel()
@@ -2040,12 +2047,17 @@ def prop_true_null(
         raise ValueError(
             f"method '{method}' not recognized. Must be one of 'lfdr', 'mean', 'hist', 'convest'."
         )
+    if method in ("lfdr", "mean") and np.isnan(p).any():
+        # R's sort() drops NA and its arithmetic then recycles the shorter
+        # vector; convest's error instead ("hist" leaves NA out, as R)
+        raise ValueError("Missing values in p not allowed")
     if method == "lfdr":
         return _prop_true_null_by_local_fdr(p)
     if method == "mean":
         return _prop_true_null_by_mean_p(p)
     if method == "hist":
-        return _prop_true_null_from_histogram(p, nbins=nbins)
+        # R's 1:nbins goes down to 0 for nbins = 0 and truncates a fraction
+        return _prop_true_null_from_histogram(p, nbins=_whole_count(nbins, "nbins"))
     return convest(p, **convest_kwargs)
 
 

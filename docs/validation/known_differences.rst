@@ -461,6 +461,14 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     1 with 5 and 2 with 6. ``generate_all_fixtures.R`` records the R
     behaviour.
 
+``prop_true_null`` with missing p-values
+    Raises "Missing values in p not allowed" (R's ``convest`` error) for
+    ``method="lfdr"`` and ``"mean"``. R's ``sort()`` drops the NA and the
+    arithmetic then recycles the shorter vector, with a warning, into an
+    arbitrary number. ``"hist"`` leaves them out, as R. ``nbins`` must be a
+    whole number of at least 1; R gives NaN for 0 and uses ``1:nbins`` for
+    a fraction. ``generate_all_fixtures.R`` records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

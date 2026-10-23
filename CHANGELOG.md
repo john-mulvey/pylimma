@@ -479,6 +479,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `prop_true_null` raises R's convest error "Missing values in p not
+  allowed" for missing p-values with `method="lfdr"` or `"mean"` (it
+  returned NaN; R recycles into an arbitrary number, see known
+  differences), and `nbins` must be a whole number of at least 1 (0 and
+  fractions raised numpy errors).
 - `choose_lowess_span` takes an array `n` and returns a span for each
   value, as R's `pmin`, and gives NaN for a negative `n`, as R; an array
   raised numpy's "truth value is ambiguous" error and a negative `n` a

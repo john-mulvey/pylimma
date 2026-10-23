@@ -15,6 +15,7 @@ from pylimma.utils import (
     logsumexp,
     make_unique,
     p_adjust,
+    prop_true_null,
     qqf,
     qqt,
     trigamma_inverse,
@@ -459,3 +460,20 @@ def test_logsumexp_lengths_must_match():
     with pytest.raises(ValueError, match="same length or one of them a single value"):
         logsumexp([1.0, 2.0], [3.0, 4.0, 5.0, 6.0])
     np.testing.assert_allclose(logsumexp([1.0, 2.0], 3.0), np.log(np.exp([1.0, 2.0]) + np.exp(3.0)))
+
+
+@pytest.mark.parametrize("method", ["lfdr", "mean", "convest"])
+def test_prop_true_null_missing_p_raises(method):
+    # R recycles in "lfdr" / "mean" (generate_all_fixtures.R, "propTrueNull:
+    # NA p recycles"); convest's own error
+    p = np.r_[np.random.default_rng(1308).uniform(size=50), np.nan]
+    with pytest.raises(ValueError, match="Missing values in p not allowed"):
+        prop_true_null(p, method=method)
+
+
+def test_prop_true_null_hist_leaves_missing_out_and_needs_whole_nbins():
+    p = np.random.default_rng(1308).uniform(size=50)
+    assert prop_true_null(np.r_[p, np.nan], method="hist") == prop_true_null(p, method="hist")
+    for nbins, message in ((0, "nbins must be at least 1"), (7.5, "nbins must be a whole number")):
+        with pytest.raises(ValueError, match=message):
+            prop_true_null(p, method="hist", nbins=nbins)

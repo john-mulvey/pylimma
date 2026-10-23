@@ -6923,3 +6923,17 @@ stopifnot(isTRUE(all.equal(logsumexp(c(1, 2), c(3, 4, 5, 6)), log(exp(c(1, 2, 1,
 # =============================================================================
 stopifnot(identical(chooseLowessSpan(c(0, -5)), c(1, NaN)),
           identical(chooseLowessSpan(c(20, 1000)), c(chooseLowessSpan(20), chooseLowessSpan(1000))))
+
+# =============================================================================
+# propTrueNull: NA p recycles in "lfdr" and "mean" (a warning), convest stops,
+# "hist" leaves NA out; nbins = 0 gives NaN and a fraction gives a number
+# =============================================================================
+set.seed(1308)
+.ptn_p <- runif(50)
+.ptn_warn <- function(expr) tryCatch(expr, warning = conditionMessage)
+stopifnot(.ptn_warn(propTrueNull(c(.ptn_p, NA), "lfdr")) == "longer object length is not a multiple of shorter object length",
+          .ptn_warn(propTrueNull(c(.ptn_p, NA), "mean")) == "an argument will be fractionally recycled",
+          grepl("Missing values in p not allowed", try(propTrueNull(c(.ptn_p, NA), "convest"), silent = TRUE)),
+          identical(propTrueNull(c(.ptn_p, NA), "hist"), propTrueNull(.ptn_p, "hist")),
+          is.nan(propTrueNull(.ptn_p, "hist", nbins = 0)),
+          is.finite(propTrueNull(.ptn_p, "hist", nbins = 7.5)))
