@@ -7093,3 +7093,26 @@ set.seed(1317)
 stopifnot(!inherits(tryCatch(contrasts.fit(.cfr_fit, cbind(c1 = c(0, 1))), warning = function(w) w), "warning"),
           inherits(tryCatch(contrasts.fit(.cfr_fit, cbind(c1 = c(a = 0, b = 1))), warning = function(w) w),
                    "warning"))
+
+# =============================================================================
+# lmFit with a design without column names: lm.series names the
+# coefficients x1..xp, so topTable(coef = "x2") works (pylimma: for every
+# method)
+# =============================================================================
+set.seed(1316)
+.dn_y <- matrix(rnorm(60), 10, 6)
+.dn_fit <- eBayes(lmFit(.dn_y, cbind(1, rep(0:1, each = 3))))
+.dn_na <- .dn_y
+.dn_na[1, 1] <- NA
+stopifnot(identical(colnames(.dn_fit$coefficients), c("x1", "x2")),
+          identical(colnames(lmFit(.dn_y)$coefficients), "x1"),
+          # R's mrlm and the gene-by-gene GLS loop leave them unnamed
+          is.null(colnames(suppressWarnings(lmFit(.dn_y, cbind(1, rep(0:1, each = 3)),
+                                                  method = "robust"))$coefficients)),
+          is.null(colnames(lmFit(.dn_na, cbind(1, rep(0:1, each = 3)), ndups = 2,
+                                 correlation = 0.3)$coefficients)),
+          all(c("coefficients.x1", "stdev.unscaled.x2") %in%
+              colnames(as.data.frame(lmFit(.dn_y, cbind(1, rep(0:1, each = 3)))))))
+write.csv(.dn_y, "R_dn_input.csv", row.names = FALSE)
+write.csv(topTable(.dn_fit, coef = "x2", number = Inf, sort.by = "none"), "R_dn_toptable.csv",
+          row.names = FALSE)

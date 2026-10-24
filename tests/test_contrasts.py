@@ -386,7 +386,7 @@ class TestContrastsFit:
         fit = lm_fit(expr, design)
 
         # Create named contrasts
-        contrasts = make_contrasts(TreatmentEffect="x1", levels=["x0", "x1"])
+        contrasts = make_contrasts(TreatmentEffect="x2", levels=["x1", "x2"])
         fit2 = contrasts_fit(fit, contrasts)
 
         assert "contrast_names" in fit2
@@ -514,7 +514,7 @@ class TestContrastNamesInTopTable:
         design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
 
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(TreatmentEffect="x1", levels=["x0", "x1"])
+        contrasts = make_contrasts(TreatmentEffect="x2", levels=["x1", "x2"])
         fit2 = contrasts_fit(fit, contrasts)
         fit2 = e_bayes(fit2)
 
@@ -536,7 +536,7 @@ class TestContrastNamesInTopTable:
         design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
 
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(TreatmentEffect="x1", levels=["x0", "x1"])
+        contrasts = make_contrasts(TreatmentEffect="x2", levels=["x1", "x2"])
         fit2 = contrasts_fit(fit, contrasts)
         fit2 = e_bayes(fit2)
 
@@ -559,7 +559,7 @@ class TestContrastNamesInTopTable:
         design[8:, 2] = 1
 
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts(BvsA="x1-x0", CvsA="x2-x0", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts(BvsA="x2-x1", CvsA="x3-x1", levels=["x1", "x2", "x3"])
         fit2 = contrasts_fit(fit, contrasts)
         fit2 = e_bayes(fit2)
 

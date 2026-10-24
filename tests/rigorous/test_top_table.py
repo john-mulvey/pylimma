@@ -221,7 +221,7 @@ class TestRigorousTopTable:
         """Exercises R-B9d: toptable.R:46 (B -> F for multi-coef path)."""
         expr, design = _three_group_expr(n_genes=15, n_samples=12, seed=1)
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -617,7 +617,7 @@ class TestRigorousTopTable:
         """
         expr, design = _three_group_expr(n_genes=15, n_samples=12, seed=12)
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -629,8 +629,8 @@ class TestRigorousTopTable:
         expr <- as.matrix(read.csv('{tmpdir}/expr.csv', row.names=1))
         design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
         fit <- lmFit(expr, design)
-        contrasts <- makeContrasts('x1-x0', 'x2-x0', levels=c('x0','x1','x2'))
-        colnames(design) <- c('x0','x1','x2')
+        contrasts <- makeContrasts('x2-x1', 'x3-x1', levels=c('x1','x2','x3'))
+        colnames(design) <- c('x1','x2','x3')
         fit <- lmFit(expr, design)
         fit2 <- contrasts.fit(fit, contrasts)
         fit2 <- eBayes(fit2)
@@ -656,7 +656,7 @@ class TestRigorousTopTable:
         """Exercises R-B16+R-B21b: F-path sort.by='none' matches R."""
         expr, design = _three_group_expr(n_genes=15, n_samples=12, seed=13)
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -666,8 +666,8 @@ class TestRigorousTopTable:
         suppressMessages(library(limma))
         expr <- as.matrix(read.csv('{tmpdir}/expr.csv', row.names=1))
         design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
-        colnames(design) <- c('x0','x1','x2')
-        contrasts <- makeContrasts('x1-x0', 'x2-x0', levels=c('x0','x1','x2'))
+        colnames(design) <- c('x1','x2','x3')
+        contrasts <- makeContrasts('x2-x1', 'x3-x1', levels=c('x1','x2','x3'))
         fit <- lmFit(expr, design)
         fit2 <- contrasts.fit(fit, contrasts)
         fit2 <- eBayes(fit2)
@@ -699,7 +699,7 @@ class TestRigorousTopTable:
         """
         expr, design = _three_group_expr(n_genes=15, n_samples=12, seed=14)
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 

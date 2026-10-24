@@ -221,7 +221,7 @@ class TestTopTable:
         design[8:, 2] = 1
 
         fit = lm_fit(expr, design)
-        contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 

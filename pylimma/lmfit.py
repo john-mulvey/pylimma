@@ -223,14 +223,7 @@ def non_estimable(
     """
     # Extract column names if not supplied explicitly.
     if coef_names is None:
-        if isinstance(x, pd.DataFrame):
-            coef_names = [str(c) for c in x.columns]
-        else:
-            di = getattr(x, "design_info", None)
-            if di is not None:
-                cn = getattr(di, "column_names", None)
-                if cn is not None:
-                    coef_names = [str(c) for c in cn]
+        coef_names = _design_names(x)
 
     arr = np.asarray(x, dtype=np.float64)
     if arr.ndim == 1:
@@ -1045,8 +1038,11 @@ def _fit_genes(data, eawp: dict):
 
 def _design_names(design) -> list[str] | None:
     """Column names carried by a design (R's colnames(design)): DataFrame
-    columns or patsy ``design_info.column_names``; None for a bare matrix."""
+    columns or patsy ``design_info.column_names``; None for a bare matrix
+    or a DataFrame with pandas' default RangeIndex columns."""
     if isinstance(design, pd.DataFrame):
+        if isinstance(design.columns, pd.RangeIndex):
+            return None
         return [str(c) for c in design.columns]
     column_names = getattr(getattr(design, "design_info", None), "column_names", None)
     if column_names is not None:
@@ -1229,6 +1225,10 @@ def lm_fit(
     design : ndarray or str, optional
         Design matrix (n_samples, n_coefficients) or formula string
         like "~ group + batch". If None, uses intercept-only model.
+        Without column names the coefficients are named ``x1``..``xp``
+        for every method (R's ``lmFit`` leaves them unnamed for
+        ``method="robust"`` and for GLS with missing values or probe
+        weights; ``docs/validation/known_differences.rst``).
     ndups : int, default 1
         Number of within-array duplicate spots.
     spacing : int, default 1
@@ -1462,13 +1462,13 @@ def lm_fit(
     # as colnames(fit$coefficients) (lmfit.R:125); pylimma stores
     # coefficients as a bare ndarray so we keep the names in a sidecar
     # slot. topTable's "Removing intercept" logic and contrasts_fit's
-    # string-coefficient lookup both read fit["coef_names"]. Skip when
-    # design was a bare ndarray with no names (matches R, where
-    # colnames(design) is NULL in that case) and avoids writing a None
-    # value into adata.uns[key] which anndata's h5ad writer cannot
-    # serialise cleanly.
-    if design_names is not None:
-        fit["coef_names"] = design_names
+    # string-coefficient lookup both read fit["coef_names"]. A design
+    # without column names gives x1..xp, as lm.series, mrlm and gls.series.
+    fit["coef_names"] = (
+        design_names
+        if design_names is not None
+        else [f"x{i + 1}" for i in range(design.shape[1])]
+    )
     # R's lmFit records the fitting method (lmfit.R:86); plotExons and
     # other diagnostics rely on it.
     fit["method"] = method

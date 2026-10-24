@@ -60,7 +60,7 @@ def _three_group_fit(seed=0, n_genes=20, n_samples=12):
         columns=[f"s{j + 1}" for j in range(n_samples)],
     )
     fit = lm_fit(expr_df, design)
-    contrasts = make_contrasts("x1-x0", "x2-x0", levels=["x0", "x1", "x2"])
+    contrasts = make_contrasts("x2-x1", "x3-x1", levels=["x1", "x2", "x3"])
     fit = contrasts_fit(fit, contrasts)
     fit = e_bayes(fit)
     return expr_df, design, fit
@@ -91,8 +91,8 @@ _R_PRELUDE = """
 suppressMessages(library(limma))
 expr <- as.matrix(read.csv('{tmpdir}/expr.csv', row.names=1))
 design <- as.matrix(read.csv('{tmpdir}/design.csv', row.names=1))
-colnames(design) <- c('x0','x1','x2')
-contrasts <- makeContrasts('x1-x0', 'x2-x0', levels=c('x0','x1','x2'))
+colnames(design) <- c('x1','x2','x3')
+contrasts <- makeContrasts('x2-x1', 'x3-x1', levels=c('x1','x2','x3'))
 fit <- lmFit(expr, design)
 fit2 <- contrasts.fit(fit, contrasts)
 fit2 <- eBayes(fit2)
@@ -321,7 +321,7 @@ class TestRigorousTopTableF:
         inputs = _save_inputs(*_three_group_fit(seed=6, n_genes=12)[:2])
         r_out = run_r_comparison(inputs, r_template, ["cols"])
         r_cols = [str(c).strip('"') for c in np.asarray(r_out["cols"]).ravel()]
-        # In R, expected order: symbol, chrom, x1-x0, x2-x0, AveExpr, F, P.Value, adj.P.Val
+        # In R, expected order: symbol, chrom, x2-x1, x3-x1, AveExpr, F, P.Value, adj.P.Val
         sym_pos = r_cols.index("symbol")
         chr_pos = r_cols.index("chrom")
         # Coef columns should come AFTER genelist columns in R
@@ -452,8 +452,8 @@ class TestRigorousTopTableF:
         coefficient columns, AveExpr.
 
         Note R's ``data.frame()`` (topTableF.R:88) calls ``make.names()``
-        on column names, so R's output has ``x1.x0``/``x2.x0`` while
-        pylimma keeps ``x1-x0``/``x2-x0``. We compare values via
+        on column names, so R's output has ``x2.x1``/``x3.x1`` while
+        pylimma keeps ``x2-x1``/``x3-x1``. We compare values via
         positional column index 1 and 2 in the contrast block.
         """
         expr_df, design, fit = _three_group_fit(seed=10, n_genes=15)
@@ -490,8 +490,8 @@ class TestRigorousTopTableF:
             ("F_stat", "F"),
             ("P_Value", "p_value"),
             ("adj_P_Val", "adj_p_value"),
-            ("coef1", "x1-x0"),
-            ("coef2", "x2-x0"),
+            ("coef1", "x2-x1"),
+            ("coef2", "x3-x1"),
         ]:
             r_arr = np.asarray(r_out[r_key]).astype(float).ravel()
             py_arr = py_tt[py_key].values.astype(float)

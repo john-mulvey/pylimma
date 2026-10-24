@@ -250,6 +250,16 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `lm_fit` with a design without column names (a matrix, a DataFrame
+  with pandas' default columns, or no design) names the
+  coefficients `x1`..`xp`, as R's `lmFit` does for least squares and the
+  usual GLS path (R leaves them unnamed for `method="robust"` and for GLS
+  with missing values or probe weights; pylimma names them for every
+  method, see `known_differences.rst`); they had no names, so `top_table(fit, coef="x2")` failed, the F-test
+  table named its columns `Coef1`.., and `as_dataframe()` numbered them.
+  Contrasts written for such a design use these names
+  (`make_contrasts("x2-x1", levels=["x1", "x2"])`); other row names give
+  R's "row names of contrasts don't match" warning.
 - `vooma_by_group` returns R's `voom_xy` (each group's trend data, one
   column per group level) and `span`, names its default design
   `group<level>` as R's `model.matrix(~0+group)`, and keeps the column

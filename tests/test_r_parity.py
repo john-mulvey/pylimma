@@ -591,7 +591,7 @@ class TestContrastsRParity:
         design_cm[4:, 1] = 1
 
         fit = lm_fit(data1["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", levels=["x0", "x1"])
+        contrasts = make_contrasts("x2-x1", levels=["x1", "x2"])
         fit = contrasts_fit(fit, contrasts)
 
         result = compare_arrays(r_coef.values, fit["coefficients"], rtol=1e-10)
@@ -608,7 +608,7 @@ class TestContrastsRParity:
         design_cm[4:, 1] = 1
 
         fit = lm_fit(data1["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", levels=["x0", "x1"])
+        contrasts = make_contrasts("x2-x1", levels=["x1", "x2"])
         fit = contrasts_fit(fit, contrasts)
 
         result = compare_arrays(r_stdev.values, fit["stdev_unscaled"], rtol=1e-10)
@@ -623,7 +623,7 @@ class TestContrastsRParity:
         design_cm[4:, 1] = 1
 
         fit = lm_fit(data1["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", levels=["x0", "x1"])
+        contrasts = make_contrasts("x2-x1", levels=["x1", "x2"])
         fit = contrasts_fit(fit, contrasts)
 
         result = compare_arrays(r_cov.values, fit["cov_coefficients"], rtol=1e-8)
@@ -693,7 +693,7 @@ class TestMultiContrastRParity:
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
 
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -712,7 +712,7 @@ class TestMultiContrastRParity:
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
 
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
 
         # Check coefficients match R (BvsA, CvsA, CvsB columns)
@@ -731,7 +731,7 @@ class TestDecideTestsRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -872,7 +872,7 @@ class TestClassifyTestsFRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -890,7 +890,7 @@ class TestClassifyTestsFRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -907,7 +907,7 @@ class TestClassifyTestsFRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -931,7 +931,7 @@ class TestDecideTestsMethodsRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -946,7 +946,7 @@ class TestDecideTestsMethodsRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -961,7 +961,7 @@ class TestDecideTestsMethodsRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -976,7 +976,7 @@ class TestDecideTestsMethodsRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -991,7 +991,7 @@ class TestDecideTestsMethodsRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -1585,7 +1585,7 @@ class TestContrastsEBayesRParity:
         design_cm[4:, 1] = 1
 
         fit = lm_fit(data1["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", levels=["x0", "x1"])
+        contrasts = make_contrasts("x2-x1", levels=["x1", "x2"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
 
@@ -1610,7 +1610,7 @@ class TestPipelineRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
         py_tt = top_table(fit, coef=0, number=np.inf)
@@ -1627,7 +1627,7 @@ class TestPipelineRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
         py_tt = top_table(fit, coef=None, number=np.inf)
@@ -1642,7 +1642,7 @@ class TestPipelineRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
         py_tt = top_table(fit, coef=1, number=np.inf)  # coef=1 is x2-x0 (CvsA)
@@ -1659,7 +1659,7 @@ class TestPipelineRParity:
 
         design_cm = data2["design"]
         fit = lm_fit(data2["expr"], design_cm)
-        contrasts = make_contrasts("x1-x0", "x2-x0", "x2-x1", levels=["x0", "x1", "x2"])
+        contrasts = make_contrasts("x2-x1", "x3-x1", "x3-x2", levels=["x1", "x2", "x3"])
         fit = contrasts_fit(fit, contrasts)
         fit = e_bayes(fit)
         py_tt = top_table(fit, coef=2, number=np.inf)  # coef=2 is x2-x1 (CvsB)
@@ -3348,6 +3348,36 @@ class TestLmFitNonEstimableRParity:
             # R returns column names; Python may return index strings
             # if no column names attached. Accept either.
             assert len(py_result) == 1, f"Expected one name, got {py_result}"
+
+
+class TestUnnamedDesignCoefNamesRParity:
+    """A design without column names gives coefficients x1..xp, as R's
+    lm.series."""
+
+    DESIGN = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+
+    def test_coef_names(self):
+        y = load_r_csv_no_index("dn_input").to_numpy(dtype=float)
+        assert lm_fit(y, self.DESIGN)["coef_names"] == ["x1", "x2"]
+        assert lm_fit(y)["coef_names"] == ["x1"]
+        # Every method (R: unnamed for robust and gene-by-gene GLS)
+        assert lm_fit(y, self.DESIGN, method="robust")["coef_names"] == ["x1", "x2"]
+        # A DataFrame with pandas' default columns is unnamed too
+        assert lm_fit(y, pd.DataFrame(self.DESIGN))["coef_names"] == ["x1", "x2"]
+        from pylimma.lmfit import non_estimable
+
+        aliased = np.column_stack([self.DESIGN, self.DESIGN[:, 1]])
+        assert non_estimable(pd.DataFrame(aliased)) == non_estimable(aliased) == ["3"]
+        columns = lm_fit(y, self.DESIGN).as_dataframe().columns
+        assert {"coefficients.x1", "stdev_unscaled.x2"} <= set(columns)
+
+    def test_top_table_by_name(self):
+        y = load_r_csv_no_index("dn_input").to_numpy(dtype=float)
+        tab = top_table(e_bayes(lm_fit(y, self.DESIGN)), coef="x2", number=np.inf, sort_by="none")
+        r = load_r_csv_no_index("dn_toptable")
+        for py_col, r_col in [("log_fc", "logFC"), ("t", "t"), ("b", "B")]:
+            np.testing.assert_allclose(tab[py_col], r[r_col], rtol=1e-6, atol=1e-12)
+        assert compare_pvalues(r["P.Value"].to_numpy(), tab["p_value"].to_numpy())["match"]
 
 
 class TestPAdjustAllMethodsRParity:
