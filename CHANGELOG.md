@@ -520,6 +520,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `lm_fit`'s "Coefficients not estimable" warning separates the names
+  with spaces, as R's message (it used commas); R prints the message
+  rather than warning, which is now recorded in `known_differences.rst`.
 - `gls_series(spacing=None)` reads the spacing as 1, as R's
   `gls.series`; it raised "spacing must be a whole number". With the
   correlation left to be estimated R fails on the NULL; pylimma reads it

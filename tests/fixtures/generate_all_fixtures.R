@@ -7208,3 +7208,12 @@ stopifnot(identical(limma:::gls.series(.gsn_M, .gsn_d, ndups = 2, spacing = NULL
                     limma:::gls.series(.gsn_M, .gsn_d, ndups = 2, spacing = 1, correlation = 0.3)),
           inherits(try(limma:::gls.series(.gsn_M, .gsn_d, ndups = 2, spacing = NULL), silent = TRUE),
                    "try-error"))
+
+# =============================================================================
+# lmFit prints the non-estimable coefficients with cat(), separated by
+# spaces (pylimma: a warning with the same text)
+# =============================================================================
+set.seed(1324)
+.ne_d <- cbind(1, rep(0:1, each = 3), rep(0:1, each = 3), rep(1, 6))
+.ne_out <- capture.output(.ne_fit <- suppressWarnings(lmFit(matrix(rnorm(30), 5, 6), .ne_d)))
+stopifnot(identical(.ne_out, "Coefficients not estimable: 3 4 "))

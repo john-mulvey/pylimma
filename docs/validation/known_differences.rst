@@ -693,6 +693,14 @@ design is "extracted from the data object if available", and its
 intercept-only design. pylimma follows the documentation;
 ``generate_all_fixtures.R`` records R's literal behaviour.
 
+Deliberate interface difference: messages and names
+---------------------------------------------------
+
+``lm_fit`` reports non-estimable coefficients ("Coefficients not
+estimable: 3 4") as a ``UserWarning``, so it can be filtered or turned
+into an error; R's ``lmFit`` prints the same text with ``cat()``.
+``romer`` prints it, as R.
+
 Deliberate interface difference: plot markers and colours
 ---------------------------------------------------------
 

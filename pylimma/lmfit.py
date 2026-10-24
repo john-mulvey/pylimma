@@ -1301,6 +1301,10 @@ def lm_fit(
     - Amean: mean expression per gene (n_genes,)
     - design: the design matrix used
 
+    Non-estimable coefficients are reported with a ``UserWarning``
+    ("Coefficients not estimable: 3 4"); R's ``lmFit`` prints the same
+    text (``docs/validation/known_differences.rst``).
+
     References
     ----------
     Smyth, G. K. (2004). Linear models and empirical Bayes methods for
@@ -1381,7 +1385,8 @@ def lm_fit(
     # Check for non-estimable coefficients
     ne = non_estimable(design, coef_names=design_names)
     if ne is not None:
-        warnings.warn(f"Coefficients not estimable: {', '.join(ne)}")
+        # R prints this with cat(); a warning here (known_differences.rst)
+        warnings.warn(f"Coefficients not estimable: {' '.join(ne)}")
 
     # Validate method (matches R's match.arg)
     if method not in ("ls", "robust"):

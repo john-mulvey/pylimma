@@ -1229,3 +1229,11 @@ def test_gls_series_spacing_none_is_one(correlation):
     by_none = gls_series(M, design, ndups=2, spacing=None, correlation=correlation)
     by_one = gls_series(M, design, ndups=2, spacing=1, correlation=correlation)
     np.testing.assert_array_equal(by_none["coefficients"], by_one["coefficients"])
+
+
+def test_non_estimable_coefficients_warn_with_r_text():
+    """R's lmFit prints "Coefficients not estimable: 3 4" (cat()); pylimma
+    warns with the same text."""
+    design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1], [0, 0, 0, 1, 1, 1], np.ones(6)])
+    with pytest.warns(UserWarning, match="^Coefficients not estimable: 3 4$"):
+        lm_fit(np.random.default_rng(1324).normal(size=(5, 6)), design)
