@@ -440,3 +440,14 @@ def test_adjust_method_none_is_bh():
     pd.testing.assert_frame_equal(
         top_table(fit, coef=1, adjust_method=None), top_table(fit, coef=1, adjust_method="BH")
     )
+
+
+def test_treat_fit_with_default_sort_by_b_raises():
+    """R's topTable on a treat fit: no lods, so sort.by = "B" stops."""
+    from pylimma.ebayes import top_treat, treat
+
+    rng = np.random.default_rng(1321)
+    fit = treat(lm_fit(rng.normal(size=(50, 6)), np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])), lfc=0.5)
+    with pytest.raises(ValueError, match="Trying to sort.by B, but B-statistic"):
+        top_table(fit, coef=1)
+    pd.testing.assert_frame_equal(top_treat(fit, coef=1), top_table(fit, coef=1, sort_by="p"))

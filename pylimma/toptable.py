@@ -183,6 +183,9 @@ def top_table(
         - "AveExpr" or "ave_expr": average expression
         - "F": F-statistic (for multiple coefficients)
         - "none": no sorting
+
+        A ``treat()`` fit has no B-statistic, so it needs another
+        ``sort_by`` (``top_treat`` sorts by p-value), as R.
     resort_by : str, optional
         Secondary sort column applied after filtering by p_value/lfc.
         Same options as sort_by. Useful when you want to filter by
@@ -253,10 +256,6 @@ def top_table(
     # Determine which coefficients to use
     is_treat = "treat_lfc" in fit
 
-    # R's topTreat defaults to sort.by="p", unlike topTable which defaults to "B"
-    # Match this behaviour when treat results are detected
-    if is_treat and sort_by == "B":
-        sort_by = "P"
     if coef is None:
         if is_treat:
             # treat results: default to last coefficient only (R parity)

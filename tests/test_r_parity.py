@@ -23,7 +23,7 @@ from pylimma.batch import remove_batch_effect
 from pylimma.classes import EList
 from pylimma.contrasts import contrasts_fit, make_contrasts
 from pylimma.decide_tests import decide_tests
-from pylimma.ebayes import e_bayes, treat
+from pylimma.ebayes import e_bayes, top_treat, treat
 from pylimma.lmfit import lm_fit
 from pylimma.normalize import (
     aver_arrays,
@@ -1471,7 +1471,7 @@ class TestTopTreatRParity:
         r_tt = load_r_csv("toptreat_basic")
         fit = lm_fit(data1["expr"], data1["design"])
         fit = treat(fit, lfc=0.5)
-        py_tt = top_table(fit, coef=1, number=20)
+        py_tt = top_treat(fit, coef=1, number=20)
 
         # Compare logFC
         result = compare_arrays(r_tt["logFC"].values, py_tt["log_fc"].values, rtol=1e-8)

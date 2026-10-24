@@ -250,6 +250,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `top_table` on a `treat()` fit with the default `sort_by="B"` raises
+  R's "Trying to sort.by B, but B-statistic (lods) not found" (a treat
+  fit has no B-statistic); it sorted by p-value instead. Use
+  `top_treat`, which sorts by p-value, or pass `sort_by="p"`.
 - `top_table` (and `top_table_f`, `top_treat`) of a fit without row
   names numbers the rows 1..N, as R; without a genelist they were named
   `gene1`..`geneN`, and with a DataFrame genelist after its index.

@@ -7180,3 +7180,13 @@ write.csv(data.frame(coef1 = .cv_f$Coef1, F = .cv_f$F, logFC = .cv_t$logFC, t = 
 .cv_v$p.value <- .cv_v$p.value[, 1]
 .cv_v$lods <- .cv_v$lods[, 1]
 stopifnot(identical(topTable(.cv_v, number = Inf, sort.by = "none"), .cv_t))
+
+# =============================================================================
+# topTable on a treat fit with the default sort.by = "B": no lods, so it
+# stops (topTreat sorts by p)
+# =============================================================================
+set.seed(1321)
+.tb_tr <- treat(lmFit(matrix(rnorm(300), 50, 6), cbind(1, rep(0:1, each = 3))), lfc = 0.5)
+stopifnot(grepl("Trying to sort.by B, but B-statistic \\(lods\\) not found",
+                try(topTable(.tb_tr, coef = 2), silent = TRUE)),
+          identical(topTreat(.tb_tr, coef = 2), topTable(.tb_tr, coef = 2, sort.by = "p")))
