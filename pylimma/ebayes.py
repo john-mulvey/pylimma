@@ -529,8 +529,8 @@ def treat(
 
     coefficients, stdev_unscaled, sigma, df_residual = _fit_slots(fit)
 
-    # Clear any existing lods (B-statistics not computed for TREAT)
-    fit["lods"] = None
+    # R: fit$lods <- NULL (B-statistics are not computed for TREAT)
+    fit.pop("lods", None)
 
     if trend:
         covariate = fit.get("Amean")

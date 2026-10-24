@@ -520,6 +520,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `treat` removes the `lods` slot, as R's `fit$lods <- NULL`; it set it
+  to None, so `"lods" in fit` was true.
 - `top_table` and `top_table_f` read a fit whose coefficients (and, for
   `top_table`, t, p-values or lods) are a vector as one coefficient, as
   R's `as.matrix`; they raised `ValueError` / `IndexError`.

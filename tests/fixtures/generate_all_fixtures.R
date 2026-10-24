@@ -7190,3 +7190,9 @@ set.seed(1321)
 stopifnot(grepl("Trying to sort.by B, but B-statistic \\(lods\\) not found",
                 try(topTable(.tb_tr, coef = 2), silent = TRUE)),
           identical(topTreat(.tb_tr, coef = 2), topTable(.tb_tr, coef = 2, sort.by = "p")))
+
+# =============================================================================
+# treat removes the lods of an eBayes fit
+# =============================================================================
+set.seed(1322)
+stopifnot(!"lods" %in% names(treat(eBayes(lmFit(matrix(rnorm(300), 50, 6), cbind(1, rep(0:1, each = 3)))))))

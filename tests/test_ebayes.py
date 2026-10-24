@@ -347,3 +347,6 @@ class TestEBayesArgumentChecks:
             # A DataFrame of coefficients keeps its row names
             framed = dict(one, coefficients=pd.DataFrame(one["coefficients"], index=list("abcdefghij") * 5))
             assert fn(framed)["coefficients"].index.equals(framed["coefficients"].index)
+
+    def test_treat_removes_lods(self):
+        assert "lods" not in treat(e_bayes(self._fit()))
