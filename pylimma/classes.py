@@ -557,7 +557,8 @@ class MArrayLM(_LargeDataObject):
         if isinstance(j, slice) and j == slice(None):
             return super()._subset(i, j)
 
-        names = self.get("contrast_names") or self.get("coef_names")
+        listed = _with_list_names(self)
+        names = listed.get("contrast_names") or listed.get("coef_names")
         ncoef = self.ncol
         j_idx = np.arange(ncoef)[_resolve_index(j, names, ncoef, "colnames")]
 
@@ -647,7 +648,8 @@ class MArrayLM(_LargeDataObject):
         if coef.ndim == 1:
             coef = coef.reshape(-1, 1)
         nprobes, ncoef = coef.shape
-        coef_names = self.get("contrast_names") or self.get("coef_names")
+        listed = _with_list_names(self)
+        coef_names = listed.get("contrast_names") or listed.get("coef_names")
         columns: dict[str, np.ndarray] = {}
         for name, value in self.items():
             if value is None:

@@ -498,6 +498,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- A fit rebuilt by hand from a reloaded h5ad (`MArrayLM(adata.uns[key])`)
+  with contrasts can be subset by column name and flattened with
+  `as_dataframe`; the contrast names came back as an array, which raised
+  "truth value of an array is ambiguous".
 - `select_model` with a 1-D `y` fits it as one gene, as `lm_fit` does
   (it raised an IndexError); the result equals R's
   `selectModel(matrix(y, 1), ...)` (see known differences).

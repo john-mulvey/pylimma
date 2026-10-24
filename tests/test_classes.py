@@ -1505,3 +1505,16 @@ def test_marraylm_as_dataframe_names_columns_as_r():
     fit["genes"] = pd.DataFrame({"ProbeID": [f"g{i}" for i in range(1, 8)]})
     fit["w"] = np.ones((7, 1))
     assert {"ProbeID", "w"} <= set(fit.as_dataframe().columns)
+
+
+def test_marraylm_methods_take_names_stored_as_arrays():
+    """h5ad turns the name lists into arrays; a fit rebuilt from a reloaded
+    adata.uns by hand still subsets and flattens by name."""
+    from pylimma import contrasts_fit, e_bayes, lm_fit, make_contrasts
+
+    design = pd.DataFrame({"a": np.ones(6), "bvsa": [0.0, 0, 1, 1, 0, 1]})
+    fit = lm_fit(np.random.default_rng(1).normal(size=(7, 6)), design)
+    fit = e_bayes(contrasts_fit(fit, make_contrasts("bvsa", "a", levels=design)))
+    reloaded = MArrayLM({**fit, "contrast_names": np.array(fit["contrast_names"])})
+    assert "coefficients.bvsa" in reloaded.as_dataframe().columns
+    np.testing.assert_array_equal(reloaded[:, "bvsa"]["coefficients"], fit[:, "bvsa"]["coefficients"])
