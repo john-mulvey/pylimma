@@ -198,6 +198,16 @@ on data without missing values; the fixture script also checks that R
 turns those rows NA. A row holding an infinite value is returned all
 NaN, as in R, which gives no warning; pylimma warns.
 
+gls_series: ``spacing=None`` with an estimated correlation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``gls.series`` sets a NULL ``spacing`` to 1 (``if(is.null(spacing))
+spacing <- 1``), but only after it has called ``duplicateCorrelation``
+for a missing ``correlation``, which fails on the NULL in ``unwrapdups``
+("dims [product ...] do not match the length of object"). pylimma reads
+``spacing=None`` as 1 before both steps. ``generate_all_fixtures.R``
+records the R behaviour.
+
 Conditions with misplaced parentheses in ``plotMD`` and ``plotRLDF``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

@@ -520,6 +520,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `gls_series(spacing=None)` reads the spacing as 1, as R's
+  `gls.series`; it raised "spacing must be a whole number". With the
+  correlation left to be estimated R fails on the NULL; pylimma reads it
+  as 1 there too (documented in `known_differences.rst`).
 - `treat` removes the `lods` slot, as R's `fit$lods <- NULL`; it set it
   to None, so `"lods" in fit` was true.
 - `top_table` and `top_table_f` read a fit whose coefficients (and, for

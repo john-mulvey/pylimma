@@ -7196,3 +7196,15 @@ stopifnot(grepl("Trying to sort.by B, but B-statistic \\(lods\\) not found",
 # =============================================================================
 set.seed(1322)
 stopifnot(!"lods" %in% names(treat(eBayes(lmFit(matrix(rnorm(300), 50, 6), cbind(1, rep(0:1, each = 3)))))))
+
+# =============================================================================
+# gls.series reads spacing = NULL as 1, but duplicateCorrelation, called
+# first when correlation is missing, fails on it (pylimma: 1 throughout)
+# =============================================================================
+set.seed(1323)
+.gsn_M <- matrix(rnorm(48), 8, 6)
+.gsn_d <- cbind(1, rep(0:1, each = 3))
+stopifnot(identical(limma:::gls.series(.gsn_M, .gsn_d, ndups = 2, spacing = NULL, correlation = 0.3),
+                    limma:::gls.series(.gsn_M, .gsn_d, ndups = 2, spacing = 1, correlation = 0.3)),
+          inherits(try(limma:::gls.series(.gsn_M, .gsn_d, ndups = 2, spacing = NULL), silent = TRUE),
+                   "try-error"))

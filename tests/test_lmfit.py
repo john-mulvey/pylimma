@@ -1217,3 +1217,15 @@ def test_voom_family_names_the_default_design_grand_mean():
     assert list(pylimma.voom_with_quality_weights(counts)["design"].columns) == ["GrandMean"]
     assert list(pylimma.vooma(np.log2(counts))["design"].columns) == ["GrandMean"]
     assert pylimma.vooma_lm_fit(np.log2(counts))["coef_names"] == ["GrandMean"]
+
+
+@pytest.mark.parametrize("correlation", [0.3, None])
+def test_gls_series_spacing_none_is_one(correlation):
+    """R's gls.series reads spacing=NULL as 1 (with an estimated
+    correlation R fails first; pylimma reads it as 1 throughout)."""
+    rng = np.random.default_rng(1323)
+    M = rng.normal(size=(8, 6))
+    design = np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])
+    by_none = gls_series(M, design, ndups=2, spacing=None, correlation=correlation)
+    by_one = gls_series(M, design, ndups=2, spacing=1, correlation=correlation)
+    np.testing.assert_array_equal(by_none["coefficients"], by_one["coefficients"])

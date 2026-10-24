@@ -731,7 +731,7 @@ def gls_series(
     M: np.ndarray,
     design: np.ndarray | None = None,
     ndups: int = 2,
-    spacing: int = 1,
+    spacing: int | None = 1,
     block: np.ndarray | None = None,
     correlation: float | None = None,
     weights: np.ndarray | None = None,
@@ -752,8 +752,10 @@ def gls_series(
         If None, uses intercept-only model.
     ndups : int, default 1
         Number of within-array duplicate spots.
-    spacing : int, default 1
-        Spacing between duplicate spots.
+    spacing : int or None, default 1
+        Spacing between duplicate spots. None means 1, as R's gls.series
+        intends; R fails on it when ``correlation`` is estimated
+        (``docs/validation/known_differences.rst``).
     block : array_like, optional
         Block indicator for correlated samples. If provided, ndups and
         spacing are ignored.
@@ -805,6 +807,11 @@ def gls_series(
     if design.shape[0] != n_arrays:
         raise ValueError("Number of rows of design matrix does not match number of arrays")
     n_coefs = design.shape[1]
+
+    # R lmfit.R:279 reads a NULL spacing as 1, but only after estimating
+    # the correlation, where it fails; it is 1 throughout here
+    if spacing is None:
+        spacing = 1
 
     # Check correlation - auto-estimate if not provided (R parity)
     if correlation is None:
