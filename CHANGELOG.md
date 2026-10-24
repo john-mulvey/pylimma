@@ -503,6 +503,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `contrasts_fit` with a DataFrame contrast that has pandas' default
+  0..n-1 index or columns treats it as having no row or column names, as
+  R does a matrix without them; it warned "row names of contrasts don't
+  match col names of coefficients" and named the contrasts 0, 1, ...
 - The EList or dict returned by a shape-preserving function holds copies
   of the input's other slots (weights, genes, targets ...), and `voom`'s
   `lib_size` is a copy of the one given, as R's copy-on-modify; they were

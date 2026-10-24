@@ -7083,3 +7083,13 @@ stopifnot(identical(unname(.vbn$weights[, 9]), unname(.vbn_y[, 9])),
           grepl("entirely NA rows", try(voomaByGroup(.vbn_y, factor(rep(c("a", "b", "c"), each = 3),
                                                                     levels = c("a", "b", "c", "d"))),
                                         silent = TRUE)))
+
+# =============================================================================
+# contrasts.fit compares row names only when the contrast matrix has them
+# (pylimma: a DataFrame with the default 0..n-1 index has none)
+# =============================================================================
+set.seed(1317)
+.cfr_fit <- lmFit(matrix(rnorm(60), 10, 6), cbind(Intercept = 1, groupB = rep(0:1, each = 3)))
+stopifnot(!inherits(tryCatch(contrasts.fit(.cfr_fit, cbind(c1 = c(0, 1))), warning = function(w) w), "warning"),
+          inherits(tryCatch(contrasts.fit(.cfr_fit, cbind(c1 = c(a = 0, b = 1))), warning = function(w) w),
+                   "warning"))

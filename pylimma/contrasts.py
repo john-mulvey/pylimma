@@ -523,8 +523,12 @@ def contrasts_fit(
     # Capture row names too so we can replicate R's row/col name check.
     contrast_rownames = None
     if isinstance(contrasts, pd.DataFrame):
-        contrast_names = list(contrasts.columns)
-        contrast_rownames = list(contrasts.index)
+        # pandas' default RangeIndex means unnamed rows or columns, as a
+        # matrix without dimnames in R (no row name check)
+        if not isinstance(contrasts.columns, pd.RangeIndex):
+            contrast_names = list(contrasts.columns)
+        if not isinstance(contrasts.index, pd.RangeIndex):
+            contrast_rownames = list(contrasts.index)
         contrasts = contrasts.values
 
     # R contrasts.R:31: `if(!is.numeric(contrasts)) stop("contrasts

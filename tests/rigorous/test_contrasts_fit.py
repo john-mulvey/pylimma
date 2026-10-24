@@ -118,6 +118,24 @@ class TestRigorousContrastsFit:
             'coefficients" when rn != cn (after the (Intercept) rename).'
         )
 
+    def test_default_dataframe_index_is_no_row_names(self):
+        """A DataFrame contrast with pandas' default 0..n-1 labels has no row
+        or column names, as R's matrix without dimnames: no row/col-name
+        check."""
+        rng = np.random.default_rng(0)
+        design = pd.DataFrame(
+            np.column_stack([np.ones(6), np.array([0, 0, 0, 1, 1, 1], dtype=float)]),
+            columns=["(Intercept)", "groupB"],
+        )
+        fit = lm_fit(rng.standard_normal((10, 6)), design)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            fit2 = contrasts_fit(fit, pd.DataFrame([[0.0], [1.0]], columns=["c1"]))
+        np.testing.assert_array_equal(fit2["coefficients"][:, 0], fit["coefficients"][:, 1])
+        # Unnamed columns too: named as for a matrix without column names
+        unnamed = contrasts_fit(fit, pd.DataFrame([[0.0], [1.0]]))
+        assert unnamed["contrast_names"] == contrasts_fit(fit, np.array([[0.0], [1.0]]))["contrast_names"]
+
     def test_no_warning_when_intercept_renamed_matches(self):
         """Exercises R-B10/B11: silent rename of '(Intercept)'.
 
