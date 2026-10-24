@@ -498,6 +498,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `classify_tests_f` with one coefficient compares the p-values with any
+  `p_value`, as R, whose one-coefficient branch never reaches `qf`; this
+  group's new check raised for a `p_value` outside 0..1 there too.
 - A one-element array, list or Series is accepted where a single number
   is expected, as R's length-1 vectors: `decide_tests` and
   `classify_tests_f` `p_value`,

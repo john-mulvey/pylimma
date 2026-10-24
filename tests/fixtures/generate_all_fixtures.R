@@ -6749,14 +6749,16 @@ stopifnot(grepl("2 or more levels", try(model.matrix(~ f, .mm_d), silent = TRUE)
 # decideTests / classifyTestsF with unusable arguments: p.value = NaN gives
 # an all-NA result; an impossible p.value or df, or a correlation matrix
 # with missing values, fails deep in qf / eigen / if() (pylimma raises
-# clear errors); a scalar p-value is a 1 x 1 matrix
+# clear errors); one coefficient never reaches qf, so any p.value is
+# compared with the p-values; a scalar p-value is a 1 x 1 matrix
 # =============================================================================
 .dt_fit <- eBayes(lmFit(matrix(rnorm(120), 20), cbind(1, c(0, 0, 0, 1, 1, 1), c(0, 1, 0, 1, 0, 1))))
 stopifnot(all(is.na(decideTests(.dt_fit, p.value = NaN))),
           inherits(try(classifyTestsF(.dt_fit, p.value = 2), silent = TRUE), "try-error"),
           inherits(try(classifyTestsF(.dt_fit, df = 0), silent = TRUE), "try-error"),
           inherits(try(classifyTestsF(.dt_fit, cor.matrix = matrix(NA, 3, 3)), silent = TRUE), "try-error"),
-          identical(dim(decideTests(0.5)), c(1L, 1L)))
+          identical(dim(decideTests(0.5)), c(1L, 1L)),
+          identical(as.vector(classifyTestsF(matrix(c(-2, 0.5, 3), 3), df = 5, p.value = 2)), c(-1, 1, 1)))
 
 # =============================================================================
 # genas with unusable coefficients: a position out of range fails in

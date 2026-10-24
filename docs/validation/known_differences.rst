@@ -414,11 +414,12 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
 
 ``decide_tests`` / ``classify_tests_f`` with unusable arguments
     ``decide_tests(p_value=NaN)`` raises "p_value must be a number"; R's
-    ``p < NA`` gives an all-NA result. ``classify_tests_f`` raises for a
-    ``p_value`` outside 0..1, a ``df`` that leaves no F threshold (0 or NaN)
-    and a ``cor_matrix`` with missing values or no positive eigenvalue; R
-    fails in ``qf`` / ``eigen`` / ``if()`` ("missing value where TRUE/FALSE
-    needed"). ``generate_all_fixtures.R`` records the R behaviour.
+    ``p < NA`` gives an all-NA result. With several coefficients,
+    ``classify_tests_f`` raises for a ``p_value`` outside 0..1, a ``df``
+    that leaves no F threshold (0 or NaN) and a ``cor_matrix`` with missing
+    values or no positive eigenvalue; R fails in ``qf`` / ``eigen`` /
+    ``if()`` ("missing value where TRUE/FALSE needed"). With one
+    coefficient, as in R, any ``p_value`` is compared with the p-values. ``generate_all_fixtures.R`` records the R behaviour.
 
 ``genas`` with unusable coefficients
     A ``coef`` outside the coefficient positions, a fraction or a repeated

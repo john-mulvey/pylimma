@@ -296,3 +296,10 @@ def test_classify_tests_f_threshold_uses_r_qf_for_large_df():
     (generate_all_fixtures.R, "classifyTestsF takes its threshold from qf")."""
     x = np.full((1, 2), np.sqrt(4.60518))
     assert np.all(classify_tests_f(x, df=1e6, p_value=0.01) != 0)
+
+
+def test_classify_tests_f_one_coefficient_takes_any_p_value():
+    """R's one-coefficient branch never calls qf: sign(t) * (p < p.value)
+    (generate_all_fixtures.R, "decideTests / classifyTestsF with unusable")."""
+    result = classify_tests_f(np.array([[-2.0], [0.5], [3.0]]), df=5, p_value=2)
+    np.testing.assert_array_equal(np.asarray(result).ravel(), [-1, 1, 1])

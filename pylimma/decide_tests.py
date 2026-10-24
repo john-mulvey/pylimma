@@ -75,11 +75,7 @@ def classify_tests_f(
     if tstat.ndim == 1:
         tstat = tstat.reshape(-1, 1)
     n_genes, n_tests = tstat.shape
-    # R's qf / pt with such a p.value give NaN or NA results, then fail in an
-    # if() ("missing value where TRUE/FALSE needed")
     p_value = _r_scalar(p_value)
-    if not fstat_only and not (isinstance(p_value, numbers.Real) and 0 <= p_value <= 1):
-        raise ValueError(f"p_value must be between 0 and 1, not {p_value!r}")
 
     # df resolution: explicit kwarg takes precedence, otherwise derive
     # from df_prior + df_residual on the fit (matches R decidetests.R:190
@@ -97,6 +93,11 @@ def classify_tests_f(
         p = 2 * stats.t.sf(np.abs(tstat[:, 0]), df)
         result = np.sign(tstat[:, 0]) * (p < p_value)
         return _as_results(result.reshape(-1, 1))
+
+    # R's qf with such a p.value gives NaN, then fails in an if() ("missing
+    # value where TRUE/FALSE needed"); one coefficient never reaches qf
+    if not fstat_only and not (isinstance(p_value, numbers.Real) and 0 <= p_value <= 1):
+        raise ValueError(f"p_value must be between 0 and 1, not {p_value!r}")
 
     # Multiple coefficients: build the correlation matrix from the
     # explicit cor_matrix kwarg, otherwise derive it from the fit's
