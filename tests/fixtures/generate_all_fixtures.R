@@ -7147,3 +7147,11 @@ stopifnot(identical(dim(treat(.nvf_vec)$t), c(50L, 1L)), length(eBayes(.nvf_vec)
           .nvf(eBayes(.nvf_bad)) == "non-conformable arrays",
           .nvf(treat(.nvf_bad)) == "non-conformable arrays",
           .nvf(suppressMessages(topTableF(.nvf_noc))) == "Coefficients not found in fit")
+
+# =============================================================================
+# topTable: adjust.method = NULL means "BH"
+# =============================================================================
+set.seed(1320)
+.amn_fit <- eBayes(lmFit(matrix(rnorm(300), 50, 6), cbind(1, rep(0:1, each = 3))))
+stopifnot(identical(topTable(.amn_fit, coef = 2, adjust.method = NULL),
+                    topTable(.amn_fit, coef = 2, adjust.method = "BH")))

@@ -452,3 +452,12 @@ def test_vector_genelist_as_series_and_of_wrong_length():
         top_table(fit, coef=1, genelist=ids[:9])
     with pytest.raises(ValueError, match="one entry per gene"):
         top_table(fit, coef=1, genelist=pd.DataFrame({"ID": ids + ["extra"]}))
+
+
+def test_adjust_method_none_is_bh():
+    """R's topTable: if(is.null(adjust.method)) adjust.method <- "BH"."""
+    rng = np.random.default_rng(1320)
+    fit = e_bayes(lm_fit(rng.normal(size=(50, 6)), np.column_stack([np.ones(6), [0, 0, 0, 1, 1, 1]])))
+    pd.testing.assert_frame_equal(
+        top_table(fit, coef=1, adjust_method=None), top_table(fit, coef=1, adjust_method="BH")
+    )

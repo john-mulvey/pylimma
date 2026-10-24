@@ -513,6 +513,8 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `top_table(adjust_method=None)` (and `top_treat`) adjusts by "BH", as
+  R's `topTable`; it raised `AttributeError`.
 - Functions that take a fit (`e_bayes`, `treat`, `contrasts_fit`,
   `top_table`, `diff_splice` and others) raise a clear `TypeError` for
   input that is not a fit, as R's "fit is not a valid MArrayLM object"

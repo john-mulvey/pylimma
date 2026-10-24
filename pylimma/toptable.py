@@ -149,7 +149,7 @@ def top_table(
     coef: int | str | list | None = None,
     number: int = 10,
     genelist: pd.DataFrame | list | np.ndarray | None = None,
-    adjust_method: str = "BH",
+    adjust_method: str | None = "BH",
     sort_by: str = "B",
     resort_by: str | None = None,
     p_value: float = 1.0,
@@ -186,9 +186,9 @@ def top_table(
         columns in ``adata.var`` (e.g. ``symbol``, ``chromosome``) are not
         duplicated into the fit. Pass ``genelist=adata.var`` explicitly
         to merge those columns into the output table.
-    adjust_method : str, default "BH"
+    adjust_method : str or None, default "BH"
         Multiple testing adjustment method. Options: "BH", "bonferroni",
-        "holm", "none".
+        "holm", "none". None means "BH", as R.
     sort_by : str, default "B"
         Column to sort by. Options:
         - "B" or "b": B-statistic (log-odds of DE)
@@ -258,6 +258,9 @@ def top_table(
         raise ValueError("Need to run e_bayes() first")
     if fit.get("coefficients") is None:
         raise ValueError("coefficients not found in fit object")
+    # R toptable.R:31
+    if adjust_method is None:
+        adjust_method = "BH"
 
     coefficients = fit["coefficients"]
     n_genes, n_coefs = coefficients.shape
