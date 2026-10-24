@@ -750,7 +750,7 @@ def gls_series(
     design : ndarray, optional
         Design matrix, shape (n_samples, n_coefficients).
         If None, uses intercept-only model.
-    ndups : int, default 1
+    ndups : int, default 2
         Number of within-array duplicate spots.
     spacing : int or None, default 1
         Spacing between duplicate spots. None means 1, as R's gls.series
