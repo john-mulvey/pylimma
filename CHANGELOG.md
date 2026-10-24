@@ -513,6 +513,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `e_bayes(stdev_coef_lim=...)` of a length other than 2 raises a clear
+  error, as R's "v0.lim must have length 2"; three values used the first
+  two and one value raised `IndexError`.
 - `contrasts_fit` with a DataFrame contrast that has pandas' default
   0..n-1 index or columns treats it as having no row or column names, as
   R does a matrix without them; it warned "row names of contrasts don't

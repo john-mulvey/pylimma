@@ -7116,3 +7116,12 @@ stopifnot(identical(colnames(.dn_fit$coefficients), c("x1", "x2")),
 write.csv(.dn_y, "R_dn_input.csv", row.names = FALSE)
 write.csv(topTable(.dn_fit, coef = "x2", number = Inf, sort.by = "none"), "R_dn_toptable.csv",
           row.names = FALSE)
+
+# =============================================================================
+# eBayes: stdev.coef.lim must have length 2 (tmixture.matrix's v0.lim)
+# =============================================================================
+set.seed(1318)
+.scl_fit <- lmFit(matrix(rnorm(300), 50, 6), cbind(1, rep(0:1, each = 3)))
+stopifnot(grepl("v0.lim must have length 2", try(eBayes(.scl_fit, stdev.coef.lim = 0.1), silent = TRUE)),
+          grepl("v0.lim must have length 2", try(eBayes(.scl_fit, stdev.coef.lim = c(0.1, 4, 10)),
+                                                 silent = TRUE)))

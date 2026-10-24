@@ -303,3 +303,8 @@ class TestEBayesArgumentChecks:
     def test_treat_without_fc_or_lfc_raises(self):
         with pytest.raises(ValueError, match="fc must be a number"):
             treat(self._fit(), fc=None)
+
+    @pytest.mark.parametrize("lim", [(0.1,), (0.1, 4.0, 10.0)])
+    def test_stdev_coef_lim_of_wrong_length_raises(self, lim):
+        with pytest.raises(ValueError, match="stdev_coef_lim must have length 2"):
+            e_bayes(self._fit(), stdev_coef_lim=lim)

@@ -191,7 +191,8 @@ def e_bayes(
     proportion : float, default 0.01
         Expected proportion of differentially expressed genes.
     stdev_coef_lim : tuple, default (0.1, 4.0)
-        Limits for the prior standard deviation of coefficients.
+        Lower and upper limits for the prior standard deviation of
+        coefficients (length 2, as R).
     trend : bool or array_like, default False
         If True, allow prior variance to depend on mean expression
         (Amean from the fit). If a numeric array, use that as the
@@ -250,6 +251,10 @@ def e_bayes(
     """
     fit, adata, adata_key = _resolve_fit_input(data, key)
     is_anndata = adata is not None
+    # R's tmixture.matrix: stop("v0.lim must have length 2"), checked here
+    # before the computation
+    if np.size(stdev_coef_lim) != 2:
+        raise ValueError("stdev_coef_lim must have length 2")
 
     # Deep-copy so e_bayes(fit) shares no arrays with the caller's
     # lm_fit/contrasts_fit output. Matches R's copy-on-modify:
@@ -311,10 +316,7 @@ def e_bayes(
     p_value = 2 * stats.t.sf(np.abs(t_stat), df_total[:, np.newaxis])
 
     # B-statistic (log-odds of DE)
-    var_prior_lim = (
-        stdev_coef_lim[0] ** 2 / np.median(s2_prior),
-        stdev_coef_lim[1] ** 2 / np.median(s2_prior),
-    )
+    var_prior_lim = tuple(np.ravel(stdev_coef_lim) ** 2 / np.median(s2_prior))
     var_prior = _tmixture_matrix(t_stat, stdev_unscaled, df_total, proportion, var_prior_lim)
 
     if np.any(np.isnan(var_prior)):
