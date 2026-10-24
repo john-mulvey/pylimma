@@ -21,7 +21,7 @@ import numpy as np
 from scipy import stats
 
 from .classes import _is_anndata, _resolve_fit_input
-from .utils import _match_arg, _r_qf, p_adjust
+from .utils import _match_arg, _r_qf, _r_scalar, p_adjust
 
 if TYPE_CHECKING:
     pass
@@ -77,6 +77,7 @@ def classify_tests_f(
     n_genes, n_tests = tstat.shape
     # R's qf / pt with such a p.value give NaN or NA results, then fail in an
     # if() ("missing value where TRUE/FALSE needed")
+    p_value = _r_scalar(p_value)
     if not fstat_only and not (isinstance(p_value, numbers.Real) and 0 <= p_value <= 1):
         raise ValueError(f"p_value must be between 0 and 1, not {p_value!r}")
 
@@ -288,6 +289,7 @@ def decide_tests(
     """
     # R: p < NA is NA, so p.value = NaN gives an all-NA result; a clear error
     # instead (known_differences.rst)
+    p_value = _r_scalar(p_value)
     if not isinstance(p_value, numbers.Real) or np.isnan(p_value):
         raise ValueError(f"p_value must be a number, not {p_value!r}")
     method = _match_arg(method, _DECIDE_METHODS, "method")

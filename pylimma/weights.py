@@ -30,7 +30,7 @@ from scipy import linalg
 
 from .classes import _shape_error, get_eawp
 from .lmfit import _qr_r_style
-from .utils import _r_as_character, _whole_count
+from .utils import _r_as_character, _r_scalar, _whole_count
 
 
 def _scoring_step(info2: np.ndarray, dl: np.ndarray) -> np.ndarray:
@@ -567,6 +567,7 @@ def array_weights(
     """
     # R's 1:maxiter runs twice for 0, and prior.n = Inf gives NaN weights
     maxiter = _whole_count(maxiter, "maxiter")
+    prior_n = _r_scalar(prior_n)
     if not (isinstance(prior_n, numbers.Real) and np.isfinite(prior_n) and prior_n >= 0):
         raise ValueError(f"prior_n must be a finite number of 0 or more, not {prior_n!r}")
 

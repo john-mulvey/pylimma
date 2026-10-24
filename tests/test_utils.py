@@ -477,3 +477,32 @@ def test_prop_true_null_hist_leaves_missing_out_and_needs_whole_nbins():
     for nbins, message in ((0, "nbins must be at least 1"), (7.5, "nbins must be a whole number")):
         with pytest.raises(ValueError, match=message):
             prop_true_null(p, method="hist", nbins=nbins)
+
+
+def test_one_element_arrays_are_scalar_arguments():
+    """R has no scalars: a length-1 vector is one."""
+    import pylimma
+
+    rng = np.random.default_rng(1)
+    design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+    expr = rng.normal(size=(20, 6))
+    fit = pylimma.e_bayes(pylimma.lm_fit(expr, design))
+    np.testing.assert_array_equal(
+        pylimma.decide_tests(fit, p_value=np.array([0.05])), pylimma.decide_tests(fit, p_value=0.05)
+    )
+    np.testing.assert_array_equal(
+        pylimma.decide_tests(fit, p_value=[0.05]), pylimma.decide_tests(fit, p_value=0.05)
+    )
+    tstat = np.asarray(fit["t"])
+    np.testing.assert_array_equal(
+        pylimma.classify_tests_f(tstat, df=4, p_value=np.array(0.05)),
+        pylimma.classify_tests_f(tstat, df=4, p_value=0.05),
+    )
+    np.testing.assert_array_equal(
+        pylimma.background_correct(expr + 10, np.ones((20, 6)), method="subtract", offset=np.array([2.0])),
+        pylimma.background_correct(expr + 10, np.ones((20, 6)), method="subtract", offset=2.0),
+    )
+    np.testing.assert_array_equal(
+        pylimma.array_weights(expr, design, prior_n=np.array([10.0])),
+        pylimma.array_weights(expr, design, prior_n=10.0),
+    )

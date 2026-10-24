@@ -46,7 +46,7 @@ from .classes import (
     get_eawp,
 )
 from .dups import _duplicate_groups, duplicate_correlation, unique_genelist, unwrap_dups
-from .utils import _as_dense_array, _block_labels, _whole_count
+from .utils import _as_dense_array, _block_labels, _r_scalar, _whole_count
 
 if TYPE_CHECKING:
     pass
@@ -598,6 +598,7 @@ def mrlm(
     maxit = _whole_count(maxit, "maxit")
     # R passes k to MASS::rlm, which fails obscurely for k <= 0 (chol2inv
     # "size" for 0, lm.wfit "negative weights" for a negative k)
+    k = _r_scalar(k)
     if not (isinstance(k, numbers.Real) and np.isfinite(k) and k > 0):
         raise ValueError(f"k must be a positive number, not {k!r}")
 

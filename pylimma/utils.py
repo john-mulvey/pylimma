@@ -167,15 +167,21 @@ def logmdigamma(x: np.ndarray | float) -> np.ndarray | float:
     return np.log(x) - digamma(x)
 
 
+def _r_scalar(value):
+    """A one-element array, list, tuple or Series as its element (R has no
+    scalars: a length-1 vector is one); anything else unchanged."""
+    if isinstance(value, (np.ndarray, list, tuple, pd.Series)) and np.size(value) == 1:
+        return np.asarray(value).item()
+    return value
+
+
 def _whole_count(value, name: str) -> int:
     """A count argument (nrot, nsim, ...) as a whole number of at least 1.
     R fails obscurely below 1 or silently truncates a fraction (nrot gave
     meaningless p-values: random numbers recycled into a smaller rotation
     matrix, the fraction in the denominators); clear errors instead.
     Whole-number floats such as 1e4 (and one-element arrays) are accepted."""
-    # R: a length-1 vector is a scalar
-    if isinstance(value, np.ndarray) and value.size == 1:
-        value = value.item()
+    value = _r_scalar(value)
     if (
         not isinstance(value, numbers.Real)
         or isinstance(value, (bool, np.bool_))

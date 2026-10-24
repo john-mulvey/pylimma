@@ -498,6 +498,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- A one-element array, list or Series is accepted where a single number
+  is expected, as R's length-1 vectors: `decide_tests` and
+  `classify_tests_f` `p_value`,
+  `background_correct` `offset`, `array_weights` `prior_n` and `lm_fit`
+  robust `k` (the new argument checks rejected them).
 - A fit rebuilt by hand from a reloaded h5ad (`MArrayLM(adata.uns[key])`)
   with contrasts can be subset by column name and flattened with
   `as_dataframe`; the contrast names came back as an array, which raised

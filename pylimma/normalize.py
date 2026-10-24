@@ -65,7 +65,7 @@ from .classes import (
     get_eawp,
     put_eawp,
 )
-from .utils import _as_dense_array, _r_approx_rule2, choose_lowess_span
+from .utils import _as_dense_array, _r_approx_rule2, _r_scalar, choose_lowess_span
 
 _VALID_METHODS = ("none", "scale", "quantile", "cyclicloess")
 
@@ -1050,6 +1050,7 @@ def background_correct(
             )
     # R's `if(offset)` fails on NA ("argument is not interpretable as
     # logical") and on more than one value; a clear error instead
+    offset = _r_scalar(offset)
     if not isinstance(offset, numbers.Real) or np.isnan(offset):
         raise ValueError(f"offset must be a single number, not {offset!r}")
 
