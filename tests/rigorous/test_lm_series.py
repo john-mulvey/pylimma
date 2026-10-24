@@ -192,27 +192,6 @@ class TestRigorousLmSeries:
         r_out = _run_lm_series_r(M, design)
         _assert_slots_match(py_fit, r_out)
 
-    # ----------------- R-B3: coef.names fallback "x1".."xp" ---------------
-    def test_b3_default_coef_names_are_one_based_like_R(self):
-        """R-B3 (lmfit.R:107): ``coef.names <- paste("x",1:nbeta,sep="")``.
-        R generates "x1","x2",...; pylimma generates "x0","x1",... This is a
-        deliberate-but-potentially-surprising divergence - the test documents
-        it rather than asserting parity."""
-        rng = np.random.default_rng(3)
-        M = rng.standard_normal((6, 4))
-        design = np.column_stack([np.ones(4), [0, 0, 1, 1]])
-        py_fit = lm_series(M, design)
-        # pylimma does not currently attach coef names to the ndarray
-        # output - they get added in lm_fit via the design_names sidecar.
-        # Check via the private default generator by reading the source:
-        # lmfit.py:223 produces [f"x{i}" for i in range(n_coefs)], which is
-        # "x0","x1".
-        # There is nothing user-visible to test here at the lm_series level,
-        # so this test just documents the divergence and confirms it is a
-        # silent difference.
-        assert py_fit["rank"] == 2
-        assert py_fit["coefficients"].shape == (6, 2)
-
     # -------------- R-B4: weights preprocessing (<=0 -> NA) ---------------
     def test_b4_nonpositive_weights_become_nan_and_mask_M(self):
         """R-B4 (lmfit.R:110-114): ``weights[weights<=0] <- NA`` then

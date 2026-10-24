@@ -281,10 +281,6 @@ def lm_series(
     design = np.asarray(design, dtype=np.float64)
 
     n_genes, n_samples = M.shape
-    n_coefs = design.shape[1]
-
-    # Get coefficient names
-    coef_names = [f"x{i}" for i in range(n_coefs)]
 
     # Normalise weight shape via R limma's asMatrixWeights, which returns a
     # fresh copy, so the subsequent ``weights[weights <= 0] = np.nan`` is
@@ -304,17 +300,16 @@ def lm_series(
 
     if not has_missing and not has_probe_weights:
         # Fast path: fit all genes at once
-        return _lm_series_fast(M, design, weights, coef_names)
+        return _lm_series_fast(M, design, weights)
     else:
         # Slow path: iterate over genes
-        return _lm_series_slow(M, design, weights, coef_names)
+        return _lm_series_slow(M, design, weights)
 
 
 def _lm_series_fast(
     M: np.ndarray,
     design: np.ndarray,
     weights: np.ndarray | None,
-    coef_names: list[str],
 ) -> dict:
     """Fast path for lm_series when no missing values or probe weights."""
     n_genes, n_samples = M.shape
@@ -406,7 +401,6 @@ def _lm_series_slow(
     M: np.ndarray,
     design: np.ndarray,
     weights: np.ndarray | None,
-    coef_names: list[str],
 ) -> dict:
     """Slow path for lm_series with missing values or probe-specific weights."""
     n_genes, n_samples = M.shape
