@@ -423,8 +423,11 @@ class TestRigorousMrlm:
             [
                 # Row 0: 3 finite values (= nbeta) -> SKIPPED
                 [1.0, 2.0, 3.0, np.nan],
-                # Row 1: 4 finite, df=4-3=1, sigma assigned
-                [1.0, 2.0, 3.0, 4.0],
+                # Row 1: 4 finite, df=4-3=1, sigma assigned. Not an exact
+                # fit of the design (1, 2, 3, 4 is): exact fits leave only
+                # rounding noise as residuals, where pylimma and R differ
+                # (known_differences.rst, test_b9c_zero_residual_scale)
+                [1.0, 2.0, 3.0, 5.0],
             ]
         )
 
