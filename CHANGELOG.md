@@ -250,6 +250,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `top_table` (and `top_table_f`, `top_treat`) of a fit without row
+  names numbers the rows 1..N, as R; without a genelist they were named
+  `gene1`..`geneN`, and with a DataFrame genelist after its index.
 - `lm_fit` with a design without column names (a matrix, a DataFrame
   with pandas' default columns, or no design) names the
   coefficients `x1`..`xp`, as R's `lmFit` does for least squares and the

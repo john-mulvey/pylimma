@@ -563,7 +563,7 @@ class TestTopTableRParity:
     def test_ranking_by_b_stat(self, data1):
         """Test that ranking by B matches R."""
         r_tt = load_r_csv("toptable_sortB")
-        fit = lm_fit(data1["expr"], data1["design"])
+        fit = lm_fit(load_r_csv("data1_expr"), data1["design"])
         fit = e_bayes(fit)
         py_tt = top_table(fit, coef=1, number=20, sort_by="B")
 
@@ -3378,6 +3378,22 @@ class TestUnnamedDesignCoefNamesRParity:
         for py_col, r_col in [("log_fc", "logFC"), ("t", "t"), ("b", "B")]:
             np.testing.assert_allclose(tab[py_col], r[r_col], rtol=1e-6, atol=1e-12)
         assert compare_pvalues(r["P.Value"].to_numpy(), tab["p_value"].to_numpy())["match"]
+
+
+class TestTopTableRowNumbersRParity:
+    """A fit without row names gives a table whose rows are numbered 1..N,
+    as R's rn <- 1:nrow(M)."""
+
+    def test_row_numbers(self):
+        y = load_r_csv_no_index("dn_input").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3), np.tile([0.0, 1.0], 3)])
+        fit = e_bayes(lm_fit(y, design))
+        r = load_r_csv_no_index("rn_toptable")
+        assert list(top_table(fit, coef=1).index) == list(r["t"])
+        assert list(top_table(fit).index) == list(r["f"])
+        # A genelist's own row names are not used
+        genelist = pd.DataFrame({"sym": [f"s{i}" for i in range(len(y))]})
+        assert list(top_table(fit, coef=1, genelist=genelist).index) == list(r["t"])
 
 
 class TestPAdjustAllMethodsRParity:

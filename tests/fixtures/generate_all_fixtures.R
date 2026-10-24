@@ -7155,3 +7155,12 @@ set.seed(1320)
 .amn_fit <- eBayes(lmFit(matrix(rnorm(300), 50, 6), cbind(1, rep(0:1, each = 3))))
 stopifnot(identical(topTable(.amn_fit, coef = 2, adjust.method = NULL),
                     topTable(.amn_fit, coef = 2, adjust.method = "BH")))
+
+# =============================================================================
+# topTable / topTableF of a fit without row names number the rows 1..N
+# =============================================================================
+.rn_y <- as.matrix(read.csv("R_dn_input.csv"))
+dimnames(.rn_y) <- NULL
+.rn_fit <- eBayes(lmFit(.rn_y, cbind(1, rep(0:1, each = 3), c(0, 1, 0, 1, 0, 1))))
+write.csv(data.frame(t = rownames(topTable(.rn_fit, coef = 2)), f = rownames(topTable(.rn_fit))),
+          "R_rn_toptable.csv", row.names = FALSE)

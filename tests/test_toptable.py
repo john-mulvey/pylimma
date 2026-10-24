@@ -340,42 +340,21 @@ class TestTopTable:
         np.testing.assert_allclose(result["p_value"].values, ref["P.Value"].values, rtol=1e-6)
 
     def test_duplicated_rownames_with_existing_id_column(self):
-        """Test that ID0 is used when genelist already has an ID column."""
+        """Duplicated row names of the fit go to ID0 when the genelist
+        already has an ID column (R's .topTableT)."""
         np.random.seed(42)
-        expr = np.random.randn(10, 8)
+        names = ["GeneA", "GeneA", "GeneB", "GeneC", "GeneC", "GeneD", "GeneE", "GeneE", "GeneF", "GeneG"]
+        expr = pd.DataFrame(np.random.randn(10, 8), index=names)
         design = np.column_stack([np.ones(8), [0, 0, 0, 0, 1, 1, 1, 1]])
 
-        fit = lm_fit(expr, design)
-        fit = e_bayes(fit)
+        fit = e_bayes(lm_fit(expr, design))
+        genelist = pd.DataFrame({"ID": [f"EXISTING_{i}" for i in range(10)]})
 
-        # Genelist with existing ID column and duplicated index
-        genelist = pd.DataFrame(
-            {
-                "ID": [f"EXISTING_{i}" for i in range(10)],
-                "symbol": ["A", "A", "B", "C", "C", "D", "E", "E", "F", "G"],
-            }
-        )
-        genelist.index = [
-            "GeneA",
-            "GeneA",
-            "GeneB",
-            "GeneC",
-            "GeneC",
-            "GeneD",
-            "GeneE",
-            "GeneE",
-            "GeneF",
-            "GeneG",
-        ]
+        result = top_table(fit, coef=1, number=10, genelist=genelist, sort_by="none")
 
-        result = top_table(fit, coef=1, number=10, genelist=genelist)
-
-        # Index should be unique
-        assert result.index.is_unique
-
-        # Original ID column preserved, original index in ID0
-        assert "ID" in result.columns
-        assert "ID0" in result.columns
+        assert list(result.index) == list(range(1, 11))
+        assert list(result["ID"]) == list(genelist["ID"])
+        assert list(result["ID0"]) == names
 
     def test_explicit_vector_genelist_creates_id_column(self):
         """Explicit vector genelist becomes an ID column (R toptable.R:168).

@@ -204,12 +204,7 @@ class TestRigorousTopTreat:
         expr, design = _two_group_expr(n_genes=30, n_samples=8, seed=11)
         r_df = _run_r_top_treat(expr, design, r_args={"coef": 2, "number": 30})
         py_df = _py_top_treat_via_treat(expr, design, coef=1, number=30)
-        # Order may differ on ties; align by gene name.
-        # R rownames come from the CSV (g1..g30); pylimma uses
-        # the same when expr is a DataFrame -> shouldn't, actually
-        # pylimma's top_table builds genes from the genes slot if
-        # present, otherwise from "gene1..N". Compare by sorted
-        # logFC value-by-value across genes.
+        # Order may differ on ties: compare the tables sorted by p-value.
         py_df_sorted = py_df.sort_values("p_value", kind="stable")
         r_df_sorted = r_df.sort_values("P.Value", kind="stable")
         _assert_columns_match(py_df_sorted, r_df_sorted)

@@ -102,15 +102,15 @@ def _table_genes(
     """Row names and annotation columns of a top table (R's ``rn`` and
     ``genelist`` in .topTableT / .topTableF).
 
-    The rows are named after the fit's row names, as R; when the fit has
-    none, after a DataFrame genelist's index, else ``gene1``..``geneN``
-    without a genelist and ``1``..``N`` with a vector genelist (R numbers
-    the rows 1..N). An explicit vector genelist becomes the column
+    The rows are named after the fit's row names, else numbered
+    ``1``..``N``, as R. An explicit vector genelist becomes the column
     ``vector_column`` (R's ``ID`` for topTable, ``ProbeID`` for
-    topTableF); the default genelist, ``fit["genes"]``, as a vector only
-    names the rows. Duplicated row names move to an ID (or ID0) column.
+    topTableF); the default genelist, ``fit["genes"]``, names the rows
+    through ``_fit_row_names`` only. Duplicated row names move to an ID
+    (or ID0) column.
     """
-    row_names = _fit_row_names(fit, n_genes)
+    # R names the rows after the fit, never after the genelist
+    genes = _fit_row_names(fit, n_genes) or list(range(1, n_genes + 1))
     if isinstance(genelist, (tuple, pd.Series, pd.Index)):
         genelist = list(genelist)
     # R's genelist[top, ] of a list or data frame of another length gives NA
@@ -120,26 +120,11 @@ def _table_genes(
         raise ValueError(
             f"genelist must have one entry per gene ({n_genes}), not {len(genelist)}"
         )
-    if genelist is None:
-        genes = row_names or [f"gene{i + 1}" for i in range(n_genes)]
-        genelist_df = None
-    elif isinstance(genelist, pd.DataFrame):
-        if row_names is not None:
-            genes = row_names
-        elif len(genelist.index) == n_genes:
-            genes = list(genelist.index)
-        else:
-            genes = list(range(n_genes))
+    if isinstance(genelist, pd.DataFrame):
         genelist_df = genelist.copy()
-    elif isinstance(genelist, (list, np.ndarray)) and len(genelist) == n_genes:
-        if explicit:
-            genelist_df = pd.DataFrame({vector_column: list(genelist)})
-            genes = row_names or list(range(1, n_genes + 1))
-        else:
-            genes = row_names or list(genelist)
-            genelist_df = None
+    elif explicit and isinstance(genelist, (list, np.ndarray)):
+        genelist_df = pd.DataFrame({vector_column: list(genelist)})
     else:
-        genes = row_names or [f"gene{i + 1}" for i in range(n_genes)]
         genelist_df = None
     return _handle_duplicated_rownames(genes, genelist_df)
 
