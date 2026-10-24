@@ -7164,3 +7164,19 @@ dimnames(.rn_y) <- NULL
 .rn_fit <- eBayes(lmFit(.rn_y, cbind(1, rep(0:1, each = 3), c(0, 1, 0, 1, 0, 1))))
 write.csv(data.frame(t = rownames(topTable(.rn_fit, coef = 2)), f = rownames(topTable(.rn_fit))),
           "R_rn_toptable.csv", row.names = FALSE)
+
+# =============================================================================
+# topTable / topTableF read a coefficients vector as one column
+# (as.matrix), topTable also t, p.value and lods
+# =============================================================================
+.cv_fit <- eBayes(lmFit(as.matrix(read.csv("R_dn_input.csv")), cbind(1, rep(0:1, each = 3))))
+.cv_fit$coefficients <- unname(.cv_fit$coefficients[, 2])
+.cv_f <- suppressMessages(topTableF(.cv_fit, number = Inf, sort.by = "none"))
+.cv_t <- topTable(.cv_fit, number = Inf, sort.by = "none")
+write.csv(data.frame(coef1 = .cv_f$Coef1, F = .cv_f$F, logFC = .cv_t$logFC, t = .cv_t$t),
+          "R_coef_vector_toptable.csv", row.names = FALSE)
+.cv_v <- .cv_fit
+.cv_v$t <- .cv_v$t[, 1]
+.cv_v$p.value <- .cv_v$p.value[, 1]
+.cv_v$lods <- .cv_v$lods[, 1]
+stopifnot(identical(topTable(.cv_v, number = Inf, sort.by = "none"), .cv_t))

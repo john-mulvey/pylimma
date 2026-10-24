@@ -20,7 +20,7 @@ import pandas as pd
 from scipy import stats
 
 from .classes import MArrayLM, _resolve_fit_input
-from .utils import _match_arg, p_adjust
+from .utils import _as_matrix, _match_arg, p_adjust
 
 if TYPE_CHECKING:
     pass
@@ -247,7 +247,7 @@ def top_table(
     if adjust_method is None:
         adjust_method = "BH"
 
-    coefficients = fit["coefficients"]
+    coefficients = _as_matrix(fit["coefficients"])
     n_genes, n_coefs = coefficients.shape
 
     # Determine which coefficients to use
@@ -394,7 +394,7 @@ def _top_table_t(
     if resort_by is not None:
         resort_by = _match_arg(_SORT_ALIASES.get(resort_by, resort_by), _SORT_CHOICES[:-1], "resort.by")
 
-    coefficients = fit["coefficients"]
+    coefficients = _as_matrix(fit["coefficients"])
     n_genes = coefficients.shape[0]
 
     # Extract statistics. R toptable.R:273-275 conditions the AveExpr
@@ -403,12 +403,12 @@ def _top_table_t(
     # omit the columns when their source is missing - matching R's
     # `data.frame$col <- NULL` no-op behaviour.
     log_fc = coefficients[:, coef]
-    t_stat = fit["t"][:, coef]
-    p_val = fit["p_value"][:, coef]
+    t_stat = _as_matrix(fit["t"])[:, coef]
+    p_val = _as_matrix(fit["p_value"])[:, coef]
     lods = fit.get("lods")
     has_lods = lods is not None
     if has_lods:
-        b_stat = lods[:, coef] if lods.ndim > 1 else lods
+        b_stat = _as_matrix(lods)[:, coef]
     else:
         # R toptable.R:209-211: missing lods + sort/resort.by="B" raises.
         if sort_by == "B":
@@ -714,7 +714,7 @@ def _top_table_f(
     if sort_by not in ("F", "none"):
         raise ValueError(f"sort_by={sort_by!r} not recognised. Must be one of 'F', 'none'.")
 
-    coef_matrix = np.asarray(fit["coefficients"])
+    coef_matrix = _as_matrix(fit["coefficients"])
     if coef_idx is None:
         # R's topTableF uses the whole coefficient matrix.
         coef_idx = list(range(coef_matrix.shape[1]))

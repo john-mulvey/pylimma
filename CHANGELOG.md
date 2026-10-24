@@ -516,6 +516,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `top_table` and `top_table_f` read a fit whose coefficients (and, for
+  `top_table`, t, p-values or lods) are a vector as one coefficient, as
+  R's `as.matrix`; they raised `ValueError` / `IndexError`.
 - `top_table(adjust_method=None)` (and `top_treat`) adjusts by "BH", as
   R's `topTable`; it raised `AttributeError`.
 - Functions that take a fit (`e_bayes`, `treat`, `contrasts_fit`,

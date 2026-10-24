@@ -3396,6 +3396,31 @@ class TestTopTableRowNumbersRParity:
         assert list(top_table(fit, coef=1, genelist=genelist).index) == list(r["t"])
 
 
+class TestTopTableCoefficientVectorRParity:
+    """A coefficients vector is one column (R's as.matrix), as are vectors
+    of t, p_value and lods in topTable."""
+
+    def test_vector_coefficients(self):
+        from pylimma.toptable import top_table_f
+
+        y = load_r_csv_no_index("dn_input").to_numpy(dtype=float)
+        fit = e_bayes(lm_fit(y, np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])))
+        fit["coefficients"] = fit["coefficients"][:, 1]
+        del fit["coef_names"]
+        r = load_r_csv_no_index("coef_vector_toptable")
+        with pytest.warns(DeprecationWarning):
+            tab_f = top_table_f(fit, number=np.inf, sort_by="none")
+        tab_t = top_table(fit, number=np.inf, sort_by="none")
+        for py, r_col in [(tab_f["Coef1"], "coef1"), (tab_f["F"], "F"), (tab_t["log_fc"], "logFC"),
+                          (tab_t["t"], "t")]:
+            np.testing.assert_allclose(py, r[r_col], rtol=1e-6, atol=1e-12)
+        # t, p_value and lods as vectors too (R: as.matrix(eb$t) etc.)
+        for slot in ("t", "p_value", "lods"):
+            fit[slot] = fit[slot][:, 0]
+        tab_v = top_table(fit, number=np.inf, sort_by="none")
+        np.testing.assert_allclose(tab_v["t"], r["t"], rtol=1e-6, atol=1e-12)
+
+
 class TestPAdjustAllMethodsRParity:
     """p_adjust parity across every R method."""
 
