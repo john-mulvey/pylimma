@@ -7125,3 +7125,25 @@ set.seed(1318)
 stopifnot(grepl("v0.lim must have length 2", try(eBayes(.scl_fit, stdev.coef.lim = 0.1), silent = TRUE)),
           grepl("v0.lim must have length 2", try(eBayes(.scl_fit, stdev.coef.lim = c(0.1, 4, 10)),
                                                  silent = TRUE)))
+
+# =============================================================================
+# eBayes / treat / topTableF on something that is not a valid fit
+# =============================================================================
+.nvf <- function(expr) conditionMessage(tryCatch(expr, error = function(e) e))
+set.seed(1319)
+.nvf_lm <- lmFit(matrix(rnorm(300), 50, 6), cbind(1, rep(0:1, each = 3)))
+.nvf_fit <- eBayes(.nvf_lm)
+.nvf_bad <- .nvf_lm
+.nvf_bad$stdev.unscaled <- .nvf_bad$stdev.unscaled[, 1, drop = FALSE]
+.nvf_noc <- .nvf_fit
+.nvf_noc$coefficients <- NULL
+.nvf_vec <- .nvf_lm
+.nvf_vec$coefficients <- .nvf_vec$coefficients[, 2]
+.nvf_vec$stdev.unscaled <- .nvf_vec$stdev.unscaled[, 2]
+stopifnot(identical(dim(treat(.nvf_vec)$t), c(50L, 1L)), length(eBayes(.nvf_vec)$t) == 50,
+          .nvf(topTable(.nvf_noc)) == "coefficients not found in fit object",
+          .nvf(eBayes(5)) == "fit is not a valid MArrayLM object",
+          .nvf(treat(matrix(1, 3, 3))) == "fit must be an MArrayLM object",
+          .nvf(eBayes(.nvf_bad)) == "non-conformable arrays",
+          .nvf(treat(.nvf_bad)) == "non-conformable arrays",
+          .nvf(suppressMessages(topTableF(.nvf_noc))) == "Coefficients not found in fit")

@@ -22,7 +22,7 @@ from scipy import stats
 from .classes import MArrayLM, _resolve_fit_input
 from .lmfit import is_fullrank
 from .squeeze_var import squeeze_var
-from .utils import _t_isf_log, _t_logsf
+from .utils import _as_matrix, _t_isf_log, _t_logsf
 
 if TYPE_CHECKING:
     pass
@@ -220,6 +220,9 @@ def e_bayes(
     dict or None
         If input is dict, returns updated dict with moderated statistics.
         If input is AnnData, updates adata.uns[key] in place and returns None.
+        A fit whose coefficients and stdev_unscaled are vectors comes back
+        with them and the statistics as one column (R returns vectors;
+        ``docs/validation/known_differences.rst``).
 
     Notes
     -----
@@ -262,16 +265,7 @@ def e_bayes(
     # caller rebinds the original name.
     fit = MArrayLM(deepcopy(dict(fit)))
 
-    # Validate fit object
-    coefficients = fit.get("coefficients")
-    stdev_unscaled = fit.get("stdev_unscaled")
-    sigma = fit.get("sigma")
-    df_residual = fit.get("df_residual")
-
-    if any(x is None for x in [coefficients, stdev_unscaled, sigma, df_residual]):
-        raise ValueError("fit must contain coefficients, stdev_unscaled, sigma, df_residual")
-
-    _check_residuals(sigma, df_residual)
+    coefficients, stdev_unscaled, sigma, df_residual = _fit_slots(fit)
 
     # Get covariate for trend estimation. R: is.logical(trend)
     if isinstance(trend, (bool, np.bool_)):
@@ -410,14 +404,35 @@ def e_bayes(
     return fit
 
 
-def _check_residuals(sigma, df_residual) -> None:
-    """R's eBayes / treat checks: no residual df, then no finite sigma. R's
-    max() of an empty fit is -Inf, so an empty fit fails the second."""
+def _fit_slots(fit) -> tuple:
+    """The coefficients, stdev_unscaled, sigma and df_residual of a fit, with
+    R's eBayes / treat checks: the slots exist, then no residual df, then no
+    finite sigma (R's max() of an empty fit is -Inf, so an empty fit fails
+    the second), then coefficients and stdev_unscaled of different shapes
+    (R fails with "non-conformable arrays"). A vector of coefficients or
+    stdev_unscaled is one column, as treat's as.matrix, and is stored so in
+    ``fit``, so all its slots keep one shape; both are read as numbers."""
+    names = ("coefficients", "stdev_unscaled", "sigma", "df_residual")
+    missing = [name for name in names if fit.get(name) is None]
+    if missing:
+        raise ValueError(f"{', '.join(missing)} not found in fit object")
+    for name in ("coefficients", "stdev_unscaled"):
+        if np.ndim(fit[name]) == 1:
+            fit[name] = _as_matrix(fit[name])
+    coefficients, stdev_unscaled, sigma, df_residual = (fit[name] for name in names)
+    coefficients = np.asarray(coefficients, dtype=np.float64)
+    stdev_unscaled = np.asarray(stdev_unscaled, dtype=np.float64)
     df_residual = np.asarray(df_residual)
     if df_residual.size and np.max(df_residual) == 0:
         raise ValueError("No residual degrees of freedom in linear model fits")
     if not np.any(np.isfinite(sigma)):
         raise ValueError("No finite residual standard deviations")
+    if coefficients.shape != stdev_unscaled.shape:
+        raise ValueError(
+            f"fit's coefficients {coefficients.shape} and stdev_unscaled "
+            f"{stdev_unscaled.shape} have different dimensions"
+        )
+    return coefficients, stdev_unscaled, sigma, df_residual
 
 
 def treat(
@@ -475,6 +490,9 @@ def treat(
     dict or None
         If input is dict, returns updated dict with TREAT statistics.
         If input is AnnData, updates adata.uns[key] in place and returns None.
+        A fit whose coefficients and stdev_unscaled are vectors comes back
+        with them and the statistics as one column (R returns vectors;
+        ``docs/validation/known_differences.rst``).
 
     Notes
     -----
@@ -509,22 +527,10 @@ def treat(
     # Matches R's copy-on-modify; see e_bayes for rationale.
     fit = MArrayLM(deepcopy(dict(fit)))
 
-    # Validate fit object
-    coefficients = fit.get("coefficients")
-    stdev_unscaled = fit.get("stdev_unscaled")
-    sigma = fit.get("sigma")
-    df_residual = fit.get("df_residual")
-
-    if any(x is None for x in [coefficients, stdev_unscaled, sigma, df_residual]):
-        raise ValueError("fit must contain coefficients, stdev_unscaled, sigma, df_residual")
-
-    _check_residuals(sigma, df_residual)
+    coefficients, stdev_unscaled, sigma, df_residual = _fit_slots(fit)
 
     # Clear any existing lods (B-statistics not computed for TREAT)
     fit["lods"] = None
-
-    coefficients = np.asarray(coefficients)
-    stdev_unscaled = np.asarray(stdev_unscaled)
 
     if trend:
         covariate = fit.get("Amean")

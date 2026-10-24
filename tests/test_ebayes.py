@@ -102,7 +102,7 @@ class TestEBayes:
 
     def test_requires_fit_components(self):
         """Test that e_bayes validates fit object."""
-        with pytest.raises(ValueError, match="must contain"):
+        with pytest.raises(ValueError, match="stdev_unscaled, sigma, df_residual not found in fit"):
             e_bayes({"coefficients": np.array([[1, 2]])})
 
     def test_trend_requires_amean(self):
@@ -308,3 +308,42 @@ class TestEBayesArgumentChecks:
     def test_stdev_coef_lim_of_wrong_length_raises(self, lim):
         with pytest.raises(ValueError, match="stdev_coef_lim must have length 2"):
             e_bayes(self._fit(), stdev_coef_lim=lim)
+
+    @pytest.mark.parametrize("not_a_fit", [5, "abc", np.ones((3, 3))])
+    def test_input_that_is_not_a_fit_raises(self, not_a_fit):
+        for fn in (e_bayes, treat):
+            with pytest.raises(TypeError, match="fit must be an MArrayLM"):
+                fn(not_a_fit)
+
+    def test_stdev_unscaled_of_another_shape_raises(self):
+        fit = self._fit()
+        fit["stdev_unscaled"] = fit["stdev_unscaled"][:, :1]
+        for fn in (e_bayes, treat):
+            with pytest.raises(ValueError, match="have different dimensions"):
+                fn(fit)
+
+    def test_vector_coefficients_are_one_column(self):
+        """R's treat reads coefficients and stdev_unscaled with as.matrix
+        (t is one column); eBayes takes vectors too (R's t is then a vector,
+        pylimma's one column, as the other functions read it)."""
+        fit = self._fit()
+        vec = dict(fit, coefficients=fit["coefficients"][:, 1], stdev_unscaled=fit["stdev_unscaled"][:, 1])
+        mixed = dict(fit, coefficients=fit["coefficients"][:, 1:], stdev_unscaled=fit["stdev_unscaled"][:, 1])
+        one = dict(fit, coefficients=fit["coefficients"][:, 1:], stdev_unscaled=fit["stdev_unscaled"][:, 1:])
+        for fn in (e_bayes, treat):
+            expected = fn(one)
+            for other in (vec, mixed):
+                result = fn(other)
+                for slot in ("coefficients", "t", "p_value"):
+                    np.testing.assert_array_equal(result[slot], expected[slot])
+            # decide_tests reads the slots with one shape
+            from pylimma import decide_tests
+
+            assert decide_tests(fn(vec)).shape == expected["t"].shape
+            # Integer coefficients are read as numbers, not truncated
+            ints = dict(one, coefficients=np.round(one["coefficients"] * 10).astype(int))
+            floats = dict(ints, coefficients=ints["coefficients"].astype(float))
+            np.testing.assert_array_equal(fn(ints)["t"], fn(floats)["t"])
+            # A DataFrame of coefficients keeps its row names
+            framed = dict(one, coefficients=pd.DataFrame(one["coefficients"], index=list("abcdefghij") * 5))
+            assert fn(framed)["coefficients"].index.equals(framed["coefficients"].index)

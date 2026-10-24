@@ -25,7 +25,7 @@ import pytest
 from pylimma.contrasts import contrasts_fit, make_contrasts
 from pylimma.ebayes import e_bayes
 from pylimma.lmfit import lm_fit
-from pylimma.toptable import top_table_f
+from pylimma.toptable import top_table, top_table_f
 
 from ..helpers import (
     compare_arrays,
@@ -134,14 +134,16 @@ class TestRigorousTopTableF:
     def test_missing_coefficients_raises(self):
         """Exercises R-B3: topTableF.R:10.
 
-        R: ``stop("Coefficients not found in fit")``. pylimma should
-        raise an analogous error - currently raises KeyError when the
-        ``fit["coefficients"]`` lookup fails (toptable.py:533).
+        R: ``stop("Coefficients not found in fit")``.
         """
         _, _, fit = _three_group_fit(seed=1, n_genes=10)
         fit.pop("coefficients", None)
-        with pytest.raises((ValueError, KeyError)):
+        with pytest.raises(ValueError, match="Coefficients not found in fit"):
             top_table_f(fit, number=5)
+        # R's topTable: "coefficients not found in fit object", also for NULL
+        fit["coefficients"] = None
+        with pytest.raises(ValueError, match="coefficients not found in fit object"):
+            top_table(fit)
 
     # ------------------------------------------------------------------
     # R-B6 (topTableF.R:13): default coef column names "Coef1..N".

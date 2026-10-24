@@ -96,8 +96,6 @@ def diff_splice(
     # Accept AnnData-stored fits (same contract as top_table /
     # decide_tests / genas). For MArrayLM / dict input this is a no-op.
     fit, _adata, _adata_key = _resolve_fit_input(fit, key)
-    if not isinstance(fit, dict):
-        raise ValueError("fit must be an MArrayLM, dict, or AnnData")
 
     # For AnnData input, prefer adata.var as the exon-annotation table
     # so string lookups like ``geneid="gene"`` find ``adata.var["gene"]``

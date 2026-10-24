@@ -513,6 +513,18 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- Functions that take a fit (`e_bayes`, `treat`, `contrasts_fit`,
+  `top_table`, `diff_splice` and others) raise a clear `TypeError` for
+  input that is not a fit, as R's "fit is not a valid MArrayLM object"
+  (they raised obscure errors from `dict()`); `e_bayes` and `treat` raise
+  a clear error when `stdev_unscaled` and `coefficients` differ in shape
+  (R: "non-conformable arrays"; pylimma broadcast them and raised
+  `IndexError`), read a vector of either as one column, as R (it raised
+  `IndexError`), read integer coefficients as numbers (`treat`
+  truncated its t-statistics) and name the slots a fit lacks; `top_table_f` and
+  `top_table` without coefficients raise R's "Coefficients not found in
+  fit" and "coefficients not found in fit object" (they raised
+  `KeyError`, or failed later for coefficients set to None).
 - `e_bayes(stdev_coef_lim=...)` of a length other than 2 raises a clear
   error, as R's "v0.lim must have length 2"; three values used the first
   two and one value raised `IndexError`.

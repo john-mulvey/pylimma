@@ -400,6 +400,12 @@ def qqf(
     return _qq(y, lambda p: _r_qf(p, df1, df2), plot_it, main, xlab, ylab, ylim, kwargs)
 
 
+def _as_matrix(values) -> np.ndarray:
+    """R's ``as.matrix`` of a vector or matrix: a vector is one column."""
+    values = np.asarray(values)
+    return values.reshape(-1, 1) if values.ndim == 1 else values
+
+
 def _as_dense_array(x, dtype=None) -> np.ndarray:
     """In-memory dense ndarray, as R's as.matrix() for a sparse Matrix.
 

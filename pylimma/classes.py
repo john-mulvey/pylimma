@@ -1186,6 +1186,11 @@ def _resolve_fit_input(data, key: str):
                 "lm_fit on this object."
             )
         return _with_list_names(fit), data, key
+    # R's eBayes: stop("fit is not a valid MArrayLM object")
+    if not isinstance(data, dict):
+        raise TypeError(
+            f"fit must be an MArrayLM (or a dict of its slots), not {type(data).__name__}"
+        )
     return _with_list_names(data), None, None
 
 

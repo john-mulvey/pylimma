@@ -256,8 +256,8 @@ def top_table(
     # Validate fit
     if "t" not in fit and "F" not in fit:
         raise ValueError("Need to run e_bayes() first")
-    if "coefficients" not in fit:
-        raise ValueError("coefficients not found in fit")
+    if fit.get("coefficients") is None:
+        raise ValueError("coefficients not found in fit object")
 
     coefficients = fit["coefficients"]
     n_genes, n_coefs = coefficients.shape
@@ -708,6 +708,8 @@ def _top_table_f(
     port of R's internal ``.topTableF`` that ``top_table`` calls for
     several coefficients. See :func:`top_table_f` for the arguments."""
     fit, _adata, _adata_key = _resolve_fit_input(fit, key)
+    if fit.get("coefficients") is None:
+        raise ValueError("Coefficients not found in fit")
 
     # Resolve lfc from fc / lfc exactly as R does (toptable.R:33-39):
     # when fc is supplied, lfc is silently overridden with log2(fc) -
