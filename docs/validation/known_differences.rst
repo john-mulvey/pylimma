@@ -476,6 +476,14 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     1 with 5 and 2 with 6. ``generate_all_fixtures.R`` records the R
     behaviour.
 
+``select_model`` with a 1-D ``y``
+    A 1-D ``y`` is one gene, as for ``lm_fit``, and the criterion counts its
+    values as the arrays: the result equals R's
+    ``selectModel(matrix(y, 1), ...)``. R's ``selectModel(y, ...)`` fits the
+    vector as one gene too but takes the number of arrays as
+    ``ncol(as.matrix(y))``, which is 1. ``generate_all_fixtures.R`` records
+    the R behaviour.
+
 ``prop_true_null`` with missing p-values
     Raises "Missing values in p not allowed" (R's ``convest`` error) for
     ``method="lfdr"`` and ``"mean"``. R's ``sort()`` drops the NA and the

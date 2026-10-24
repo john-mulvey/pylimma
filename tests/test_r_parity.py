@@ -6563,6 +6563,19 @@ class TestSelectModelRParity:
         ]
         return y, (dict(zip(["null", "group", "full"], designs)) if named else designs)
 
+    def test_vector_y_is_one_gene(self):
+        """R's selectModel(y) counts one array for a vector; pylimma gives
+        R's values for matrix(y, 1) (known differences)."""
+        from pylimma import select_model
+
+        y = load_r_csv_no_index("selmod_vector_y")["y"].to_numpy()
+        designs = [np.column_stack([np.ones(6), np.tile([0, 1], 3)]), np.ones((6, 1))]
+        np.testing.assert_allclose(
+            np.asarray(select_model(y, designs)["IC"], dtype=float),
+            load_r_csv_no_index("selmod_vector_ic").to_numpy(),
+            rtol=1e-6,
+        )
+
     def test_empty_design_list_raises(self):
         from pylimma import select_model
 

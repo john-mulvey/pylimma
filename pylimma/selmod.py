@@ -36,7 +36,10 @@ def select_model(
     Parameters
     ----------
     y : ndarray or DataFrame
-        Expression matrix, rows = genes, columns = arrays. No NaNs.
+        Expression matrix, rows = genes, columns = arrays. No NaNs. A 1-D
+        y is one gene, as for :func:`lm_fit`; R's ``selectModel`` fits it
+        so too but counts one array in the criterion (see
+        :doc:`/validation/known_differences`).
     design_list : sequence or dict of design matrices
         Collection of candidate design matrices. When a dict is
         supplied its keys become the model names (matching R's
@@ -61,6 +64,10 @@ def select_model(
     from .lmfit import lm_fit
 
     y = _as_dense_array(y, np.float64)
+    if y.ndim == 1:
+        # One gene, as lmFit reads a vector; R's ncol(as.matrix(y)) would
+        # count one array
+        y = y.reshape(1, -1)
     if np.any(np.isnan(y)):
         raise ValueError("NAs not allowed")
     narrays = y.shape[1]

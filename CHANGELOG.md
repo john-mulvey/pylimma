@@ -494,6 +494,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `select_model` with a 1-D `y` fits it as one gene, as `lm_fit` does
+  (it raised an IndexError); the result equals R's
+  `selectModel(matrix(y, 1), ...)` (see known differences).
 - `modify_weights` defaults `weights` to 1 for each `status`, as R's
   `modifyWeights` (`weights` was required, and None raised an
   IndexError); a missing `status`, `values` or `multipliers` raises R's
