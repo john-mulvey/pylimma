@@ -288,3 +288,11 @@ class TestUnusableArguments:
             summarize_test_results(np.zeros((2, 2, 2)))
         with pytest.raises(ValueError, match="1 names for 2 columns"):
             summarize_test_results(np.zeros((3, 2)), coef_names=["a"])
+
+
+def test_classify_tests_f_threshold_uses_r_qf_for_large_df():
+    """R's qf takes the chi-squared limit for df > 4e5, slightly below the
+    exact F quantile; a gene between the two is significant in R
+    (generate_all_fixtures.R, "classifyTestsF takes its threshold from qf")."""
+    x = np.full((1, 2), np.sqrt(4.60518))
+    assert np.all(classify_tests_f(x, df=1e6, p_value=0.01) != 0)

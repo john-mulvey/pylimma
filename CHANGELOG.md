@@ -9,6 +9,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `classify_tests_f` (and `decide_tests(method="nestedF")`) takes its
+  thresholds from R's `qf` rules, which use the chi-squared limit for a
+  residual df above 4e5; scipy's exact F quantile was up to about 5e-6
+  higher, so a gene just above R's threshold was not classified.
 - `zscore(q, "hyper", m, n, k)` maps the plain hypergeometric tail
   probabilities, as R's `zscore`; it gave the mid-p values of
   `zscore_hyper` (R's `zscoreHyper`), which differ.

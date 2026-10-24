@@ -21,7 +21,7 @@ import numpy as np
 from scipy import stats
 
 from .classes import _is_anndata, _resolve_fit_input
-from .utils import _match_arg, p_adjust
+from .utils import _match_arg, _r_qf, p_adjust
 
 if TYPE_CHECKING:
     pass
@@ -144,16 +144,11 @@ def classify_tests_f(
             raise ValueError("non-conformable arguments: cor_matrix does not match the number of tests")
         return np.sum((tstat @ Q) ** 2, axis=1), r, df2
 
-    # Classification using step-down procedure. stats.f.ppf with
-    # vector df2 returns a vector of per-gene thresholds.
-    # R: qf(p.value, r, df, lower.tail=FALSE); scipy's F quantile is NaN at
-    # df = Inf, where R returns the chi-squared limit qchisq(p, r) / r.
+    # Classification using step-down procedure, with per-gene thresholds
+    # R: qf(p.value, r, df, lower.tail=FALSE), with its chi-squared limits
+    # for an infinite or large df
     df2_arr = np.broadcast_to(np.asarray(df2, dtype=np.float64), (n_genes,))
-    qF = np.where(
-        np.isinf(df2_arr),
-        stats.chi2.isf(p_value, r) / r,
-        stats.f.isf(p_value, r, np.where(np.isinf(df2_arr), 1.0, df2_arr)),
-    )
+    qF = _r_qf(p_value, r, df2_arr, lower_tail=False)
 
     result = np.zeros((n_genes, n_tests), dtype=float)
 
