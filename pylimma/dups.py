@@ -26,7 +26,7 @@ import numpy as np
 import pandas as pd
 from scipy import linalg, sparse
 
-from .classes import EList, _frame_like, _is_anndata, get_eawp
+from .classes import EList, _eawp_design, _frame_like, _is_anndata, get_eawp
 from .utils import _as_dense_array, _block_labels, _r_as_character, _r_trimmed_mean, _whole_count
 
 
@@ -744,8 +744,10 @@ def duplicate_correlation(
     # Polymorphic input: ndarray / dict / EList / AnnData.
     eawp = get_eawp(M, layer=layer, weights_layer=weights_layer)
     M = np.asarray(eawp["exprs"], dtype=np.float64)
-    if design is None and eawp.get("design") is not None:
-        design = np.asarray(eawp["design"], dtype=np.float64)
+    if design is None:
+        design = _eawp_design(eawp)
+        if design is not None:
+            design = np.asarray(design, dtype=np.float64)
     if weights is None and eawp.get("weights") is not None:
         weights = np.asarray(eawp["weights"], dtype=np.float64)
     n_genes, n_arrays = M.shape

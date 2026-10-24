@@ -48,7 +48,7 @@ import numpy as np
 import pandas as pd
 from scipy import linalg, stats
 
-from .classes import _elist_from_layer, _shape_error, get_eawp
+from .classes import _eawp_design, _elist_from_layer, _shape_error, get_eawp
 from .contrasts import contrast_as_coef
 from .lmfit import _design_names, _numeric_design, _qr_r_style, non_estimable
 from .squeeze_var import _squeeze_var_core, fit_f_dist, fit_f_dist_robustly, squeeze_var
@@ -182,7 +182,7 @@ def _lm_effects(
         raise ValueError("All y values must be finite and non-NA")
 
     if design is None:
-        design = ea.get("design")
+        design = _eawp_design(ea)
     if design is None:
         raise ValueError("design matrix not specified")
     design_names = _design_names(design)
@@ -1392,7 +1392,7 @@ def camera(
     nsets = len(index)
 
     if design is None:
-        design = ea.get("design")
+        design = _eawp_design(ea)
     if design is None:
         raise ValueError("design matrix not specified")
     design_names = _design_names(design)

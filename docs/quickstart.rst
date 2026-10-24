@@ -51,7 +51,9 @@ match the fitted genes; otherwise functions that read it raise an error,
 and ``lm_fit`` must be re-run on the changed object. The design that
 ``voom`` / ``vooma`` store in ``adata.uns`` follows the samples instead:
 after ``adata[idx, :]``, ``lm_fit(adata, layer="voom_E")`` uses the design
-rows of the remaining samples, as R's ``v[, idx]`` does.
+rows of the remaining samples, as R's ``v[, idx]`` does. A design saved
+by pylimma 0.2.0 or earlier does not record its samples, so ``lm_fit``
+raises an error and needs ``design=`` (or ``voom`` re-run).
 
 EList workflow
 --------------

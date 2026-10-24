@@ -137,7 +137,12 @@ minor version (0.x.0) may change results or behaviour; a patch version
   in `adata.uns` row for row, i.e. to the wrong samples. The stored design
   now follows `adata.obs_names`, as R's `v[, idx]` subsets the design;
   a sample missing from it (e.g. renamed samples) or non-unique sample
-  names raise a `ValueError` asking for `design=`.
+  names raise a `ValueError` asking for `design=`. A design saved by
+  pylimma 0.2.0 or earlier (e.g. read back from an `.h5ad` file) has no
+  sample names, so a reorder cannot be detected; it also raises, and
+  `design=` must be passed or `voom` / `vooma` re-run. These errors come
+  only from functions that use the stored design, and not when `design=`
+  is passed.
 - `lm_fit(ndups > 1)`: `fit["genes"]` kept one label per probe, so
   `top_table` attached probe i's annotation to fitted gene i (wrong genes
   for every row past the first); it is now `unique_genelist(genes, ndups,

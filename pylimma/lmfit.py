@@ -40,6 +40,7 @@ from scipy import linalg
 from .classes import (
     MArrayLM,
     _as_matrix_weights_with_flag,
+    _eawp_design,
     _is_anndata,
     _row_means,
     as_matrix_weights,
@@ -1360,8 +1361,8 @@ def lm_fit(
     # EList populates eawp["design"] via _eawp_from_elist_like; the
     # AnnData branch of get_eawp populates it from
     # adata.uns[<stem>]["design"] when called with layer="<stem>_E".
-    if design is None and eawp.get("design") is not None:
-        design = eawp["design"]
+    if design is None:
+        design = _eawp_design(eawp)
 
     # Parse design matrix. Column names (if any) flow through to
     # non_estimable so the "Coefficients not estimable" warning

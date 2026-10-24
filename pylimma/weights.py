@@ -28,7 +28,7 @@ import warnings
 import numpy as np
 from scipy import linalg
 
-from .classes import _shape_error, get_eawp
+from .classes import _eawp_design, _shape_error, get_eawp
 from .lmfit import _qr_r_style
 from .utils import _r_as_character, _r_scalar, _whole_count
 
@@ -580,9 +580,10 @@ def array_weights(
     # arrayWeights.Rd documents this for design too, but R's code never reads
     # y$design; pylimma follows the documentation and warns
     # (docs/validation/known_differences.rst).
-    if design is None and eawp.get("design") is not None:
+    if design is None:
+        design = _eawp_design(eawp)
         # An EList, or the plain dict voom / vooma return for matrix input
-        if isinstance(object, dict):
+        if design is not None and isinstance(object, dict):
             warnings.warn(
                 "pylimma's array_weights is using 'design' from the EList's design "
                 "slot, as R's arrayWeights documentation describes; R's code "
@@ -590,7 +591,8 @@ def array_weights(
                 "explicitly to choose.",
                 UserWarning,
             )
-        design = np.asarray(eawp["design"], dtype=np.float64)
+        if design is not None:
+            design = np.asarray(design, dtype=np.float64)
     if weights is None and eawp.get("weights") is not None:
         weights = np.asarray(eawp["weights"], dtype=np.float64)
 

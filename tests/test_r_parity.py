@@ -7286,6 +7286,35 @@ class TestVoomDesignFollowsSamplesRParity:
         with pytest.raises(ValueError, match="not in the design stored in adata.uns.*renamed"):
             lm_fit(renamed, layer="voom_E")
 
+    def test_design_without_sample_names_raises(self):
+        # As saved by pylimma 0.2.0: a reorder of the samples cannot be detected
+        adata = self._voomed(False)
+        del adata.uns["voom"]["obs_names"]
+        with pytest.raises(ValueError, match="no sample names.*0.2.0"):
+            lm_fit(adata, layer="voom_E")
+
+    def test_unmatched_design_is_not_needed_with_design_given(self):
+        from pylimma import normalize_between_arrays
+
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        legacy = self._voomed(False)
+        del legacy.uns["voom"]["obs_names"]
+        renamed = self._voomed(False).copy()
+        renamed.obs_names = [f"t{i}" for i in range(8)]
+        for adata in (legacy, renamed):
+            lm_fit(adata, design, layer="voom_E")
+            normalize_between_arrays(adata, layer="voom_E", method="scale")
+
+    def test_gene_set_tests_raise_for_an_unmatched_design(self):
+        from pylimma import fry
+
+        legacy = self._voomed(False)
+        del legacy.uns["voom"]["obs_names"]
+        with pytest.raises(ValueError, match="no sample names"):
+            fry(legacy, index=[0, 1, 2], layer="voom_E")
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        fry(legacy, index=[0, 1, 2], design=design, layer="voom_E")
+
     def test_non_unique_sample_names_raise_after_reorder(self):
         import warnings
 

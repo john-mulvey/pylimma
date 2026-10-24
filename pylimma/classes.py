@@ -817,7 +817,13 @@ def get_eawp(
             uns_payload = adata.uns.get(stem)
             if isinstance(uns_payload, dict):
                 if uns_payload.get("design") is not None:
-                    y["design"] = _stored_design_for_obs(uns_payload, adata, stem)
+                    # A design that cannot be matched to the samples fails
+                    # only where it is used (_eawp_design), not when the
+                    # caller passes design=
+                    try:
+                        y["design"] = _stored_design_for_obs(uns_payload, adata, stem)
+                    except ValueError as unmatched:
+                        y["design_error"] = str(unmatched)
         return y
 
     if isinstance(obj, EList):
@@ -918,6 +924,15 @@ def _row_means(exprs: np.ndarray) -> np.ndarray:
         return np.nanmean(exprs, axis=1)
 
 
+def _eawp_design(eawp: dict):
+    """The design an input carries: an EList's design slot, or the design
+    voom / vooma stored for an AnnData layer. A stored design that cannot be
+    matched to the samples raises here, for callers without design=."""
+    if eawp.get("design_error") is not None:
+        raise ValueError(eawp["design_error"])
+    return eawp.get("design")
+
+
 def _stored_design_for_obs(uns_payload: dict, adata, stem: str):
     """The design voom/vooma stored in adata.uns[stem], with its rows in the
     order of adata.obs_names.
@@ -925,13 +940,21 @@ def _stored_design_for_obs(uns_payload: dict, adata, stem: str):
     anndata copies adata.uns unchanged when samples are subset or reordered;
     R's v[, idx] subsets the design rows with the samples. put_eawp records
     the obs_names the design was written for, so its rows can follow them.
+    A design saved by pylimma 0.2.0 or earlier has no obs_names, so a
+    reorder cannot be detected: it raises rather than risk the wrong rows.
     """
     design = uns_payload["design"]
     stored = uns_payload.get("obs_names")
+    if stored is None:
+        raise ValueError(
+            f"the design stored in adata.uns[{stem!r}] has no sample names (it was "
+            "saved by pylimma 0.2.0 or earlier), so it cannot be matched to the "
+            "samples; pass design= explicitly or re-run voom / vooma."
+        )
     current = [str(name) for name in adata.obs_names]
-    if stored is None or [str(name) for name in stored] == current:
-        return design
     stored = [str(name) for name in stored]
+    if stored == current:
+        return design
     if len(set(stored)) < len(stored) or len(set(current)) < len(current):
         raise ValueError(
             f"sample names are not unique, so the design stored in adata.uns[{stem!r}] "
@@ -961,6 +984,7 @@ def _eawp_from_elist_like(obj) -> dict:
         "probes": obj.get("genes"),
         "Amean": _row_means(exprs),
         "design": obj.get("design"),
+        "design_error": obj.get("design_error"),
         "targets": obj.get("targets"),
     }
 
@@ -985,6 +1009,8 @@ def _elist_from_layer(y, layer: str | None = None, weights_layer: str | None = N
         "genes": eawp["probes"],
         "targets": eawp["targets"],
         "design": eawp["design"],
+        # A stored design that cannot be matched (_eawp_design)
+        "design_error": eawp.get("design_error"),
     }
     return EList({k: v for k, v in slots.items() if v is not None})
 

@@ -25,7 +25,7 @@ import numpy as np
 import pandas as pd
 from scipy import linalg
 
-from .classes import EList, _is_anndata, _shape_error, get_eawp, put_eawp
+from .classes import EList, _eawp_design, _is_anndata, _shape_error, get_eawp, put_eawp
 from .lmfit import (
     _design_names,
     _fit_genes,
@@ -258,8 +258,9 @@ def voom(
     # but warns so users porting R code know the divergence is there.
     # See ``docs/validation/known_differences.rst``.
     _input_is_elist = isinstance(original_input, EList)
-    if design is None and eawp.get("design") is not None:
-        if _input_is_elist:
+    if design is None:
+        design = _eawp_design(eawp)
+        if design is not None and _input_is_elist:
             warnings.warn(
                 "pylimma's voom is using 'design' from the EList's design "
                 "slot. R's voom would silently discard it via "
@@ -267,7 +268,6 @@ def voom(
                 "design=el['design'] explicitly (or clear the slot).",
                 UserWarning,
             )
-        design = eawp["design"]
     if weights is None and eawp.get("weights") is not None:
         if _input_is_elist:
             warnings.warn(
@@ -555,8 +555,9 @@ def voom_with_quality_weights(
     # here before the inner voom sees an ndarray, so we warn for parity
     # with the R behaviour. Weights are not handled here (neither side
     # uses y$weights in voomWithQualityWeights).
-    if design is None and eawp.get("design") is not None:
-        if isinstance(original_input, EList):
+    if design is None:
+        design = _eawp_design(eawp)
+        if design is not None and isinstance(original_input, EList):
             warnings.warn(
                 "pylimma's voom_with_quality_weights is using 'design' "
                 "from the EList's design slot. R's "
@@ -565,7 +566,6 @@ def voom_with_quality_weights(
                 "design=el['design'] explicitly.",
                 UserWarning,
             )
-        design = eawp["design"]
 
     # Parse design once, up front. Inner voom calls are fed counts_arr
     # (plain ndarray), so formula strings must be resolved here -
@@ -719,8 +719,8 @@ def vooma(
     original_input = y
     eawp = get_eawp(y, layer=layer)
     y = np.asarray(eawp["exprs"], dtype=np.float64)
-    if design is None and eawp.get("design") is not None:
-        design = eawp["design"]
+    if design is None:
+        design = _eawp_design(eawp)
     n_genes, n_samples = y.shape
 
     # Parse design (formula strings via patsy + adata.obs when AnnData).
@@ -973,8 +973,8 @@ def vooma_lm_fit(
     original_input = y
     eawp = get_eawp(y, layer=layer)
     y = np.asarray(eawp["exprs"], dtype=np.float64)
-    if design is None and eawp.get("design") is not None:
-        design = eawp["design"]
+    if design is None:
+        design = _eawp_design(eawp)
     if prior_weights is None and eawp.get("weights") is not None:
         # R's voomaLmFit uses an EList weights slot only in its first lmFit
         # (lmFit falls back to y$weights); pylimma uses it as prior weights
@@ -1321,7 +1321,7 @@ def vooma_by_group(
     eawp = get_eawp(y, layer=layer)
     E = np.asarray(eawp["exprs"], dtype=np.float64)
     if design is None:
-        design = eawp.get("design")
+        design = _eawp_design(eawp)
     ngenes, narrays = E.shape
 
     # plot=True is accepted for R-signature compatibility but pylimma
