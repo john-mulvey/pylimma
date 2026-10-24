@@ -12,7 +12,7 @@ porting.
 Accepted differences
 --------------------
 
-Six differences remain after porting. None is a porting bug: five
+Seven differences remain after porting. None is a porting bug: six
 come from numerical-algorithm choices and one (lowess) from how R
 itself is built on different platforms. Each is quantified and
 reproducible, and the parity tests stay within the tolerances given.
@@ -151,6 +151,20 @@ grid.
 
 **Tolerance.** The parity fixtures use at least four points per fit
 and are compared at ``rtol=1e-6`` or tighter.
+
+fit_f_dist_robustly: df2 root differs in the eighth digit
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``fit_f_dist_robustly`` (and so ``squeeze_var`` / ``e_bayes`` with
+``robust=True``) finds ``df2`` with scipy's ``brentq``; R uses
+``uniroot``, whose C ``zeroin`` is another implementation of Brent's
+method. Both stop at ``tol = 1e-8`` on the ``df2 / (1 + df2)`` scale, at
+slightly different points, so ``df2`` differs by up to ``1.3e-8``
+relative, more for large ``df2`` (where the root is near 1).
+
+**Tolerance.** Inside ``rtol=1e-6``; the robust parity tests pass at
+``1e-8`` except the extreme-outlier case, which is compared at
+``1e-6``.
 
 Deliberate divergences: intended rather than literal R behaviour
 ----------------------------------------------------------------
@@ -700,6 +714,33 @@ Deliberate interface difference: messages and names
 estimable: 3 4") as a ``UserWarning``, so it can be filtered or turned
 into an error; R's ``lmFit`` prints the same text with ``cat()``.
 ``romer`` prints it, as R.
+
+The coefficient columns of an F-test table (``top_table`` with several
+coefficients, ``top_table_f``) keep the coefficient or contrast names,
+such as ``x2 - x1``; R's ``topTableF`` builds a ``data.frame``, whose
+``make.names`` turns them into ``x2...x1``.
+
+``lm_fit(ndups=2)`` (or more) on a matrix with row names names the genes
+after the first spot of each group; R's ``unwrapdups`` drops the row
+names, so R's fit has no gene names.
+
+With a design without column names, ``lm_fit`` names the coefficients
+``x1``..``xp`` for every method. R's ``lmFit`` does so for least squares
+and the usual GLS path, but ``mrlm`` (``method="robust"``) and the
+gene-by-gene GLS loop (missing values or probe weights) leave them
+unnamed, so R's names depend on the path taken.
+``generate_all_fixtures.R`` records the R behaviour.
+
+``e_bayes`` and ``treat`` on a fit whose coefficients and
+``stdev_unscaled`` are vectors return them, and ``t``, ``p_value`` and
+``lods``, as one column, so every slot has one shape for the functions
+that read the fit; R keeps the coefficients a vector and its ``eBayes``
+returns ``t`` and ``p.value`` as vectors (``lods`` as one column).
+
+``lm_series`` is an internal helper of ``lm_fit`` (not in
+``pylimma.__all__``): it needs a ``design`` and has no ``ndups`` or
+``spacing``. R exports ``lm.series(M, design=NULL, ndups=1, spacing=1,
+weights=NULL)``; use ``lm_fit`` for those arguments.
 
 Deliberate interface difference: plot markers and colours
 ---------------------------------------------------------

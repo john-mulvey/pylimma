@@ -7217,3 +7217,16 @@ set.seed(1324)
 .ne_d <- cbind(1, rep(0:1, each = 3), rep(0:1, each = 3), rep(1, 6))
 .ne_out <- capture.output(.ne_fit <- suppressWarnings(lmFit(matrix(rnorm(30), 5, 6), .ne_d)))
 stopifnot(identical(.ne_out, "Coefficients not estimable: 3 4 "))
+
+# =============================================================================
+# Names that pylimma keeps (known_differences.rst): topTableF's
+# data.frame() applies make.names to contrast names, and lmFit(ndups = 2)
+# on a matrix with row names leaves the fit without gene names
+# =============================================================================
+set.seed(1325)
+.kn_y <- matrix(rnorm(48), 8, 6, dimnames = list(paste0("p", 1:8), NULL))
+.kn_d <- cbind(x1 = 1, x2 = rep(0:1, each = 3), x3 = rep(0:1, 3))
+.kn_fit <- eBayes(contrasts.fit(lmFit(.kn_y, .kn_d), makeContrasts("x2 - x1", "x3-x1", levels = .kn_d)))
+.kn_dup <- lmFit(.kn_y, .kn_d[, 1:2], ndups = 2, correlation = 0.3)
+stopifnot(identical(colnames(topTable(.kn_fit))[1:2], c("x2...x1", "x3.x1")),
+          is.null(.kn_dup$genes), is.null(rownames(.kn_dup$coefficients)))

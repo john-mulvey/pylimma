@@ -252,7 +252,10 @@ def lm_series(
     """
     Fit linear model for each gene to a series of arrays.
 
-    Low-level function implementing OLS or WLS fitting.
+    Low-level function implementing OLS or WLS fitting, used by lm_fit.
+    Unlike R's ``lm.series`` it needs a design and has no ``ndups`` or
+    ``spacing``; use ``lm_fit`` for those
+    (``docs/validation/known_differences.rst``).
 
     Parameters
     ----------

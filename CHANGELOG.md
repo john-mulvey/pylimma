@@ -904,6 +904,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Documentation and examples
 
+- `known_differences.rst` records the df2 root of
+  `fit_f_dist_robustly` (scipy's `brentq` against R's `uniroot`, up to
+  1.3e-8 relative), the F-test table's unmangled coefficient names, the
+  gene names `lm_fit(ndups=2)` keeps, the `x1`..`xp` names on every
+  fitting path, the one-column results of `e_bayes` for a vector fit and
+  `lm_series` being an internal helper without R's `design=NULL`,
+  `ndups` and `spacing`.
 - `model_matrix` and `known_differences.rst` document how formula designs
   built with patsy differ from R's `model.matrix` in column names and
   order (interactions of numeric and categorical terms, `~ g:h`).
