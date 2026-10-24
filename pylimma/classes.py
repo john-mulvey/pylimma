@@ -1116,19 +1116,11 @@ def put_eawp(
             adata.uns[uns_key] = uns_payload
         return None
 
-    if isinstance(original, EList):
-        out = EList(dict(original))
-        for k, v in slots.items():
-            if v is not None:
-                out[k] = v
-        return out
-
     if isinstance(original, dict):
-        out = dict(original)
-        for k, v in slots.items():
-            if v is not None:
-                out[k] = v
-        return out
+        # The input's other slots as copies (R's copy-on-modify)
+        out = {k: deepcopy(v) for k, v in original.items() if slots.get(k) is None}
+        out.update({k: v for k, v in slots.items() if v is not None})
+        return EList(out) if isinstance(original, EList) else out
 
     # ndarray or DataFrame (or anything else coerced to array)
     E = _frame_like(np.asarray(slots["E"]), original)

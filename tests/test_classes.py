@@ -1275,6 +1275,17 @@ def _shared_arrays(output, inputs):
     ]
 
 
+def test_elist_result_and_voom_lib_size_do_not_alias_inputs():
+    rng = np.random.default_rng(1)
+    weights = np.ones((20, 4))
+    elist = EList({"E": rng.normal(8, 1, (20, 4)), "weights": weights})
+    result = pylimma.normalize_between_arrays(elist, method="scale")
+    assert not np.shares_memory(result["weights"], weights)
+    lib_size = np.full(4, 1e6)
+    voomed = pylimma.voom(rng.poisson(20, (20, 4)).astype(float), lib_size=lib_size)
+    assert not np.shares_memory(voomed["lib_size"], lib_size)
+
+
 def test_fit_and_vooma_outputs_do_not_alias_inputs():
     rng = np.random.default_rng(1)
     expr = rng.normal(5, 1, (60, 8))

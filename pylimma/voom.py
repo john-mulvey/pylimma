@@ -297,7 +297,8 @@ def voom(
     # Check lib_size
     if lib_size is None:
         lib_size = np.sum(counts, axis=0)
-    lib_size = np.asarray(lib_size, dtype=np.float64)
+    # a copy: lib_size is returned (R's copy-on-modify)
+    lib_size = np.array(lib_size, dtype=np.float64)
     # R's matrix(lib.size, byrow=TRUE) recycles any other length
     if lib_size.size not in (1, n_samples):
         raise ValueError(

@@ -498,6 +498,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- The EList or dict returned by a shape-preserving function holds copies
+  of the input's other slots (weights, genes, targets ...), and `voom`'s
+  `lib_size` is a copy of the one given, as R's copy-on-modify; they were
+  the caller's objects.
 - `classify_tests_f` with one coefficient compares the p-values with any
   `p_value`, as R, whose one-coefficient branch never reaches `qf`; this
   group's new check raised for a `p_value` outside 0..1 there too.
