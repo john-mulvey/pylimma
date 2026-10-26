@@ -412,8 +412,9 @@ Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``
     silently tests an empty set. Likewise ``gene_set_test``,
     ``wilcox_gst`` and ``rank_sum_test_with_correlation`` select a character
     set by the names of ``statistics`` (a pandas Series) and raise an error
-    for a name that is not among them, where R's ``statistics[name]`` is NA
-    and the p-value silently NA.
+    for a name that is not among them. R's ``statistics[name]`` is NA, so
+    the p-value is silently NA, except in ``geneSetTest(ranks.only=FALSE)``,
+    which drops the NA and tests the remaining genes.
 
 Gene-set positions outside the statistics (``gene_set_test``, ``wilcox_gst``, ``rank_sum_test_with_correlation``, ``barcode_plot``)
     A position must lie in 0..n-1 for ``n`` statistics, else pylimma raises
@@ -750,8 +751,9 @@ matches R.
 
 ``vooma_lm_fit`` uses an EList's ``weights`` slot as ``prior_weights``
 throughout, again with a ``UserWarning``. R's ``voomaLmFit`` passes the
-EList to its first ``lmFit``, which falls back to ``y$weights``, and drops
-the slot for every later fit, so the slot affects only the initial fit.
+EList to its first ``lmFit``, which falls back to ``y$weights``; the
+intermediate ``lmFit`` (run with a ``block`` and no sample weights) falls
+back to it as well, and the final fit does not use it.
 Because pylimma treats the slot as prior weights, ``sample_weights=True``
 with a weights slot raises an error, as it does with ``prior_weights=``.
 

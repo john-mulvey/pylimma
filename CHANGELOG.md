@@ -41,9 +41,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
   its variance components, clipped to R's bounds, as R does; genes whose
   components summed to a non-positive value were left out of the
   consensus.
-- `diff_splice` gives R's NaN gene variances, t and F statistics for a gene
-  with no residual degrees of freedom (R's 0/0); it gave a variance of 0
-  and infinite t and F, which read as real, extreme results.
+- `diff_splice` gives R's NaN gene variance (`gene_s2`) for a gene with
+  no residual degrees of freedom (R's 0/0), where it gave 0. As in R,
+  `squeeze_var` gives such a gene the prior variance, so its moderated
+  statistics are unchanged unless too few genes are left to estimate the
+  prior.
 - `normexp_fit(method="mle")` (and `background_correct(method="normexp",
   normexp_method="mle")`) refines with R's `nlminb` parameter tolerance
   (1.5e-8); on Illumina-like arrays with a flat likelihood scipy's default
@@ -177,8 +179,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
   never matched), and drop missing IDs (`None`, NaN, pandas NA) as R's
   `is.na` does. A pandas NA became the gene "<NA>"; the strings "NA", "nan"
   and "" are now IDs, as in R.
-- `e_bayes(robust=True)` with unequal residual df converts t-statistics
-  to the largest df as R does for very large |t| (beyond about 58 at
+- `e_bayes` with unequal total df (genes with missing values, or
+  `robust=True`) converts t-statistics to the largest df as R does for
+  very large |t| (beyond about 58 at
   1,000 arrays). The conversion's log tail probability underflowed to
   `-inf`, and its inverse used an asymptotic formula that is wrong unless
   t^2 is much larger than df (R 139.3, pylimma 4.6). This overestimated

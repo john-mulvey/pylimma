@@ -4955,8 +4955,8 @@ cat("  arrayWeights saturated-gene fixtures complete.\n")
 
 # =============================================================================
 # Rank decisions use R's qr() (LINPACK dqrdc2, tolerance 1e-7 relative to the
-# column norms): a tiny-scale column and a near-collinear column are both
-# dropped by vooma's lm.fit and arrayWeights' design check
+# column norms): vooma's lm.fit and arrayWeights' design check keep a
+# tiny-scale column (rank 2) and drop a near-collinear one (rank 2 of 3)
 # =============================================================================
 cat("\nGenerating rank-tolerance fixtures...\n")
 
