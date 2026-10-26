@@ -669,7 +669,13 @@ def vooma(
     Parameters
     ----------
     y : ndarray
-        Expression matrix (log-scale), shape (n_genes, n_samples).
+        Expression matrix (log-scale), shape (n_genes, n_samples). May
+        contain missing values (NaN), but no entirely missing rows and no
+        infinite values. Each gene is then fitted on its observed values,
+        as R's voomaLmFit does; a gene with no residual degrees of freedom
+        is left out of the variance trend, and a gene with a coefficient
+        that cannot be estimated gets NaN weights. R's vooma fails on
+        missing values (see docs/validation/known_differences.rst).
     design : ndarray, optional
         Design matrix. If None, uses an intercept-only model.
     block : ndarray, optional
@@ -733,20 +739,32 @@ def vooma(
     A = np.nanmean(y, axis=1)
     if np.any(np.isnan(A)):
         raise ValueError("y contains entirely NA rows")
-    # R fails in lm.fit with "NA/NaN/Inf in 'y'", with or without a block
-    n_not_finite = int((~np.isfinite(y)).sum())
-    if n_not_finite:
-        raise ValueError(
-            f"y contains {n_not_finite} missing or infinite values; vooma needs finite values "
-            "(R's lm.fit: NA/NaN/Inf in 'y')"
-        )
+    n_infinite = int(np.isinf(y).sum())
+    if n_infinite:
+        raise ValueError(f"y contains {n_infinite} infinite values; vooma needs finite or missing values")
 
     # Validate predictor (matches R's shape + NA handling)
     if predictor is not None:
         predictor = _validate_predictor(predictor, y)
 
     # Fit linear model
-    if block is None:
+    if block is not None:
+        block = _block_labels(block, n_samples)
+        if correlation is None:
+            raise ValueError(
+                "correlation must be specified when block is provided. "
+                "Use duplicate_correlation() to estimate intra-block correlation."
+            )
+    if np.isnan(y).any():
+        # limma intends vooma to allow missing values (NEWS 3.64.0), but R's
+        # lm.fit fails on them; as voomaLmFit does, fit each gene on its
+        # observed values with lm_fit (known_differences.rst)
+        from .lmfit import lm_fit
+
+        fit = lm_fit(y, design, block=block, correlation=correlation)
+        fitted = _fitted_values(fit, design)
+        s2 = fit["sigma"] ** 2
+    elif block is None:
         # Simple OLS fit: R's lm.fit, whose QR is qr() (LINPACK dqrdc2,
         # rank tolerance 1e-7 relative to the column norms)
         q, _r, _pivot, rank = _qr_r_style(design)
@@ -758,13 +776,6 @@ def vooma(
         s2 = np.mean(residual_effects**2, axis=0)
     else:
         # With block correlation
-        block = _block_labels(block, n_samples)
-        if correlation is None:
-            raise ValueError(
-                "correlation must be specified when block is provided. "
-                "Use duplicate_correlation() to estimate intra-block correlation."
-            )
-
         unique_blocks = np.unique(block)
         n_blocks = len(unique_blocks)
 
@@ -798,6 +809,9 @@ def vooma(
     sx = A
     sy = np.sqrt(np.sqrt(s2))  # Quarter-root variance = sqrt(sqrt(s2))
     mu = fitted
+    # A gene with no residual df has no variance (NaN with missing values)
+    # and is left out of the trend; R's lowess would compute with its NA
+    in_trend = np.isfinite(sy)
 
     # Optionally combine ave log intensity with precision predictor.
     # R: vartrend <- lm.fit(cbind(1, sx, sxc), sy); sx <- vartrend$fitted.values;
@@ -805,7 +819,7 @@ def vooma(
     if predictor is not None:
         sxc = np.nanmean(predictor, axis=1)
         vartrend_design = np.column_stack([np.ones(n_genes), sx, sxc])
-        beta, *_ = linalg.lstsq(vartrend_design, sy)
+        beta, *_ = linalg.lstsq(vartrend_design[in_trend], sy[in_trend])
         sx = vartrend_design @ beta
         mu = beta[0] + beta[1] * mu + beta[2] * predictor
         xlab = "Combined predictor"
@@ -820,7 +834,7 @@ def vooma(
             span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1 / 3)
 
     # R: l <- lowess(sx, sy, f=span)
-    x_sorted, y_sorted = _r_lowess(sx, sy, f=span)
+    x_sorted, y_sorted = _r_lowess(sx[in_trend], sy[in_trend], f=span)
 
     # Compute weights from fitted values (mu)
     # R: approxfun(l, rule=2, ties=list("ordered", mean))

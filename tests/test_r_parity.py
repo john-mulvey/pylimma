@@ -2077,6 +2077,33 @@ class TestVoomaRParity:
             f"vooma predictor weights differ: max_rel={result['max_rel_diff']:.2e}"
         )
 
+    @pytest.mark.parametrize("case", ["plain", "block", "predictor"])
+    def test_vooma_missing_values_match_limma_intent(self, case):
+        """vooma with missing values: R's lm.fit fails, but limma intends
+        vooma to allow them (NEWS 3.64.0). The reference is vooma.R with
+        lm.fit replaced by lmFit, which generate_all_fixtures.R checks
+        against R's vooma on complete data and voomaLmFit with missing
+        values. A gene with no residual df is left out of the trend; a gene
+        with a group entirely missing gets NaN weights, as in voomaLmFit."""
+        import warnings
+
+        from pylimma import vooma
+
+        y = load_r_csv_no_index("vooma_na_y").to_numpy(dtype=float)
+        design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
+        kwargs = {
+            "plain": {},
+            "block": {"block": np.tile([1, 2, 3, 4], 2), "correlation": 0.4},
+            "predictor": {"predictor": load_r_csv_no_index("vooma_na_predictor").to_numpy(dtype=float)},
+        }[case]
+        suffix = {"plain": "", "block": "_block", "predictor": "_predictor"}[case]
+        r_weights = load_r_csv_no_index(f"vooma_na_weights{suffix}").to_numpy(dtype=float)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)  # R's "Partial NA coefficients"
+            weights = vooma(y, design, **kwargs)["weights"]
+        np.testing.assert_array_equal(np.isnan(weights), np.isnan(r_weights))
+        np.testing.assert_allclose(weights, r_weights, rtol=1e-8, equal_nan=True)
+
 
 class TestDuplicateCorrelationRParity:
     """Test duplicate_correlation matches R limma's duplicateCorrelation."""

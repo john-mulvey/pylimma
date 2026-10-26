@@ -596,9 +596,13 @@ minor version (0.x.0) may change results or behaviour; a patch version
   clear error, where pylimma skipped the step and could return weights of
   1, and REML warns "iteration limit reached" or "convergence tolerance
   not achievable, stopping prematurely" when it stops unconverged, as R.
-- `vooma` raises a clear error when `y` has missing or infinite values, as
-  R fails in `lm.fit` ("NA/NaN/Inf in 'y'"); it returned NaN weights for
-  the whole gene, or failed in lowess for an infinite value.
+- `vooma` accepts missing values in `y`, as limma intends (NEWS 3.64.0)
+  although R's `lm.fit` fails on them: each gene is fitted on its
+  observed values, as R's `voomaLmFit` does (`known_differences.rst`). It
+  returned NaN weights for every gene with a missing value. Infinite
+  values raise a clear error (it failed in lowess). `vooma_by_group`, which
+  calls `vooma` for each group, accepts them too, as long as no gene is
+  entirely missing within a group.
 - Clear errors for invalid shapes where R fails obscurely or recycles:
   rows that are not a multiple of `ndups * spacing` (`lm_fit`,
   `unwrap_dups`, `ave_dups`; numpy's reshape error, R's "dims do not

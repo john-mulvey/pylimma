@@ -1201,17 +1201,17 @@ def test_invalid_shapes_raise_clear_errors():
         pylimma.voom(counts, np.column_stack([np.ones(6), np.repeat([0, 1], 3)]), lib_size=np.ones(5))
 
 
-@pytest.mark.parametrize("bad", [np.nan, np.inf])
 @pytest.mark.parametrize("block", [None, np.tile([1, 2, 3, 4], 2)])
-def test_vooma_with_missing_or_infinite_y_raises(bad, block):
-    """R fails in lm.fit with "NA/NaN/Inf in 'y'", with or without a block
-    (generate_all_fixtures.R, "vooma: any NA or infinite value")."""
+def test_vooma_with_infinite_y_raises(block):
+    """An infinite value has no place in the mean-variance trend; R fails in
+    lm.fit with "NA/NaN/Inf in 'y'" (generate_all_fixtures.R, "vooma: any
+    NA or infinite value"). Missing values are allowed (test_r_parity.py)."""
     import pylimma
 
     y = np.random.default_rng(1310).normal(8, 1, (20, 8))
-    y[3, 2] = bad
+    y[3, 2] = np.inf
     design = np.column_stack([np.ones(8), np.repeat([0.0, 1.0], 4)])
-    with pytest.raises(ValueError, match="y contains 1 missing or infinite values"):
+    with pytest.raises(ValueError, match="y contains 1 infinite values"):
         pylimma.vooma(y, design, block=block, correlation=0.3 if block is not None else None)
 
 

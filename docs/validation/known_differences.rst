@@ -378,6 +378,35 @@ equal to array extent" when ``...`` is empty. pylimma reports the missing
 contrasts where they arise instead of returning a matrix with no columns.
 ``generate_all_fixtures.R`` records the R behaviour.
 
+vooma: missing values in y
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+limma's NEWS for 3.64.0 says "vooma() now allows missing values in both
+``y`` and ``predictor``, provided there are no entirely missing rows",
+and ``vooma.R`` checks for entirely missing rows and for missing
+predictors, but its ``lm.fit`` calls still fail on any missing value
+("NA/NaN/Inf in 'y'"). pylimma's ``vooma`` fits each gene on its
+observed values with ``lm_fit``, as ``voomaLmFit`` does in R: the fitted
+values are ``coefficients %*% t(design)`` and the variance is
+``sigma^2``, which on complete data equal ``vooma``'s ``lm.fit`` values.
+Two cases follow ``voomaLmFit`` as it would behave without R's
+accidents:
+
+* A gene with a coefficient that cannot be estimated from its observed
+  values (for example a group entirely missing) gets NaN weights for
+  every sample, as in ``voomaLmFit``.
+* A gene with no residual degrees of freedom has no variance estimate
+  and is left out of the mean-variance trend. R's ``lowess`` computes
+  with its NA, which in a 200-gene test turned 89 of the 200 trend points
+  into NA and moved the other genes' weights by up to 18.5%.
+
+The reference fixtures (``R_vooma_na_*.csv``) come from ``vooma.R`` with
+``lm.fit`` replaced by ``lmFit`` and such genes left out of the trend;
+the fixture script checks that this reference reproduces R's ``vooma``
+on complete data (with and without block and predictor) and R's
+``voomaLmFit`` weights with missing values. Infinite values still raise
+an error.
+
 Clear errors where R fails obscurely or behaves accidentally
 ------------------------------------------------------------
 

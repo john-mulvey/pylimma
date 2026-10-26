@@ -7017,6 +7017,74 @@ stopifnot(.vna_err(.vna_y) == "NA/NaN/Inf in 'y'",
 stopifnot(.vna_err(.vna_y) == "NA/NaN/Inf in 'y'")
 
 # =============================================================================
+# vooma with missing values, as limma intends: NEWS 3.64.0 says "vooma() now
+# allows missing values in both y and predictor", and vooma.R checks for
+# entirely-NA rows and NA predictors, but its lm.fit calls still fail. The
+# reference is vooma.R with lm.fit replaced by lmFit, which fits each gene
+# on its observed values: the first pass of voomaLmFit (mu from the
+# coefficients, s2 = sigma^2). A gene with no residual df has no variance
+# and is left out of the trend (R's lowess computes with its NA;
+# known_differences.rst). A gene with a coefficient that cannot be
+# estimated gets NA weights, as in voomaLmFit.
+# =============================================================================
+cat("\nGenerating vooma missing-value fixtures...\n")
+
+.vooma_na <- function(y, design, block = NULL, correlation = NULL, predictor = NULL) {
+  A <- rowMeans(y, na.rm = TRUE)
+  fit <- if (is.null(block)) lmFit(y, design) else lmFit(y, design, block = block, correlation = correlation)
+  mu <- fit$coefficients %*% t(design)
+  sx <- A
+  sy <- sqrt(fit$sigma)
+  ok <- is.finite(sy)
+  if (!is.null(predictor)) {
+    X <- cbind(1, sx, rowMeans(predictor, na.rm = TRUE))
+    beta <- coef(lm.fit(X[ok, , drop = FALSE], sy[ok]))
+    sx <- drop(X %*% beta)
+    mu <- beta[1] + beta[2] * mu + beta[3] * predictor
+  }
+  span <- chooseLowessSpan(nrow(y), small.n = 50, min.span = 0.3, power = 1/3)
+  l <- lowess(sx[ok], sy[ok], f = span)
+  w <- 1 / approxfun(l, rule = 2, ties = list("ordered", mean))(mu)^4
+  dim(w) <- dim(y)
+  w
+}
+
+set.seed(20261026)
+.vmn_design <- cbind(1, rep(0:1, each = 4))
+.vmn_block <- rep(1:4, 2)
+.vmn_pred <- matrix(runif(300 * 8, 0.5, 2), 300, 8)
+.vmn_full <- matrix(rnorm(300 * 8, 8), 300, 8)
+.vmn_full[1:30, 5:8] <- .vmn_full[1:30, 5:8] + 2
+# The reference reproduces R where R runs: vooma on complete data, with and
+# without block and predictor, and voomaLmFit's weights with missing values
+.vmn_eq <- function(a, b) isTRUE(all.equal(unname(a), unname(b), tolerance = 1e-12))
+stopifnot(.vmn_eq(.vooma_na(.vmn_full, .vmn_design), vooma(.vmn_full, .vmn_design)$weights),
+          .vmn_eq(.vooma_na(.vmn_full, .vmn_design, block = .vmn_block, correlation = 0.4),
+                  vooma(.vmn_full, .vmn_design, block = .vmn_block, correlation = 0.4)$weights),
+          .vmn_eq(.vooma_na(.vmn_full, .vmn_design, predictor = .vmn_pred),
+                  vooma(.vmn_full, .vmn_design, predictor = .vmn_pred)$weights))
+.vmn_y <- .vmn_full
+.vmn_y[matrix(runif(300 * 8) < 0.08, 300, 8)] <- NA
+.vmn_y[rowSums(!is.na(.vmn_y)) < 3, 1:3] <- .vmn_full[rowSums(!is.na(.vmn_y)) < 3, 1:3]
+stopifnot(all(rowSums(!is.na(.vmn_y)) >= 3),
+          .vmn_eq(.vooma_na(.vmn_y, .vmn_design), voomaLmFit(.vmn_y, .vmn_design)$EList$weights))
+# a gene with no residual df (one value per group) and one with a group
+# entirely missing (its group coefficient cannot be estimated)
+.vmn_y[1, ] <- c(.vmn_full[1, 1], NA, NA, NA, .vmn_full[1, 5], NA, NA, NA)
+.vmn_y[2, 5:8] <- NA
+write.csv(.vmn_y, "R_vooma_na_y.csv", row.names = FALSE)
+write.csv(.vmn_pred, "R_vooma_na_predictor.csv", row.names = FALSE)
+.vmn_w <- suppressWarnings(.vooma_na(.vmn_y, .vmn_design))
+stopifnot(is.na(lmFit(.vmn_y, .vmn_design)$sigma[1]), all(is.na(.vmn_w[2, ])), !anyNA(.vmn_w[-2, ]))
+write.csv(.vmn_w, "R_vooma_na_weights.csv", row.names = FALSE)
+write.csv(suppressWarnings(.vooma_na(.vmn_y, .vmn_design, block = .vmn_block, correlation = 0.4)),
+          "R_vooma_na_weights_block.csv", row.names = FALSE)
+write.csv(suppressWarnings(.vooma_na(.vmn_y, .vmn_design, predictor = .vmn_pred)),
+          "R_vooma_na_weights_predictor.csv", row.names = FALSE)
+
+cat("  vooma missing-value fixtures complete.\n")
+
+# =============================================================================
 # voomaLmFit names: voom.xy's xlab, and sample weights as a targets column
 # "sample.weight" (added to y$targets when there is one)
 # =============================================================================
