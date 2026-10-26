@@ -1119,12 +1119,15 @@ def _formula_design(formula: str, data) -> pd.DataFrame:
             f"levels ({', '.join(map(repr, single))})"
         )
     if ordered:
+        name = ordered[0]
         raise ValueError(
             f"formula {formula!r}: ordered categorical {', '.join(map(repr, ordered))} "
-            "without a named contrast. R's model.matrix codes ordered factors with "
-            "polynomial contrasts (contr.poly) and patsy with treatment contrasts; "
-            "name the contrast, e.g. C(o, Poly) for R's coding or C(o, Treatment) for "
-            "treatment coding"
+            "without a named contrast. R codes an ordered factor with polynomial "
+            "contrasts (trends across the levels) and an unordered one, such as cut()'s, "
+            "with treatment contrasts (each level against the first); pd.cut() returns "
+            "an ordered categorical. Say which you mean: for group comparisons make it "
+            f"unordered (data[col] = data[col].cat.as_unordered()) or write "
+            f"C({name}, Treatment); for R's polynomial trends write C({name}, Poly)"
         )
     return design
 

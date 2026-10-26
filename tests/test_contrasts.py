@@ -252,10 +252,16 @@ class TestFormulaOrderedFactor:
         )
 
     def test_bare_ordered_factor_raises(self, data):
-        with pytest.raises(ValueError, match=r"ordered categorical 'o'.*C\(o, Poly\)"):
+        with pytest.raises(ValueError, match=r"ordered categorical 'o'.*as_unordered.*C\(o, Poly\)"):
             model_matrix("~ o", data)
         with pytest.raises(ValueError, match="ordered categorical 'o'"):
             model_matrix_with_names("~ g + o", data)
+        # pd.cut gives an ordered categorical; the message names both fixes
+        binned = pd.DataFrame({"grp": pd.cut([21, 35, 47, 52, 63, 70], [0, 40, 60, 100])})
+        with pytest.raises(ValueError, match=r"C\(grp, Treatment\).*C\(grp, Poly\)"):
+            model_matrix("~ grp", binned)
+        binned["grp"] = binned["grp"].cat.as_unordered()
+        assert model_matrix("~ grp", binned).shape == (6, 3)
         # wrapped without naming a contrast, patsy still uses treatment coding
         for formula in ("~ C(o)", '~ Q("o")', '~ C(o, levels=["hi", "mid", "lo"])'):
             with pytest.raises(ValueError, match="without a named contrast"):

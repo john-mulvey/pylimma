@@ -717,6 +717,11 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     factors with ``contr.poly``; patsy ignores the ordering and would
     silently use treatment contrasts. Without contrasts (``~ 0 + o``) both
     give one indicator column per level, and no error is raised.
+    ``pd.cut()`` returns an ordered categorical, where R's ``cut()`` returns
+    an unordered factor coded with treatment contrasts, so a binned
+    covariate raises too; ``.cat.as_unordered()`` gives R's coding of
+    ``cut()``. pylimma cannot tell a deliberately ordered factor from a
+    binned one, so it asks rather than guess.
 
 ``normalize_vsn`` with no non-missing value
     Raises "no row of x has a non-missing value" after vsn's warning that

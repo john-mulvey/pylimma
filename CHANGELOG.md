@@ -436,7 +436,9 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - Formula strings with an ordered categorical that would be coded with
   contrasts raise an error asking for `C(o, Poly)` (R's `contr.poly`) or
   `C(o, Treatment)`; patsy silently used treatment contrasts where R uses
-  polynomial ones.
+  polynomial ones. This includes `pd.cut()` columns, which pandas makes
+  ordered: `.cat.as_unordered()` gives the treatment coding of R's `cut()`,
+  as 0.2.0 did.
 - Formula strings are evaluated with the columns of the data, patsy's
   built-ins, `np` and `pd` only. Names were also looked up among the
   imports of pylimma's own modules, so a missing column called `io` or
