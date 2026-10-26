@@ -1038,7 +1038,13 @@ def _assert_same_result(a, b):
     elif isinstance(a, pd.DataFrame):
         pd.testing.assert_frame_equal(a, b)
     elif isinstance(a, (np.ndarray, float, int)) or np.isscalar(a):
-        np.testing.assert_array_equal(np.asarray(a), np.asarray(b))
+        a, b = np.asarray(a), np.asarray(b)
+        if a.dtype.kind in "fc":
+            # same values in another memory layout can be summed in another
+            # order by BLAS (e.g. a pandas 3 DataFrame's columns)
+            np.testing.assert_allclose(a, b, rtol=1e-12, atol=0)
+        else:
+            np.testing.assert_array_equal(a, b)
     else:
         assert type(a) is type(b)
 
@@ -1260,7 +1266,8 @@ def test_pass_through_layer_does_not_alias_x(name):
 
     adata = ad.AnnData(np.random.default_rng(1).normal(size=(4, 10)))
     _PASS_THROUGH_CALLS[name](adata)
-    (layer,) = [k for k in adata.layers]
+    # anndata 0.13 lists X itself as layers[None]
+    (layer,) = [k for k in adata.layers if k is not None]
     assert not np.shares_memory(adata.layers[layer], adata.X)
 
 

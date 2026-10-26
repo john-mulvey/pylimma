@@ -248,7 +248,8 @@ def _resolve_index(idx, names, n: int, dim: str):
             position.setdefault(name, k)
         missing = [name for name in arr if name not in position]
         if missing:
-            raise KeyError(f"Subscript not found in {dim}: {missing[0]!r}")
+            # str() first: numpy 2 shows a numpy string as np.str_('a')
+            raise KeyError(f"Subscript not found in {dim}: {str(missing[0])!r}")
         return np.asarray([position[name] for name in arr], dtype=int)
     return arr.astype(int)
 

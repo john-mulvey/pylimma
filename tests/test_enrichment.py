@@ -277,6 +277,7 @@ def test_goana_trend_plot_draws_r_trend():
     """R's goanaTrend(plot=TRUE) draws p.o against covariate rank 1..n
     (lwd 2) with ylim c(0, ceiling(max(p) * n) / n), and a tick of height
     ylim[2] / 9 at the rank of each DE gene (lwd 2 below 100 DE genes)."""
+    pytest.importorskip("matplotlib")
     import matplotlib.pyplot as plt
     import numpy as np
 

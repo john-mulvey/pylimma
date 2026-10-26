@@ -589,6 +589,7 @@ def test_heat_diagram_needs_one_name_per_row():
         )
 
 
+@pytest.mark.skipif(not HAS_MPL, reason="matplotlib not installed")
 def test_plot_ma_3by2_matrix_matches_r(tmp_path, monkeypatch):
     """Each array's M = E - rowMeans(E) against A = rowMeans(E), common
     limits over all of A and M, the legend on the first plot of a page."""
