@@ -99,11 +99,18 @@ def test_wsva_rank_deficient_design_raises(weight_by_sd):
 
 @pytest.mark.parametrize(
     "batch",
-    [["a", None, "a"], ["a", None, "b"], pd.Categorical(["a", np.nan, "b"]), pd.array(["a", pd.NA, "b"])],
+    [
+        ["a", None, "a"],
+        ["a", None, "b"],
+        ["a", np.nan, "b"],
+        pd.Categorical(["a", np.nan, "b"]),
+        pd.array(["a", pd.NA, "b"]),
+    ],
 )
 def test_missing_batch_label_raises(batch):
     """R's as.factor leaves NA out of the levels and R then stops
-    (generate_all_fixtures.R); pylimma raises a clear error."""
+    (generate_all_fixtures.R); pylimma raises a clear error. NaN among
+    strings is pandas' missing value (R's NA), not a level."""
     from pylimma import remove_batch_effect
 
     y = pd.read_csv(FIXTURES / "R_rbm_y.csv").to_numpy()

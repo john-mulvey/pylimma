@@ -27,32 +27,25 @@ from __future__ import annotations
 import warnings
 
 import numpy as np
-import pandas as pd
 
 from .classes import _shape_error, get_eawp, put_eawp
 from .lmfit import _numeric_design, _qr_r_style, lm_fit
 from .utils import _r_factor
 
 
-def _factor_levels(factor) -> tuple[np.ndarray, np.ndarray]:
+def _factor_levels(factor, name: str) -> tuple[np.ndarray, np.ndarray]:
     """Levels and string-coded values of R's ``as.factor(factor)``
-    (utils._r_factor; a numeric NaN is a level). Missing labels are
-    rejected before this is called. Returns ``(levels, str_values)`` as 1-D
-    arrays of strings."""
+    (utils._r_factor; a numeric NaN is a level). Returns ``(levels,
+    str_values)`` as 1-D arrays of strings.
+
+    A missing label (None, pandas NA, a categorical's NaN, NaN among
+    strings) raises: R's as.factor leaves NA out of the levels and
+    removeBatchEffect then stops (contr.sum, or a row mismatch)."""
     levels, codes = _r_factor(factor, nan_is_level=True)
+    if np.any(codes < 0):
+        raise ValueError(f"{name} contains missing labels; give every sample a {name} label")
     levels = np.array(levels, dtype=object)
     return levels.astype(str), levels[codes].astype(str)
-
-
-def _has_missing_label(factor) -> bool:
-    """True when a factor has a missing label (None, pandas NA, categorical
-    NaN). A numeric NaN is not missing: R's as.factor makes it a level."""
-    if isinstance(factor, pd.Categorical) or isinstance(getattr(factor, "dtype", None), pd.CategoricalDtype):
-        return bool(pd.isna(factor).any())
-    arr = np.asarray(factor)
-    if arr.dtype == bool or np.issubdtype(arr.dtype, np.number):
-        return False
-    return bool(pd.isna(arr).any())
 
 
 def _sum_to_zero_design(factor, name: str = "batch") -> np.ndarray:
@@ -65,11 +58,7 @@ def _sum_to_zero_design(factor, name: str = "batch") -> np.ndarray:
     levels get a 1 in their column and the last level gets -1 across all
     columns. Intercept is dropped.
     """
-    if _has_missing_label(factor):
-        # R's as.factor leaves NA out of the levels and removeBatchEffect then
-        # stops (contr.sum, or a row mismatch); a clear error instead.
-        raise ValueError(f"{name} contains missing labels; give every sample a {name} label")
-    levels, str_values = _factor_levels(factor)
+    levels, str_values = _factor_levels(factor, name)
     n = len(str_values)
     K = len(levels)
     if K < 2:

@@ -395,8 +395,8 @@ unaffected.
     R behaviour.
 
 ``remove_batch_effect`` with a missing ``batch`` / ``batch2`` label
-    A missing label (``None``, pandas NA, a categorical NaN) raises "batch
-    contains missing labels". R's ``as.factor`` leaves NA out of the levels,
+    A missing label (``None``, pandas NA, a categorical NaN, or NaN among
+    string labels) raises "batch contains missing labels". R's ``as.factor`` leaves NA out of the levels,
     and ``removeBatchEffect`` then stops with "not enough degrees of freedom
     to define contrasts" or "number of rows of matrices must match". As in
     R, a numeric NaN is not missing but a level of its own.
