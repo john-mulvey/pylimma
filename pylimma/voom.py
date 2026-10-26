@@ -1041,20 +1041,6 @@ def vooma_lm_fit(
     # Initial fit
     fit = lm_fit(y, design, weights=prior_weights)
 
-    # Prepare for trend fitting
-    sx = A
-    sy = np.sqrt(fit["sigma"])
-    mu = _fitted_values(fit, design)
-
-    # Optionally combine ave log intensity with precision predictor
-    sxc = None
-    if predictor is not None:
-        sxc = np.nanmean(predictor, axis=1)
-        vartrend_design = np.column_stack([np.ones(n_genes), sx, sxc])
-        beta, *_ = linalg.lstsq(vartrend_design, sy)
-        sx = vartrend_design @ beta
-        mu = beta[0] + beta[1] * mu + beta[2] * predictor
-
     # Choose span
     if span is None:
         if legacy_span:
@@ -1062,12 +1048,9 @@ def vooma_lm_fit(
         else:
             span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1 / 3)
 
-    # Fit LOWESS trend (R: l <- lowess(sx, sy, f=span))
-    x_sorted, y_sorted = _r_lowess(sx, sy, f=span)
-
-    # Compute vooma weights
-    # R: approxfun(l, rule=2, ties=list("ordered", mean))
-    w = 1 / _r_approx_rule2(x_sorted, y_sorted, mu) ** 4
+    # vooma's trend and weights
+    sy = np.sqrt(fit["sigma"])
+    sx, x_sorted, y_sorted, w = _vooma_trend_weights(A, sy, _fitted_values(fit, design), predictor, span)
 
     # Combine with prior weights if provided
     if prior_weights is not None:
@@ -1113,23 +1096,9 @@ def vooma_lm_fit(
         # Refit with correlation
         fit = lm_fit(y, design, block=block, correlation=correlation, weights=weights)
 
-        # Refit LOWESS trend
-        sx = A
+        # Refit the trend and weights
         sy = np.sqrt(fit["sigma"])
-        mu = _fitted_values(fit, design)
-
-        # Re-apply predictor combination using the cached sxc
-        if predictor is not None:
-            vartrend_design = np.column_stack([np.ones(n_genes), sx, sxc])
-            beta, *_ = linalg.lstsq(vartrend_design, sy)
-            sx = vartrend_design @ beta
-            mu = beta[0] + beta[1] * mu + beta[2] * predictor
-
-        x_sorted, y_sorted = _r_lowess(sx, sy, f=span)
-
-        # Recompute vooma weights
-        # R: approxfun(l, rule=2, ties=list("ordered", mean))
-        w = 1 / _r_approx_rule2(x_sorted, y_sorted, mu) ** 4
+        sx, x_sorted, y_sorted, w = _vooma_trend_weights(A, sy, _fitted_values(fit, design), predictor, span)
 
         # Combine with prior weights
         if prior_weights is not None:

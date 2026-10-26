@@ -5850,14 +5850,18 @@ class TestLowessRParity:
         expected = load_r_csv_no_index("lowess_vooma_weights")
         np.testing.assert_allclose(vooma(y, design, span=0.2)["weights"], expected, rtol=1e-6)
 
-    def test_vooma_lm_fit_with_na_sigma_matches_r(self):
-        """A gene without residual df has NA sigma; R's approxfun drops that
-        point of the trend, so no weight is NA."""
+    @pytest.mark.parametrize("block", [None, np.repeat([1, 2, 3], 2)])
+    def test_vooma_lm_fit_with_na_sigma_matches_r(self, block):
+        """A gene without residual df has NA sigma and is left out of the
+        trend, as in vooma (known_differences.rst). The reference is R's
+        voomaLmFit with both lowess calls on the genes with finite sigma;
+        with block the second pass is used too."""
         from pylimma import vooma_lm_fit
 
         y = load_r_csv_no_index("lowess_voomalmfit_input").to_numpy()
-        expected = load_r_csv_no_index("lowess_voomalmfit_weights").to_numpy()
-        fit = vooma_lm_fit(y, np.column_stack([np.ones(6), np.tile([0, 1], 3)]))
+        suffix = "" if block is None else "_block"
+        expected = load_r_csv_no_index(f"lowess_voomalmfit_weights{suffix}").to_numpy()
+        fit = vooma_lm_fit(y, np.column_stack([np.ones(6), np.tile([0, 1], 3)]), block=block)
         assert np.isnan(fit["sigma"]).sum() == 1
         np.testing.assert_allclose(fit["EList"]["weights"], expected, rtol=1e-8)
 

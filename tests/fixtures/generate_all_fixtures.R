@@ -5865,8 +5865,11 @@ set.seed(2)
 write.csv(log2(.lwc_vooma$counts + 1), "R_lowess_vooma_input.csv", row.names = FALSE)
 write.csv(vooma(log2(.lwc_vooma$counts + 1), .lwc_vooma$design, span = 0.2)$weights,
           "R_lowess_vooma_weights.csv", row.names = FALSE)
-# voomaLmFit with a gene that has no residual df: approxfun drops its NA
-# point of the trend, so no weight is NA
+# voomaLmFit with a gene that has no residual df: R's lowess computes with
+# its NA sigma (approxfun then drops the NA points of the trend, so no
+# weight is NA). pylimma leaves the gene out of the trend, as vooma does
+# (known_differences.rst); the reference is voomaLmFit with both lowess
+# calls applied to the genes with a finite sigma
 set.seed(8)
 .lwc_na <- matrix(rnorm(200 * 6, 8), 200)
 .lwc_na[1, 1:4] <- NA
@@ -5874,7 +5877,21 @@ set.seed(8)
 write.csv(.lwc_na, "R_lowess_voomalmfit_input.csv", row.names = FALSE)
 .lwc_vlf <- voomaLmFit(.lwc_na, cbind(1, rep(0:1, 3)))
 stopifnot(sum(is.na(.lwc_vlf$sigma)) == 1, !anyNA(.lwc_vlf$EList$weights))
-write.csv(.lwc_vlf$EList$weights, "R_lowess_voomalmfit_weights.csv", row.names = FALSE)
+.lwc_body <- deparse(body(voomaLmFit))
+stopifnot(sum(grepl("lowess(sx, sy, f = span)", .lwc_body, fixed = TRUE)) == 2)
+.voomaLmFit_trend_finite <- voomaLmFit
+body(.voomaLmFit_trend_finite) <- parse(text = gsub(
+  "lowess(sx, sy, f = span)", "lowess(sx[is.finite(sy)], sy[is.finite(sy)], f = span)",
+  .lwc_body, fixed = TRUE))[[1]]
+# on data where every gene has residual df the patched function is voomaLmFit
+.lwc_full <- .lwc_na
+.lwc_full[1, ] <- rnorm(6, 8)
+stopifnot(isTRUE(all.equal(.voomaLmFit_trend_finite(.lwc_full, cbind(1, rep(0:1, 3)))$EList$weights,
+                           voomaLmFit(.lwc_full, cbind(1, rep(0:1, 3)))$EList$weights, tolerance = 1e-12)))
+write.csv(.voomaLmFit_trend_finite(.lwc_na, cbind(1, rep(0:1, 3)))$EList$weights,
+          "R_lowess_voomalmfit_weights.csv", row.names = FALSE)
+write.csv(.voomaLmFit_trend_finite(.lwc_na, cbind(1, rep(0:1, 3)), block = rep(1:3, each = 2))$EList$weights,
+          "R_lowess_voomalmfit_weights_block.csv", row.names = FALSE)
 set.seed(12)
 .lwc_cyc <- matrix(rnorm(300 * 4, 8, 2), 300, 4)
 .lwc_cyc[, 2] <- .lwc_cyc[, 2] + 1 + 0.1 * .lwc_cyc[, 1]

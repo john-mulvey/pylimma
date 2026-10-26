@@ -9,6 +9,11 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed results
 
+- `vooma_lm_fit` leaves a gene with no residual degrees of freedom (NaN
+  `sigma`, from missing values) out of its mean-variance trends, as
+  `vooma` now does. It followed R's `lowess`, which computes with the NaN
+  and so shifts the trend and every other gene's weights
+  (`known_differences.rst`).
 - `classify_tests_f` (and `decide_tests(method="nestedF")`) takes its
   thresholds from R's `qf` rules, which use the chi-squared limit for a
   residual df above 4e5; scipy's exact F quantile was up to about 5e-6

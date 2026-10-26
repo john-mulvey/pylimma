@@ -399,6 +399,11 @@ accidents:
   and is left out of the mean-variance trend. R's ``lowess`` computes
   with its NA, which in a 200-gene test turned 89 of the 200 trend points
   into NA and moved the other genes' weights by up to 18.5%.
+  ``vooma_lm_fit`` does the same in both of its trend fits; its reference
+  (``R_lowess_voomalmfit_*.csv``) is R's ``voomaLmFit`` with both
+  ``lowess`` calls applied to the genes with a finite ``sigma``, which the
+  fixture script checks equals ``voomaLmFit`` when every gene has
+  residual degrees of freedom.
 
 The reference fixtures (``R_vooma_na_*.csv``) come from ``vooma.R`` with
 ``lm.fit`` replaced by ``lmFit`` and such genes left out of the trend;
