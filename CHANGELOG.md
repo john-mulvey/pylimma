@@ -520,6 +520,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Fixed
 
+- `kegga` names pathways whose IDs are numbers in `pathway_names` (e.g. a
+  column read by `read_csv` with a gap, so 10.0): IDs are compared as R's
+  `as.character()` gives them ("10"), as R's `match()` does; they were left
+  unnamed.
 - `lm_fit`'s "Coefficients not estimable" warning separates the names
   with spaces, as R's message (it used commas); R prints the message
   rather than warning, which is now recorded in `known_differences.rst`.

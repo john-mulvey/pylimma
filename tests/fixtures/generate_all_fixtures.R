@@ -5440,6 +5440,15 @@ write.csv(.kpn, "R_kpn_names.csv", row.names = FALSE)
 stopifnot(.kpn_res["path:hsa00010", "Pathway"] == "Glycolysis", is.na(.kpn_res["path:hsa00030", "Pathway"]))
 write.csv(.kpn_res, "R_kpn_kegga.csv")
 
+# Numeric pathway IDs (e.g. read from a CSV with a gap): match() compares
+# them as.character(), so 10 in pathway.names names pathway 10 of gene.pathway
+.kpn_genes <- sprintf("g%d", 1:120)
+.kpn_num_gp <- data.frame(gene = .kpn_genes, path = ifelse(seq_along(.kpn_genes) <= 30, 10, 20))
+.kpn_num_names <- data.frame(id = c(10, 20), name = c("ten", "twenty"))
+.kpn_num <- kegga(.kpn_genes[1:10], universe = .kpn_genes, gene.pathway = .kpn_num_gp,
+                  pathway.names = .kpn_num_names)
+stopifnot(identical(.kpn_num[c("10", "20"), "Pathway"], c("ten", "twenty")))
+
 cat("  kegga pathway.names fixtures complete.\n")
 
 # =============================================================================

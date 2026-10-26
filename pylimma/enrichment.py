@@ -717,8 +717,10 @@ def _kegga_default(
         if pn.shape[1] < 2:
             raise ValueError("pathway.names must have at least 2 columns")
         pn = pn.rename(columns={pn.columns[0]: "_path_id", pn.columns[1]: "_description"})
-        pn = pn.loc[pn[["_path_id", "_description"]].notna().all(axis=1)].astype(str)
-        pn["_path_id"] = _as_gene_ids(pn["_path_id"])
+        pn = pn.loc[pn[["_path_id", "_description"]].notna().all(axis=1)]
+        # R: match(g, PathID.PathName[,1]) compares as.character(), so a
+        # numeric ID 10.0 is "10", as in gene.pathway.
+        pn = pn.assign(_path_id=_as_gene_ids(pn["_path_id"]), _description=pn["_description"].astype(str))
         # R: match(g, PathID.PathName[,1]) takes the first row of an ID.
         pn = pn.drop_duplicates(subset="_path_id", keep="first")
         pn_lookup = dict(zip(pn["_path_id"], pn["_description"]))

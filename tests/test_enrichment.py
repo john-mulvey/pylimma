@@ -188,6 +188,18 @@ def test_pathway_names_first_row_across_id_types():
     assert tab.loc["10", "pathway"] == "first"
 
 
+@pytest.mark.parametrize("gene_path_ids", [[10.0, 20.0], [10, 20]])
+def test_pathway_names_numeric_ids(gene_path_ids):
+    """Float pathway IDs (as read_csv gives for a column with a gap) name
+    their pathways: R compares as.character(10) == "10" (stopifnot in
+    generate_all_fixtures.R)."""
+    genes = [f"g{i}" for i in range(1, 121)]
+    gp = pd.DataFrame({"gene": genes, "path": [gene_path_ids[0] if i < 30 else gene_path_ids[1] for i in range(120)]})
+    names = pd.DataFrame({"id": [10.0, 20.0], "name": ["ten", "twenty"]})
+    tab = pylimma.kegga(genes[:10], gp, pathway_names=names, universe=genes)
+    assert list(tab.loc[["10", "20"], "pathway"]) == ["ten", "twenty"]
+
+
 def _goana_table():
     gp = pd.read_csv(FIXTURES / "R_goana_genepathway.csv")
     universe = pd.read_csv(FIXTURES / "R_goana_universe.csv")["gene_id"].tolist()
