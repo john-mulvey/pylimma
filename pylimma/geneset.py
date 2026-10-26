@@ -1345,6 +1345,16 @@ def inter_gene_correlation(y: np.ndarray, design: np.ndarray) -> dict:
     return {"vif": vif, "correlation": correlation}
 
 
+def _rank_test_undefined(m, G) -> bool:
+    """True when camera's rank test has no genes in the set (m = 0) or none
+    outside it (m = G). R's rankSumTestWithCorrelation then has a zero
+    variance, z = +/-Inf and both one-sided p-values 1, so a two-sided
+    p-value of 2; pylimma gives NaN, as camera's parametric path does
+    (known_differences.rst). R stops instead when inter.gene.cor is
+    estimated and the set is empty."""
+    return m == 0 or m == G
+
+
 def camera(
     y,
     index,
@@ -1548,8 +1558,7 @@ def camera(
 
         NGenes[i] = m
         Correlation[i] = corr
-        if use_ranks and m == 0:
-            # an empty set: NaN as in the parametric path (R stops here)
+        if use_ranks and _rank_test_undefined(m, G):
             Down[i] = Up[i] = np.nan
         elif use_ranks:
             corr_use = max(0, corr) if not allow_neg_cor else corr
@@ -1699,8 +1708,7 @@ def camera_pr(
         StatInSet = stat_arr[iset]
         m = np.float64(iset.size)  # numpy float, as R's doubles
         NGenes[i] = m
-        if use_ranks and m == 0:
-            # an empty set: NaN as in the parametric path (R stops here)
+        if use_ranks and _rank_test_undefined(m, G):
             Down[i] = Up[i] = np.nan
         elif use_ranks:
             pv = rank_sum_test_with_correlation(

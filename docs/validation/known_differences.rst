@@ -555,6 +555,15 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     whole number of at least 1; R gives NaN for 0 and uses ``1:nbins`` for
     a fraction. ``generate_all_fixtures.R`` records the R behaviour.
 
+``camera`` / ``camera_pr`` rank test with a set of no genes or of all genes
+    With ``use_ranks=True`` such a set has NaN p-values, as in the
+    parametric test. R's ``rankSumTestWithCorrelation`` has a zero variance
+    there, so both one-sided p-values are 1 and the two-sided p-value is 2,
+    which also enters the FDR adjustment of the other sets; pylimma adjusts
+    over the sets that have a p-value. With an estimated correlation
+    (``inter.gene.cor=NA``) R stops on an empty set. ``generate_all_fixtures.R``
+    records the R behaviour.
+
 ``camera`` / ``romer`` with missing or infinite values
     Raise "All y values must be finite and non-NA" (the wording of R's
     ``.lmEffects``); R stops in its Fortran QR with "NA/NaN/Inf in foreign

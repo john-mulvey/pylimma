@@ -5315,6 +5315,17 @@ write.csv(.cds_y, "R_cds_y.csv", row.names = FALSE)
 stopifnot(is.na(.cds_cam["all", "PValue"]), is.na(.cds_cam["none", "PValue"]), is.na(.cds_pr["all", "PValue"]))
 write.csv(.cds_cam, "R_cds_camera.csv")
 write.csv(.cds_pr, "R_cds_camerapr.csv")
+# use.ranks with a fixed inter.gene.cor: a set of no genes or of all genes
+# has rankSumTestWithCorrelation's sigma2 = 0, so z = +/-Inf, both one-sided
+# p-values 1 and PValue 2; pylimma gives NaN (known_differences.rst). With
+# an estimated correlation (inter.gene.cor = NA) R stops on the empty set.
+.cds_sets <- list(all = 1:20, none = integer(0), some = 1:5)
+.cds_rank <- camera(.cds_y, .cds_sets, .cds_d, use.ranks = TRUE, sort = FALSE)
+.cds_rank_pr <- cameraPR(.cds_y[, 1], .cds_sets, use.ranks = TRUE, sort = FALSE)
+stopifnot(.cds_rank[c("all", "none"), "PValue"] == 2, .cds_rank_pr[c("all", "none"), "PValue"] == 2,
+          inherits(tryCatch(camera(.cds_y, .cds_sets, .cds_d, use.ranks = TRUE, inter.gene.cor = NA),
+                            error = identity), "error"))
+write.csv(.cds_rank, "R_cds_camera_ranks.csv")
 
 cat("  camera degenerate-set fixtures complete.\n")
 

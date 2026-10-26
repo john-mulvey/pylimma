@@ -722,7 +722,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 - `top_romer` raised `KeyError('Up')` on every `romer` result; it reads
   `romer`'s `n_genes` / `up` / `down` / `mixed` columns.
 - `camera` / `camera_pr` with a set of all genes or of no genes raised
-  `ZeroDivisionError`; as in R, that set's row has NaN p-values.
+  `ZeroDivisionError`; as in R, that set's row has NaN p-values. With
+  `use_ranks=True` such a set also has NaN p-values, where R gives a
+  p-value of 2 (`known_differences.rst`), and the FDR is adjusted over the
+  other sets.
 - An empty list of gene sets raises R's "index is empty" in `mroast`, `fry`,
   `camera`, `camera_pr` and `romer` (it ran as a phantom empty set, or
   raised `ZeroDivisionError`). All gene-set functions now share one set

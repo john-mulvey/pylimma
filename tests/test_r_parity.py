@@ -7943,18 +7943,28 @@ def test_camera_degenerate_sets_give_nan_rows():
         assert compare_pvalues(r["PValue"].to_numpy()[finite], result["p_value"].to_numpy()[finite])["match"]
 
 
-def test_camera_ranks_empty_set_is_nan():
-    """use_ranks: an empty set gives a NaN row like the parametric path (R
-    stops with "missing value where TRUE/FALSE needed"); a one-gene set gives
-    R's finite p-value."""
+def test_camera_ranks_degenerate_sets_are_nan():
+    """use_ranks: a set of no genes or of all genes gives a NaN row like the
+    parametric path, where R gives a p-value of 2 (both one-sided p-values
+    1; known_differences.rst). The other sets match R, with the FDR adjusted
+    over the sets that have a p-value. A one-gene set gives R's finite
+    p-value."""
     from pylimma import camera, camera_pr
 
     y = load_r_csv_no_index("cds_y").to_numpy(dtype=float)
     design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
-    sets = {"one": np.array([4]), "none": np.array([], dtype=int)}
-    tab = camera(y, sets, design, use_ranks=True, inter_gene_cor=None, sort=False)
+    sets = {"all": np.arange(20), "none": np.array([], dtype=int), "some": np.arange(5)}
+    tab = camera(y, sets, design, use_ranks=True, sort=False)
+    r = load_r_csv("cds_camera_ranks")
+    assert np.isnan(tab.loc[["all", "none"], "p_value"]).all()
+    assert compare_pvalues(r.loc[["some"], "PValue"].to_numpy(), tab.loc[["some"], "p_value"].to_numpy())["match"]
+    assert tab.loc["some", "fdr"] == tab.loc["some", "p_value"]
     tab_pr = camera_pr(y[:, 0], sets, use_ranks=True, sort=False)
-    for result in (tab, tab_pr):
+    assert np.isnan(tab_pr.loc[["all", "none"], "p_value"]).all()
+
+    one = {"one": np.array([4]), "none": np.array([], dtype=int)}
+    for result in (camera(y, one, design, use_ranks=True, inter_gene_cor=None, sort=False),
+                   camera_pr(y[:, 0], one, use_ranks=True, sort=False)):
         assert np.isfinite(result.loc["one", "p_value"])
         assert np.isnan(result.loc["none", "p_value"])
 
