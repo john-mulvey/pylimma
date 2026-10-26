@@ -66,6 +66,29 @@ def _fitted_values(fit, design: np.ndarray) -> np.ndarray:
     return fit["coefficients"] @ design.T
 
 
+def _vooma_trend_weights(A, sy, mu, predictor, span):
+    """vooma's mean-variance trend and weights (vooma.R, voomaLmFit.R).
+
+    The trend of ``sy`` (square-root residual standard deviations) is
+    fitted against the average log-expression ``A``, or with a precision
+    predictor against R's combined predictor
+    (``lm.fit(cbind(1, sx, sxc), sy)``, with ``mu`` mapped the same way).
+    A gene with no residual df has no variance (NaN) and is left out of the
+    trend; R's lowess would compute with its NA (known_differences.rst).
+    Returns ``(sx, trend_x, trend_y, weights)``.
+    """
+    in_trend = np.isfinite(sy)
+    sx = A
+    if predictor is not None:
+        vartrend_design = np.column_stack([np.ones(A.size), A, np.nanmean(predictor, axis=1)])
+        beta, *_ = linalg.lstsq(vartrend_design[in_trend], sy[in_trend])
+        sx = vartrend_design @ beta
+        mu = beta[0] + beta[1] * mu + beta[2] * predictor
+    # R: l <- lowess(sx, sy, f=span); approxfun(l, rule=2, ties=list("ordered", mean))
+    trend_x, trend_y = _r_lowess(sx[in_trend], sy[in_trend], f=span)
+    return sx, trend_x, trend_y, 1 / _r_approx_rule2(trend_x, trend_y, mu) ** 4
+
+
 def _validate_predictor(predictor, y: np.ndarray) -> np.ndarray:
     """Check vooma's precision predictor against y (genes x samples) and
     expand it to a full matrix, matching R's shape and NA handling."""
@@ -805,27 +828,6 @@ def vooma(
         residual_effects = qtz[rank:, :]
         s2 = np.mean(residual_effects**2, axis=0)
 
-    # Prepare for trend fitting
-    sx = A
-    sy = np.sqrt(np.sqrt(s2))  # Quarter-root variance = sqrt(sqrt(s2))
-    mu = fitted
-    # A gene with no residual df has no variance (NaN with missing values)
-    # and is left out of the trend; R's lowess would compute with its NA
-    in_trend = np.isfinite(sy)
-
-    # Optionally combine ave log intensity with precision predictor.
-    # R: vartrend <- lm.fit(cbind(1, sx, sxc), sy); sx <- vartrend$fitted.values;
-    #    mu <- beta[1] + beta[2]*mu + beta[3]*predictor
-    if predictor is not None:
-        sxc = np.nanmean(predictor, axis=1)
-        vartrend_design = np.column_stack([np.ones(n_genes), sx, sxc])
-        beta, *_ = linalg.lstsq(vartrend_design[in_trend], sy[in_trend])
-        sx = vartrend_design @ beta
-        mu = beta[0] + beta[1] * mu + beta[2] * predictor
-        xlab = "Combined predictor"
-    else:
-        xlab = "Average log-expression"
-
     # Choose span (legacy vs default adaptive rule)
     if span is None:
         if legacy_span:
@@ -833,12 +835,9 @@ def vooma(
         else:
             span = choose_lowess_span(n_genes, small_n=50, min_span=0.3, power=1 / 3)
 
-    # R: l <- lowess(sx, sy, f=span)
-    x_sorted, y_sorted = _r_lowess(sx[in_trend], sy[in_trend], f=span)
-
-    # Compute weights from fitted values (mu)
-    # R: approxfun(l, rule=2, ties=list("ordered", mean))
-    w = 1 / _r_approx_rule2(x_sorted, y_sorted, mu) ** 4
+    sy = np.sqrt(np.sqrt(s2))  # Quarter-root variance = sqrt(sqrt(s2))
+    sx, x_sorted, y_sorted, w = _vooma_trend_weights(A, sy, fitted, predictor, span)
+    xlab = "Combined predictor" if predictor is not None else "Average log-expression"
 
     # Build output
     out = {
