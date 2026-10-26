@@ -55,6 +55,17 @@ def _named_design(design: np.ndarray, names: list[str] | None):
     return pd.DataFrame(design, columns=names, copy=True)
 
 
+def _fitted_values(fit, design: np.ndarray) -> np.ndarray:
+    """Fitted values of a linear-model fit, genes x samples: R's
+    coefficients %*% t(design), over the first ``rank`` pivoted columns
+    when the design is rank deficient (voom.R, voomaLmFit.R)."""
+    rank = fit["rank"]
+    if rank < design.shape[1]:
+        j = fit["pivot"][:rank]
+        return fit["coefficients"][:, j] @ design[:, j].T
+    return fit["coefficients"] @ design.T
+
+
 def _validate_predictor(predictor, y: np.ndarray) -> np.ndarray:
     """Check vooma's precision predictor against y (genes x samples) and
     expand it to a full matrix, matching R's shape and NA handling."""
@@ -382,16 +393,7 @@ def voom(
     x_sorted, y_sorted = _r_lowess(sx_fit, sy_fit, f=span)
 
     # Compute fitted values from linear model
-    # fitted.values = coefficients %*% t(design)
-    coefficients = fit["coefficients"]
-    rank = fit["rank"]
-
-    if rank < design.shape[1]:
-        pivot = fit["pivot"]
-        j = pivot[:rank]
-        fitted_values = coefficients[:, j] @ design[:, j].T
-    else:
-        fitted_values = coefficients @ design.T
+    fitted_values = _fitted_values(fit, design)
 
     # Convert to fitted counts
     # fitted.cpm = 2^fitted.values
@@ -1026,18 +1028,10 @@ def vooma_lm_fit(
     # Initial fit
     fit = lm_fit(y, design, weights=prior_weights)
 
-    # Compute fitted values
-    if fit["rank"] < design.shape[1]:
-        pivot = fit.get("pivot", np.arange(design.shape[1]))
-        j = pivot[: fit["rank"]]
-        fitted_values = fit["coefficients"][:, j] @ design[:, j].T
-    else:
-        fitted_values = fit["coefficients"] @ design.T
-
     # Prepare for trend fitting
     sx = A
     sy = np.sqrt(fit["sigma"])
-    mu = fitted_values
+    mu = _fitted_values(fit, design)
 
     # Optionally combine ave log intensity with precision predictor
     sxc = None
@@ -1106,18 +1100,10 @@ def vooma_lm_fit(
         # Refit with correlation
         fit = lm_fit(y, design, block=block, correlation=correlation, weights=weights)
 
-        # Recompute fitted values
-        if fit["rank"] < design.shape[1]:
-            pivot = fit.get("pivot", np.arange(design.shape[1]))
-            j = pivot[: fit["rank"]]
-            fitted_values = fit["coefficients"][:, j] @ design[:, j].T
-        else:
-            fitted_values = fit["coefficients"] @ design.T
-
         # Refit LOWESS trend
         sx = A
         sy = np.sqrt(fit["sigma"])
-        mu = fitted_values
+        mu = _fitted_values(fit, design)
 
         # Re-apply predictor combination using the cached sxc
         if predictor is not None:
