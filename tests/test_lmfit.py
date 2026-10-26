@@ -1215,6 +1215,20 @@ def test_vooma_with_infinite_y_raises(block):
         pylimma.vooma(y, design, block=block, correlation=0.3 if block is not None else None)
 
 
+def test_vooma_without_residual_df_raises():
+    """No gene with residual df leaves no variance trend; R fails in lowess
+    or lm.fit with "NA/NaN/Inf in 'y'"."""
+    import pylimma
+
+    y = np.random.default_rng(3).normal(8, 1, (30, 4))
+    design = np.column_stack([np.ones(4), [0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0], [0.0, 0.0, 0.0, 1.0]])
+    with pytest.raises(ValueError, match="no gene has residual degrees of freedom"):
+        pylimma.vooma(y, design)
+    y[:, 1] = np.nan
+    with pytest.raises(ValueError, match="no gene has residual degrees of freedom"):
+        pylimma.vooma(y, design[:, :3])
+
+
 def test_voom_family_names_the_default_design_grand_mean():
     """R names the default design "GrandMean" (generate_all_fixtures.R,
     "name the default design")."""

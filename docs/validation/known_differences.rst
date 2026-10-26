@@ -403,7 +403,11 @@ accidents:
   (``R_lowess_voomalmfit_*.csv``) is R's ``voomaLmFit`` with both
   ``lowess`` calls applied to the genes with a finite ``sigma``, which the
   fixture script checks equals ``voomaLmFit`` when every gene has
-  residual degrees of freedom.
+  residual degrees of freedom. With a ``predictor``, the regression that
+  combines it with the average expression also leaves such genes out; R
+  fails there (``lm.fit`` with "NA/NaN/Inf in 'y'"). If no gene has
+  residual degrees of freedom, pylimma raises "no gene has residual
+  degrees of freedom", where R fails in the same way.
 
 The reference fixtures (``R_vooma_na_*.csv``) come from ``vooma.R`` with
 ``lm.fit`` replaced by ``lmFit`` and such genes left out of the trend;

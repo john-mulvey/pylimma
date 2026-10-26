@@ -78,6 +78,9 @@ def _vooma_trend_weights(A, sy, mu, predictor, span):
     Returns ``(sx, trend_x, trend_y, weights)``.
     """
     in_trend = np.isfinite(sy)
+    if not in_trend.any():
+        # R fails in lowess (or lm.fit) with "NA/NaN/Inf in 'y'"
+        raise ValueError("no gene has residual degrees of freedom, so there is no variance trend to fit")
     sx = A
     if predictor is not None:
         vartrend_design = np.column_stack([np.ones(A.size), A, np.nanmean(predictor, axis=1)])
