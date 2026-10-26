@@ -581,6 +581,14 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     in ``dim<-`` ("dims do not match the length of object") for a
     fraction; pylimma raises "ndups must be a whole number".
 
+``lm_fit`` with ``ndups > 1`` and ``block``
+    Raises "ndups > 1 cannot be combined with block". R's ``gls.series``
+    sets ``ndups`` to 1 when ``block`` is given, after ``lmFit`` has reduced
+    the probe annotation and ``Amean`` to one row per gene, so R's fit has a
+    row per probe while its ``genes`` has a row per gene and ``topTable``
+    attaches the annotation to the wrong rows. ``generate_all_fixtures.R``
+    records the R behaviour.
+
 ``duplicate_correlation`` with a single block
     Raises "block must have at least two levels". R fails in
     ``model.matrix(~factor(block))`` with "contrasts can be applied only to

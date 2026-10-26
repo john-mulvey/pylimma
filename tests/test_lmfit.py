@@ -174,6 +174,15 @@ class TestLmFitDispatch:
         ):
             lm_fit(expr, design, ndups=2)
 
+    def test_ndups_with_block_raises(self):
+        """R's gls.series ignores ndups when block is given, after lmFit has
+        reduced the genes to one row per duplicate group, so R's fit and its
+        genes disagree in length (stopifnot in generate_all_fixtures.R)."""
+        expr = np.sin(np.arange(1, 241)).reshape(40, 6, order="F")
+        design = np.column_stack([np.ones(6), np.repeat([0.0, 1.0], 3)])
+        with pytest.raises(ValueError, match="ndups > 1 cannot be combined with block"):
+            lm_fit(expr, design, ndups=2, block=[1, 1, 2, 2, 3, 3], correlation=0.3)
+
 
 class TestUnwrapDups:
     """Tests for unwrap_dups function."""

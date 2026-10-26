@@ -1239,7 +1239,9 @@ def lm_fit(
         Spacing between duplicate spots in the expression matrix.
     block : array_like, optional
         Block indicator for correlated samples. When provided, samples
-        within the same block are assumed to be correlated.
+        within the same block are assumed to be correlated. Cannot be
+        combined with ``ndups > 1`` for least squares (see
+        ``docs/validation/known_differences.rst``).
     correlation : float or None, optional
         Intra-block or intra-duplicate correlation, used when ndups > 1 or
         block is provided. As in R, omitting it is then an error, while an
@@ -1404,6 +1406,14 @@ def lm_fit(
     # for the correlation, so rows that do not fit ndups * spacing fail first
     if ndups > 1:
         _duplicate_groups(n_genes, _whole_count(ndups, "ndups"), _whole_count(spacing, "spacing"))
+    if method == "ls" and ndups > 1 and block is not None:
+        # R's gls.series sets ndups to 1 when block is given (lmfit.R:288),
+        # after lmFit has reduced the probe annotation to genes (lmfit.R:59),
+        # so R's fit has a row per probe and its annotation a row per gene
+        raise ValueError(
+            "ndups > 1 cannot be combined with block: R fits every probe separately when "
+            "block is given. Use ndups=1 with block, or average the duplicates first (ave_dups)."
+        )
     if method == "ls" and (ndups >= 2 or block is not None) and correlation is _MISSING:
         raise ValueError("the correlation must be set, see duplicateCorrelation")
     if correlation is _MISSING:

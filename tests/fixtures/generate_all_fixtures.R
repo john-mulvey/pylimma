@@ -3563,6 +3563,16 @@ stopifnot(isTRUE(all.equal(.ie_vooma$weights, vooma(.ie_logc, .ie_d6)$weights)))
 .ie_table("elist_genes_toptable",
           topTable(eBayes(lmFit(.ie_el, .ie_design_int)), coef = 2, number = Inf, sort.by = "none"))
 
+# lmFit with ndups = 2 and block: gls.series sets ndups to 1 when block is
+# given, after lmFit reduced the genes to one row per pair, so the fit has
+# a row per probe and its genes a row per gene; pylimma raises
+# (deterministic data, so the random stream of later fixtures is unchanged)
+.ie_nb_el <- new("EList", list(E = matrix(sin(1:240), 40, 6),
+                               genes = data.frame(ID = sprintf("p%02d", 1:40))))
+.ie_nb_fit <- lmFit(.ie_nb_el, cbind(1, rep(0:1, each = 3)), ndups = 2,
+                    block = c(1, 1, 2, 2, 3, 3), correlation = 0.3)
+stopifnot(nrow(.ie_nb_fit$coefficients) == 40, nrow(.ie_nb_fit$genes) == 20)
+
 # plotRLDF: training scores (canonical sign per dimension) and singular values
 .ie_y3 <- matrix(rnorm(200 * 12), 200, 12)
 .ie_d3 <- cbind(1, rep(c(0, 1, 0), each = 4), rep(c(0, 0, 1), each = 4))

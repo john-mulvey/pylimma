@@ -250,6 +250,10 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Changed behaviour
 
+- `lm_fit` with `ndups > 1` and `block` raises a clear error. R fits every
+  probe separately when `block` is given but reduces the gene annotation to
+  one row per gene, so the annotation was attached to the wrong rows
+  (`top_table` on an EList failed with `IndexError`).
 - `top_table` on a `treat()` fit with the default `sort_by="B"` raises
   R's "Trying to sort.by B, but B-statistic (lods) not found" (a treat
   fit has no B-statistic); it sorted by p-value instead. Use
