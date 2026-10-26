@@ -904,6 +904,15 @@ minor version (0.x.0) may change results or behaviour; a patch version
 
 ### Documentation and examples
 
+- `known_differences.rst` and the `fry` docstring document that with
+  observation weights `fry`'s p-values can differ from R's for designs
+  where the residual basis is set by the sign of a rounding-level number
+  (e.g. `~0 + group` with a contrast between two groups); both bases are
+  valid. A fixture checks the contrast effects and residual sums of
+  squares, which do not depend on the basis, against R. For a contrast
+  vector, `fry`, `roast` and `mroast` now reform the design with
+  `contrast_as_coef`, as R's `.lmEffects` calls `contrastAsCoef` (the
+  contrast column was not scaled; only rounding changes).
 - `known_differences.rst` records the df2 root of
   `fit_f_dist_robustly` (scipy's `brentq` against R's `uniroot`, up to
   1.3e-8 relative), the F-test table's unmangled coefficient names, the

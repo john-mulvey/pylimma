@@ -3186,6 +3186,25 @@ write.csv(do.call(rbind, .fry_set_rows), "R_fry_sets.csv", row.names = FALSE)
 stopifnot(!anyNA(.fry_errors$r_error))
 write.csv(.fry_errors, "R_fry_errors.csv", row.names = FALSE)
 
+# Residual basis: with observation weights every gene has its own QR. For
+# this design the last Householder pivot is zero in exact arithmetic, so the
+# sign of a rounding-level number picks the residual basis, and R and
+# pylimma give different, equally valid bases for some genes; fry's p-values
+# depend on them (known_differences.rst). The contrast effect and each
+# gene's residual sum of squares do not.
+set.seed(20261026)
+.fry_basis_design <- model.matrix(~ 0 + factor(rep(1:6, each = 2)))
+.fry_basis_contrast <- c(0, 0, 0, -1, 1, 0)
+.fry_basis_expr <- matrix(rnorm(.fry_n * 12), .fry_n, 12)
+.fry_basis_expr[1:15, 9:10] <- .fry_basis_expr[1:15, 9:10] - 1.5
+.fry_basis_w <- matrix(rgamma(.fry_n * 12, shape = 4, rate = 4), .fry_n, 12)
+.fry_basis_y <- new("EList", list(E = .fry_basis_expr, weights = .fry_basis_w))
+write.csv(.fry_basis_expr, "R_fry_basis_expr.csv", row.names = FALSE)
+write.csv(.fry_basis_w, "R_fry_basis_weights.csv", row.names = FALSE)
+.fry_basis_eff <- limma:::.lmEffects(.fry_basis_y, .fry_basis_design, contrast = .fry_basis_contrast)
+write.csv(data.frame(effect = .fry_basis_eff[, 1], residual_ss = rowSums(.fry_basis_eff[, -1]^2)),
+          "R_fry_basis_effects.csv", row.names = FALSE)
+
 cat("  fry branch fixtures complete.\n")
 
 # =============================================================================

@@ -12,7 +12,7 @@ porting.
 Accepted differences
 --------------------
 
-Seven differences remain after porting. None is a porting bug: six
+Eight differences remain after porting. None is a porting bug: seven
 come from numerical-algorithm choices and one (lowess) from how R
 itself is built on different platforms. Each is quantified and
 reproducible, and the parity tests stay within the tolerances given.
@@ -165,6 +165,44 @@ relative, more for large ``df2`` (where the root is near 1).
 **Tolerance.** Inside ``rtol=1e-6``; the robust parity tests pass at
 ``1e-8`` except the extreme-outlier case, which is compared at
 ``1e-6``.
+
+fry with observation weights depends on the QR's residual basis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``fry`` (R's ``.lmEffects``) rotates each gene's data by the Q of a QR
+decomposition of the design: the first effect is the contrast and the
+others span the residual space. With observation weights (e.g. from
+``voom``) every gene has its own QR. The method does not fix which
+orthonormal basis of the residual space is used; the numbers do depend
+on it, because ``fry`` averages each residual effect over the genes of a
+set and, for ``standardize="posterior.sd"`` (the default), ``"p2"`` or
+``"residual.sd"``, removes each gene's largest squared residual effect.
+
+**Root cause.** For some designs the pivot element of the last
+Householder step is zero in exact arithmetic: for example a
+``~0 + group`` design with a contrast between two groups, reformed so
+that the contrast is its last column. In floating point it is rounding
+noise (about ``1e-17``), and its sign decides the direction of the last
+reflection and so the residual basis. R (LINPACK's ``dqrdc2``) and pylimma
+(LAPACK) reach that step with different rounding, so for some genes the
+signs differ. Under the model the residual effects are independent with
+the gene's variance in any orthonormal basis, so neither basis is more
+correct than the other; R's own result could change with its BLAS or
+platform. pylimma does not try to reproduce R's rounding.
+
+**Size.** On GSE60450 (voom weights, 12 samples, 6 residual df), contrast
+``luminal.pregnant - luminal.lactate``, p-values for 30 random sets
+differed from R by up to 2.1-fold given R's voom weights, and by up to
+3.7-fold (5.3e-4 vs R's 1.4e-4) given pylimma's own voom weights, which
+differ from R's by only ``3e-13`` relative; the other two contrasts
+tested agreed with R to ``1e-14``. ``standardize="none"`` is affected too,
+because ``fry`` averages each residual effect over the set's genes (0.934
+vs R's 0.930 for one of four sets of the synthetic fixture). Unweighted
+fits matched R in every case checked.
+
+**Tolerance.** The contrast effect and each gene's residual sum of
+squares do not depend on the basis and are compared with R at
+``rtol=1e-6`` (``TestFryBranchParity::test_residual_basis_invariants_match_r``).
 
 Deliberate divergences: intended rather than literal R behaviour
 ----------------------------------------------------------------

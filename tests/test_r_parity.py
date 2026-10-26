@@ -6277,6 +6277,26 @@ class TestFryBranchParity:
             _assert_log10_pvalues_close(r["FDR"], tab["fdr"])
             _assert_log10_pvalues_close(r["FDR.Mixed"], tab["fdr_mixed"])
 
+    def test_residual_basis_invariants_match_r(self):
+        """Weighted genes whose residual basis differs from R's (known_differences.rst).
+
+        fry's p-values depend on that basis; the contrast effect and each
+        gene's residual sum of squares do not, and match R.
+        """
+        from pylimma.classes import EList
+        from pylimma.geneset import _lm_effects
+
+        y = EList({"E": load_r_csv_no_index("fry_basis_expr").to_numpy(),
+                   "weights": load_r_csv_no_index("fry_basis_weights").to_numpy()})
+        design = np.kron(np.eye(6), np.ones((2, 1)))
+        contrast = np.array([0.0, 0.0, 0.0, -1.0, 1.0, 0.0])
+
+        r_effects = load_r_csv_no_index("fry_basis_effects")
+        effects = _lm_effects(y, design, contrast=contrast)
+        np.testing.assert_allclose(effects[:, 0], r_effects["effect"], rtol=1e-6, atol=1e-12)
+        np.testing.assert_allclose((effects[:, 1:] ** 2).sum(axis=1), r_effects["residual_ss"],
+                                   rtol=1e-6, atol=1e-12)
+
     @pytest.mark.parametrize(
         "case",
         [

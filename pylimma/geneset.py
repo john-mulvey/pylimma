@@ -216,20 +216,13 @@ def _lm_effects(
         else:
             X = design.copy()
     else:
-        # contrast is a vector of length p: rotate design so the contrast
-        # direction is the last column. Implements contrastAsCoef(first=FALSE).
+        # R: X <- contrastAsCoef(design, contrast, first=FALSE)$design
         contrast_vec = np.asarray(contrast, dtype=np.float64)
-        if contrast_vec.size != p:
-            raise ValueError("length of contrast must match column dimension of design")
         if np.all(contrast_vec == 0):
             raise ValueError("contrast all zero")
-        Q_c, R_c = linalg.qr(contrast_vec.reshape(-1, 1), mode="full")
-        # R: design <- t(qr.qty(QR, t(design))) = design %*% Q.
-        rotated = design @ Q_c
-        if np.sign(R_c[0, 0]) < 0:
-            rotated[:, 0] = -rotated[:, 0]
-        # Move the (now-first) contrast coefficient to the last column.
-        X = np.column_stack([rotated[:, 1:], rotated[:, 0:1]])
+        if contrast_vec.size != p:
+            raise ValueError("length of contrast must match column dimension of design")
+        X = np.asarray(contrast_as_coef(design, contrast_vec, first=False)["design"], dtype=np.float64)
 
     # Allow array.weights to be alternatively passed via 'weights'.
     if array_weights is None and weights is not None and np.asarray(weights).size == n:
@@ -1229,6 +1222,19 @@ def fry(
     weights_layer : str, optional
         AnnData only. Name of an ``adata.layers`` entry to read as
         observation weights, overriding the ``"_E"`` companion convention.
+
+    Notes
+    -----
+    With observation weights (e.g. from ``voom``) each gene's residual
+    effects come from its own QR decomposition, and the p-values depend on
+    which orthonormal basis that QR gives for the residual space. For some
+    designs (e.g. ``~0 + group`` with a contrast between two groups) that
+    basis is decided by the sign of a rounding-level number, so R and
+    pylimma give different, equally valid bases for some genes. P-values
+    can then differ from R's, by up to about 4-fold on real data
+    with 6 residual degrees of freedom; the contrast effects and each gene's
+    residual sum of squares are the same. See
+    ``docs/validation/known_differences.rst``.
     """
     y = _elist_from_layer(y, layer, weights_layer)
     ea = get_eawp(y)
