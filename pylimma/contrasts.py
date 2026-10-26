@@ -194,11 +194,13 @@ def make_contrasts(
         with positional or keyword contrasts.
     levels : list of str, categorical or design matrix
         Coefficient names. Can be:
+
         - List of coefficient names (a single string is one name)
         - Categorical (``pd.Categorical`` or a categorical Series): its
           categories, as R's ``levels(factor)``
         - Design matrix with column names (DataFrame or patsy
           ``DesignMatrix``)
+
         A matrix without column names, non-string names and duplicated
         names raise a ValueError.
     **named_contrasts : str
