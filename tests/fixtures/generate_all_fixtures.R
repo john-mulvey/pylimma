@@ -5651,10 +5651,27 @@ stopifnot(inherits(try(makeContrasts(contrasts = "... - A", levels = c("A", "...
                    "try-error"),
           inherits(try(makeContrasts(contrasts = "..1 - A", levels = c("A", "..1")), silent = TRUE),
                    "try-error"))
-# an expression over several lines parses as several expressions and R keeps the
-# last one only (pylimma raises)
+# complete expressions on separate lines (or after ';') are evaluated in turn and
+# R keeps the last one only (pylimma raises)
 stopifnot(identical(unname(makeContrasts(contrasts = "A + B\n- C", levels = c("A", "B", "C"))[, 1]),
-                    c(0, 0, -1)))
+                    c(0, 0, -1)),
+          identical(unname(makeContrasts(contrasts = "B - A; C", levels = c("A", "B", "C"))[, 1]),
+                    c(0, 0, 1)))
+# R's parser drops comments and continues an incomplete expression (trailing
+# operator, open bracket) onto the next line
+.mcp_levels <- c("A", "B", "C")
+.mcp_contrasts <- c("B - A # B vs A", "(B+C)/2 -\n A", "(B +\n C)/2 - A # mean of B and C",
+                    "# first\nC - B", "-\nA + C", "B - A;")
+write.csv(makeContrasts(contrasts = .mcp_contrasts, levels = .mcp_levels), "R_mce_parse.csv")
+stopifnot(identical(unname(makeContrasts(contrasts = "B - A # B vs A", levels = .mcp_levels)[, 1]),
+                    c(-1, 1, 0)),
+          all(vapply(c("(B; A)", "B -; A", ";B - A", "B - A;;", "B - A\n;"), function(e)
+            grepl("unexpected ';'", try(makeContrasts(contrasts = e, levels = .mcp_levels), silent = TRUE)), TRUE)),
+          all(vapply(c("A)\nB", "A) - (B"), function(e)
+            grepl("unexpected ')'", try(makeContrasts(contrasts = e, levels = .mcp_levels), silent = TRUE)), TRUE)),
+          all(vapply(c("A -\n", "(A - B", "A *"), function(e)
+            grepl("unexpected end of input", try(makeContrasts(contrasts = e, levels = .mcp_levels), silent = TRUE)),
+            TRUE)))
 stopifnot(all.equal(unname(makeContrasts(B - A * pi, levels = c("A", "B"))[, 1]), c(-pi, 1)),
           identical(unname(makeContrasts(mean(c(A, B)), levels = c("A", "B"))[, 1]), c(0.5, 0.5)),
           inherits(try(makeContrasts(B - D, levels = c("A", "B")), silent = TRUE), "try-error"))

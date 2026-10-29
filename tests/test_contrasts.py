@@ -134,10 +134,33 @@ class TestMakeContrastsExpressions:
             with pytest.raises(ValueError, match="Could not evaluate contrast expression"):
                 make_contrasts(expr, levels=["A", "B"])
 
-    def test_expression_over_several_lines_raises(self):
-        # R evaluates only the last line: "A + B\n- C" is -C
-        with pytest.raises(ValueError, match="spans several lines"):
-            make_contrasts("A + B\n- C", levels=["A", "B", "C"])
+    def test_several_expressions_raise(self):
+        # R evaluates each complete expression and keeps the last: "A + B\n- C" is -C
+        for expr in ("A + B\n- C", "B - A; C", "B - A # one\nC - A"):
+            with pytest.raises(ValueError, match="holds 2 expressions"):
+                make_contrasts(expr, levels=["A", "B", "C"])
+
+    def test_semicolon_inside_an_expression_raises(self):
+        # R's parser (fixture script): also an empty statement before a ';'
+        for expr in ("(B; A)", "B -; A", ";B - A", "B - A;;", "B - A\n;"):
+            with pytest.raises(ValueError, match="unexpected ';'"):
+                make_contrasts(expr, levels=["A", "B"])
+
+    def test_incomplete_expression_raises(self):
+        # R: "unexpected end of input"
+        for expr in ("A -\n", "(A - B", "A *"):
+            with pytest.raises(ValueError, match="unexpected end of input"):
+                make_contrasts(expr, levels=["A", "B"])
+
+    def test_unmatched_closing_bracket_raises(self):
+        for expr in ("A)\nB", "A) - (B"):
+            with pytest.raises(ValueError, match="unexpected '\\)'"):
+                make_contrasts(expr, levels=["A", "B"])
+
+    def test_only_a_comment_raises(self):
+        # R: parse() gives no expression and the column assignment fails
+        with pytest.raises(ValueError, match="Could not evaluate contrast expression"):
+            make_contrasts("# nothing", levels=["A", "B"])
 
     def test_non_string_expression_raises(self):
         # R accepts makeContrasts(B = 1, ...) and fills the column with ones

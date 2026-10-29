@@ -47,8 +47,9 @@ _R_NAME = r"(?:[^\W\d_]|\.(?!\d))[\w.]*"
 # One token of a contrast expression: an R number (1, 1.5, .5, 1e-3, 2L, 0x1F),
 # an R name, or an arithmetic operator or bracket (** is R's other spelling of ^)
 _CONTRAST_TOKEN = re.compile(
-    r"\s*(?:(?P<number>0[xX][0-9a-fA-F]+L?|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?L?)"
-    rf"|(?P<name>{_R_NAME})|(?P<op>\*\*|[-+*/^()]))"
+    r"[^\S\r\n]*(?:(?P<number>0[xX][0-9a-fA-F]+L?|(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?L?)"
+    rf"|(?P<name>{_R_NAME})|(?P<op>\*\*|[-+*/^()])"
+    r"|(?P<comment>#[^\r\n]*)|(?P<end>\r\n|[\r\n;]))"
 )
 
 
@@ -248,7 +249,10 @@ def make_contrasts(
     ``"not"`` are allowed, but ``"_x"``, ``"if"`` and the dots names
     ``"..."`` and ``"..1"`` are not. Expressions are strings and follow R
     arithmetic: ``^`` (or ``**``) is a power, numbers may be written as in
-    R (``1e-3``, ``.5``, ``2L``) and ``1/0`` is ``inf``. R evaluates the
+    R (``1e-3``, ``.5``, ``2L``), ``1/0`` is ``inf``, ``#`` starts a comment
+    and an expression may continue onto the next line after an operator or
+    inside brackets; a string holding several expressions raises a
+    ValueError (R keeps the last). R evaluates the
     expression in the R session, so R constants and functions (``pi``,
     ``mean()``) also work there; pylimma supports only the level names,
     numbers, ``+ - * / ^`` and brackets, and raises a ValueError for
@@ -270,6 +274,13 @@ def make_contrasts(
 
     # R: notvalid <- (levels != make.names(levels))
     invalid = [lev for lev in levels if not _is_syntactic_name(lev)]
+    dots = [lev for lev in invalid if re.fullmatch(_R_DOTS, lev)]
+    if dots:
+        # make.names() keeps them, but R cannot evaluate them as variables
+        raise ValueError(
+            f"The level names {', '.join(dots)} are reserved in R for function "
+            "arguments, so R cannot use them in a contrast; rename them"
+        )
     if invalid:
         raise ValueError(
             "The levels must be syntactically valid names in R, see help(make.names). "
@@ -353,14 +364,12 @@ def _contrast_as_python(
     expression in the R session, where any R name or function resolves; only
     arithmetic on the levels and numbers is supported here.
     """
-    # R parses each line as its own expression and keeps the last one only
-    if "\n" in expr or "\r" in expr:
-        raise ValueError(
-            f"Contrast expression {expr!r} spans several lines; R would evaluate only "
-            "its last line. Write it on one line."
-        )
+    # R's parser: a comment runs to the end of the line, and a newline or ';'
+    # ends an expression unless it is incomplete (open bracket, trailing operator)
+    expressions = []
     tokens = []
     numbers = {}
+    depth = 0
     pos = 0
     expr_end = len(expr.rstrip())
     while pos < expr_end:
@@ -370,6 +379,18 @@ def _contrast_as_python(
                 f"Contrast expression '{expr}': unsupported syntax at '{expr[pos:].strip()}'. "
                 "Contrasts may use the level names, numbers, + - * / ^ and brackets."
             )
+        pos = token.end()
+        if token["comment"] is not None:
+            continue
+        if token["end"] is not None:
+            incomplete = depth > 0 or (tokens and tokens[-1] in ("+", "-", "*", "/", "**"))
+            # R: ';' must end a complete, non-empty expression
+            if token["end"] == ";" and (incomplete or not tokens):
+                raise ValueError(f"Could not evaluate contrast expression '{expr}': unexpected ';'")
+            if tokens and not incomplete:
+                expressions.append(tokens)
+                tokens = []
+            continue
         if token["name"] is not None:
             if token["name"] not in placeholders:
                 raise ValueError(
@@ -385,8 +406,21 @@ def _contrast_as_python(
             numbers[placeholder] = np.float64(int(literal, 16) if is_hex else literal)
             tokens.append(placeholder)
         else:
+            depth += {"(": 1, ")": -1}.get(token["op"], 0)
+            if depth < 0:
+                raise ValueError(f"Could not evaluate contrast expression '{expr}': unexpected ')'")
             tokens.append("**" if token["op"] == "^" else token["op"])
-        pos = token.end()
+    if tokens and (depth > 0 or tokens[-1] in ("+", "-", "*", "/", "**")):
+        raise ValueError(f"Could not evaluate contrast expression '{expr}': unexpected end of input")
+    if tokens:
+        expressions.append(tokens)
+    # R evaluates every expression and keeps the value of the last
+    if len(expressions) > 1:
+        raise ValueError(
+            f"Contrast expression {expr!r} holds {len(expressions)} expressions; R "
+            "evaluates each and keeps only the last. Write one expression."
+        )
+    tokens = expressions[0] if expressions else []
     return " ".join(tokens), numbers
 
 

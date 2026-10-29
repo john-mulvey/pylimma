@@ -1058,6 +1058,15 @@ class TestMakeContrastsRParity:
         np.testing.assert_allclose(py_cont.values, r_cont.values, rtol=1e-12, atol=0)
         assert np.isnan(py_cont.values).sum() == np.isnan(r_cont.values).sum() > 0
 
+    def test_comments_and_continued_lines(self):
+        """R's parser drops comments and continues an incomplete expression."""
+        r_cont = load_r_csv("mce_parse")
+
+        py_cont = make_contrasts(contrasts=list(r_cont.columns), levels=list(r_cont.index))
+
+        assert list(py_cont.columns) == list(r_cont.columns)
+        np.testing.assert_array_equal(py_cont.values, r_cont.values)
+
     def test_named_contrasts_argument(self):
         """contrasts= as a dict (R's named vector); an empty name falls back to the expression."""
         r_cont = load_r_csv("mcc_named")
@@ -1077,7 +1086,11 @@ class TestMakeContrastsRParity:
         r_names = pd.read_csv(FIXTURES_DIR / "R_mce_names.csv", keep_default_na=False)
 
         for name, valid in zip(r_names["name"], r_names["valid"]):
-            if valid and name not in ("...", "..1"):
+            if name in ("...", "..1"):
+                assert valid
+                with pytest.raises(ValueError, match="reserved in R for function arguments"):
+                    make_contrasts("2*Z", levels=[name, "Z"])
+            elif valid:
                 cm = make_contrasts("2*Z", levels=[name, "Z"])
                 np.testing.assert_array_equal(cm["2*Z"].values, [0.0, 2.0])
             else:

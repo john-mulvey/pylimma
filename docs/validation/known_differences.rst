@@ -705,11 +705,14 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     ``stats::D``). A contrast given as a number rather than a string
     (``make_contrasts(B=1, ...)``) raises an error; R fills the column with
     the number. The level names ``...`` and ``..1`` raise an error: they
-    pass ``make.names()``, but R cannot evaluate them ("'...' used in an
-    incorrect context"). An expression over several lines raises an error;
-    R parses each line as its own expression and keeps only the last
-    (``"A + B\n- C"`` is ``-C``). ``generate_all_fixtures.R`` records the R
-    behaviour.
+    pass ``make.names()``, but R cannot evaluate them (``...`` gives
+    "'...' used in an incorrect context", ``..1`` "non-numeric argument to
+    binary operator"). Comments (``#``) and an expression continued onto the
+    next line after an operator or inside brackets are read as R reads them.
+    A string holding several complete expressions (on separate lines or
+    separated by ``;``) raises an error; R evaluates each and keeps only the
+    last (``"A + B\n- C"`` is ``-C``). ``generate_all_fixtures.R`` records
+    the R behaviour.
 
 Formula strings containing ``^`` (``model_matrix``, ``lm_fit``, the ``voom`` family)
     Raise an error asking for ``**``. pylimma builds designs from formulas
