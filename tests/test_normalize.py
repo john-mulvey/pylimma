@@ -59,6 +59,17 @@ class TestNormalizeVSNInput:
                 normalize_vsn(np.full((100, 4), np.nan))
 
 
+class TestNormalizeQuantilesInput:
+    @pytest.mark.parametrize("observed", [0, 1])
+    def test_column_with_fewer_than_two_values_raises(self, observed):
+        """R's approx() stops for one value and xy.coords for none (fixture
+        script); 0.2.0 returned a column of NaN."""
+        x = np.column_stack([np.arange(1.0, 5.0), np.full(4, np.nan), [2.0, 3.0, 1.0, 5.0]])
+        x[:observed, 1] = 5.0
+        with pytest.raises(ValueError, match=rf"position 1 \(0-based\) has {observed} non-missing"):
+            normalize_between_arrays(x, method="quantile")
+
+
 class TestNormalizeCyclicLoessInput:
     def test_infinite_value_warning_points_at_the_caller(self, intensities):
         infinite = intensities.copy()

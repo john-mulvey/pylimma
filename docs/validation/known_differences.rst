@@ -438,6 +438,15 @@ unaffected.
     Raises "<argument> has <k> rows/values, but there are <n> samples"
     (R: "number of rows of matrices must match (see arg 2)" from ``cbind``).
 
+``normalize_between_arrays(method="quantile")`` with a column of fewer than two values
+    Raises "the column at position j (0-based) has k non-missing
+    value(s); quantile normalization needs at least two non-NA values to
+    interpolate". R stops inside
+    ``approx()`` with "need at least two non-NA values to interpolate", or
+    for an all-missing column with "'x' and 'y' lengths differ"; 0.2.0
+    returned a column of NaN for one value. ``generate_all_fixtures.R``
+    records the R behaviour.
+
 ``wsva`` with an infinite value in ``y``
     Raises "All y values must be finite and non-NA", the message R gives
     for a missing value. R checks only for NA and stops on Inf inside

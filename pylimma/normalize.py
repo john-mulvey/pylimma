@@ -189,7 +189,8 @@ def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
 
     Faithful port of R limma's ``normalizeQuantiles``
     (``limma/R/norm.R:468-509``). Handles missing values via
-    interpolation.
+    interpolation; a column with fewer than two non-missing values raises
+    a ValueError, where R's ``approx()`` stops.
 
     A DataFrame input gives a DataFrame with the same labels, as R keeps
     dimnames.
@@ -211,20 +212,25 @@ def normalize_quantiles(A: np.ndarray, ties: bool = True) -> np.ndarray:
         isna = np.isnan(col)
         nobsj = int((~isna).sum())
         if nobsj < n_rows:
-            nobs[j] = nobsj
+            # R's approx() fails ("need at least two non-NA values to
+            # interpolate"; for an all-NA column "'x' and 'y' lengths differ")
             if nobsj <= 1:
-                S[:, j] = col[~isna][0] if nobsj == 1 else np.nan
-            else:
-                obs_vals = col[~isna]
-                obs_idx = np.where(~isna)[0]
-                ix = np.argsort(obs_vals)
-                src_pos = np.arange(nobsj) / (nobsj - 1)
-                # R's approx (rule=1, NA outside the range). Every point
-                # here and below lies within the range, so rule=2 is the
-                # same; approx1's arithmetic gives NaN between infinite
-                # values, as in R (np.interp gives the infinity).
-                S[:, j] = _r_approx_rule2(src_pos, obs_vals[ix], i_grid)
-                O[obs_idx, j] = obs_idx[ix]
+                raise ValueError(
+                    f"the column at position {j} (0-based) has {nobsj} non-missing "
+                    "value(s); quantile normalization needs at least two non-NA values "
+                    "to interpolate"
+                )
+            nobs[j] = nobsj
+            obs_vals = col[~isna]
+            obs_idx = np.where(~isna)[0]
+            ix = np.argsort(obs_vals)
+            src_pos = np.arange(nobsj) / (nobsj - 1)
+            # R's approx (rule=1, NA outside the range). Every point here and
+            # below lies within the range, so rule=2 is the same; approx1's
+            # arithmetic gives NaN between infinite values, as in R (np.interp
+            # gives the infinity).
+            S[:, j] = _r_approx_rule2(src_pos, obs_vals[ix], i_grid)
+            O[obs_idx, j] = obs_idx[ix]
         else:
             ix = np.argsort(col)
             S[:, j] = col[ix]

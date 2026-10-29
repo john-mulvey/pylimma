@@ -6985,6 +6985,11 @@ set.seed(1307)
 write.csv(.nqi_x, "R_nq_inf_input.csv", row.names = FALSE)
 write.csv(normalizeQuantiles(.nqi_x), "R_nq_inf_ties.csv", row.names = FALSE)
 write.csv(normalizeQuantiles(.nqi_x, ties = FALSE), "R_nq_inf_noties.csv", row.names = FALSE)
+# a column with one non-NA value stops approx(), and an all-NA column stops
+# earlier, in xy.coords
+.nq_one <- cbind(1:4, c(5, NA, NA, NA), c(2, 3, 1, 5))
+stopifnot(grepl("need at least two non-NA values", try(normalizeQuantiles(.nq_one), silent = TRUE)),
+          grepl("lengths differ", try(normalizeQuantiles(cbind(1:4, NA_real_, c(2, 3, 1, 5))), silent = TRUE)))
 
 # =============================================================================
 # zscore: any p<distribution> function, with its own argument names (hyper is
