@@ -5390,6 +5390,18 @@ stopifnot(identical(.ed_null, "components of de should be vectors"))
 .ed_list <- kegga(list(c("gene001", "gene002"), "gene003"), universe = goana_universe, gene.pathway = kegga_gp,
                   pathway.names = kegga_pn)
 stopifnot(identical(colnames(.ed_list), c("Pathway", "N", "DE1", "DE2", "P.DE1", "P.DE2")))
+# kegga.default has no trend argument: trend = TRUE with a gene list falls into
+# ... and is ignored (pylimma raises)
+stopifnot(identical(kegga("gene001", universe = goana_universe, gene.pathway = kegga_gp,
+                          pathway.names = kegga_pn, trend = TRUE), .ed_single),
+          grepl("neither logical, numeric nor character",
+                try(goana(eBayes(lmFit(matrix(rnorm(40), 10, dimnames = list(1:10, NULL)),
+                                       cbind(1, c(0, 0, 1, 1)))), trend = list()), silent = TRUE)),
+          grepl("If trend is character, then length must be 1",
+                try(goana(eBayes(lmFit(matrix(rnorm(40), 10, dimnames = list(1:10, NULL)),
+                                       cbind(1, c(0, 0, 1, 1)))), trend = c("L", "L")), silent = TRUE)),
+          !"trend" %in% names(formals(limma:::goana.default)),
+          !"trend" %in% names(formals(limma:::kegga.default)))
 
 cat("  enrichment de-input checks complete.\n")
 

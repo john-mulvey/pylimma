@@ -35,8 +35,8 @@ The port covers the database-free path. Two differences from R limma:
    ``covariate`` and ``null.prob`` paths perform Wallenius' noncentral
    hypergeometric test via ``BiasedUrn::pWNCHypergeo`` /
    ``dWNCHypergeo`` for length / abundance bias correction. pylimma
-   raises ``NotImplementedError`` whenever ``trend`` is truthy or a
-   ``covariate`` or ``prior_prob`` would be used, rather than silently
+   raises ``NotImplementedError`` whenever ``trend`` is requested for a
+   fit or a ``covariate`` or ``prior_prob`` would be used, rather than silently
    falling back to the plain hypergeometric test, which would give
    plausible-looking but wrong results. As in R, ``covariate`` and
    ``prior_prob`` are ignored (with a warning) when ``universe`` is not
@@ -142,9 +142,11 @@ def goana(
         FDR threshold for selecting up/down DE genes from a fit object
         (R name: ``FDR``). Only used in the MArrayLM branch.
     trend : bool, numeric, or str, default False
-        Use length / abundance bias correction. Not yet supported:
-        raises ``NotImplementedError`` for any truthy / numeric /
-        character value.
+        Use length / abundance bias correction (fit input only). Not yet
+        supported: raises ``NotImplementedError`` for ``True`` or a
+        numeric / character value with a fit, and ``ValueError`` with a
+        gene list, where R's default method has no ``trend`` argument and
+        ignores it.
     **kwargs
         ``coef``, ``geneid`` and ``key`` for the MArrayLM branch. ``key``
         (default ``"pylimma"``) names the ``adata.uns`` entry holding the
@@ -360,8 +362,9 @@ def _fit_de_sets(method, de, *, universe, covariate, trend, fdr, **kwargs):
     if kwargs:
         raise TypeError(f"unexpected keyword arguments: {sorted(kwargs)}")
 
-    # R accepts a numeric or character trend; both need the BiasedUrn port.
-    if not isinstance(trend, (bool, np.bool_)):
+    # R's trend (TRUE, or a numeric or character covariate) needs the
+    # BiasedUrn port
+    if _trend_requested(trend):
         raise NotImplementedError(_TREND_MESSAGE)
 
     fit_universe, up, dn = _select_de_from_fit(fit, geneid, coef, fdr, adata=adata)
@@ -663,10 +666,36 @@ def _overlap_tests(de_lists, gp, universe, prior_prob, covariate, restrict):
     return pathway_ids, S_N, S_counts, _hypergeometric_pvalues(S_counts, S_N, nde, NGenes)
 
 
+def _trend_requested(trend) -> bool:
+    """R's trend asks for a trend unless it is FALSE; a covariate (numbers) or
+    a gene annotation column (a string) asks for one too."""
+    if isinstance(trend, (bool, np.bool_)):
+        return bool(trend)
+    if isinstance(trend, str):
+        return True
+    values = np.asarray(trend, dtype=object).ravel()
+    kind = pd.api.types.infer_dtype(values, skipna=True)
+    if kind in ("integer", "floating", "mixed-integer-float", "decimal"):
+        return True
+    if kind == "string":
+        raise ValueError("If trend is character, then length must be 1")
+    raise ValueError("trend is neither logical, numeric nor character")
+
+
+def _check_no_trend(trend, function: str):
+    """R's goana.default / kegga.default have no trend argument: one given
+    with a gene list falls into ``...`` and is ignored."""
+    if _trend_requested(trend):
+        raise ValueError(
+            f"trend applies only when de is a fit (MArrayLM); with a gene list, "
+            f"R's {function} has no trend argument and ignores it. Pass covariate= "
+            "to correct for a gene-wise covariate."
+        )
+
+
 def _goana_default(de, *, gene_pathway, universe, prior_prob, covariate, trend):
     """Port of goana.default (goana.R:88-260)."""
-    if not isinstance(trend, (bool, np.bool_)) or trend:
-        raise NotImplementedError(_TREND_MESSAGE)
+    _check_no_trend(trend, "goana")
 
     # gene_pathway with optional ontology (col 3) + term (col 4) for
     # the goana output.
@@ -705,8 +734,7 @@ def _kegga_default(
     de, *, gene_pathway, pathway_names, universe, restrict_universe, prior_prob, covariate, trend
 ):
     """Port of kegga.default (kegga.R:88-280)."""
-    if not isinstance(trend, (bool, np.bool_)) or trend:
-        raise NotImplementedError(_TREND_MESSAGE)
+    _check_no_trend(trend, "kegga")
 
     de_lists = _ensure_de_lists(de)
     gp = _normalise_gene_pathway(gene_pathway, optional_extra_cols=False)

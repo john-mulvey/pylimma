@@ -672,12 +672,21 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     ``"B"`` work in both. ``generate_all_fixtures.R`` records the R
     behaviour.
 
-``goana`` / ``kegga`` with set names that differ only in case
+``goana`` / ``kegga`` with set names that differ only in case, or that name an output column
     The output columns are the lower-case set names (``up``, ``p_up``), so
-    two sets such as ``"A"`` and ``"a"``, or a set named ``"N"`` next to the
-    ``n`` column, raise an error naming the clash. R keeps the names as
-    given (``A``, ``a``, ``P.A``, ``P.a``). Previously pylimma silently kept
-    only one of the sets.
+    two sets such as ``"A"`` and ``"a"``, or a set whose lower-case name is
+    another output column (``"N"``; ``"Pathway"`` for ``kegga``;
+    ``"Term"`` or ``"Ontology"`` for ``goana``), raise an error naming the
+    clash. R keeps the names as given and makes repeated column names
+    unique (``A``, ``a``, ``P.A``, ``P.a``; a set named ``Pathway`` gives
+    ``Pathway``, ``N``, ``Pathway.1``, ``P.Pathway``). Previously pylimma
+    silently kept only one of the sets or overwrote the column.
+
+``goana`` / ``kegga`` with a gene list and ``trend``
+    Raises "trend applies only when de is a fit (MArrayLM)". R's
+    ``goana.default`` and ``kegga.default`` have no ``trend`` argument, so a
+    ``trend`` given with a gene list falls into ``...`` and is silently
+    ignored. ``generate_all_fixtures.R`` records the R behaviour.
 
 ``goana_trend`` with invalid ``index_de`` positions
     Positions must be whole numbers between 0 and ``len(covariate) - 1``

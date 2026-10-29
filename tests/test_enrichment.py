@@ -166,6 +166,38 @@ def test_fit_defines_its_own_universe_and_covariate(fn_name, arg):
 
 
 @pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_trend_with_fit_needs_biasedurn(fn_name):
+    """trend=True on a fit is R's Wallenius test (BiasedUrn), not yet ported."""
+    gp, _, _ = _kegga_inputs()
+    fit, _ = _two_group_fit()
+    with pytest.raises(NotImplementedError, match="BiasedUrn"):
+        getattr(pylimma, fn_name)(fit, gp, trend=True)
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_trend_of_another_type_raises(fn_name):
+    """R: "trend is neither logical, numeric nor character"."""
+    gp, _, _ = _kegga_inputs()
+    fit, _ = _two_group_fit()
+    with pytest.raises(ValueError, match="neither logical, numeric nor character"):
+        getattr(pylimma, fn_name)(fit, gp, trend=None)
+    with pytest.raises(ValueError, match="If trend is character, then length must be 1"):
+        getattr(pylimma, fn_name)(fit, gp, trend=["L", "L"])
+    # a numeric covariate with a missing value is still numeric (R's is.numeric)
+    with pytest.raises(NotImplementedError, match="BiasedUrn"):
+        getattr(pylimma, fn_name)(fit, gp, trend=pd.Series([1, None] * 60, dtype="Int64"))
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
+def test_trend_with_gene_list_raises(fn_name):
+    """R's default methods have no trend argument and ignore one given with a
+    gene list (fixture script); pylimma raises."""
+    gp, _, universe = _kegga_inputs()
+    with pytest.raises(ValueError, match="trend applies only when de is a fit"):
+        getattr(pylimma, fn_name)(["gene001"], gp, universe=universe, trend=True)
+
+
+@pytest.mark.parametrize("fn_name", ["goana", "kegga"])
 def test_numpy_false_trend_is_false(fn_name):
     """R: is.logical(trend); a numpy boolean is a logical too."""
     import numpy as np

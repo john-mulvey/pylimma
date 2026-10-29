@@ -5307,19 +5307,6 @@ class TestGoanaTrendRParity:
         )
 
 
-class TestGoanaTrendInterface:
-    def test_trend_true_raises_not_implemented(self):
-        """trend=True is the BiasedUrn path, not yet ported."""
-        from pylimma import goana, kegga
-
-        gp, de_list, universe = _load_goana_inputs()
-        with pytest.raises(NotImplementedError, match="BiasedUrn"):
-            goana(de=de_list, gene_pathway=gp, universe=universe, trend=True)
-        kgp, pn, de_list, universe = _load_kegga_inputs()
-        with pytest.raises(NotImplementedError, match="BiasedUrn"):
-            kegga(de=de_list, gene_pathway=kgp, pathway_names=pn, universe=universe, trend=True)
-
-
 # =============================================================================
 # Public API: chooseLowessSpan, qqf, zscore family, loessFit, contrastAsCoef,
 # plus top-level import checks for exported functions.
