@@ -438,6 +438,13 @@ unaffected.
     Raises "<argument> has <k> rows/values, but there are <n> samples"
     (R: "number of rows of matrices must match (see arg 2)" from ``cbind``).
 
+``wsva`` with an infinite value in ``y``
+    Raises "All y values must be finite and non-NA", the message R gives
+    for a missing value. R checks only for NA and stops on Inf inside
+    ``qr()`` ("NA/NaN/Inf in foreign function call"); 0.2.0 returned
+    surrogate variables of NaN. ``generate_all_fixtures.R`` records the R
+    behaviour.
+
 Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``, ``camera_pr``, ``romer``)
     A set given as gene IDs needs IDs to match against: the row names of
     ``y`` (``adata.var_names``, a DataFrame index) or ``geneid=``. Without

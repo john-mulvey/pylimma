@@ -244,8 +244,9 @@ def _lm_effects_residual(
         raise ValueError("No residual degrees of freedom")
 
     y = np.asarray(y, dtype=np.float64)
-    # lmEffects.R:12
-    if np.isnan(y).any():
+    # lmEffects.R:12 checks only NA; R stops on Inf later, in qr() ("NA/NaN/Inf
+    # in foreign function call")
+    if not np.isfinite(y).all():
         raise ValueError("All y values must be finite and non-NA")
     X = np.asarray(design, dtype=np.float64)
 
@@ -341,6 +342,10 @@ def wsva(
     ``layer`` (AnnData only) selects an ``adata.layers`` entry in place
     of ``adata.X``. As R's ``as.matrix(y)`` does, only the expression
     matrix is used; companion weights layers are not picked up.
+
+    Missing or infinite values in ``y`` raise "All y values must be finite
+    and non-NA"; R checks only for missing values and stops on an infinite
+    one inside ``qr()`` (see ``docs/validation/known_differences.rst``).
     """
     # R's .lmEffects (lmEffects.R:52-56) promotes a length-n vector
     # passed as `weights` to `array.weights` when array_weights is None.

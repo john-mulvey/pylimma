@@ -130,12 +130,14 @@ def test_numeric_nan_batch_is_a_level():
     )
 
 
-def test_wsva_missing_values_raise():
-    """R's .lmEffects: "All y values must be finite and non-NA"."""
+@pytest.mark.parametrize("value", [np.nan, np.inf])
+def test_wsva_missing_or_infinite_values_raise(value):
+    """R's .lmEffects: "All y values must be finite and non-NA" for NA; R
+    stops on Inf in qr() (fixture script)."""
     from pylimma import wsva
 
     y = np.random.default_rng(1).normal(size=(10, 8))
-    y[1, 2] = np.nan
+    y[1, 2] = value
     with pytest.raises(ValueError, match="^All y values must be finite and non-NA$"):
         wsva(y, np.column_stack([np.ones(8), np.tile([0.0, 1.0], 4)]))
 

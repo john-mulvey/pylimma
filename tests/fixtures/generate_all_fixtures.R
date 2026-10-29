@@ -6817,6 +6817,12 @@ stopifnot(grepl("design matrix not specified", try(wsva(.ws_y, NULL), silent = T
           grepl("design matrix not specified",
                 try(wsva(new("EList", list(E = .ws_y, design = cbind(1, rep(0:1, each = 3)))), NULL), silent = TRUE)),
           grepl("row dimension of design matrix must match", try(wsva(.ws_y, cbind(1, 1:5)), silent = TRUE)))
+# .lmEffects checks only NA ("All y values must be finite and non-NA"); an Inf
+# value stops in qr()
+.ws_inf <- .ws_y
+.ws_inf[2, 3] <- Inf
+stopifnot(grepl("finite and non-NA", try(wsva(replace(.ws_y, 1, NA), cbind(1, rep(0:1, 3))), silent = TRUE)),
+          grepl("NA/NaN/Inf in foreign function call", try(wsva(.ws_inf, cbind(1, rep(0:1, 3))), silent = TRUE)))
 
 # =============================================================================
 # avereps probe IDs: as.character(ID) (1 and 1.0 are one probe, a one-column
