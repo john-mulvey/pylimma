@@ -7178,6 +7178,13 @@ stopifnot(identical(colnames(.vbg$design), paste0("group", levels(.vbg_group))),
 write.csv(.vbg$voom.xy$x, "R_vbg_xy_x.csv", row.names = FALSE)
 write.csv(.vbg$voom.xy$y, "R_vbg_xy_y.csv", row.names = FALSE)
 write.csv(.vbg$weights, "R_vbg_weights.csv", row.names = FALSE)
+# a numeric NaN group is a level of its own (as.factor); here a singleton, so
+# its weights come from the fit to all samples. A level with no samples stops
+# vooma on the empty subset (pylimma leaves the level out)
+write.csv(voomaByGroup(.vbg_y, c(0, 0, 0, 1, 1, 1, 1, 2, NaN))$weights, "R_vbg_nan_weights.csv",
+          row.names = FALSE)
+stopifnot(grepl("entirely NA rows",
+                try(voomaByGroup(.vbg_y, factor(c(0, 0, 0, 1, 1, 1, 1, 2, 3), levels = 0:4)), silent = TRUE)))
 
 # =============================================================================
 # arrayWeights scoring: a singular information matrix stops solve() (prior.n

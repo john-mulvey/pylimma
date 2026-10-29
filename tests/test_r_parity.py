@@ -3100,11 +3100,38 @@ def test_vooma_by_group_names_levels_as_r_and_rejects_missing_groups():
     out = vooma_by_group(y, np.array([0, 0, 0, 1, 1, 1, 1, 2, 3], dtype=float))
     assert list(out["design"].columns) == ["group0", "group1", "group2", "group3"]
     assert list(out["voom_xy"]["x"].columns) == ["0", "1", "2", "3"]
+    for missing in (None, pd.NA):
+        with pytest.raises(ValueError, match="group contains missing values"):
+            vooma_by_group(y, np.array([0, 0, 0, 1, 1, 1, 2, 2, missing], dtype=object))
     with pytest.raises(ValueError, match="group contains missing values"):
-        vooma_by_group(y, np.array([0, 0, 0, 1, 1, 1, 2, 2, np.nan]))
-    unused = pd.Categorical(list("aaabbbccc"), categories=list("abcd"))
-    with pytest.raises(ValueError, match=r"group levels with no samples: \['d'\]"):
-        vooma_by_group(y, unused)
+        vooma_by_group(y, np.array(list("aaabbbcc") + [np.nan], dtype=object))
+
+
+def test_vooma_by_group_numeric_nan_is_a_level():
+    """R's as.factor makes a numeric NaN a level (here a singleton group)."""
+    from pylimma.voom import vooma_by_group
+
+    y = load_r_csv_no_index("vbg_input").to_numpy()
+    out = vooma_by_group(y, np.array([0, 0, 0, 1, 1, 1, 1, 2, np.nan]))
+    assert list(out["design"].columns) == ["group0", "group1", "group2", "groupNaN"]
+    np.testing.assert_allclose(
+        out["weights"], load_r_csv_no_index("vbg_nan_weights").to_numpy(), rtol=1e-6, atol=1e-12
+    )
+
+
+def test_vooma_by_group_leaves_unused_levels_out():
+    """A categorical level with no samples is left out (R fails in vooma on
+    its empty subset; fixture script)."""
+    from pylimma.voom import vooma_by_group
+
+    y = load_r_csv_no_index("vbg_input").to_numpy()
+    codes = [0, 0, 0, 1, 1, 1, 1, 2, 3]
+    unused = pd.Categorical(codes, categories=[0, 1, 2, 3, 4])
+    out = vooma_by_group(y, unused)
+    assert list(out["design"].columns) == ["group0", "group1", "group2", "group3"]
+    np.testing.assert_allclose(
+        out["weights"], load_r_csv_no_index("vbg_weights").to_numpy(), rtol=1e-6, atol=1e-12
+    )
 
 
 def test_vooma_by_group_keeps_dataframe_design_names():

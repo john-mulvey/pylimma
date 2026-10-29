@@ -1269,7 +1269,11 @@ def vooma_by_group(
     As R, ``voom_xy["x"]`` and ``voom_xy["y"]`` hold each group's trend
     data, one column per group level (a singleton group takes the fit to
     all samples), and the default design is ``~0 + group`` with columns
-    ``group<level>``.
+    ``group<level>``. As in R, a numeric NaN group is a level of its own; a
+    missing group label (``None``, pandas NA, NaN among strings) raises,
+    where R gives that sample its expression values as weights. A level
+    with no samples (an unused category) is left out; R fails on it. See
+    ``docs/validation/known_differences.rst``.
 
     The default ``uns_key="vooma"`` means ``lm_fit(adata, layer="vooma_E")``
     picks up the design via the usual :func:`get_eawp` fallback.
@@ -1307,20 +1311,22 @@ def vooma_by_group(
             UserWarning,
         )
 
-    # R: as.factor(group); the level labels as R's as.character gives them
-    levels, group_codes = _r_factor(group)
-    ngroups = len(levels)
+    # R: as.factor(group), where a numeric NaN is a level of its own; the
+    # level labels as R's as.character gives them
+    levels, group_codes = _r_factor(group, nan_is_level=True)
     if group_codes.size != narrays:
         raise ValueError("length(group) must equal ncol(y)")
     # R leaves such a sample's weights as its expression values
     if (group_codes < 0).any():
         raise ValueError("group contains missing values")
+    # An unused level of a categorical (left by subsetting) has no samples
+    # and is left out; R fails in vooma on its empty subset ("y contains
+    # entirely NA rows")
+    used = np.unique(group_codes)
+    levels = [levels[j] for j in used]
+    group_codes = np.searchsorted(used, group_codes)
+    ngroups = len(levels)
     group_sizes = np.bincount(group_codes, minlength=ngroups)
-    # an unused level of a categorical; R fails in vooma on its empty
-    # subset ("y contains entirely NA rows")
-    if group_sizes.min() == 0:
-        empty = [levels[j] for j in np.flatnonzero(group_sizes == 0)]
-        raise ValueError(f"group levels with no samples: {empty}")
 
     if design is None:
         # R: model.matrix(~0+group), columns named group<level>
