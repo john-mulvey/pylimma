@@ -35,6 +35,7 @@ failures with clear error messages. If you use these, please re-run:
 - `vooma_lm_fit` on data with missing values;
 - `inter_gene_correlation`;
 - `genas`;
+- `squeeze_var(legacy=False)` with only two informative variances;
 - `normexp_fit` / `background_correct` with `normexp_method="mle"`.
 
 `vooma` now accepts missing values, as limma intends (R's own `vooma`
@@ -59,8 +60,9 @@ These changes can stop existing code or change what it returns:
 - Formulas with `^` raise an error: use `**`.
 - `top_table` on a `treat` fit with the default `sort_by="B"` raises, as in
   R: use `top_treat` or `sort_by="p"`.
-- A design stored by `voom` / `vooma` in an `.h5ad` file written by 0.2.0
-  raises where it is used: pass `design=` or re-run `voom` / `vooma`.
+- A design stored by `voom` / `vooma` in an `.h5ad` file written by 0.2.0,
+  or one whose samples were renamed since, raises where it is used: pass
+  `design=` or re-run `voom` / `vooma`.
 - A fit stored in AnnData raises in `top_table`, `decide_tests`, `goana`,
   `kegga` and `diff_splice` once genes are subset, reordered or renamed:
   re-run `lm_fit`.
@@ -76,6 +78,9 @@ These changes can stop existing code or change what it returns:
   instead of a figure; `coolmap` and `barcode_plot` raise for keyword
   arguments they do not use (such as `xlim=`) instead of ignoring them.
 - `barcode_plot` reads integer positions as 0-based.
+- `goana` / `kegga` raise for `trend` with a gene list (R ignores it there).
+- `wsva` with infinite values, and quantile normalisation of a column with
+  fewer than two values, raise an error instead of returning NaN.
 - `zscore` takes each distribution's parameters by R's names (they were
   scipy's).
 
