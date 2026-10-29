@@ -195,6 +195,11 @@ def genas(
     re-centred coefficients to ``fit$coeff``, but R's ``$<-`` does not
     partial-match, so they never reach the likelihood. pylimma follows R:
     these rules only choose the genes, as limma's help page describes them.
+
+    The covariance matrix and correlations differ from R's by up to about
+    4e-3 (relative) on typical data and more near the null, because the
+    Nelder-Mead search ends at a slightly different point of the flat
+    likelihood. See ``docs/validation/known_differences.rst``.
     """
     from .ebayes import e_bayes
     from .utils import _r_nelder_mead, fit_gamma_intercept

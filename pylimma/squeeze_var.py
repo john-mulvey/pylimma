@@ -562,6 +562,13 @@ def fit_f_dist_robustly(
         tail_p_value, prob_outlier, df2_outlier : optional
             Present when R returns them (see R's fitFDistRobustly).
 
+    Notes
+    -----
+    ``df2`` comes from scipy's ``brentq`` where R uses ``uniroot``; it
+    differs from R's by up to about 1e-12 (relative) in ordinary cases and
+    1.3e-8 with extreme outliers. See
+    ``docs/validation/known_differences.rst``.
+
     References
     ----------
     Phipson, B. and Smyth, G. K. (2016). Robust hyperparameter estimation

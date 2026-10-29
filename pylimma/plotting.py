@@ -170,6 +170,11 @@ def plot_with_highlights(
 
     Port of R limma's ``plotWithHighlights`` (Gordon Smyth, 2014-2020).
     Returns the matplotlib Axes so callers can further decorate.
+
+    Notes
+    -----
+    A status with several columns raises an error; R flattens it into one
+    label per value. See ``docs/validation/known_differences.rst``.
     """
     plt = _require_matplotlib()
     _check_pch(hl_pch, bg_pch, pch)
@@ -497,6 +502,13 @@ def plot_md(
     multi-column status raises, where R's test for it is always true (see
     :doc:`/validation/known_differences`). ``layer`` is as in
     :func:`plot_ma`.
+
+    Notes
+    -----
+    For a matrix or DataFrame, ``column`` may also be a column name (R's
+    ``plotMD.default`` takes a position only). A status with several columns
+    must have one column per coefficient. See
+    ``docs/validation/known_differences.rst``.
     """
     if isinstance(object, MArrayLM) and coef is not None:
         column = coef
@@ -987,6 +999,11 @@ def plot_mds(
     as ``x`` to plot it, also for other ``dim_plot`` (R's
     ``plotMDS.MDS``). Otherwise the Axes are returned. For an AnnData,
     ``layer`` names the layer to use in place of ``X``.
+
+    Notes
+    -----
+    ``top`` must be at least 1; R fails for 0 and treats 0.5 as 1. See
+    ``docs/validation/known_differences.rst``.
     """
     _check_pch(pch)
     is_mds = isinstance(x, dict) and "eigen_vectors" in x
@@ -1594,6 +1611,12 @@ def barcode_plot(
     negative ``gene_weights``), bar heights follow unequal weights, and the
     worm above (and below) shows the relative enrichment. ``main`` is the
     title (R passes it on to ``plot()``).
+
+    Notes
+    -----
+    Other keyword arguments raise a TypeError; R passes them on to
+    ``plot()``. Style the plot through ``ax`` or the returned axes. See
+    ``docs/validation/known_differences.rst``.
     """
     if kwargs:
         raise TypeError(

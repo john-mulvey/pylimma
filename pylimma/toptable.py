@@ -231,6 +231,11 @@ def top_table(
     This function must be called after e_bayes(). The results are sorted
     and filtered according to the specified parameters.
 
+    A logical ``coef`` raises an error: R passes it through ``unique()``
+    before subscripting, so a mask can select the wrong coefficients. A
+    ``genelist`` must have one entry per gene (R pads a short one with NA).
+    See ``docs/validation/known_differences.rst``.
+
     Examples
     --------
     >>> fit = lm_fit(expr, design)

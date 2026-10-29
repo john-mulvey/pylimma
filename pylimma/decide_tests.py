@@ -64,6 +64,11 @@ def classify_tests_f(
     The F-statistic is computed as a quadratic form in the t-statistics,
     adjusted for correlation between coefficients. When the coefficients
     are uncorrelated, this reduces to the mean of squared t-statistics.
+
+    With several coefficients, a ``p_value`` outside 0..1, a ``df`` of 0 or
+    NaN and a ``cor_matrix`` with missing values or no positive eigenvalue
+    raise a ValueError, where R fails with obscure errors. See
+    ``docs/validation/known_differences.rst``.
     """
     # R's classifyTestsF accepts either an MArrayLM-like list or a
     # bare t-statistic matrix. Support both here.

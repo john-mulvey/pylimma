@@ -1313,6 +1313,12 @@ def lm_fit(
     ("Coefficients not estimable: 3 4"); R's ``lmFit`` prints the same
     text (``docs/validation/known_differences.rst``).
 
+    With AnnData input, a design that ``voom`` or ``vooma`` stored in
+    ``adata.uns`` is matched to ``adata.obs_names`` by sample name. A stored
+    design without sample names (saved by pylimma 0.2.0) or whose names no
+    longer match raises an error unless ``design=`` is passed. See
+    ``docs/validation/known_differences.rst``.
+
     References
     ----------
     Smyth, G. K. (2004). Linear models and empirical Bayes methods for

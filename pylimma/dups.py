@@ -714,7 +714,8 @@ def duplicate_correlation(
         Design matrix. If None, uses intercept-only model.
     ndups : int, default 2
         Number of within-array duplicate spots, a whole number (a fraction
-        raises, where R fails in ``dim<-``).
+        of 2 or more raises, where R fails in ``dim<-``). Below 2 (including
+        1.5) there are no duplicates: as R, a warning and a correlation of 0.
     spacing : int or str, default 1
         Spacing between duplicates. Can be an integer or one of:
         - "columns": spacing of 1 (duplicates in adjacent rows)

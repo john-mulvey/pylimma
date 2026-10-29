@@ -37,6 +37,13 @@ def fitmixture(log2e, mixprop, niter: int = 4, trace: bool = False) -> dict:
     Returns
     -------
     dict with keys ``A``, ``M``, ``stdev``.
+
+    Notes
+    -----
+    ``niter`` must be a whole number of at least 1 (R's ``1:niter``
+    truncates a fraction and runs two iterations for 0), and ``mixprop``
+    must take at least two different values. See
+    ``docs/validation/known_differences.rst``.
     """
     log2e = _as_dense_array(log2e, np.float64)
     if log2e.ndim == 1:
