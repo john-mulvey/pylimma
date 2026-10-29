@@ -564,7 +564,7 @@ def choose_lowess_span(
 # keep the results bit-identical to lowess.c: check it against R's
 # lowess.c compiled with `clang -O2 -ffp-contract=off` on a grid with ties,
 # constant x, tiny and huge scales, outliers, f > 1, delta = 0 and small n
-# (the port was validated on 8,800 such cases), and not only against R,
+# (the port is bit-identical to it on a 1,224-case grid), and not only against R,
 # since R on macOS arm64 fuses multiply-adds (known_differences.rst).
 def _seq_sum(values: np.ndarray) -> float:
     """Left-to-right sum, as a C loop adds. np.sum adds pairwise, which

@@ -159,11 +159,11 @@ instruction. It has not been compared with a Linux build of R.
 (clang's default), which changes the last bit of some sums. Where every
 local fit uses three points or fewer (fewer than about 20 points with
 a small span), each fit passes exactly through its points, and the
-robustness weights are then set by that last-bit noise, so R itself
-gives different curves on the two platforms (up to 18.8 apart on an
-8,800-case grid). With four or more points per
-fit, pylimma matches R on macOS arm64 to 4e-11 relative on the same
-grid.
+robustness weights are then set by that last-bit noise. On a 1,224-case
+grid, ``lowess.c`` compiled with and without fused multiply-adds gives
+curves up to 31 apart in such cases, and pylimma differs from R on macOS
+arm64 by up to 49. With four or more points per fit, pylimma matches R
+on macOS arm64 to ``1.2e-11`` relative on the same grid.
 
 **Tolerance.** The parity fixtures use at least four points per fit
 and are compared at ``rtol=1e-6`` or tighter.
@@ -215,9 +215,10 @@ own voom weights, which differ from R's by ``2e-13`` relative. R's own
 p-values move by up to 4.5-fold on that contrast when the voom weights
 are changed by ``1e-13``. The other two contrasts tested agreed with R to
 ``6e-13``. ``standardize="none"`` is affected too,
-because ``fry`` averages each residual effect over the set's genes (0.934
-vs R's 0.930 for one of four sets of the synthetic fixture). Unweighted
-fits matched R in every case checked.
+because ``fry`` averages each residual effect over the set's genes: on the
+synthetic fixture (200 genes, 3 with a different residual basis), weighted
+p-values differ from R's by up to 1.07-fold for every ``standardize``
+option. Unweighted fits matched R in every case checked.
 
 **Tolerance.** The contrast effect and each gene's residual sum of
 squares do not depend on the basis and are compared with R at

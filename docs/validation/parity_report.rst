@@ -71,7 +71,7 @@ documented in :doc:`known_differences`:
   between builds of R: R on macOS arm64 fuses multiply-adds. pylimma
   follows R's ``lowess.c`` compiled without fused multiply-adds (as gcc
   compiles it for baseline x86-64; not compared with a Linux build of R);
-  with four or more points per fit it matches R on macOS arm64 to 4e-11
+  with four or more points per fit it matches R on macOS arm64 to 1.2e-11
   relative.
 
 The same page also lists the deliberate divergences, where pylimma
