@@ -825,8 +825,9 @@ def fit_f_dist_unequal_df1(
     Deliberate divergence from limma 3.66.0: with exactly two informative
     values and some zero prior weight (for example a missing ``x``), limma
     returns ``scale = NaN`` because its prior-weight flag outlives the reset
-    of the weights; pylimma fits the two values without weights, as the
-    reset intends. See docs/validation/known_differences.rst.
+    of the weights. pylimma fits without weights the values whose prior
+    weight is positive, leaving out those with zero weight as it does when
+    more values are informative. See docs/validation/known_differences.rst.
 
     References
     ----------
@@ -900,8 +901,11 @@ def fit_f_dist_unequal_df1(
     if n_informative == 2:
         covariate = None
         robust = False
-        prior_weights = None
-        has_prior_weights = False
+        # R sets prior.weights <- NULL to fit without weights, but its flag
+        # PriorWeights stays TRUE and the scale is NaN. A zero weight (missing x,
+        # df1 < 0.01) still leaves its value out, as with more informative values.
+        if has_prior_weights:
+            prior_weights = (prior_weights > 0).astype(np.float64)
 
     # Avoid exactly zero x values
     m = np.median(x[informative])

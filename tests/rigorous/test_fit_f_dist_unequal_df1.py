@@ -25,25 +25,8 @@ pytestmark = pytest.mark.skipif(not limma_available(), reason="R/limma not avail
 SLOTS = ("scale", "df2", "df2_outlier", "df2_shrunk")
 
 
-# limma 3.66.0 sets PriorWeights before `if(n.informative==2) prior.weights <- NULL`,
-# so an existing zero weight leaves PriorWeights TRUE with NULL weights and a NaN
-# scale. The patch recomputes the flag after the reset, which is what the reset
-# intends (see docs/validation/known_differences.rst).
-_PATCH = (
-    "src <- deparse(limma::fitFDistUnequalDF1)\n"
-    "at <- grep('prior.weights <- NULL', src, fixed = TRUE)\n"
-    "stopifnot(length(at) == 1)\n"
-    "src <- append(src, 'PriorWeights <- !is.null(prior.weights)', after = at)\n"
-    "fitFDistUnequalDF1 <- eval(parse(text = src))\n"
-    "environment(fitFDistUnequalDF1) <- asNamespace('limma')\n"
-)
-
-
-def _r_fit(x, df1, covariate=None, robust=False, prior_weights=None, patched=False):
-    """Every slot of R's fitFDistUnequalDF1, keyed by pylimma's slot names.
-
-    With patched=True, the minimally patched function described at _PATCH.
-    """
+def _r_fit(x, df1, covariate=None, robust=False, prior_weights=None):
+    """Every slot of R's fitFDistUnequalDF1, keyed by pylimma's slot names."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp = Path(tmp)
         args = {"x": x, "df1": df1, "covariate": covariate, "prior_weights": prior_weights}
@@ -58,8 +41,7 @@ def _r_fit(x, df1, covariate=None, robust=False, prior_weights=None, patched=Fal
             code[name] = f"read.csv('{tmp}/{name}.csv')$v"
         run_r_code(
             "suppressMessages(library(limma))\n"
-            + (_PATCH if patched else "")
-            + f"fit <- fitFDistUnequalDF1({code['x']}, {code['df1']}, covariate = {code['covariate']}, "
+            f"fit <- fitFDistUnequalDF1({code['x']}, {code['df1']}, covariate = {code['covariate']}, "
             f"robust = {'TRUE' if robust else 'FALSE'}, prior.weights = {code['prior_weights']})\n"
             f"for (nm in names(fit)) write.csv(data.frame(v = fit[[nm]]), "
             f"file.path('{tmp}', paste0(gsub('.', '_', nm, fixed = TRUE), '.csv')), row.names = FALSE)\n"
@@ -121,20 +103,27 @@ class TestRigorousFitFDistUnequalDF1:
         assert "df2_shrunk" not in r
         _assert_matches(fit_f_dist_unequal_df1(x, df1, robust=True), r)
 
-    @pytest.mark.parametrize("zero_weight", ["na_x", "small_df1"])
+    @pytest.mark.parametrize("zero_weight", ["na_x", "small_df1", "prior_weight"])
     def test_two_informative_with_prior_weights(self, zero_weight):
-        """Exercises R-B9 (fitFDistUnequalDF1.R:48-59) when prior weights were
-        created by R-B6 (NA x) or R-B7 (df1 < 0.01) before n.informative == 2
-        sets prior.weights to NULL.
+        """Exercises R-B9 (fitFDistUnequalDF1.R:48-59) when a zero prior weight
+        (R-B6 NA x, R-B7 df1 < 0.01, or a given weight) remains and
+        n.informative == 2 sets prior.weights to NULL.
 
         Deliberate divergence: limma 3.66.0 returns a NaN scale here (asserted
-        below); pylimma follows the minimally patched R.
+        below). pylimma leaves the zero-weight values out and fits the rest
+        without weights, so it equals R on those values alone.
         """
-        x = np.array([0.5, 1.5, 0.0, 0.0])
+        x = np.array([0.5, 1.5, 0.0, 0.7])
         df1 = np.array([4.0, 6.0, 4.0, 4.0])
+        prior_weights = None
         if zero_weight == "na_x":
             x[3] = np.nan
-        else:
+        elif zero_weight == "small_df1":
             df1[3] = 0.001
-        assert np.isnan(_r_fit(x, df1)["scale"]).all()
-        _assert_matches(fit_f_dist_unequal_df1(x, df1), _r_fit(x, df1, patched=True))
+        else:
+            prior_weights = np.array([1.0, 2.0, 1.0, 0.0])
+        assert np.isnan(_r_fit(x, df1, prior_weights=prior_weights)["scale"]).all()
+        _assert_matches(
+            fit_f_dist_unequal_df1(x, df1, prior_weights=prior_weights),
+            _r_fit(x[:3], df1[:3]),
+        )

@@ -282,11 +282,16 @@ With exactly two informative variances, ``fitFDistUnequalDF1`` sets
 ``PriorWeights <- !is.null(prior.weights)`` has already been computed, so
 if any prior weight existed - including the zero weights the function
 itself creates for missing ``x`` or ``df1 < 0.01`` - limma 3.66.0
-multiplies by ``NULL`` and returns ``scale = NaN``. pylimma clears the flag
-together with the weights. The reference is R's function with
-``PriorWeights <- !is.null(prior.weights)`` repeated after the reset;
-``tests/rigorous/test_fit_f_dist_unequal_df1.py`` checks that unpatched R
-returns NaN and that pylimma matches the patched function.
+multiplies by ``NULL`` and returns ``scale = NaN`` (``squeeze_var`` then
+has no prior). pylimma fits without weights the values whose prior weight
+is positive, leaving out those with zero weight as R does when three or
+more values are informative: ``x = (1.2, 0.8, NA)`` with ``df1 = (2, 3,
+2)`` gives the scale of ``(1.2, 0.8)`` alone, 1.445. Zero variances with
+a positive weight stay in the fit, as in R. Clearing R's flag together
+with the weights instead would count the missing values as zero
+variances (scale 8e-6 in this example). ``tests/rigorous/test_fit_f_dist_unequal_df1.py``
+checks that R returns NaN and that pylimma equals R on the values with
+positive weight.
 
 voom_with_quality_weights: sample weights when genes equal samples
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
