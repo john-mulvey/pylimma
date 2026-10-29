@@ -291,7 +291,9 @@ so ``ndim`` is never raised to the largest shown dimension and a
 dimension beyond the samples is not caught. pylimma follows the evident
 intent: ``plot_md`` raises "status has multiple columns" unless the status
 has one column per coefficient, and ``plot_rldf`` raises ``ndim`` to the
-largest shown dimension and rejects one beyond the samples.
+largest shown dimension and rejects one beyond the samples. A status
+with several columns that is not R's ``TestResults`` also raises in
+``plot_with_highlights``; R flattens it into one label per value.
 
 fit_f_dist_unequal_df1: two informative values with zero prior weights
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -478,11 +480,13 @@ unaffected.
     surrogate variables of NaN. ``generate_all_fixtures.R`` records the R
     behaviour.
 
-Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``, ``camera_pr``, ``romer``)
+Character gene sets without gene IDs (``roast``, ``mroast``, ``fry``, ``camera``, ``camera_pr``)
     A set given as gene IDs needs IDs to match against: the row names of
     ``y`` (``adata.var_names``, a DataFrame index) or ``geneid=``. Without
     them pylimma raises an error; R matches against ``NULL`` row names and
-    silently tests an empty set. Likewise ``gene_set_test``,
+    silently tests an empty set. ``romer`` takes positions or a boolean
+    mask only, as in R, whose ``romer`` fails for gene IDs with or without
+    row names ("no 'dimnames' attribute for array"). Likewise ``gene_set_test``,
     ``wilcox_gst`` and ``rank_sum_test_with_correlation`` select a character
     set by the names of ``statistics`` (a pandas Series) and raise an error
     for a name that is not among them. R's ``statistics[name]`` is NA, so
@@ -496,8 +500,10 @@ Gene-set positions outside the statistics (``gene_set_test``, ``wilcox_gst``, ``
     p-values are NA (``barcodeplot`` drops the gene), and a negative
     position drops that gene from the set; read as 0-based, a negative
     position would instead count from the end. Likewise a logical set must
-    have one value per statistic: R recycles a shorter one and gives NA
-    for a longer one. ``generate_all_fixtures.R`` records the R behaviour.
+    have one value per statistic: R recycles a shorter one, and for a
+    longer one gives NA if a value past the end is ``TRUE`` (extra
+    ``FALSE`` values are ignored). ``generate_all_fixtures.R`` records the
+    R behaviour.
 
 Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     A logical row or column subscript must be a single value (recycled, as
@@ -559,9 +565,12 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     ``p < NA`` gives an all-NA result. With several coefficients,
     ``classify_tests_f`` raises for a ``p_value`` outside 0..1, a ``df``
     that leaves no F threshold (0 or NaN) and a ``cor_matrix`` with missing
-    values or no positive eigenvalue; R fails in ``qf`` / ``eigen`` /
-    ``if()`` ("missing value where TRUE/FALSE needed"). With one
-    coefficient, as in R, any ``p_value`` is compared with the p-values. ``generate_all_fixtures.R`` records the R behaviour.
+    values or no positive eigenvalue. R warns "NaNs produced" from ``qf``
+    and then fails in ``if()`` ("missing value where TRUE/FALSE needed")
+    for such a ``p_value`` or ``df``, and fails in ``eigen()`` for such a
+    ``cor_matrix`` ("infinite or missing values in 'x'" with missing
+    values, "NA/NaN argument" for an all-zero matrix).
+    ``generate_all_fixtures.R`` records the R behaviour.
 
 ``genas`` with unusable coefficients
     A ``coef`` outside the coefficient positions, a fraction or a repeated
@@ -578,7 +587,8 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     ``lm.fit(cbind(mixprop, 1 - mixprop), ...)`` gives NA coefficients,
     which fail a later assignment ("NAs are not allowed in subscripted
     assignments"); pylimma returned a minimum-norm fit. ``niter`` must be a
-    whole number, as ``nrot`` (R's ``1:niter`` truncates).
+    whole number of at least 1, as ``nrot``: R's ``1:niter`` truncates
+    ``2.5`` to two iterations and runs two (``1:0``) for ``niter = 0``.
     ``generate_all_fixtures.R`` records the R behaviour.
 
 ``background_correct`` with degenerate input
@@ -653,15 +663,19 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
 
 ``nrot`` / ``nsim`` in ``roast``, ``mroast``, ``romer`` and ``gene_set_test``
     Must be whole numbers of at least 1 (whole-number floats such as
-    ``1e4`` are accepted). Below 1, R fails with "invalid 'nrow' value" or,
-    for ``geneSetTest``'s ``nsim``, returns ``Inf``; for a fraction such as
+    ``1e4`` are accepted). Below 1, R's ``roast`` and ``mroast`` fail with
+    "invalid 'nrow' value"; R's ``romer`` with ``nrot = 0`` returns
+    p-values (Up 1, Down 3, Mixed 3 in one check) and ``geneSetTest``
+    returns 3 for ``nsim = 0`` and ``Inf`` for ``nsim = -1``; for a fraction such as
     10.5, R recycles random numbers into a 10-row rotation matrix and uses
     10.5 in the p-value denominators, which is not meaningful.
 
 ``ndups`` / ``spacing`` in ``unwrap_dups``, ``ave_dups``, ``unique_genelist`` and ``duplicate_correlation``
-    Must be whole numbers (whole-number floats such as 2.0 work). R fails
-    in ``dim<-`` ("dims do not match the length of object") for a
-    fraction; pylimma raises "ndups must be a whole number".
+    Must be whole numbers (whole-number floats such as 2.0 work); pylimma
+    raises "ndups must be a whole number". R fails in ``dim<-`` ("dims do
+    not match the length of object") for a fraction such as ``ndups = 2.5``
+    or ``spacing = 1.5``; ``duplicateCorrelation`` with ``ndups = 1.5``
+    takes its ``ndups < 2`` path, warns and returns a correlation of 0.
 
 ``lm_fit`` with ``ndups > 1`` and ``block``
     Raises "ndups > 1 cannot be combined with block". R's ``gls.series``
@@ -688,8 +702,9 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     Must be a whole number of at least 1 (whole-number floats such as 10.0
     work). R's ``MASS::rlm`` loops over ``1L:maxit``, which truncates a
     fraction, and fails with "invalid format '%d'" when a gene does not
-    converge within it. ``generate_all_fixtures.R`` records the R
-    behaviour.
+    converge within it. With ``maxit = 0`` R returns a fit with a
+    "failed to converge in 0 steps" warning per gene.
+    ``generate_all_fixtures.R`` records the R behaviour.
 
 ``top_table`` / ``top_table_f`` with ``number=NaN``
     Raises "number must not be NaN" (R: "missing value where TRUE/FALSE
@@ -699,8 +714,9 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
 ``fit_gamma_intercept``
     Missing values in ``y`` or ``offset`` raise "y and offset must not
     contain missing values", and a Newton step that is 0 / 0 (an offset
-    of zero where ``y`` is zero) raises "Newton step is undefined"; R
-    stops with "missing value where TRUE/FALSE needed" in both cases.
+    of zero where ``y`` is zero, unless every ``y`` and the offset are zero,
+    which gives 0 in both) raises "Newton step is undefined"; R stops with
+    "missing value where TRUE/FALSE needed" in both cases.
     ``offset`` must be a scalar or have the same length as ``y``; R
     accepts other lengths (recycling a non-constant offset, ignoring the
     length of a constant one).
@@ -731,9 +747,11 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
 ``goana_trend`` with invalid ``index_de`` positions
     Positions must be whole numbers between 0 and ``len(covariate) - 1``
     (or ``index_de`` a boolean mask). R's ``isDE[index.de] <- 1`` treats a
-    negative position as "all except", truncates a fraction and silently
-    extends ``isDE`` for a position past the end. ``generate_all_fixtures.R``
-    records the R behaviour.
+    negative position as "all except" and truncates a fraction. A
+    position just past the end silently extends ``isDE`` by one gene; one
+    further out leaves NA in ``isDE`` and R fails ("missing value where
+    TRUE/FALSE needed"). ``generate_all_fixtures.R`` records the R
+    behaviour.
 
 ``top_go`` / ``top_kegg`` with ``number=NaN``
     Raises "number must not be NaN", as ``top_table`` does (R: "missing
@@ -805,9 +823,12 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     With two groups the design gives one discriminant function, but
     ``show_dimensions`` always names two. R's ``svd(nu=2)`` then pads the
     metagenes with an orthonormal completion from LAPACK, so R plots and
-    returns a second dimension that carries no information and differs
-    between LAPACK builds. pylimma raises "the design gives 1 discriminant
-    function(s), but show_dimensions / ndim ask for 2".
+    returns a second dimension that carries no information (the first is
+    meaningful; with ``plot=FALSE`` R returns both). The padding is not
+    determined by the method, so it can differ between LAPACK builds.
+    pylimma raises "the design gives 1 discriminant function(s), but
+    show_dimensions / ndim ask for 2", also with ``plot=False``; R itself
+    fails for ``ndim = 1`` ("subscript out of bounds").
     ``generate_all_fixtures.R`` records the R behaviour.
 
 ``heat_diagram`` with ``names`` of the wrong length
@@ -821,6 +842,26 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     ``for (k in 1:iterations)`` runs one pass for values between 0 and 1,
     two for 0 and three for -1, because ``1:0`` counts down.
     ``generate_all_fixtures.R`` records the R behaviour.
+
+``array_weights`` ``maxiter`` and ``prior_n``
+    ``maxiter`` must be a whole number of at least 1; R's ``1:maxiter``
+    runs two iterations for ``maxiter = 0``. ``prior_n`` must be a finite
+    number of 0 or more: R runs with ``prior.n = -1``, gives weights of 1
+    for ``NaN``, and for ``Inf`` gives REML weights of exactly 1 with a
+    "convergence tolerance not achievable" warning while
+    ``method = "genebygene"`` fails ("missing or negative weights not
+    allowed"). ``generate_all_fixtures.R`` records the R behaviour for
+    ``maxiter = 0`` and ``prior.n = Inf``.
+
+``plot_mds`` with ``top`` below 1
+    Raises "top must be a number of 1 or more". R fails for ``top = 0``
+    and treats ``top = 0.5`` as 1.
+
+``top_table`` with a ``genelist`` of the wrong length
+    Raises "genelist must have one entry per gene". R's ``genelist[top, ]``
+    gives NA annotation for the rows past the end of a short genelist and
+    silently ignores the extra rows of a long one; pylimma 0.2.0 attached
+    the annotation to the wrong rows.
 
 Column subsets of a rank-deficient fit
 --------------------------------------
@@ -844,8 +885,7 @@ R's ``voom`` and ``voomWithQualityWeights`` call ``as.matrix()`` on an
 ``voom_with_quality_weights`` its ``design`` slot, when the caller does
 not pass them explicitly, and emits a ``UserWarning`` each time so that
 code ported from R does not change results unnoticed. Passing
-``design=`` / ``weights=`` explicitly reproduces R exactly. ``vooma``
-matches R.
+``design=`` / ``weights=`` explicitly reproduces R exactly.
 
 ``vooma_lm_fit`` uses an EList's ``weights`` slot as ``prior_weights``
 throughout, again with a ``UserWarning``. R's ``voomaLmFit`` passes the
@@ -856,11 +896,20 @@ Because pylimma treats the slot as prior weights, ``sample_weights=True``
 with a weights slot raises an error, as it does with ``prior_weights=``.
 
 ``array_weights`` uses an EList's ``design`` slot when ``design=`` is not
-given, with a ``UserWarning``. R's ``arrayWeights`` documentation says the
-design is "extracted from the data object if available", and its
-``getEAWP`` call returns it, but the code never reads it and uses an
-intercept-only design. pylimma follows the documentation;
-``generate_all_fixtures.R`` records R's literal behaviour.
+given, with a ``UserWarning``. R's ``arrayWeights`` help page is
+inconsistent: its Details say the design is "extracted from the data
+object if available" (and ``getEAWP`` returns it), while its ``design``
+argument "defaults to the unit vector", which is what the code uses.
+pylimma follows the Details; ``generate_all_fixtures.R`` records R's
+literal behaviour.
+
+A design that ``voom`` or ``vooma`` stores in ``adata.uns`` keeps the sample names it was fitted
+with, so that ``lm_fit`` can match it to ``adata.obs_names`` after the
+samples are reordered or subset. A stored design without sample names
+(saved by pylimma 0.2.0 or earlier) raises an error unless ``design=`` is
+passed, and so does one whose names no longer match because
+``adata.obs_names`` were renamed. R's ``EList`` keeps its ``design`` in
+sample order and has no such check.
 
 Deliberate interface difference: messages and names
 ---------------------------------------------------
@@ -892,6 +941,9 @@ unnamed, so R's names depend on the path taken.
 that read the fit; R keeps the coefficients a vector and its ``eBayes``
 returns ``t`` and ``p.value`` as vectors (``lods`` as one column).
 
+``plot_md`` accepts a column name as well as a position for a matrix or
+DataFrame; R's ``plotMD.default`` takes a position only.
+
 ``lm_series`` is an internal helper of ``lm_fit`` (not in
 ``pylimma.__all__``): it needs a ``design`` and has no ``ndups`` or
 ``spacing``. R exports ``lm.series(M, design=NULL, ndups=1, spacing=1,
@@ -907,6 +959,13 @@ matplotlib's "Unrecognized marker style 16"). Default colours are
 pylimma's (red, blue, green, ...), not R's ``palette()``; which points,
 lines and legend entries share a colour follows R.
 
+R graphics arguments that limma passes on through ``...`` raise a
+``TypeError`` naming them: ``coolmap`` (R passes them to
+``gplots::heatmap.2``, for example ``margins``) and ``barcode_plot`` (R
+passes them to ``plot()``, for example ``cex``). Style the plot through
+the returned matplotlib figure and axes instead. pylimma 0.2.0 silently
+ignored them.
+
 ``decide_tests`` returns a plain array, not R's ``TestResults`` class, so a
 status taken from it (``plot_md(fit, status=decide_tests(fit))``) is read
 like any other status: its values -1, 0 and 1 are the labels, the most
@@ -914,3 +973,11 @@ frequent is the background and the rest are highlighted by frequency. R
 relabels a ``TestResults`` status as Down / NotSig / Up and highlights Up
 and Down in red and blue.
 
+Not yet ported
+--------------
+
+``goana`` with ``trend``, and ``goana`` / ``kegga`` with ``prior_prob`` or
+``covariate``, need the Wallenius noncentral hypergeometric test that R
+takes from ``BiasedUrn``. pylimma raises ``NotImplementedError`` for them
+until that port; R returns bias-corrected p-values. (pylimma 0.2.0
+silently ignored ``prior_prob``.)

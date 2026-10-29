@@ -6645,7 +6645,9 @@ stopifnot(grepl("var is empty", try(squeezeVar(NULL, 5), silent = TRUE)),
 .rm_d <- cbind(1, c(0, 0, 0, 1, 1, 1))
 stopifnot(identical(suppressWarnings(lmFit(.rm_y, .rm_d, method = "robust", maxit = 10.0))$coefficients,
                     suppressWarnings(lmFit(.rm_y, .rm_d, method = "robust", maxit = 10L))$coefficients),
-          grepl("invalid format", try(lmFit(.rm_y, .rm_d, method = "robust", maxit = 1.5), silent = TRUE)))
+          grepl("invalid format", try(lmFit(.rm_y, .rm_d, method = "robust", maxit = 1.5), silent = TRUE)),
+          grepl("failed to converge in 0 steps",
+                tryCatch(lmFit(.rm_y, .rm_d, method = "robust", maxit = 0), warning = conditionMessage)))
 
 # =============================================================================
 # genas subset rules: the genes each rule keeps (fit[genes, ], R's MArrayLM
@@ -6925,6 +6927,10 @@ stopifnot(inherits(try(genas(.gu_fit, coef = c(1, 6)), silent = TRUE), "try-erro
 .fm_y <- matrix(rnorm(40, 8), 10)
 stopifnot(grepl("NAs are not allowed", try(fitmixture(.fm_y, rep(0.5, 4)), silent = TRUE)),
           grepl("NAs are not allowed", try(fitmixture(.fm_y[, 1, drop = FALSE], 0.3), silent = TRUE)))
+# niter runs 1:niter, so 2.5 is 2 iterations and 0 is two (1:0) (pylimma raises)
+.fm_mp <- c(0, 0.3, 0.7, 1)
+stopifnot(identical(fitmixture(.fm_y, .fm_mp, niter = 0), fitmixture(.fm_y, .fm_mp, niter = 2)),
+          identical(fitmixture(.fm_y, .fm_mp, niter = 2.5), fitmixture(.fm_y, .fm_mp, niter = 2)))
 
 # =============================================================================
 # selectModel: criterion = NULL is match.arg's first choice ("aic")
