@@ -382,11 +382,11 @@ def _ma_from_matrix(E, col, weights=None, zero_weights=False):
 _EXPRESSION_YLAB = "Expression log-ratio (this sample vs others)"
 
 
-def _column_index(column, names, ncol):
+def _column_index(column, names, ncol, argument="column"):
     """0-based index of a column given by position or by name."""
     if isinstance(column, str):
         if names is None or column not in list(names):
-            raise ValueError(f"coef {column!r} not found")
+            raise ValueError(f"{argument} {column!r} is not one of the column names")
         return list(names).index(column)
     return int(np.arange(ncol)[int(column)])
 
@@ -547,7 +547,7 @@ def volcano_plot(
 
     coefs = np.asarray(fit["coefficients"])
     coef_names = fit.get("contrast_names") or fit.get("coef_names")
-    c = _column_index(coef, coef_names, coefs.shape[1] if coefs.ndim > 1 else 1)
+    c = _column_index(coef, coef_names, coefs.shape[1] if coefs.ndim > 1 else 1, "coef")
     x = coefs[:, c] if coefs.ndim > 1 else coefs
 
     if style_low == "p-value":
@@ -1393,7 +1393,8 @@ def coolmap(
     if kwargs:
         raise TypeError(
             f"coolmap got unexpected arguments {sorted(kwargs)}; R passes them on to "
-            "gplots::heatmap.2, which is not ported"
+            "gplots::heatmap.2, which is not ported. Style the plot through the returned "
+            "matplotlib fig and ax instead"
         )
 
     if cluster_by not in ("de pattern", "expression level"):
@@ -1595,7 +1596,11 @@ def barcode_plot(
     title (R passes it on to ``plot()``).
     """
     if kwargs:
-        raise TypeError(f"barcode_plot got unexpected arguments {sorted(kwargs)}")
+        raise TypeError(
+            f"barcode_plot got unexpected arguments {sorted(kwargs)}; R passes them on to "
+            "plot(), whose graphics parameters have no matplotlib equivalent here. Style "
+            "the plot through ax or the returned matplotlib axes instead"
+        )
     plt = _require_matplotlib()
 
     from .geneset import _subscript_rows
@@ -2348,7 +2353,7 @@ def plot_exons(
             raise ValueError(f"exoncolname {exoncolname} not found")
 
     names = fit.get("contrast_names") or fit.get("coef_names")
-    coef_idx = fit.ncol - 1 if coef is None else _column_index(coef, names, fit.ncol)
+    coef_idx = fit.ncol - 1 if coef is None else _column_index(coef, names, fit.ncol, "coef")
     p_col = np.asarray(fit["p_value"], dtype=np.float64).reshape(len(genes), -1)[:, coef_idx]
     logfc = np.asarray(fit["coefficients"], dtype=np.float64).reshape(len(genes), -1)[:, coef_idx]
     gene_ids = _r_as_character(genes[genecolname].to_numpy())

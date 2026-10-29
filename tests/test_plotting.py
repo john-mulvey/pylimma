@@ -199,7 +199,7 @@ def test_volcano_plot_labels_default_to_gene_ids_as_r():
 def test_plot_md_unknown_column_name_raises():
     from pylimma import plot_md
 
-    with pytest.raises(ValueError, match="coef 'a' not found"):
+    with pytest.raises(ValueError, match="column 'a' is not one of the column names"):
         plot_md(np.ones((10, 3)), column="a")
 
 
