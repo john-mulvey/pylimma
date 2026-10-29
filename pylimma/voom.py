@@ -79,7 +79,8 @@ def _vooma_trend_weights(A, sy, mu, predictor, span):
     """
     in_trend = np.isfinite(sy)
     if not in_trend.any():
-        # R fails in lowess (or lm.fit) with "NA/NaN/Inf in 'y'"
+        # R fails in its trend fit: approxfun's "need at least two non-NA
+        # values to interpolate" (with a predictor, lm.fit's "NA/NaN/Inf in 'y'")
         raise ValueError("no gene has residual degrees of freedom, so there is no variance trend to fit")
     sx = A
     if predictor is not None:

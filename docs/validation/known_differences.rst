@@ -14,17 +14,20 @@ Accepted differences
 
 Eight differences remain after porting. None is a porting bug: seven
 come from numerical-algorithm choices and one (lowess) from how R
-itself is built on different platforms. Each is quantified and
-reproducible, and the parity tests stay within the tolerances given.
+itself is built on different platforms. The sizes given were measured
+on the inputs named; other inputs can give larger differences.
 
-normexp saddle-point fit drifts up to ~2e-4 from R
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+normexp fits drift from R on flat likelihoods
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``normexp_fit(method="saddle")`` parameters match R within
-``rtol ~2e-4``; the objective function value agrees to
-``rtol ~6e-9``. ``method="mle"`` matches R to ``rel ~2e-13``;
-``method="rma"``, ``method="rma75"``, and ``normexp_signal`` all match
-R at floating-point precision.
+``normexp_fit(method="saddle")`` parameters differ from R's by ``2e-4``
+(relative) on the first column of the normexp fixture matrix, ``3.4e-4``
+to ``4.9e-4`` on its other columns, ``8.5e-4`` on the larger ``npts``
+fixture and ``2.7e-2`` on the flat-likelihood fixture; the objective
+function value agrees to ``6e-9`` to ``1.4e-8``, pylimma's always slightly
+lower. ``method="mle"`` matches R to ``5e-15`` on the first column,
+``4.5e-9`` to ``8e-9`` on the others and ``3e-7`` on the flat-likelihood
+fixture. ``method="rma75"`` matches R at floating-point precision.
 
 **Root cause.** scipy's Nelder-Mead and R's ``nmmin`` implement the same
 algorithm but differ in the initial simplex, the termination rule and
@@ -34,25 +37,31 @@ the details of their reflection and shrink steps. R stops when
 pylimma's scipy call uses absolute ``fatol = xatol = 1.49e-8`` and at
 most 500 iterations, so it runs further and lands at a slightly better
 f at a different point on the flat saddle-likelihood plateau. Giving
-scipy R's initial simplex and stopping rule (as ``genas`` does) does not
-bring it closer: the largest parameter difference grows from ``2e-4`` to
-``5e-4`` on the fixtures, so the fit keeps its own settings.
+scipy R's initial simplex and stopping rule (as ``genas`` does) brings it
+closer to R on four of seven inputs and further on three (on the first
+fixture column the difference grows from ``2e-4`` to ``3e-4``; on the
+flat-likelihood fixture it falls from ``2.7e-2`` to ``1.0e-2``); the fit
+keeps its own settings.
 
 **Tolerance.** Parity tests for ``method="saddle"`` use
 ``rtol=1e-3``. All other normexp methods are at ``rtol=1e-10`` or
 better.
 
-genas covariance and correlations agree with R to ~6e-4
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+genas covariance and correlations drift from R on flat likelihoods
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``genas`` fits its two likelihoods with scipy's Nelder-Mead, given R's
 ``optim()`` settings: R's initial simplex (every coordinate stepped by
 ``0.1 * max|x0|``), R's stopping rule (the simplex's function values
 within ``sqrt(eps) * (|f(x0)| + sqrt(eps))``) and R's 500 evaluations.
 The reflection and shrink steps are scipy's, so the search ends at a
-slightly different point of the flat likelihood: the deviance and p-value
-agree with R to ``rtol ~2e-6``, the fitted covariance matrix and the
-biological correlation to ``rtol ~6e-4``.
+slightly different point of the flat likelihood. On the fixtures the
+deviance agrees with R to ``7.5e-8``, the p-value to ``1.8e-6`` and the
+fitted covariance matrix and biological correlation to ``6e-4`` (all
+relative). On six random 500-gene datasets the deviance differed by up to
+``4.4e-5``, the p-value by up to ``1.8e-5`` and the covariance and
+correlations by up to ``4e-3``; near the null (deviance ``2.7e-5``) the
+deviance differed by 42% and the covariance by 16%.
 
 **Tolerance.** Parity tests use ``rtol=1e-6`` for the deviance, the
 log-scale comparison for the p-value and ``rtol=1e-3`` for the
@@ -68,12 +77,15 @@ as ``exp(dnorm(log=TRUE) - pnorm(log.p=TRUE))``, whose exponent carries
 rounding error of order ``eps * z^2``: for ``par = (100, log(10),
 log(0.002))`` R's signals jitter between 0.0019998 and 0.0020545 where
 the exact values (asymptotic Mills-ratio series) rise smoothly from
-0.0019984 to 0.0020161, an error of up to 2.8%. For ``z > 0`` pylimma
+0.0019984 to 0.0020161, an error of up to 2.8% at these six points and
+5.9% on a grid of 0.5 steps from 60 to 140. For ``z > 0`` pylimma
 computes ``sigma * (h(z) - z)`` without the cancellation: ``h(z) - z``
 from the Mills-ratio continued fraction ``1 / (z + 2 / (z + 3 / ...))``
 for ``z > 3`` and ``h = sqrt(2/pi) / erfcx(z / sqrt(2))`` for ``0 < z <=
-3``. It is exact to rounding, so it differs from R by R's error in this
-regime and matches R to 1e-12 elsewhere.
+3``. It is exact to rounding, so it differs from R by R's own error. That
+error is below ``1e-12`` for most fits, but not always: for an ``mle`` fit
+to a pure-noise array (``sigma^2 / alpha = 786``) pylimma and R differ by
+``3.6e-9``, R's own error there being ``3.3e-9``.
 
 **Tolerance.** Parity tests compare with the exact values at
 ``rtol=1e-12`` and with R at ``rtol=1e-4`` (``alpha = 0.01``) and
@@ -98,15 +110,15 @@ The tests therefore compare the mean p-value over 30 seeds on each side,
 which must agree within four standard errors of their difference
 (``tests/test_geneset.py``).
 
-mrlm stdev_unscaled drifts up to ~15% on machine-epsilon residuals
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+mrlm stdev_unscaled differs on machine-epsilon residuals
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When a gene is perfectly fit by the design (initial OLS residuals at
 machine epsilon), ``mrlm`` and R ``MASS::rlm`` produce different
-``stdev_unscaled`` values - up to 15% relative difference. The trigger
-is exclusive to synthetic perfectly-fit rows; real proteomics or
-RNA-seq residuals are 6+ orders of magnitude above machine epsilon
-and unaffected.
+``stdev_unscaled`` values (8.5% apart on the sentinel test's input,
+0.7071 against 0.7724). Real residuals are far above machine epsilon; a
+row that is constant within each group (for example after group-wise
+imputation) is fitted perfectly by a group design and is affected.
 
 **Root cause.** R's ``lm.wfit`` uses LINPACK ``DQRDC2`` which produces
 mixed-sign machine-epsilon residuals on a degenerate row. scipy's
@@ -123,10 +135,12 @@ information about the underlying linear model.
 left as ``xfail`` rather than loosened, so any future numerical
 change that aligns the two patterns is detected automatically.
 
-**Note.** Downstream impact is zero: when a row hits this regime
-``sigma`` is also at machine epsilon, t-statistics are inf/NaN,
-and the empirical-Bayes posterior is dominated by the prior
-regardless of which "garbage" stdev was returned.
+**Downstream.** The ordinary t-statistic of such a row is infinite in
+both, but ``e_bayes`` multiplies the prior-dominated posterior standard
+deviation by ``stdev_unscaled``, so the moderated t differs: for a gene
+``1.5 - 0.3 * group`` among 200 random genes (design intercept plus a
+0/1 group, five samples), the moderated t is -1.457 in pylimma and -1.333
+in R, the p-value 0.184 and 0.219. The other genes agree to ``1e-13``.
 
 lowess fits through three or fewer points follow rounding noise
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -134,8 +148,9 @@ lowess fits through three or fewer points follow rounding noise
 pylimma's lowess (used by ``voom``, ``vooma``, ``loess_fit`` and so the
 trends of ``e_bayes`` and ``squeeze_var``, and cyclic loess) is a port of
 R's ``stats`` ``lowess.c``. It gives the same result, bit for bit, as
-that C code compiled without fused multiply-adds, as R is on x86-64
-Linux (8,800 test cases).
+that C code compiled without fused multiply-adds (8,800 test cases), as
+gcc compiles it for baseline x86-64, which has no fused multiply-add
+instruction. It has not been compared with a Linux build of R.
 
 **Root cause.** R on macOS arm64 is compiled with multiply-adds fused
 (clang's default), which changes the last bit of some sums. Where every
@@ -157,8 +172,9 @@ fit_f_dist_robustly: df2 root differs in the eighth digit
 ``robust=True``) finds ``df2`` with scipy's ``brentq``; R uses
 ``uniroot``, whose C ``zeroin`` is another implementation of Brent's
 method. Both stop at ``tol = 1e-8`` on the ``df2 / (1 + df2)`` scale, at
-slightly different points, so ``df2`` differs by up to ``1.3e-8``
-relative, more for large ``df2`` (where the root is near 1).
+slightly different points. ``df2`` differs by ``1.3e-8`` relative in
+the extreme-outlier fixture and by ``1e-15`` to ``1.3e-12`` in 37 ordinary
+cases (``df2`` up to 177).
 
 **Tolerance.** Inside ``rtol=1e-6``; the robust parity tests pass at
 ``1e-8`` except the extreme-outlier case, which is compared at
@@ -189,11 +205,13 @@ correct than the other; R's own result could change with its BLAS or
 platform. pylimma does not try to reproduce R's rounding.
 
 **Size.** On GSE60450 (voom weights, 12 samples, 6 residual df), contrast
-``luminal.pregnant - luminal.lactate``, p-values for 30 random sets
-differed from R by up to 2.1-fold given R's voom weights, and by up to
+``luminal.pregnant - luminal.lactate``, one draw of 30 random sets gave
+p-values up to 2.1-fold from R's given R's voom weights, and up to
 3.7-fold (5.3e-4 vs R's 1.4e-4) given pylimma's own voom weights, which
-differ from R's by only ``3e-13`` relative; the other two contrasts
-tested agreed with R to ``1e-14``. ``standardize="none"`` is affected too,
+differ from R's by only ``3e-13`` relative; another draw of 30 random
+50-gene sets gave up to 21.3-fold and 6.6-fold. R's own p-values move by
+up to 4.5-fold on that contrast when the voom weights are changed by
+``1e-13``. The other two contrasts tested agreed with R to ``1e-14``. ``standardize="none"`` is affected too,
 because ``fry`` averages each residual effect over the set's genes (0.934
 vs R's 0.930 for one of four sets of the synthetic fixture). Unweighted
 fits matched R in every case checked.
@@ -206,10 +224,13 @@ Deliberate divergences: intended rather than literal R behaviour
 ----------------------------------------------------------------
 
 Where R limma contains a clear bug, pylimma follows the behaviour the
-limma code evidently intends rather than reproducing the bug. Each
-case below is tested against a reference computed in R with the
-single-line correction applied, and the literal R behaviour is
-recorded in the fixtures alongside it.
+limma code evidently intends rather than reproducing the bug. Most
+cases below are tested against a reference computed in R with the
+correction applied, and the literal R behaviour is recorded in
+``generate_all_fixtures.R``; the ``plotMD`` / ``plotRLDF`` conditions
+have no such reference. The section also records choices where R's
+result depends on the R session or locale rather than on limma (names
+of unnamed gene sets, tie order, formula and contrast parsing).
 
 decide_tests: hierarchical method with a supplied genewise_p_value
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -323,9 +344,11 @@ at least the observed mean, so ties are decided by rounding. R's ``mean()``
 sums in long double: on Linux (x86-64, extended precision) a permutation of
 the same values ties exactly, and a set of all genes gives p = 1, but on
 platforms where long double is ordinary double (e.g. macOS on Apple
-silicon) the same call gives values such as 0.999 or 0.5. pylimma compares
-exactly rounded means (``math.fsum``), so ties are always exact and the
-result does not depend on the platform; it agrees with R on Linux.
+silicon) the same call gives values below 1 (0.975 to 0.981 in one check
+there). pylimma compares exactly rounded means (``math.fsum``), so ties
+are always exact and the result does not depend on the platform; this is
+expected to agree with R on Linux but has not been compared with a Linux
+build of R.
 
 ``top_go`` / ``top_kegg``: order of names tied on p-value and size
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -359,7 +382,8 @@ values, but their names and order can differ:
 Main-effect formulas such as ``~ group``, ``~ 0 + group`` and ``~ a + b``
 give R's columns in R's order. For other formulas, a coefficient position
 taken from R code (``coef = 3``) can refer to a different column;
-``model_matrix_with_names`` and the fit's ``coef_names`` give the names.
+``pylimma.contrasts.model_matrix_with_names`` and the fit's
+``coef_names`` give the names.
 
 ``make_contrasts`` without contrasts
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -390,8 +414,9 @@ accidents:
   every sample, as in ``voomaLmFit``.
 * A gene with no residual degrees of freedom has no variance estimate
   and is left out of the mean-variance trend. R's ``lowess`` computes
-  with its NA, which in a 200-gene test turned 89 of the 200 trend points
-  into NA and moved the other genes' weights by up to 18.5%.
+  with its NA: on the 200-gene test input, 56 of the 200 points of each
+  trend fit were NA, and keeping them moved the other genes' weights by up
+  to 31%.
   ``vooma_lm_fit`` does the same in both of its trend fits; its reference
   (``R_lowess_voomalmfit_*.csv``) is R's ``voomaLmFit`` with both
   ``lowess`` calls applied to the genes with a finite ``sigma``, which the
@@ -400,7 +425,8 @@ accidents:
   combines it with the average expression also leaves such genes out; R
   fails there (``lm.fit`` with "NA/NaN/Inf in 'y'"). If no gene has
   residual degrees of freedom, pylimma raises "no gene has residual
-  degrees of freedom", where R fails in the same way.
+  degrees of freedom"; R fails in its trend fit ("need at least two
+  non-NA values to interpolate").
 
 The reference fixtures (``R_vooma_na_*.csv``) come from ``vooma.R`` with
 ``lm.fit`` replaced by ``lmFit`` and such genes left out of the trend;

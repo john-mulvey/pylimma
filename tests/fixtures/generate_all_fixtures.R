@@ -7262,14 +7262,15 @@ stopifnot(identical(.aws_reml2$warnings, "iteration limit reached"),
 write.csv(data.frame(reml = .aws_reml2$value, prwts = .aws_prw2$value), "R_aws_maxiter2.csv", row.names = FALSE)
 
 # =============================================================================
-# arrayWeights: prior.n = Inf gives NaN weights (genebygene stops in lm.wfit,
-# reml warns) and maxiter = 0 still iterates (1:0)
+# arrayWeights: prior.n = Inf stops genebygene in lm.wfit, and REML warns and
+# returns weights of exactly 1; maxiter = 0 still iterates (1:0)
 # =============================================================================
 .awp_y <- as.matrix(read.csv("R_aws_maxiter_input.csv"))
 .awp_err <- function(expr) conditionMessage(tryCatch(expr, error = identity, warning = identity))
 stopifnot(grepl("missing or negative weights not allowed",
                 .awp_err(arrayWeights(.awp_y, method = "genebygene", prior.n = Inf))),
           grepl("convergence tolerance not achievable", .awp_err(arrayWeights(.awp_y, method = "reml", prior.n = Inf))),
+          identical(unname(suppressWarnings(arrayWeights(.awp_y, method = "reml", prior.n = Inf))), rep(1, 6)),
           !isTRUE(all.equal(suppressWarnings(arrayWeights(.awp_y, method = "reml", maxiter = 0)), rep(1, 6))))
 
 # =============================================================================

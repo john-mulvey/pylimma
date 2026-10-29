@@ -565,7 +565,8 @@ def array_weights(
     The weights are relative (their geometric mean is approximately 1)
     and can be incorporated into downstream analysis via lm_fit().
     """
-    # R's 1:maxiter runs twice for 0, and prior.n = Inf gives NaN weights
+    # R's 1:maxiter runs twice for 0; prior.n = Inf stops method="genebygene"
+    # and gives REML weights of exactly 1 with a warning
     maxiter = _whole_count(maxiter, "maxiter")
     prior_n = _r_scalar(prior_n)
     if not (isinstance(prior_n, numbers.Real) and np.isfinite(prior_n) and prior_n >= 0):

@@ -1231,9 +1231,10 @@ def fry(
     designs (e.g. ``~0 + group`` with a contrast between two groups) that
     basis is decided by the sign of a rounding-level number, so R and
     pylimma give different, equally valid bases for some genes. P-values
-    can then differ from R's, by up to about 4-fold on real data
-    with 6 residual degrees of freedom; the contrast effects and each gene's
-    residual sum of squares are the same. See
+    can then differ from R's several-fold (up to 21-fold for random sets on
+    one real dataset with 6 residual degrees of freedom; R's own p-values
+    moved 4.5-fold when the weights changed by 1e-13); the contrast effects
+    and each gene's residual sum of squares are the same. See
     ``docs/validation/known_differences.rst``.
     """
     y = _elist_from_layer(y, layer, weights_layer)
