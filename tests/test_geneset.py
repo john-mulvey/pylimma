@@ -40,6 +40,29 @@ def _load(name: str, **kwargs) -> pd.DataFrame:
     return pd.read_csv(FIXTURES / name, **kwargs)
 
 
+# Monte-Carlo p-values: numpy's generator and R's draw different rotations, so
+# one seed's p-values differ from R's by sampling error. The tests compare the
+# mean over the 30 seeds of R_rotation_seed_pvalues.csv with pylimma's mean
+# over 30 seeds, within MC_Z standard errors of their difference.
+MC_SEEDS = range(1, 31)
+MC_Z = 4.0  # arbitrary cut-off: two-sided, about 6e-5 per comparison under H0
+
+
+def _r_seed_pvalues(fun: str, statistic: str = "mean") -> dict:
+    r = _load("R_rotation_seed_pvalues.csv")
+    r = r[(r["fun"] == fun) & (r["statistic"] == statistic)]
+    return {key: grp.sort_values("seed")["p"].to_numpy() for key, grp in r.groupby(["set", "column"])}
+
+
+def _assert_seed_means_agree(r_p: np.ndarray, py_p: np.ndarray, label: str):
+    se = np.sqrt(r_p.var(ddof=1) / r_p.size + py_p.var(ddof=1) / py_p.size)
+    difference = abs(r_p.mean() - py_p.mean())
+    if se == 0:
+        assert difference <= 1e-12 * abs(r_p.mean()), label
+    else:
+        assert difference <= MC_Z * se, f"{label}: |{r_p.mean()} - {py_p.mean()}| > {MC_Z} * {se}"
+
+
 @pytest.fixture(scope="module")
 def geneset_data():
     y = _load("R_geneset_y.csv", index_col=0).values
@@ -144,22 +167,22 @@ def test_roast_single_set_deterministic_match(geneset_data):
     )
 
 
-def test_roast_pvalue_log_scale_match(geneset_data):
-    r_pvals = _load("R_roast_pvalues.csv", index_col=0)
-    py = roast(
-        geneset_data["y"],
-        index=geneset_data["gene_sets"]["setA"],
-        design=geneset_data["design"],
-        contrast=1,
-        nrot=999,
-        rng=4,
-    )
-    cmp = compare_pvalues(
-        r_pvals["P.Value"].values,
-        py["p_value"]["p_value"].values,
-        max_log10_diff=0.5,
-    )
-    assert cmp["match"], cmp
+def test_roast_pvalues_match_r_over_seeds(geneset_data):
+    r = _r_seed_pvalues("roast")
+    fits = [
+        roast(
+            geneset_data["y"],
+            index=geneset_data["gene_sets"]["setA"],
+            design=geneset_data["design"],
+            contrast=1,
+            nrot=999,
+            rng=seed,
+        )["p_value"]
+        for seed in MC_SEEDS
+    ]
+    for column in ("Down", "Up", "UpOrDown", "Mixed"):
+        py = np.array([fit.loc[column, "p_value"] for fit in fits])
+        _assert_seed_means_agree(r[("setA", column)], py, column)
 
 
 # ---------------------------------------------------------------------------
@@ -198,31 +221,25 @@ def test_mroast_active_proportions_match(geneset_data, set_statistic):
 
 
 @pytest.mark.parametrize("set_statistic", ["mean", "floormean", "mean50", "msq"])
-def test_mroast_pvalues_log_scale_match(geneset_data, set_statistic):
-    r = _load(f"R_mroast_{set_statistic}.csv", index_col=0)
-    py = mroast(
-        geneset_data["y"],
-        index=geneset_data["gene_sets"],
-        design=geneset_data["design"],
-        contrast=1,
-        set_statistic=set_statistic,
-        nrot=999,
-        rng=4,
-    )
-    r_sorted = r.sort_index()
-    py_sorted = py.sort_index()
-    cmp = compare_pvalues(
-        r_sorted["PValue"].values,
-        py_sorted["p_value"].values,
-        max_log10_diff=0.5,
-    )
-    assert cmp["match"], cmp
-    cmp_mixed = compare_pvalues(
-        r_sorted["PValue.Mixed"].values,
-        py_sorted["p_value_mixed"].values,
-        max_log10_diff=0.5,
-    )
-    assert cmp_mixed["match"], cmp_mixed
+def test_mroast_pvalues_match_r_over_seeds(geneset_data, set_statistic):
+    r = _r_seed_pvalues("mroast", set_statistic)
+    fits = [
+        mroast(
+            geneset_data["y"],
+            index=geneset_data["gene_sets"],
+            design=geneset_data["design"],
+            contrast=1,
+            set_statistic=set_statistic,
+            nrot=999,
+            rng=seed,
+            sort="none",
+        )
+        for seed in MC_SEEDS
+    ]
+    for set_name in geneset_data["gene_sets"]:
+        for col_py, col_r in [("p_value", "PValue"), ("p_value_mixed", "PValue.Mixed")]:
+            py = np.array([fit.loc[set_name, col_py] for fit in fits])
+            _assert_seed_means_agree(r[(set_name, col_r)], py, f"{set_statistic}/{set_name}/{col_py}")
 
 
 # ---------------------------------------------------------------------------
@@ -365,21 +382,26 @@ def test_camera_pr_matches_r(geneset_data):
 
 
 @pytest.mark.parametrize("set_statistic", ["mean", "floormean", "mean50"])
-def test_romer_pvalues_log_scale_match(geneset_data, set_statistic):
-    r = _load(f"R_romer_{set_statistic}.csv", index_col=0)
-    py = romer(
-        geneset_data["y"],
-        index=geneset_data["gene_sets"],
-        design=geneset_data["design"],
-        contrast=1,
-        set_statistic=set_statistic,
-        nrot=999,
-        rng=4,
-    )
-    np.testing.assert_array_equal(py["n_genes"].values, r["NGenes"].values)
-    for col_py, col_r in [("up", "Up"), ("down", "Down"), ("mixed", "Mixed")]:
-        cmp = compare_pvalues(r[col_r].values, py[col_py].values, max_log10_diff=0.5)
-        assert cmp["match"], f"{set_statistic}/{col_py}: {cmp}"
+def test_romer_pvalues_match_r_over_seeds(geneset_data, set_statistic):
+    r_ngenes = _load(f"R_romer_{set_statistic}.csv", index_col=0)["NGenes"]
+    r = _r_seed_pvalues("romer", set_statistic)
+    fits = [
+        romer(
+            geneset_data["y"],
+            index=geneset_data["gene_sets"],
+            design=geneset_data["design"],
+            contrast=1,
+            set_statistic=set_statistic,
+            nrot=999,
+            rng=seed,
+        )
+        for seed in MC_SEEDS
+    ]
+    np.testing.assert_array_equal(fits[0]["n_genes"].values, r_ngenes.values)
+    for set_name in geneset_data["gene_sets"]:
+        for col_py, col_r in [("up", "Up"), ("down", "Down"), ("mixed", "Mixed")]:
+            py = np.array([fit.loc[set_name, col_py] for fit in fits])
+            _assert_seed_means_agree(r[(set_name, col_r)], py, f"{set_statistic}/{set_name}/{col_py}")
 
 
 # ---------------------------------------------------------------------------
@@ -418,27 +440,21 @@ def test_gene_set_test_ranks_only_matches_r():
         assert cmp["match"], f"alt={row['alt']}: py={py}, r={row['p']}"
 
 
-def test_gene_set_test_simulation_matches_r_log_scale():
-    # Moderate-signal fixture so the Monte-Carlo p-value is not pinned to
-    # 1/(nsim+1) - the simulation path is then a real test of RNG parity
-    # rather than a floor-match coincidence.
+@pytest.mark.parametrize("alternative", ["mixed", "up", "either"])
+def test_gene_set_test_simulation_matches_r_over_seeds(alternative):
+    # Moderate signal, so the Monte-Carlo p-values are not pinned to
+    # 1/(nsim+1)
     stat_vec = _load("R_genesettest_sim_input.csv")["statistic"].values
-    r = pd.read_csv(
-        FIXTURES / "R_geneSetTest_sim.csv",
-        header=None,
-        names=["seed", "alt", "p"],
+    r = _r_seed_pvalues("geneSetTest")[("1:40", alternative)]
+    py = np.array(
+        [
+            gene_set_test(
+                np.arange(40), stat_vec, alternative=alternative, ranks_only=False, nsim=9999, rng=seed
+            )
+            for seed in MC_SEEDS
+        ]
     )
-    for _, row in r.iterrows():
-        py = gene_set_test(
-            np.arange(40),
-            stat_vec,
-            alternative=row["alt"],
-            ranks_only=False,
-            nsim=9999,
-            rng=int(row["seed"]),
-        )
-        cmp = compare_pvalues(np.array([row["p"]]), np.array([py]), max_log10_diff=0.5)
-        assert cmp["match"], f"seed={row['seed']} alt={row['alt']}: {cmp}"
+    _assert_seed_means_agree(r, py, alternative)
 
 
 # ---------------------------------------------------------------------------

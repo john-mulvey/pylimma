@@ -2125,24 +2125,49 @@ write.csv(data.frame(less = rstc["less"], greater = rstc["greater"]),
           "R_rank_sum_test_with_correlation.csv", row.names = FALSE)
 
 # geneSetTest simulation path with a MODERATE signal so the Monte-Carlo
-# p-value is not pinned to 1/(nsim+1). Runs nsim=9999 at several seeds so
-# the Python parity test has something non-trivial to compare against.
+# p-value is not pinned to 1/(nsim+1) (used by the seed comparison below)
 cat("  geneSetTest simulation (moderate signal)...\n")
 set.seed(7)
 stat_mod <- rnorm(n_genes_geneset)
 stat_mod[1:40] <- stat_mod[1:40] + 0.35   # modest uplift
 write.csv(data.frame(statistic = stat_mod),
           "R_genesettest_sim_input.csv", row.names = FALSE)
-if (file.exists("R_geneSetTest_sim.csv")) file.remove("R_geneSetTest_sim.csv")
-for (seed in c(1L, 11L, 101L)) {
+
+# Monte-Carlo p-values (roast, mroast, romer, geneSetTest simulation) over 30
+# seeds: R's and numpy's generators draw different rotations, so a single
+# seed's p-values differ by sampling error; the test compares the means over
+# seeds within their Monte-Carlo standard error
+cat("  rotation tests over 30 seeds...\n")
+.mc_seeds <- 1:30
+.mc_rows <- list()
+.mc_add <- function(fun, statistic, set, column, seed, p)
+  .mc_rows[[length(.mc_rows) + 1L]] <<- data.frame(fun = fun, statistic = statistic, set = set,
+                                                   column = column, seed = seed, p = p)
+for (seed in .mc_seeds) {
+  set.seed(seed)
+  .mc_r <- roast(y_geneset, index = gene.sets$setA, design = design_geneset,
+                 contrast = contrast_geneset, nrot = 999)
+  .mc_add("roast", "mean", "setA", rownames(.mc_r$p.value), seed, .mc_r$p.value$P.Value)
+  for (ss in c("mean", "floormean", "mean50", "msq")) {
+    set.seed(seed)
+    .mc_m <- mroast(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
+                    set.statistic = ss, nrot = 999, sort = "none")
+    .mc_add("mroast", ss, rownames(.mc_m), "PValue", seed, .mc_m$PValue)
+    .mc_add("mroast", ss, rownames(.mc_m), "PValue.Mixed", seed, .mc_m$PValue.Mixed)
+  }
+  for (ss in c("mean", "floormean", "mean50")) {
+    set.seed(seed)
+    .mc_o <- romer(y_geneset, index = gene.sets, design = design_geneset, contrast = contrast_geneset,
+                   set.statistic = ss, nrot = 999)
+    for (col in c("Up", "Down", "Mixed")) .mc_add("romer", ss, rownames(.mc_o), col, seed, .mc_o[, col])
+  }
   for (alt in c("mixed", "up", "either")) {
     set.seed(seed)
-    p <- geneSetTest(index = 1:40, statistics = stat_mod,
-                     alternative = alt, ranks.only = FALSE, nsim = 9999)
-    write(paste(seed, alt, p, sep = ","),
-          file = "R_geneSetTest_sim.csv", append = TRUE)
+    .mc_add("geneSetTest", "mean", "1:40", alt, seed,
+            geneSetTest(index = 1:40, statistics = stat_mod, alternative = alt, ranks.only = FALSE, nsim = 9999))
   }
 }
+write.csv(do.call(rbind, .mc_rows), "R_rotation_seed_pvalues.csv", row.names = FALSE)
 
 # convest + propTrueNull: pi0 estimation on a p-value vector with known
 # pi0 ~ 0.7 (700 nulls + 300 alternatives)

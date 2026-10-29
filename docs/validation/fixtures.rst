@@ -56,8 +56,9 @@ P-values                                              log10 scale: ``rtol=1e-6``
                                                       of ``1e-6``
 ``normexp_fit(method="saddle")`` parameters           ``rtol=1e-3`` (see
                                                       :doc:`known_differences`)
-Rotation-test Monte-Carlo p-values                    log10 scale, max diff 0.5
-                                                      (see :doc:`known_differences`)
+Rotation-test Monte-Carlo p-values                    mean over 30 seeds within 4
+                                                      standard errors of R's (see
+                                                      :doc:`known_differences`)
 ====================================================  ============================
 
 Deterministic statistics are coefficients, standard errors, t and F

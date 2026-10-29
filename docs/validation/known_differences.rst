@@ -85,20 +85,18 @@ Monte-Carlo rotation tests (``roast``, ``mroast``, ``romer``, ``gene_set_test``)
 Rotation-based gene-set tests draw rotations from NumPy's PCG64 RNG.
 R uses the Mersenne Twister inside its own ``sample.int`` / ``rnorm``
 C routines. The two streams cannot be aligned byte-for-byte from the
-same seed. Deterministic summaries match R to ``rtol=1e-15``:
-
-- ``ngenes_in_set``
-- observed test statistics
-- active proportions ("PropDown" / "PropUp")
-- the rotated-effects matrix when the rotation seed is matched
-  post-rotation (e.g. via ``compare_pvalues(max_log10_diff=0.5)``)
+same seed. Results that do not depend on the rotations match R to
+``rtol=1e-6``: the number of genes in each set and the active
+proportions ("PropDown" / "PropUp").
 
 Monte-Carlo p-values from ``roast`` / ``mroast`` / ``romer`` /
-``gene_set_test`` agree with R within sampling error.
-
-**Tolerance.** Empirically ~0.3 log10 (factor of 2) between R and
-pylimma at ``nrot=999`` on the gene-set-testing fixture data, well
-inside the documented ``max_log10_diff=0.5`` threshold.
+``gene_set_test`` agree with R within sampling error, but a single
+seed's p-values can differ widely: on the test data at ``nrot=999``,
+pylimma and R differ by up to 0.85 on the log10 scale for some seeds,
+and R run with two different seeds differs from itself by up to 1.08.
+The tests therefore compare the mean p-value over 30 seeds on each side,
+which must agree within four standard errors of their difference
+(``tests/test_geneset.py``).
 
 mrlm stdev_unscaled drifts up to ~15% on machine-epsilon residuals
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
