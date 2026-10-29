@@ -33,7 +33,7 @@ RNG note
 R's Mersenne-Twister stream is not reproduced byte-for-byte on the Python
 side; these functions take an ``rng`` argument that is forwarded to
 ``numpy.random.default_rng``. Deterministic summaries (``ngenes``,
-observed set statistics, active proportions) match R to machine precision;
+active proportions) match R to ``rtol=1e-6``;
 Monte-Carlo p-values from independently-seeded streams agree to within
 the Monte-Carlo sampling error (see ``docs/validation/known_differences.rst``).
 """
@@ -1231,7 +1231,7 @@ def fry(
     designs (e.g. ``~0 + group`` with a contrast between two groups) that
     basis is decided by the sign of a rounding-level number, so R and
     pylimma give different, equally valid bases for some genes. P-values
-    can then differ from R's several-fold (up to 21-fold for random sets on
+    can then differ from R's several-fold (up to 42-fold for random sets on
     one real dataset with 6 residual degrees of freedom; R's own p-values
     moved 4.5-fold when the weights changed by 1e-13); the contrast effects
     and each gene's residual sum of squares are the same. See
@@ -1820,6 +1820,13 @@ def romer(
     layer : str, optional
         AnnData only. Name of an ``adata.layers`` entry to use in place of
         ``adata.X`` (e.g. ``"voom_E"``).
+
+    Notes
+    -----
+    ``index`` takes positions or a boolean mask; gene IDs raise an error, as
+    R's ``romer`` fails for them. ``nrot`` must be a whole number of at
+    least 1 (R's ``romer`` runs with ``nrot = 0`` and can return p-values
+    above 1). See ``docs/validation/known_differences.rst``.
     """
     y = _elist_from_layer(y, layer)
     nrot = _whole_count(nrot, "nrot")

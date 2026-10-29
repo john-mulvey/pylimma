@@ -340,8 +340,9 @@ class TestRigorousMrlm:
             "Documented divergence on perfectly-fit rows: R's LINPACK DQRDC2 "
             "and scipy's LAPACK SVD produce different machine-epsilon residual "
             "noise patterns, so the iter-1 MAD scale Huber-downweights different "
-            "samples. Real-world impact zero (residuals are 6+ orders above "
-            "machine eps in real data). See docs/validation/known_differences.rst."
+            "samples. Reached by rows that the design fits exactly (e.g. constant "
+            "within each group); the moderated t then differs. See "
+            "docs/validation/known_differences.rst."
         ),
     )
     def test_b9c_zero_residual_scale(self):

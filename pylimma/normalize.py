@@ -119,6 +119,10 @@ def normalize_between_arrays(
     Two-channel methods (``"Aquantile"``, ``"Gquantile"``, ``"Rquantile"``,
     ``"Tquantile"``) are not supported; pylimma operates on single-channel
     expression matrices only.
+
+    With ``method="quantile"``, a column with fewer than two non-missing
+    values raises a ValueError (R's ``approx()`` stops). See
+    ``docs/validation/known_differences.rst``.
     """
     # Polymorphic input: ndarray / dict / EList / AnnData.
     original_input = object
@@ -773,6 +777,13 @@ def normexp_fit(
         ``par`` : ndarray of length 3 = ``(mu, log(sigma), log(alpha))``
         ``m2loglik`` : float, only present for the saddle / mle paths
         ``convergence`` : int, only present for the saddle / mle paths
+
+    Notes
+    -----
+    ``method="saddle"`` parameters differ from R's by about 2e-4 to 5e-4
+    (relative) on typical data and more on flat likelihoods, because scipy's
+    Nelder-Mead stops at a different point of the flat objective. See
+    ``docs/validation/known_differences.rst``.
     """
     x = np.asarray(x, dtype=np.float64)
     x = x[~np.isnan(x)]
@@ -938,7 +949,7 @@ def normexp_signal(par: np.ndarray, x: np.ndarray) -> np.ndarray:
     # continued fraction 1 / (z + 2 / (z + 3 / (z + ...))), without
     # cancellation; for 0 < z <= 3, h = sqrt(2 / pi) / erfcx(z / sqrt(2)) is
     # exact and the remaining subtraction loses at most about one digit.
-    # R's own value is off by up to ~3% when sigma^2 / alpha is large
+    # R's own value is off by up to ~6% when sigma^2 / alpha is large
     # (known_differences.rst)
     z = -mu_sf / sigma
     signal = np.asarray(mu_sf + sigma * np.exp(_scipy_norm.logpdf(z) - _scipy_norm.logsf(z)))

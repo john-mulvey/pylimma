@@ -7269,7 +7269,8 @@ write.csv(data.frame(reml = .aws_reml2$value, prwts = .aws_prw2$value), "R_aws_m
 
 # =============================================================================
 # arrayWeights: prior.n = Inf stops genebygene in lm.wfit, and REML warns and
-# returns weights of exactly 1; maxiter = 0 still iterates (1:0)
+# returns weights of exactly 1; maxiter = 0 still iterates (the loop stops at
+# iter == maxiter, which 0 never meets, or at convergence)
 # =============================================================================
 .awp_y <- as.matrix(read.csv("R_aws_maxiter_input.csv"))
 .awp_err <- function(expr) conditionMessage(tryCatch(expr, error = identity, warning = identity))

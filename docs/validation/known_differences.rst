@@ -22,12 +22,12 @@ normexp fits drift from R on flat likelihoods
 
 ``normexp_fit(method="saddle")`` parameters differ from R's by ``2e-4``
 (relative) on the first column of the normexp fixture matrix, ``3.4e-4``
-to ``4.9e-4`` on its other columns, ``8.5e-4`` on the larger ``npts``
+to ``4.9e-4`` on its other columns, ``1.7e-4`` on the ``n_pts=200``
 fixture and ``2.7e-2`` on the flat-likelihood fixture; the objective
-function value agrees to ``6e-9`` to ``1.4e-8``, pylimma's always slightly
-lower. ``method="mle"`` matches R to ``5e-15`` on the first column,
-``4.5e-9`` to ``8e-9`` on the others and ``3e-7`` on the flat-likelihood
-fixture. ``method="rma75"`` matches R at floating-point precision.
+function value agrees to ``2.3e-9`` to ``1.4e-8``, pylimma's always
+slightly lower. ``method="mle"`` matches R to between ``9e-16`` and
+``8e-9`` on the fixture matrix's columns and to ``3e-7`` on the
+flat-likelihood fixture. ``method="rma75"`` matches R at floating-point precision.
 
 **Root cause.** scipy's Nelder-Mead and R's ``nmmin`` implement the same
 algorithm but differ in the initial simplex, the termination rule and
@@ -44,8 +44,9 @@ flat-likelihood fixture it falls from ``2.7e-2`` to ``1.0e-2``); the fit
 keeps its own settings.
 
 **Tolerance.** Parity tests for ``method="saddle"`` use
-``rtol=1e-3``. All other normexp methods are at ``rtol=1e-10`` or
-better.
+``rtol=1e-3``. The other normexp methods are at ``rtol=1e-10`` or
+better, except ``method="mle"`` on the flat-likelihood fixture
+(``rtol=1e-6``).
 
 genas covariance and correlations drift from R on flat likelihoods
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -58,10 +59,10 @@ The reflection and shrink steps are scipy's, so the search ends at a
 slightly different point of the flat likelihood. On the fixtures the
 deviance agrees with R to ``7.5e-8``, the p-value to ``1.8e-6`` and the
 fitted covariance matrix and biological correlation to ``6e-4`` (all
-relative). On six random 500-gene datasets the deviance differed by up to
-``4.4e-5``, the p-value by up to ``1.8e-5`` and the covariance and
-correlations by up to ``4e-3``; near the null (deviance ``2.7e-5``) the
-deviance differed by 42% and the covariance by 16%.
+relative). Of six random 500-gene datasets, five differed by up to
+``4.4e-5`` in the deviance, ``1.8e-5`` in the p-value and ``4e-3`` in the
+covariance and correlations; in the sixth, near the null, the deviance
+differed by 42% and the covariance by 16%.
 
 **Tolerance.** Parity tests use ``rtol=1e-6`` for the deviance, the
 log-scale comparison for the p-value and ``rtol=1e-3`` for the
@@ -85,7 +86,7 @@ for ``z > 3`` and ``h = sqrt(2/pi) / erfcx(z / sqrt(2))`` for ``0 < z <=
 3``. It is exact to rounding, so it differs from R by R's own error. That
 error is below ``1e-12`` for most fits, but not always: for an ``mle`` fit
 to a pure-noise array (``sigma^2 / alpha = 786``) pylimma and R differ by
-``3.6e-9``, R's own error there being ``3.3e-9``.
+``3.6e-9``, which is R's own error there.
 
 **Tolerance.** Parity tests compare with the exact values at
 ``rtol=1e-12`` and with R at ``rtol=1e-4`` (``alpha = 0.01``) and
@@ -104,8 +105,9 @@ proportions ("PropDown" / "PropUp").
 Monte-Carlo p-values from ``roast`` / ``mroast`` / ``romer`` /
 ``gene_set_test`` agree with R within sampling error, but a single
 seed's p-values can differ widely: on the test data at ``nrot=999``,
-pylimma and R differ by up to 0.85 on the log10 scale for some seeds,
-and R run with two different seeds differs from itself by up to 1.08.
+pylimma and R with the same seed number differ by up to 0.90 on the
+log10 scale over seeds 1 to 30, and R differs from itself between those
+seeds by up to 1.04.
 The tests therefore compare the mean p-value over 30 seeds on each side,
 which must agree within four standard errors of their difference
 (``tests/test_geneset.py``).
@@ -138,9 +140,10 @@ change that aligns the two patterns is detected automatically.
 **Downstream.** The ordinary t-statistic of such a row is infinite in
 both, but ``e_bayes`` multiplies the prior-dominated posterior standard
 deviation by ``stdev_unscaled``, so the moderated t differs: for a gene
-``1.5 - 0.3 * group`` among 200 random genes (design intercept plus a
-0/1 group, five samples), the moderated t is -1.457 in pylimma and -1.333
-in R, the p-value 0.184 and 0.219. The other genes agree to ``1e-13``.
+``1.5 - 0.3 * group`` among random genes (eight samples, design
+intercept plus a 0/1 group of four), the moderated t is -1.457 in pylimma
+and -1.333 in R, the p-value 0.184 and 0.219. The other genes agree to
+``1e-13``.
 
 lowess fits through three or fewer points follow rounding noise
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -148,7 +151,7 @@ lowess fits through three or fewer points follow rounding noise
 pylimma's lowess (used by ``voom``, ``vooma``, ``loess_fit`` and so the
 trends of ``e_bayes`` and ``squeeze_var``, and cyclic loess) is a port of
 R's ``stats`` ``lowess.c``. It gives the same result, bit for bit, as
-that C code compiled without fused multiply-adds (8,800 test cases), as
+that C code compiled without fused multiply-adds (1,224 test cases), as
 gcc compiles it for baseline x86-64, which has no fused multiply-add
 instruction. It has not been compared with a Linux build of R.
 
@@ -173,8 +176,8 @@ fit_f_dist_robustly: df2 root differs in the eighth digit
 ``uniroot``, whose C ``zeroin`` is another implementation of Brent's
 method. Both stop at ``tol = 1e-8`` on the ``df2 / (1 + df2)`` scale, at
 slightly different points. ``df2`` differs by ``1.3e-8`` relative in
-the extreme-outlier fixture and by ``1e-15`` to ``1.3e-12`` in 37 ordinary
-cases (``df2`` up to 177).
+the extreme-outlier fixture and by 0 to ``1.3e-12`` in 37 ordinary cases
+(``df2`` up to 177).
 
 **Tolerance.** Inside ``rtol=1e-6``; the robust parity tests pass at
 ``1e-8`` except the extreme-outlier case, which is compared at
@@ -205,13 +208,13 @@ correct than the other; R's own result could change with its BLAS or
 platform. pylimma does not try to reproduce R's rounding.
 
 **Size.** On GSE60450 (voom weights, 12 samples, 6 residual df), contrast
-``luminal.pregnant - luminal.lactate``, one draw of 30 random sets gave
-p-values up to 2.1-fold from R's given R's voom weights, and up to
-3.7-fold (5.3e-4 vs R's 1.4e-4) given pylimma's own voom weights, which
-differ from R's by only ``3e-13`` relative; another draw of 30 random
-50-gene sets gave up to 21.3-fold and 6.6-fold. R's own p-values move by
-up to 4.5-fold on that contrast when the voom weights are changed by
-``1e-13``. The other two contrasts tested agreed with R to ``1e-14``. ``standardize="none"`` is affected too,
+``luminal.pregnant - luminal.lactate``, p-values for draws of 30 random
+50-gene sets differed from R's by up to 21-fold in one draw and 42-fold
+in another given R's voom weights, and by up to 6.6-fold given pylimma's
+own voom weights, which differ from R's by ``2e-13`` relative. R's own
+p-values move by up to 4.5-fold on that contrast when the voom weights
+are changed by ``1e-13``. The other two contrasts tested agreed with R to
+``6e-13``. ``standardize="none"`` is affected too,
 because ``fry`` averages each residual effect over the set's genes (0.934
 vs R's 0.930 for one of four sets of the synthetic fixture). Unweighted
 fits matched R in every case checked.
@@ -229,8 +232,9 @@ cases below are tested against a reference computed in R with the
 correction applied, and the literal R behaviour is recorded in
 ``generate_all_fixtures.R``; the ``plotMD`` / ``plotRLDF`` conditions
 have no such reference. The section also records choices where R's
-result depends on the R session or locale rather than on limma (names
-of unnamed gene sets, tie order, formula and contrast parsing).
+result depends on the R session or locale rather than on limma (tie
+order, formula and contrast parsing), and limma's own naming of unnamed
+gene sets.
 
 decide_tests: hierarchical method with a supplied genewise_p_value
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -306,8 +310,8 @@ itself creates for missing ``x`` or ``df1 < 0.01`` - limma 3.66.0
 multiplies by ``NULL`` and returns ``scale = NaN`` (``squeeze_var`` then
 has no prior). pylimma fits without weights the values whose prior weight
 is positive, leaving out those with zero weight as R does when three or
-more values are informative: ``x = (1.2, 0.8, NA)`` with ``df1 = (2, 3,
-2)`` gives the scale of ``(1.2, 0.8)`` alone, 1.445. Zero variances with
+more values are informative: ``x = (1.2, 0.8, NA, NA)`` with ``df1 = (2,
+3, 2, 2)`` gives the scale of ``(1.2, 0.8)`` alone, 1.445. Zero variances with
 a positive weight stay in the fit, as in R. Clearing R's flag together
 with the weights instead would count the missing values as zero
 variances (scale 8e-6 in this example). ``tests/rigorous/test_fit_f_dist_unequal_df1.py``
@@ -565,9 +569,9 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     ``p < NA`` gives an all-NA result. With several coefficients,
     ``classify_tests_f`` raises for a ``p_value`` outside 0..1, a ``df``
     that leaves no F threshold (0 or NaN) and a ``cor_matrix`` with missing
-    values or no positive eigenvalue. R warns "NaNs produced" from ``qf``
-    and then fails in ``if()`` ("missing value where TRUE/FALSE needed")
-    for such a ``p_value`` or ``df``, and fails in ``eigen()`` for such a
+    values or no positive eigenvalue. R fails in ``if()`` ("missing value
+    where TRUE/FALSE needed") for such a ``p_value`` or ``df``, after
+    warning "NaNs produced" from ``qf`` except for ``df = NaN``, and fails in ``eigen()`` for such a
     ``cor_matrix`` ("infinite or missing values in 'x'" with missing
     values, "NA/NaN argument" for an all-zero matrix).
     ``generate_all_fixtures.R`` records the R behaviour.
@@ -665,7 +669,7 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     Must be whole numbers of at least 1 (whole-number floats such as
     ``1e4`` are accepted). Below 1, R's ``roast`` and ``mroast`` fail with
     "invalid 'nrow' value"; R's ``romer`` with ``nrot = 0`` returns
-    p-values (Up 1, Down 3, Mixed 3 in one check) and ``geneSetTest``
+    p-values, which can exceed 1, and ``geneSetTest``
     returns 3 for ``nsim = 0`` and ``Inf`` for ``nsim = -1``; for a fraction such as
     10.5, R recycles random numbers into a 10-row rotation matrix and uses
     10.5 in the p-value denominators, which is not meaningful.
@@ -674,8 +678,9 @@ A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_cor
     Must be whole numbers (whole-number floats such as 2.0 work); pylimma
     raises "ndups must be a whole number". R fails in ``dim<-`` ("dims do
     not match the length of object") for a fraction such as ``ndups = 2.5``
-    or ``spacing = 1.5``; ``duplicateCorrelation`` with ``ndups = 1.5``
-    takes its ``ndups < 2`` path, warns and returns a correlation of 0.
+    or ``spacing = 1.5``. ``duplicate_correlation`` with ``ndups`` below 2
+    (including 1.5) warns "No duplicates" and returns a correlation of 0,
+    as R does.
 
 ``lm_fit`` with ``ndups > 1`` and ``block``
     Raises "ndups > 1 cannot be combined with block". R's ``gls.series``
@@ -844,8 +849,9 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
     ``generate_all_fixtures.R`` records the R behaviour.
 
 ``array_weights`` ``maxiter`` and ``prior_n``
-    ``maxiter`` must be a whole number of at least 1; R's ``1:maxiter``
-    runs two iterations for ``maxiter = 0``. ``prior_n`` must be a finite
+    ``maxiter`` must be a whole number of at least 1; R's REML loop stops
+    only when the iteration count equals ``maxiter`` or the weights
+    converge, so ``maxiter = 0`` runs to convergence. ``prior_n`` must be a finite
     number of 0 or more: R runs with ``prior.n = -1``, gives weights of 1
     for ``NaN``, and for ``Inf`` gives REML weights of exactly 1 with a
     "convergence tolerance not achievable" warning while
@@ -860,8 +866,9 @@ Formula strings with an ordered categorical (``model_matrix``, ``lm_fit``, the `
 ``top_table`` with a ``genelist`` of the wrong length
     Raises "genelist must have one entry per gene". R's ``genelist[top, ]``
     gives NA annotation for the rows past the end of a short genelist and
-    silently ignores the extra rows of a long one; pylimma 0.2.0 attached
-    the annotation to the wrong rows.
+    silently ignores the extra rows of a long one. pylimma 0.2.0 raised an
+    IndexError for a short DataFrame genelist and dropped the annotation of
+    a list of the wrong length.
 
 Column subsets of a rank-deficient fit
 --------------------------------------
@@ -943,7 +950,8 @@ returns ``t`` and ``p.value`` as vectors (``lods`` as one column).
 
 ``avereps`` treats a numeric NaN probe ID as missing, as for ``None``:
 in pandas NaN is the missing value. It warns "missing values for
-'group'", joins the group of missing IDs and keeps NaN as the label. R
+'group'" and joins the group of missing IDs, labelled by the first of
+them. R
 reads a numeric NaN as the ID "NaN", a group of its own apart from NA,
 and does not warn, so the results differ when NaN and missing IDs both
 occur (``ID = c(1, NA, NaN)`` gives three rows in R, two in pylimma).
@@ -983,8 +991,8 @@ and Down in red and blue.
 Not yet ported
 --------------
 
-``goana`` with ``trend``, and ``goana`` / ``kegga`` with ``prior_prob`` or
-``covariate``, need the Wallenius noncentral hypergeometric test that R
+``goana`` / ``kegga`` with ``trend`` (on a fit), ``prior_prob`` or
+``covariate`` need the Wallenius noncentral hypergeometric test that R
 takes from ``BiasedUrn``. pylimma raises ``NotImplementedError`` for them
 until that port; R returns bias-corrected p-values. (pylimma 0.2.0
 silently ignored ``prior_prob``.)

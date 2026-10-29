@@ -69,9 +69,10 @@ documented in :doc:`known_differences`:
 - lowess fits through three or fewer points (fewer than about 20
   points with a small span) follow last-bit rounding, which differs
   between builds of R: R on macOS arm64 fuses multiply-adds. pylimma
-  follows R's ``lowess.c`` without fused multiply-adds, as R is on x86-64
-  Linux; with four or more points per fit it matches R on macOS arm64 to
-  4e-11 relative.
+  follows R's ``lowess.c`` compiled without fused multiply-adds (as gcc
+  compiles it for baseline x86-64; not compared with a Linux build of R);
+  with four or more points per fit it matches R on macOS arm64 to 4e-11
+  relative.
 
 The same page also lists the deliberate divergences, where pylimma
 follows the behaviour limma's code evidently intends rather than its

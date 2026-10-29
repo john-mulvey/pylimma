@@ -564,8 +564,13 @@ def array_weights(
 
     The weights are relative (their geometric mean is approximately 1)
     and can be incorporated into downstream analysis via lm_fit().
+
+    ``maxiter`` must be a whole number of at least 1 (R's REML loop runs to
+    convergence for 0) and ``prior_n`` a finite number of 0 or more (R runs
+    with -1, NaN and Inf). See ``docs/validation/known_differences.rst``.
     """
-    # R's 1:maxiter runs twice for 0; prior.n = Inf stops method="genebygene"
+    # R's REML loop stops at iter == maxiter, so maxiter = 0 runs to
+    # convergence; prior.n = Inf stops method="genebygene"
     # and gives REML weights of exactly 1 with a warning
     maxiter = _whole_count(maxiter, "maxiter")
     prior_n = _r_scalar(prior_n)
