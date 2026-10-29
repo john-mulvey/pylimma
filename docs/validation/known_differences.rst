@@ -487,8 +487,14 @@ Logical subscripts of the wrong length (``EList`` / ``MArrayLM`` subsetting)
     an empty data frame. A logical ``coef`` raises "coef must be
     coefficient positions or names, not logical"; R's ``coef = TRUE``
     fails while building the table ("duplicate 'row.names' are not
-    allowed"). ``generate_all_fixtures.R`` records the R
-    behaviour.
+    allowed"). A longer logical ``coef`` passes through ``unique()``
+    before R uses it as a subscript, so only its first ``TRUE`` and
+    ``FALSE`` survive and are recycled: with three coefficients,
+    ``c(FALSE, TRUE, TRUE)`` tests the second alone and
+    ``c(TRUE, FALSE, FALSE)`` the first and third. A mask gives the
+    intended columns only when ``unique()`` happens to leave it unchanged
+    (for example ``c(TRUE, FALSE)`` with two coefficients).
+    ``generate_all_fixtures.R`` records the R behaviour.
 
 A missing ``block`` label (``lm_fit``, ``gls_series``, ``voom``, ``duplicate_correlation``)
     Raises "block contains missing values" for a NaN, None or pandas NA

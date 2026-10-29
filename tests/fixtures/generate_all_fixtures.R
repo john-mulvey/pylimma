@@ -6565,6 +6565,12 @@ stopifnot(identical(dim(contrasts.fit(.cf_fit, coefficients = 1)$coefficients), 
 stopifnot(identical(topTable(.tt_fit, coef = 2.0), topTable(.tt_fit, coef = 2L)),
           inherits(try(suppressWarnings(topTable(.tt_fit, coef = TRUE)), silent = TRUE), "try-error"),
           identical(dim(topTable(.tt_fit, coef = integer(0))), c(0L, 0L)))
+# a logical coef longer than 1 goes through unique() before subscripting, so a
+# mask keeps its first TRUE and FALSE only and is recycled: c(FALSE, TRUE, TRUE)
+# tests column 2 alone and c(TRUE, FALSE, FALSE) columns 1 and 3
+.tt_fit3 <- eBayes(lmFit(matrix(rnorm(60), 10), cbind(a = 1, b = rep(0:1, 3), c = rep(c(0, 0, 1), 2))))
+stopifnot(identical(colnames(topTable(.tt_fit3, coef = c(FALSE, TRUE, TRUE)))[1:2], c("b", "AveExpr")),
+          identical(topTable(.tt_fit3, coef = c(TRUE, FALSE, FALSE)), topTable(.tt_fit3, coef = c(1, 3))))
 
 # =============================================================================
 # eBayes / treat argument checks: a fit with no genes fails "No finite
