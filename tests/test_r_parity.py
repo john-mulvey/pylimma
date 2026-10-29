@@ -8169,7 +8169,9 @@ class TestGenasRParity:
         for key in ("deviance", "p_value", "biological_correlation", "n"):
             np.testing.assert_array_equal(by_name[key], by_position[key])
 
-    @pytest.mark.parametrize("case", ["strong", "subset_all", "subset_Fpval"])
+    @pytest.mark.parametrize(
+        "case", ["strong", "subset_all", "subset_Fpval", "subset_logFC", "subset_predFC"]
+    )
     def test_results_match_r(self, case):
         """Deviance and p-value as R (optim's Nelder-Mead settings); the
         fitted covariance and correlations only to the optimiser's
@@ -8182,7 +8184,7 @@ class TestGenasRParity:
             out = genas(e_bayes(lm_fit(y, np.kron(np.eye(3), np.ones((2, 1))))), coef=(0, 1))
         else:
             y = load_r_csv_no_index("genas_subset_y").to_numpy()
-            subset = "all" if case == "subset_all" else "Fpval"
+            subset = case.removeprefix("subset_")
             out = genas(e_bayes(lm_fit(y, self.X)), coef=(1, 2), subset=subset)
         assert out["n"] == r["n"]
         np.testing.assert_allclose(out["deviance"], r["deviance"], rtol=1e-6)

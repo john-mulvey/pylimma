@@ -75,8 +75,8 @@ documented in :doc:`known_differences`:
 
 The same page also lists the deliberate divergences, where pylimma
 follows the behaviour limma's code evidently intends rather than its
-literal behaviour (for example the ``genas`` logFC / predFC
-re-centring, ``decide_tests(method="hierarchical")`` with a supplied
+literal behaviour (for example ``decide_tests(method="hierarchical")``
+with a supplied
 ``genewise_p_value`` and missing values in ``normalize_cyclic_loess``
 with ``"pairs"`` / ``"affy"``); the cases where pylimma raises a clear
 error where R fails obscurely or behaves accidentally; the EList design

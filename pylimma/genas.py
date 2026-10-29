@@ -89,27 +89,20 @@ def _mult_t_loglik(x, B, V, s, df_total, m=2) -> float:
 
 
 def _which_genes(fit_subset, subset: str):
-    """Return (keep_mask, modified_coefficients_or_None).
-
-    For "logFC" and "predFC" the coefficients are re-centred after the
-    kept mask is chosen - callers should apply the returned
-    coefficients to the fit before optimisation.
-    """
+    """Return the mask of genes that the subset rule keeps."""
     from .ebayes import pred_fcm
     from .utils import prop_true_null
 
     n_genes = fit_subset["coefficients"].shape[0]
     coef1 = np.asarray(fit_subset["coefficients"])[:, 0]
     coef2 = np.asarray(fit_subset["coefficients"])[:, 1]
-    new_coef = None
 
     if subset == "Fpval":
         fp = np.asarray(fit_subset["F_p_value"], dtype=np.float64)
         p = 1.0 - prop_true_null(fp)
         r = stats.rankdata(fp, method="average")
         cut = p * n_genes
-        keep = r <= cut
-        return keep, None
+        return r <= cut
 
     if subset == "p.union":
         p1 = 1.0 - prop_true_null(np.asarray(fit_subset["p_value"])[:, 0])
@@ -117,10 +110,10 @@ def _which_genes(fit_subset, subset: str):
         cut1 = p1 * n_genes
         cut2 = p2 * n_genes
         if p1 == 0 and p2 == 0:
-            return np.zeros(n_genes, dtype=bool), None
+            return np.zeros(n_genes, dtype=bool)
         r1 = stats.rankdata(fit_subset["p_value"][:, 0], method="average")
         r2 = stats.rankdata(fit_subset["p_value"][:, 1], method="average")
-        return (r1 <= cut1) | (r2 <= cut2), None
+        return (r1 <= cut1) | (r2 <= cut2)
 
     if subset == "p.int":
         p1 = 1.0 - prop_true_null(np.asarray(fit_subset["p_value"])[:, 0])
@@ -129,52 +122,24 @@ def _which_genes(fit_subset, subset: str):
         r2 = stats.rankdata(fit_subset["p_value"][:, 1], method="average")
         cut1 = p1 * n_genes
         cut2 = p2 * n_genes
-        return (r1 <= cut1) & (r2 <= cut2), None
+        return (r1 <= cut1) & (r2 <= cut2)
 
-    # DELIBERATE DIVERGENCE FROM R LIMMA.
-    # R genas.R:200-202 contains
-    #
-    #     fit$coeff[,1] <- sign(fit$coeff[,1]) * (abs(fit$coeff[,1]) - q1)
-    #     fit$coeff[,2] <- sign(fit$coeff[,2]) * (abs(fit$coeff[,2]) - q2)
-    #
-    # which **appears** to re-centre the coefficients above the 90th-
-    # percentile threshold before the downstream MLE. R's ``$`` does
-    # partial matching on READ but not on WRITE, so ``fit$coeff[,1] <- x``
-    # creates a new ``coeff`` slot instead of updating ``coefficients``.
-    # The downstream likelihood (.multTLogLik at genas.R:115, 141)
-    # reads ``fit$coefficients``, so R's "logFC" and "predFC" subsets
-    # effectively ignore the re-centring and run the MLE on the raw
-    # coefficients of the kept genes.
-    #
-    # pylimma applies the re-centring as the author clearly intended
-    # (reading the author's intent from the surrounding code + help
-    # page). Numerical output therefore diverges from R for these two
-    # subsets; see the docstring note and ``docs/validation/known_differences.rst``.
+    # R genas.R:201-202 and 211-214 also assign re-centred values,
+    # sign(x) * (abs(x) - q), to fit$coeff. R's $<- does not partial-match, so
+    # this creates a new list element and the likelihood reads the unchanged
+    # fit$coefficients: in R these rules only choose the genes, as genas.Rd
+    # describes them.
     if subset == "logFC":
         q1 = float(np.quantile(np.abs(coef1), 0.9))
         q2 = float(np.quantile(np.abs(coef2), 0.9))
-        keep = (np.abs(coef1) > q1) | (np.abs(coef2) > q2)
-        new_coef = np.column_stack(
-            [
-                np.sign(coef1) * (np.abs(coef1) - q1),
-                np.sign(coef2) * (np.abs(coef2) - q2),
-            ]
-        )
-        return keep, new_coef
+        return (np.abs(coef1) > q1) | (np.abs(coef2) > q2)
 
     if subset == "predFC":
         pfc1 = pred_fcm(fit_subset, coef=0)
         pfc2 = pred_fcm(fit_subset, coef=1)
         q1 = float(np.quantile(np.abs(pfc1), 0.9))
         q2 = float(np.quantile(np.abs(pfc2), 0.9))
-        keep = (np.abs(pfc1) > q1) | (np.abs(pfc2) > q2)
-        new_coef = np.column_stack(
-            [
-                np.sign(pfc1) * (np.abs(pfc1) - q1),
-                np.sign(pfc2) * (np.abs(pfc2) - q2),
-            ]
-        )
-        return keep, new_coef
+        return (np.abs(pfc1) > q1) | (np.abs(pfc2) > q2)
 
     raise ValueError(f"Unknown subset rule: {subset!r}")
 
@@ -226,16 +191,10 @@ def genas(
 
     Notes
     -----
-    **Deliberate divergence from R for subset="logFC" and
-    subset="predFC".** R's ``genas.R`` writes its re-centred
-    coefficients to a ``fit$coeff`` slot (partial match on the
-    read-side only - R's ``$<-`` does not partial-match), so the
-    ``fit$coefficients`` slot that feeds the downstream MLE is never
-    actually re-centred. This is a latent bug in R limma; pylimma
-    applies the re-centring as the author's code clearly intended.
-    For ``subset in {"all", "Fpval", "p.union", "p.int"}`` pylimma
-    matches R's numerical output to within optimiser tolerance.
-    See ``docs/validation/known_differences.rst``.
+    For ``subset="logFC"`` and ``subset="predFC"``, R's code also assigns
+    re-centred coefficients to ``fit$coeff``, but R's ``$<-`` does not
+    partial-match, so they never reach the likelihood. pylimma follows R:
+    these rules only choose the genes, as limma's help page describes them.
     """
     from .ebayes import e_bayes
     from .utils import _r_nelder_mead, fit_gamma_intercept
@@ -323,13 +282,11 @@ def genas(
 
     # Apply subset filter to the coef-subset fit (R .whichGenes path)
     if subset != "all":
-        keep_mask, new_coef = _which_genes(fit2, subset)
+        keep_mask = _which_genes(fit2, subset)
         if not keep_mask.any():
             return out
         # R: fit[genes, ], the MArrayLM subset of the per-gene slots
         fit2 = MArrayLM(fit2)[keep_mask, :]
-        if new_coef is not None:
-            fit2["coefficients"] = new_coef[keep_mask, :]
         # R re-runs eBayes on the filtered subset
         fit2 = e_bayes(fit2, trend=trend, robust=robust)
 

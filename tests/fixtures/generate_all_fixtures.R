@@ -6651,8 +6651,16 @@ write.csv(.gr_y, "R_genas_y.csv", row.names = FALSE)
 write.csv(rbind(
   .gr_case("strong", eBayes(lmFit(.gr_y, model.matrix(~ 0 + factor(c(1, 1, 2, 2, 3, 3))))), coef = c(1, 2)),
   .gr_case("subset_all", .gr_sub, coef = c(2, 3)),
-  .gr_case("subset_Fpval", .gr_sub, coef = c(2, 3), subset = "Fpval")),
+  .gr_case("subset_Fpval", .gr_sub, coef = c(2, 3), subset = "Fpval"),
+  .gr_case("subset_logFC", .gr_sub, coef = c(2, 3), subset = "logFC"),
+  .gr_case("subset_predFC", .gr_sub, coef = c(2, 3), subset = "predFC")),
   "R_genas.csv", row.names = FALSE)
+# .whichGenes assigns its re-centred values to fit$coeff, a new list element
+# ($<- does not partial-match), so the likelihood reads the unchanged
+# fit$coefficients of the kept genes: "logFC" and "predFC" only subset
+.gr_coeff <- .gr_sub[, 2:3]
+.gr_coeff$coeff[, 1] <- 0
+stopifnot("coeff" %in% names(.gr_coeff), identical(.gr_coeff$coefficients, .gr_sub[, 2:3]$coefficients))
 
 # =============================================================================
 # backgroundCorrect on an EListRaw uses its Eb (and drops it)

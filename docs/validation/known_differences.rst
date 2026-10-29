@@ -274,16 +274,6 @@ intent: ``plot_md`` raises "status has multiple columns" unless the status
 has one column per coefficient, and ``plot_rldf`` raises ``ndim`` to the
 largest shown dimension and rejects one beyond the samples.
 
-genas: logFC / predFC subsets re-centre the coefficients
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-In ``genas(subset="logFC")`` and ``genas(subset="predFC")``, limma
-assigns the re-centred coefficients to ``fit$coeff``. R's ``$<-`` does
-not partial-match, so this creates a new list element and the
-re-centring never reaches the likelihood, which reads
-``fit$coefficients``. pylimma applies the re-centring as the code
-intends.
-
 fit_f_dist_unequal_df1: two informative values with zero prior weights
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
