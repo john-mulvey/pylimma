@@ -941,6 +941,13 @@ unnamed, so R's names depend on the path taken.
 that read the fit; R keeps the coefficients a vector and its ``eBayes``
 returns ``t`` and ``p.value`` as vectors (``lods`` as one column).
 
+``avereps`` treats a numeric NaN probe ID as missing, as for ``None``:
+in pandas NaN is the missing value. It warns "missing values for
+'group'", joins the group of missing IDs and keeps NaN as the label. R
+reads a numeric NaN as the ID "NaN", a group of its own apart from NA,
+and does not warn, so the results differ when NaN and missing IDs both
+occur (``ID = c(1, NA, NaN)`` gives three rows in R, two in pylimma).
+
 ``plot_md`` accepts a column name as well as a position for a matrix or
 DataFrame; R's ``plotMD.default`` takes a position only.
 
