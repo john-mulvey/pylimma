@@ -192,10 +192,35 @@ class TestAvereps:
         with pytest.warns(UserWarning, match="missing values for 'group'"):
             np.testing.assert_array_equal(avereps(x, ID=["a", np.nan, pd.NA]), [[1, 4], [2.5, 5.5]])
         np.testing.assert_array_equal(avereps(x, ID=[1, 1.0, 2]), [[1.5, 4.5], [3, 6]])
+        # a numeric NaN is pandas' missing value: one group, with the warning
+        # (R's NaN ID "NaN" gives the same averages without it)
+        with pytest.warns(UserWarning, match="missing values for 'group'"):
+            by_nan = avereps(pd.DataFrame(x), ID=[1.0, np.nan, np.nan])
+        np.testing.assert_array_equal(by_nan.to_numpy(), [[1, 4], [2.5, 5.5]])
+        # a one-column matrix is a vector (R's as.character)
+        np.testing.assert_array_equal(
+            avereps(x, ID=np.array([["a"], ["b"], ["a"]])), avereps(x, ID=["a", "b", "a"])
+        )
         with pytest.raises(ValueError, match="incorrect length for 'group'"):
             avereps(x, ID=["a", "b"])
+        # a single ID is a vector of one
+        np.testing.assert_array_equal(avereps(x[:1], ID="a"), x[:1])
         with pytest.raises(ValueError, match="ID must be a vector"):
-            avereps(x, ID=np.array([["a"], ["a"], ["b"]]))
+            avereps(x, ID=np.array([["a", "b"], ["a", "c"], ["b", "d"]]))
+
+    def test_one_column_id_matrix_for_every_input_class(self):
+        anndata = pytest.importorskip("anndata")
+        from pylimma import EList
+
+        x = np.arange(1.0, 7.0).reshape(2, 3).T
+        vector, column = ["a", "b", "a"], np.array([["a"], ["b"], ["a"]])
+        np.testing.assert_array_equal(
+            avereps(EList({"E": x}), ID=column)["E"], avereps(EList({"E": x}), ID=vector)["E"]
+        )
+        adata = anndata.AnnData(X=x.T)
+        np.testing.assert_array_equal(
+            avereps(adata, ID=column.T).X, avereps(adata, ID=vector).X
+        )
 
     def test_preserves_order(self):
         """Test that unique IDs are in order of first appearance (via

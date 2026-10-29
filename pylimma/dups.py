@@ -27,7 +27,13 @@ import pandas as pd
 from scipy import linalg, sparse
 
 from .classes import EList, _eawp_design, _frame_like, _is_anndata, get_eawp
-from .utils import _as_dense_array, _block_labels, _r_as_character, _r_trimmed_mean, _whole_count
+from .utils import (
+    _as_dense_array,
+    _block_labels,
+    _r_as_character,
+    _r_trimmed_mean,
+    _whole_count,
+)
 
 
 def _mixed_model_2_fit(
@@ -468,7 +474,12 @@ def avereps(
         Probe identifiers. Probes with the same ID are averaged. If
         None and ``x`` is a DataFrame, ``x.index`` is used. If no
         source of IDs is available, raises ``ValueError`` matching
-        R's ``"No probe IDs"`` error.
+        R's ``"No probe IDs"`` error. As R reads it through
+        ``as.character``, a single ID or a one-column matrix of IDs is a
+        vector. Missing IDs (None, pandas NA, NaN) form one group, with
+        R's warning "missing values for 'group'". R reads a numeric NaN as
+        the ID "NaN", a group of its own apart from NA, without the
+        warning; the two agree unless NaN and missing IDs both occur.
 
     Returns
     -------
@@ -506,6 +517,14 @@ def avereps(
     carried over as is (a stored fit still describes the original
     probes).
     """
+    if ID is not None:
+        ID = np.asarray(ID, dtype=object)
+        # R: as.character(ID), so a single ID and a one-column (or one-row)
+        # matrix are vectors
+        if ID.ndim == 0 or (ID.ndim == 2 and 1 in ID.shape):
+            ID = ID.ravel()
+        if ID.ndim != 1:
+            raise ValueError("ID must be a vector of probe identifiers")
     if _is_anndata(x):
         return _avereps_anndata(x, ID=ID)
 
@@ -533,8 +552,6 @@ def avereps(
     if arr.ndim == 1:
         arr = arr.reshape(-1, 1)  # R: as.matrix(x)
     ID = np.asarray(ID, dtype=object)
-    if ID.ndim != 1:
-        raise ValueError("ID must be a vector of probe identifiers")
     if len(ID) != arr.shape[0]:
         # R: rowsum(x, ID) stops with this
         raise ValueError("incorrect length for 'group'")
@@ -561,8 +578,9 @@ def _replicate_groups(ID: np.ndarray, warn: bool = True) -> tuple[np.ndarray, np
     """The group of each probe and the position of each group's first
     probe, as R's avereps forms them: IDs compared as as.character(ID) (1
     and 1.0 are one probe), groups in order of first appearance, and
-    missing IDs (None, NaN) one group of their own, which R's rowsum warns
-    about."""
+    missing IDs (None, pandas NA, NaN) one group of their own, which R's
+    rowsum warns about. A numeric NaN is pandas' missing value, so it joins
+    that group and warns too (R's NaN ID, "NaN", is a group of its own)."""
     # missing on the raw IDs: as.character text turns NaN into "NaN"
     missing = pd.isna(np.asarray(ID, dtype=object))
     keys = _r_as_character(ID)
