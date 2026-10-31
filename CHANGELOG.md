@@ -5,7 +5,7 @@ parity target is limma 3.66.0 (Bioconductor 3.22, R 4.5). Before 1.0, a
 minor version (0.x.0) may change results or behaviour; a patch version
 (0.x.y) does not.
 
-## [Unreleased]
+## [0.3.0] - 2026-10-31
 
 This release follows further review of pylimma to verify parity with R
 limma 3.66.0 (fuzz testing, code review against R limma's source).
